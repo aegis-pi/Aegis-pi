@@ -1,0 +1,22 @@
+.codex
+
+# OS files
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Conda
+.conda/
+
+# Local environment files
+.env
+.env.*
