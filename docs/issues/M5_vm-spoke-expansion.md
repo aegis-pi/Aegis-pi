@@ -136,7 +136,7 @@ VM 환경에서 실센서 없이 표준 입력 스키마에 맞는 더미 데이
   - `normal`: 정상 범위 값 생성
   - `warning`: 주의 범위 값 생성
   - `danger`: 위험 범위 값 생성
-  - 구체 수치는 `docs/ops/test_checklist.md` 기반 테스트 후 보정
+  - 구체 수치는 `docs/ops/03_test_checklist.md` 기반 테스트 후 보정
 - [ ] 시나리오 전환 방법 구현 (예: 환경변수, ConfigMap)
 - [ ] IoT Core 연결 및 메시지 전송 로직 (Edge Agent와 동일 방식)
 - [ ] `factory-b`, `factory-c`에 각각 배포

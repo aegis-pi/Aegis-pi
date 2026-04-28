@@ -154,7 +154,7 @@
 - 테스트베드형 시나리오
 - Failover 시나리오
 - 롤백 시나리오
-- `docs/ops/test_checklist.md` 전수 보정
+- `docs/ops/03_test_checklist.md` 전수 보정
 
 ## 운영형 / 테스트베드형 평가 차이
 

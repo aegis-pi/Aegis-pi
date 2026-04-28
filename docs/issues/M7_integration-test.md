@@ -1,7 +1,7 @@
 # M7. 통합 검증
 
 > **마일스톤 목표**: 3개 Spoke + Hub 전체를 연결하여 시나리오별 end-to-end 검증을 완료하고,  
-> `docs/ops/test_checklist.md`의 모든 보정 항목을 마무리하여 `docs/`와 `configs/` 기준 문서를 실제 구현 상태와 일치시킨다.  
+> `docs/ops/03_test_checklist.md`의 모든 보정 항목을 마무리하여 `docs/`와 `configs/` 기준 문서를 실제 구현 상태와 일치시킨다.  
 > M0~M6 전체 완료 후 진행한다.
 
 ---
@@ -140,11 +140,11 @@ Worker-2 장애 → Worker-1 AI 감시 승계 → Longhorn 데이터 보존 → 
 
 ---
 
-## Issue 5 - [검증/Test Checklist] `docs/ops/test_checklist.md` 전수 보정
+## Issue 5 - [검증/Test Checklist] `docs/ops/03_test_checklist.md` 전수 보정
 
 ### 🎯 목표 (What & Why)
 
-`docs/ops/test_checklist.md`에 정리된 "테스트 후 정할 것" 항목들을 실측 결과를 기반으로 모두 보정한다.  
+`docs/ops/03_test_checklist.md`에 정리된 "테스트 후 정할 것" 항목들을 실측 결과를 기반으로 모두 보정한다.  
 이 이슈가 완료되어야 설계 문서와 실제 구현이 일치하는 상태가 된다.
 
 ### ✅ 완료 조건 (Definition of Done)
@@ -169,7 +169,7 @@ Worker-2 장애 → Worker-1 AI 감시 승계 → Longhorn 데이터 보존 → 
 
 ### 🔍 Acceptance Criteria
 
-- `docs/ops/test_checklist.md`의 모든 체크 항목 완료 표시
+- `docs/ops/03_test_checklist.md`의 모든 체크 항목 완료 표시
 - 보정된 수치가 각 관련 문서에 반영됨
 - 미확정 상태로 남아 있는 항목이 없음 (후속 확장 항목 제외)
 

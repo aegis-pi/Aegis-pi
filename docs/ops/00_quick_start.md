@@ -35,16 +35,16 @@
 - `factory-b`, `factory-c`용 VM 환경을 만들 수 있는가
 - Tailscale 가입/키 발급 방식이 정리되어 있는가
 - 현재 구조 기준 문서를 읽었는가
-  - `docs/architecture/current_architecture.md`
+  - `docs/architecture/00_current_architecture.md`
   - `docs/planning/02_implementation_plan.md`
-  - `docs/ops/safe_edge_bootstrap.md`
+  - `docs/ops/01_safe_edge_bootstrap.md`
 
 ## 어디서부터 시작할지 판단
 
 ### 아직 `factory-a` Safe-Edge 기준선이 없는 경우
 
 - 이 문서에서 전체 순서를 확인한 뒤
-- 바로 `docs/ops/safe_edge_bootstrap.md`로 이동한다.
+- 바로 `docs/ops/01_safe_edge_bootstrap.md`로 이동한다.
 
 ### `factory-a`는 이미 있고 Hub 확장부터 시작하는 경우
 
@@ -79,7 +79,7 @@
 - Safe-Edge 기준선 완료 조건을 만족한다.
 
 상세 문서:
-- `docs/ops/safe_edge_bootstrap.md`
+- `docs/ops/01_safe_edge_bootstrap.md`
 
 ### 2. M1 AWS Hub 준비
 
@@ -153,7 +153,7 @@
 - 운영형, 테스트베드형, Failover, 롤백 시나리오를 전체 검증한다.
 
 완료 판단:
-- `docs/ops/test_checklist.md` 보정 완료
+- `docs/ops/03_test_checklist.md` 보정 완료
 - 문서와 실제 구현이 일치한다.
 
 ## 빠른 확인 포인트
@@ -177,13 +177,13 @@
 ## 다음에 읽을 문서
 
 - Safe-Edge 실제 복구:
-  - `docs/ops/safe_edge_bootstrap.md`
+  - `docs/ops/01_safe_edge_bootstrap.md`
 - 현재 구조 이해:
-  - `docs/architecture/current_architecture.md`
+  - `docs/architecture/00_current_architecture.md`
 - 단계 계획:
   - `docs/planning/02_implementation_plan.md`
 - 대시보드 요구사항:
-  - `docs/specs/monitoring_dashboard/requirements.md`
+  - `docs/specs/monitoring_dashboard/00_requirements.md`
 
 ## TODO
 

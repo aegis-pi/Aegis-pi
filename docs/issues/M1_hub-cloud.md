@@ -50,7 +50,7 @@ Risk Score Engine 독립 운영이 가능하다.
   - `risk` - Risk Score Engine, 정규화 서비스
   - `ops-support` - `pipeline_status` 집계 보조 기능
 - [ ] 각 네임스페이스에 기본 ResourceQuota 또는 LimitRange 설정 (선택)
-- [ ] 네임스페이스 구조를 `docs/architecture/current_architecture.md` 또는 Hub 운영 문서에 반영
+- [ ] 네임스페이스 구조를 `docs/architecture/00_current_architecture.md` 또는 Hub 운영 문서에 반영
 
 ### 🔍 Acceptance Criteria
 

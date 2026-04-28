@@ -74,7 +74,7 @@
   - Aegis-Pi 확장 방향
   - 구현 순서상의 의미
 
-### 4. `docs/architecture/current_architecture.md`
+### 4. `docs/architecture/00_current_architecture.md`
 
 - 역할:
   - 현재 freeze된 구조를 구현 기준으로 설명
@@ -88,7 +88,7 @@
   - Risk 모델 요약
   - 운영형/테스트베드형 차이
 
-### 5. `docs/ops/safe_edge_bootstrap.md`
+### 5. `docs/ops/01_safe_edge_bootstrap.md`
 
 - 역할:
   - `factory-a` Safe-Edge 기준선을 다시 구성하는 운영 가이드
@@ -100,7 +100,7 @@
   - K3s/MetalLB/Longhorn/GitOps/모니터링 복구 순서
   - 확인 방법
 
-### 6. `docs/specs/monitoring_dashboard/requirements.md`
+### 6. `docs/specs/monitoring_dashboard/00_requirements.md`
 
 - 역할:
   - 본사 관제 대시보드의 기능 요구사항 정의
@@ -114,7 +114,7 @@
   - 이상 시스템 목록 요구사항
   - 로그 요구사항
 
-### 7. `docs/product/mvp_scope.md`
+### 7. `docs/product/00_mvp_scope.md`
 
 - 역할:
   - MVP에 포함되는 것과 제외되는 것을 명확히 구분
@@ -144,7 +144,7 @@
   - 현재 성공 기준
   - 실측 필요 항목
 
-### 3. `docs/product/user_flow.md`
+### 3. `docs/product/01_user_flow.md`
 
 - 역할:
   - 본사 관제 담당자 사용 흐름 정리
@@ -153,7 +153,7 @@
   - 기본 흐름
   - 예외 흐름
 
-### 4. `docs/ops/quick_start.md`
+### 4. `docs/ops/00_quick_start.md`
 
 - 역할:
   - 시작 순서를 짧게 안내
@@ -161,7 +161,7 @@
   - 빠른 시작 절차
   - 빠른 확인 포인트
 
-### 5. `docs/ops/self_check.md`
+### 5. `docs/ops/02_self_check.md`
 
 - 역할:
   - 구성 후 빠른 상태 점검용 체크리스트
@@ -171,7 +171,7 @@
   - 데이터 플레인 점검
   - Risk Twin 점검
 
-### 6. `docs/ops/troubleshooting.md`
+### 6. `docs/ops/04_troubleshooting.md`
 
 - 역할:
   - 대표 장애 유형과 점검 방향 정리
@@ -183,7 +183,7 @@
 
 ## 3차 후속 문서
 
-### 1. `docs/architecture/target_architecture.md`
+### 1. `docs/architecture/01_target_architecture.md`
 
 - 역할:
   - 미래 확장 구조 정리
@@ -192,7 +192,7 @@
   - analysis 계층
   - 데이터 플레인 확장
 
-### 2. `docs/specs/monitoring_dashboard/screen_plan.md`
+### 2. `docs/specs/monitoring_dashboard/01_screen_plan.md`
 
 - 역할:
   - 라우트와 화면 상세 설계
@@ -201,7 +201,7 @@
   - 상태별 UI
   - 예외 흐름
 
-### 3. `docs/specs/monitoring_dashboard/api_spec.md`
+### 3. `docs/specs/monitoring_dashboard/02_api_spec.md`
 
 - 역할:
   - API 초안 정리
@@ -210,7 +210,7 @@
   - request/response
   - error behavior
 
-### 4. `docs/specs/monitoring_dashboard/data_model.md`
+### 4. `docs/specs/monitoring_dashboard/03_data_model.md`
 
 - 역할:
   - 조회 데이터 모델과 저장 경계 정리
@@ -238,7 +238,7 @@
 
 아래 순서는 "파일 생성 순서"가 아니라, 지금 시점에서 내용을 더 구체화해야 하는 실제 작업 순서다.
 
-1. `docs/ops/safe_edge_bootstrap.md`
+1. `docs/ops/01_safe_edge_bootstrap.md`
    - 이유:
      - 실제 구현은 `factory-a` Safe-Edge 기준선에서 시작하기 때문
      - 하드웨어, K3s, Longhorn, GitOps, 모니터링의 선행 순서를 여기서 먼저 잠가야 한다.
@@ -247,7 +247,7 @@
      - 완료 기준
      - Safe-Edge 완료 후 Aegis-Pi로 넘어가는 조건
 
-2. `docs/architecture/current_architecture.md`
+2. `docs/architecture/00_current_architecture.md`
    - 이유:
      - Safe-Edge 기준선 이후 Hub/Spoke 구조를 구현 기준으로 다시 확인해야 하기 때문
    - 보강 목표:
@@ -255,7 +255,7 @@
      - 운영형/테스트베드형 차이
      - 제어/데이터 평면 경계 명확화
 
-3. `docs/specs/monitoring_dashboard/requirements.md`
+3. `docs/specs/monitoring_dashboard/00_requirements.md`
    - 이유:
      - 관제 화면이 최종 사용자에게 보이는 핵심 산출물이기 때문
    - 보강 목표:

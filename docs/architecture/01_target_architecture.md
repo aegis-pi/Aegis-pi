@@ -10,7 +10,7 @@
 ## 현재 상태
 
 - 현재 MVP 구조는 확정되었고, 본 문서는 후속 확장 방향을 정리한 초안이다.
-- 현재 구현 기준은 `docs/architecture/current_architecture.md`를 따른다.
+- 현재 구현 기준은 `docs/architecture/00_current_architecture.md`를 따른다.
 - 아직 구현하지 않을 확장 항목은 이 문서에서만 관리하고, 현재 구현 기준과 섞지 않는다.
 
 ## 범위
@@ -47,8 +47,8 @@
 - event를 보조 가중치로 볼지, 상태 승격으로 볼지 정책이 정리될 것
 
 후속 문서 후보:
-- `docs/specs/events/requirements.md`
-- `docs/specs/events/data_model.md`
+- `docs/specs/events/00_requirements.md`
+- `docs/specs/events/03_data_model.md`
 
 ### 2. Analysis 계층
 

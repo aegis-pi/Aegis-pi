@@ -199,8 +199,8 @@
 
 ## 구현 메모
 
-- 이 문서는 `requirements.md`를 화면 구조 관점으로 풀어쓴 문서다.
-- 실제 API/데이터 형태는 `api_spec.md`, `data_model.md`에서 맞춘다.
+- 이 문서는 `00_requirements.md`를 화면 구조 관점으로 풀어쓴 문서다.
+- 실제 API/데이터 형태는 `02_api_spec.md`, `03_data_model.md`에서 맞춘다.
 
 ## TODO
 

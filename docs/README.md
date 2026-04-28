@@ -31,10 +31,10 @@
 ### 읽기 우선순위
 
 1. `planning/00_project_overview.md`
-2. `product/mvp_scope.md`
-3. `architecture/current_architecture.md`
-4. `ops/safe_edge_bootstrap.md`
-5. `specs/monitoring_dashboard/requirements.md`
+2. `product/00_mvp_scope.md`
+3. `architecture/00_current_architecture.md`
+4. `ops/01_safe_edge_bootstrap.md`
+5. `specs/monitoring_dashboard/00_requirements.md`
 6. `planning/04_document_creation_priority.md`
 7. `issues/` 하위 마일스톤 문서
 
@@ -44,22 +44,22 @@
 
 1. `planning/00_project_overview.md`
 2. `planning/01_safe_edge_transition.md`
-3. `architecture/current_architecture.md`
+3. `architecture/00_current_architecture.md`
 4. `planning/02_implementation_plan.md`
 
 #### 실제 구축을 시작할 때
 
-1. `ops/quick_start.md`
-2. `ops/safe_edge_bootstrap.md`
+1. `ops/00_quick_start.md`
+2. `ops/01_safe_edge_bootstrap.md`
 3. `planning/02_implementation_plan.md`
 4. `planning/03_evaluation_plan.md`
 
 #### 관제 화면을 구현하거나 수정할 때
 
-1. `specs/monitoring_dashboard/requirements.md`
-2. `specs/monitoring_dashboard/screen_plan.md`
-3. `specs/monitoring_dashboard/api_spec.md`
-4. `specs/monitoring_dashboard/data_model.md`
+1. `specs/monitoring_dashboard/00_requirements.md`
+2. `specs/monitoring_dashboard/01_screen_plan.md`
+3. `specs/monitoring_dashboard/02_api_spec.md`
+4. `specs/monitoring_dashboard/03_data_model.md`
 
 ### 핵심 원칙
 
@@ -94,8 +94,8 @@
 
 - `docs/`의 구현 순서는 현재 `M0 -> M7` 흐름을 기준으로 정리되어 있다.
 - `planning/02_implementation_plan.md`와 `planning/03_evaluation_plan.md`는 마일스톤 기준으로 다시 맞춰져 있다.
-- `ops/quick_start.md`와 `ops/safe_edge_bootstrap.md`는 실제 구축 시작 순서와 연결된다.
-- `architecture/current_architecture.md`는 현재 MVP 기준 구조만 설명하고, 확장 구조는 `architecture/target_architecture.md`로 분리한다.
+- `ops/00_quick_start.md`와 `ops/01_safe_edge_bootstrap.md`는 실제 구축 시작 순서와 연결된다.
+- `architecture/00_current_architecture.md`는 현재 MVP 기준 구조만 설명하고, 확장 구조는 `architecture/01_target_architecture.md`로 분리한다.
 - `presentation/`과 `report/`는 현재 구조를 요약한 문서이며, 실제 구현 산출물의 source of truth는 아니다.
 
 ## TODO

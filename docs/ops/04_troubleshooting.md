@@ -31,7 +31,7 @@
    - Mesh VPN
    - 데이터 플레인
    - Risk Twin
-2. `self_check.md`에서 실패한 항목을 확인한다.
+2. `02_self_check.md`에서 실패한 항목을 확인한다.
 3. 이 문서에서 같은 증상을 찾고 우선 확인 순서대로 본다.
 
 ## 1. `factory-a` Safe-Edge 기준선이 정상적으로 올라오지 않음
@@ -54,7 +54,7 @@
 - 기본 모니터링 입력 여부
 
 다음 조치:
-- `docs/ops/safe_edge_bootstrap.md` 기준으로 단계 역추적
+- `docs/ops/01_safe_edge_bootstrap.md` 기준으로 단계 역추적
 - Safe-Edge 기준선이 안정화되기 전까지 Hub 확장은 보류
 
 ## 2. ArgoCD 동기화가 실패함

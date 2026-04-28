@@ -199,49 +199,50 @@ docs/
 │   ├── 02_implementation_plan.md  # 단계별 구현 계획
 │   └── 03_evaluation_plan.md      # 테스트 및 평가 전략
 ├── architecture/     # 구조 설계
-│   ├── current_architecture.md    # 현재 freeze된 설계 기준
-│   └── target_architecture.md     # MVP 이후 확장 방향
+│   ├── 00_current_architecture.md    # 현재 freeze된 설계 기준
+│   └── 01_target_architecture.md     # MVP 이후 확장 방향
 ├── product/          # 제품 정의
-│   ├── mvp_scope.md               # MVP 포함/제외 범위
-│   └── user_flow.md               # 사용자 흐름
+│   ├── 00_mvp_scope.md               # MVP 포함/제외 범위
+│   └── 01_user_flow.md               # 사용자 흐름
 ├── specs/            # 기능 스펙
 │   └── monitoring_dashboard/      # 관제 대시보드 상세 스펙
-│       ├── requirements.md
-│       ├── screen_plan.md
-│       ├── api_spec.md
-│       └── data_model.md
+│       ├── 00_requirements.md
+│       ├── 01_screen_plan.md
+│       ├── 02_api_spec.md
+│       └── 03_data_model.md
 ├── ops/              # 운영 가이드
-│   ├── quick_start.md
-│   ├── safe_edge_bootstrap.md
-│   ├── self_check.md
-│   └── troubleshooting.md
+│   ├── 00_quick_start.md
+│   ├── 01_safe_edge_bootstrap.md
+│   ├── 02_self_check.md
+│   ├── 03_test_checklist.md
+│   └── 04_troubleshooting.md
 ├── demo/             # 시연 가이드
-│   ├── demo_scenario.md
-│   └── demo_ops_notes.md
+│   ├── 01_demo_scenario.md
+│   └── 00_demo_ops_notes.md
 ├── presentation/     # 발표·보고 자료
-│   ├── advisor_brief.md
-│   └── review_summary.md
+│   ├── 00_advisor_brief.md
+│   └── 01_review_summary.md
 └── report/           # 보고서
-    ├── executive_summary.md
-    └── report_draft.md
+    ├── 00_executive_summary.md
+    └── 01_report_draft.md
 ```
 
 ### 📖 추천 읽기 순서
 
 **구조를 이해할 때**
 1. `planning/00_project_overview.md`
-2. `architecture/current_architecture.md`
+2. `architecture/00_current_architecture.md`
 3. `planning/02_implementation_plan.md`
 
 **구축을 시작할 때**
-1. `ops/quick_start.md`
-2. `ops/safe_edge_bootstrap.md`
+1. `ops/00_quick_start.md`
+2. `ops/01_safe_edge_bootstrap.md`
 3. `planning/03_evaluation_plan.md`
 
 **관제 화면을 구현할 때**
-1. `specs/monitoring_dashboard/requirements.md`
-2. `specs/monitoring_dashboard/screen_plan.md`
-3. `specs/monitoring_dashboard/api_spec.md`
+1. `specs/monitoring_dashboard/00_requirements.md`
+2. `specs/monitoring_dashboard/01_screen_plan.md`
+3. `specs/monitoring_dashboard/02_api_spec.md`
 
 ---
 

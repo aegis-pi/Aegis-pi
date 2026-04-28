@@ -40,7 +40,7 @@
 
 - 핵심 항목은 모두 `예`여야 다음 단계로 넘어간다.
 - 보조 항목은 일부 미정이어도 진행 가능하지만, 데모 직전에는 다시 확인한다.
-- 하나라도 실패하면 `troubleshooting.md`를 먼저 본다.
+- 하나라도 실패하면 `04_troubleshooting.md`를 먼저 본다.
 
 ## Safe-Edge 기준선 점검
 
@@ -55,7 +55,7 @@
 
 ### 실패 시 먼저 볼 것
 
-- `docs/ops/safe_edge_bootstrap.md`
+- `docs/ops/01_safe_edge_bootstrap.md`
 - Longhorn 상태
 - 입력 모듈과 Edge Agent 상태
 

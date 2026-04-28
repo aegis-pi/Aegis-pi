@@ -69,7 +69,7 @@
 - Failover / 운영 자동화 기준선
 
 다음 단계로 넘어가는 조건:
-- `docs/ops/safe_edge_bootstrap.md`의 최소 완료 기준 충족
+- `docs/ops/01_safe_edge_bootstrap.md`의 최소 완료 기준 충족
 - Safe-Edge 기준선이 다시 설명 가능
 
 ### Phase 2. M1 Hub 기준선 구성
@@ -244,7 +244,7 @@
 - 테스트베드형 시나리오 검증
 - Failover 검증
 - 롤백 검증
-- `docs/ops/test_checklist.md` 보정
+- `docs/ops/03_test_checklist.md` 보정
 - `docs/` 및 `configs/` 기준 문서 최종 갱신
 
 완료 조건:
