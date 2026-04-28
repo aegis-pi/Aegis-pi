@@ -1,205 +1,476 @@
 # 트러블슈팅
 
-상태: draft
-기준일: 2026-04-24
+상태: source of truth
+기준일: 2026-04-28
 
 ## 목적
 
-프로젝트 구성, 배포, 데이터 수집, Risk Twin 반영 과정에서 자주 만날 문제를 빠르게 분류하고 우선 확인 순서를 제시한다.
+`factory-a` 구축과 검증 과정에서 실제로 겪은 문제를 번호 기반으로 정리한다.
 
-## 현재 상태
+## 사용 형식
 
-- 현재 문서는 대표 장애 유형과 1차 확인 방향을 담은 운영 초안이다.
-- 실제 운영 사례가 쌓이면 증상별 해결 기록을 추가한다.
+각 항목은 아래 형식을 따른다.
 
-## 범위
+```text
+증상
+원인
+확인 명령
+해결/판단
+재발 방지
+```
 
-- Safe-Edge 기준선 문제
-- 배포 문제
-- 네트워크 문제
-- 데이터 플레인 문제
-- Risk Twin 문제
-- 테스트베드형 Spoke 문제
-
-## 상세 내용
-
-## 사용 원칙
-
-1. 먼저 장애가 어느 축인지 분류한다.
-   - Safe-Edge 기준선
-   - Hub/배포
-   - Mesh VPN
-   - 데이터 플레인
-   - Risk Twin
-2. `02_self_check.md`에서 실패한 항목을 확인한다.
-3. 이 문서에서 같은 증상을 찾고 우선 확인 순서대로 본다.
-
-## 1. `factory-a` Safe-Edge 기준선이 정상적으로 올라오지 않음
+## 1. ArgoCD Application이 새 Git commit을 바로 반영하지 않음
 
 증상:
-- Raspberry Pi 노드가 모두 Ready가 아님
-- Longhorn 복제가 비정상
-- 센서 입력이 전혀 보이지 않음
+- GitHub repo에 push가 끝났는데 ArgoCD Application revision이 이전 commit에 머문다.
+- 새 PVC나 새 container가 클러스터에 생성되지 않는다.
 
-가능 원인:
-- K3s 3노드 구성 실패
-- 노드 역할/라벨 설정 오류
-- 스토리지 계층 미구성
-- 입력 모듈 또는 Edge Agent 미기동
+원인:
+- 현재 Application은 자동 sync가 설정되어 있지 않다.
+- UI refresh/sync 또는 Application operation sync가 필요하다.
 
-우선 확인:
-- `kubectl get nodes`
-- Longhorn 상태
-- 센서/입력 모듈 프로세스 상태
-- 기본 모니터링 입력 여부
+확인 명령:
 
-다음 조치:
-- `docs/ops/01_safe_edge_bootstrap.md` 기준으로 단계 역추적
-- Safe-Edge 기준선이 안정화되기 전까지 Hub 확장은 보류
+```bash
+kubectl -n argocd get application safe-edge-ai-apps -o wide
+kubectl -n argocd get application safe-edge-monitoring -o wide
+```
 
-## 2. ArgoCD 동기화가 실패함
+해결/판단:
+- ArgoCD UI에서 Refresh 후 Sync한다.
+- CLI가 없으면 Kubernetes API로 Application sync operation을 넣을 수 있다.
 
-증상:
-- Application이 `OutOfSync` 또는 `Degraded`
-- Spoke 배포가 반영되지 않음
+재발 방지:
+- repo push 후 ArgoCD UI에서 revision과 health를 반드시 확인한다.
 
-가능 원인:
-- Git 리포지토리 경로 오류
-- values 경로 오류
-- 대상 클러스터 연결 문제
-
-우선 확인:
-- ArgoCD Application 상태 확인
-- 대상 Spoke kubeconfig 확인
-- Tailscale 경로 확인
-- ApplicationSet이 공장별 values를 올바르게 읽는지 확인
-
-다음 조치:
-- values 기반 자동 생성 구조를 먼저 확인
-- 운영형/테스트베드형 sync 정책 차이를 확인
-
-## 3. Tailscale로 Spoke 접근이 안 됨
+## 2. ArgoCD repo 등록과 sync 위치 혼동
 
 증상:
-- Hub에서 Spoke Master API 접근 실패
-- ArgoCD 대상 클러스터 연결 실패
+- GitHub URL을 어디에 넣어야 하는지 혼동한다.
+- manifest는 push했지만 Application이 repo를 바라보지 않는다.
 
-가능 원인:
-- Spoke별 키/인증 문제
-- Master 미참여
-- 주소 정책 혼선
+원인:
+- repo 등록은 사용자가 ArgoCD UI에서 진행하는 운영 방식으로 정했다.
 
-우선 확인:
-- Tailscale IP 확인
-- Master 참여 여부 확인
-- kubeconfig server 주소 확인
-- 운영형/테스트베드형 접근 정책 차이 확인
+확인 명령:
 
-다음 조치:
-- 기본은 Master 중심 접근 원칙으로 되돌린다
-- 예외 접근은 장애 분석/운영 복구 시에만 수동 허용한다
+```bash
+kubectl -n argocd get application -o wide
+```
 
-## 4. IoT Core에는 보낸 것 같은데 S3에 데이터가 없음
+해결/판단:
+- repo URL은 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
+- Application은 `safe-edge-monitoring`, `safe-edge-ai-apps`로 분리한다.
 
-증상:
-- Edge Agent 송신 로그는 있는데 Hub에서 데이터가 안 보임
-- `pipeline_status`가 비정상으로 남음
+재발 방지:
+- repo 등록, credential, sync는 UI 절차로 문서화한다.
 
-가능 원인:
-- Rule Engine 설정 문제
-- 권한 문제
-- 메시지 형식 문제
-
-우선 확인:
-- IoT Core 수신 로그 확인
-- S3 대상 경로 확인
-- payload 필수 필드 누락 여부 확인
-- 날짜 파티셔닝 경로가 의도대로 생성되는지 확인
-
-다음 조치:
-- source_type별 필수 필드 확인
-- S3 적재 전 단계와 후단계를 분리해서 본다
-
-## 5. `pipeline_status`가 잘못 계산됨
+## 3. Git push 시 github.com DNS resolve 실패
 
 증상:
-- 실제 적재는 됐는데 비정상으로 표시됨
-- 반대로 적재가 끊겼는데 정상처럼 보임
+- `git push`가 `Could not resolve host: github.com`으로 실패한다.
 
-가능 원인:
-- 집계 주기 문제
-- source_type별 지연 기준 미정 또는 오적용
-- `pipeline-status-aggregator` 문제
+원인:
+- 로컬 실행 환경의 네트워크 제한 또는 DNS 접근 제한.
 
-우선 확인:
-- Hub 집계 주기 설정
-- 마지막 수신/적재 시각
-- source_type 분류 값
+확인 명령:
 
-다음 조치:
-- 현재는 주기 집계형 기준이므로 즉시 반영을 기대하지 않는다
-- 수치 기준은 테스트 보정 항목으로 분리한다
+```bash
+git remote -v
+git push
+```
 
-## 6. Risk 상태가 갱신되지 않음
+해결/판단:
+- 네트워크 권한이 있는 환경에서 다시 push한다.
+- 현재 `safe-edge-config-main`과 `Aegis-pi` 모두 push 완료 이력이 있다.
 
-증상:
-- 센서/상태 입력은 있는데 카드 상태가 그대로임
-- 주요 원인 Top 3가 비어 있음
+재발 방지:
+- push 실패 시 commit은 유지되므로 네트워크 복구 후 재시도한다.
 
-가능 원인:
-- 정규화/판단 서비스 문제
-- Risk Score Engine 호출 실패
-- `pipeline_status` 또는 source_type 분류 오류
-
-우선 확인:
-- S3 적재 이후 처리 로그 확인
-- 정규화 결과 확인
-- Risk 결과 저장/조회 경로 확인
-- 주요 원인 코드 매핑 확인
-
-다음 조치:
-- 상태 전환만 볼지, 원인 필드까지 실패했는지 분리해서 본다
-- 이벤트 코드는 현재 예약 상태이므로 미사용이 정상일 수 있다
-
-## 7. 카메라/마이크 상태가 비정상으로 표시됨
+## 4. InfluxDB subquery ORDER BY 방향 오류
 
 증상:
-- 장치가 붙어 있는데 비정상으로 표시됨
-- 실제 입력 유무와 관계없이 상태가 고정됨
+- Grafana 또는 InfluxDB query에서 `subqueries must be ordered in the same direction as the query itself` 오류가 난다.
 
-가능 원인:
-- 장치 연결 문제
-- 관련 프로세스 비정상
+원인:
+- 내부 query는 `ORDER BY time DESC LIMIT 10`인데 외부 집계 또는 Grafana 처리 방향과 충돌한다.
 
-우선 확인:
-- 프로세스 생존 여부 확인
-- 장치 연결 상태 확인
+확인 명령:
 
-다음 조치:
-- 현재 MVP는 프로세스 기준형이므로, 실제 입력 유무는 데이터 플레인 쪽과 분리해서 해석한다
+```sql
+SELECT "fire_detected"
+FROM "ai_detection"
+WHERE $timeFilter
+ORDER BY time DESC
+LIMIT 10
+```
 
-## 8. `factory-b`, `factory-c` 테스트베드형 Spoke가 의도대로 동작하지 않음
+해결/판단:
+- Grafana panel query에는 raw query를 직접 넣고, 최근 N개 평균은 panel Transform 또는 query 구조를 맞춰 처리한다.
+- InfluxQL subquery를 쓸 때는 내부/외부 정렬 방향을 맞춘다.
+
+재발 방지:
+- 최근 N개 평균 panel은 `docs/ops/07_grafana_dashboard.md`의 쿼리 기준을 따른다.
+
+## 5. Grafana에 최근 10개 AI 값을 넣는 위치 혼동
 
 증상:
-- Dummy 시나리오 전환이 반영되지 않음
-- 두 VM이 독립 공장으로 식별되지 않음
+- `SELECT ... ORDER BY time DESC LIMIT 10`을 Grafana 어디에 넣어야 하는지 혼동한다.
 
-가능 원인:
-- Dummy 입력 모듈 비정상
-- values 오적용
-- `factory-b` / `factory-c` 식별 정보 충돌
+원인:
+- Grafana panel의 Query 영역과 Transform/Calculation 영역 역할이 다르다.
 
-우선 확인:
-- `factory_id`
-- `environment_type`
-- `input_module_type`
-- Dummy 제어 입력 상태
+확인 명령:
+- Grafana panel edit에서 Query 탭을 연다.
 
-다음 조치:
-- 운영형 Spoke와 혼동하지 않도록 values를 먼저 검토한다
-- Dummy 시나리오 세부값은 테스트 기반 보정 항목으로 본다
+해결/판단:
+- Query 영역에 최근 10개 raw 값을 가져오는 InfluxQL을 넣는다.
+- 평균/마지막값/상태 표시는 Transform 또는 Reduce calculation에서 처리한다.
 
-## TODO
+재발 방지:
+- Dashboard 등록은 UI에서 진행하되, query와 value mapping은 문서의 panel별 기준을 사용한다.
 
-- TODO: 실제 장애 사례가 생기면 항목 추가
-- TODO: 항목별 실제 명령어 또는 대시보드 경로 추가
+## 6. Grafana 0/1 값을 안전/주의/위험으로 바꾸는 방법
+
+증상:
+- 화재/넘어짐/굽힘/소리 결과가 0 또는 1로만 보인다.
+
+원인:
+- AI 결과 원본은 binary 값이고, 운영 화면은 최근 N개 평균을 상태로 해석해야 한다.
+
+확인 명령:
+
+```sql
+SELECT "fire_detected" FROM "ai_detection" WHERE $timeFilter ORDER BY time DESC LIMIT 10
+```
+
+해결/판단:
+- 최근 N개 평균을 계산한다.
+- 값 범위는 아래처럼 매핑한다.
+
+```text
+0.0-0.2: 안전
+0.3-0.7: 주의
+0.8-1.0: 위험 레이블
+```
+
+재발 방지:
+- N 값은 panel query의 `LIMIT 10` 숫자로 조정한다.
+
+## 7. InfluxDB retention policy와 Longhorn replica 보존 범위 혼동
+
+증상:
+- InfluxDB에서 1일 지난 데이터를 삭제하면 Longhorn replica에도 남는지 혼동한다.
+
+원인:
+- Longhorn은 블록 스토리지 복제이고, 데이터 보존 정책은 InfluxDB가 결정한다.
+
+확인 명령:
+
+```bash
+kubectl -n monitoring exec deploy/influxdb -- \
+  influx -execute 'SHOW RETENTION POLICIES ON safe_edge_db'
+```
+
+해결/판단:
+- InfluxDB retention이 1일이면 Longhorn replica도 삭제 후의 DB 상태를 복제한다.
+
+재발 방지:
+- 데이터 보존 기간은 Longhorn이 아니라 InfluxDB retention policy로 관리한다.
+
+## 8. worker2에 이미 정상 Pod가 있는데 failback cron이 Pod를 죽일 위험
+
+증상:
+- worker2에 이미 대상 Pod가 Running인데 failback cron이 worker1 Pod를 삭제하며 정상 Pod까지 흔들 수 있다.
+
+원인:
+- worker2 대상 Pod 존재 여부를 먼저 확인하지 않으면 정상 Pod를 건드릴 수 있다.
+
+확인 명령:
+
+```bash
+kubectl -n ai-apps get pod -o wide
+kubectl -n monitoring get pod -o wide
+```
+
+해결/판단:
+- worker2에 대상 Pod가 있으면 failback cron은 skip해야 한다.
+- worker1에 남은 대상 Pod만 순차적으로 삭제한다.
+
+재발 방지:
+- failback script의 첫 조건은 `worker2 Ready`와 `worker2 대상 Pod 존재 여부`다.
+
+## 9. Kubernetes CronJob 방식 failback이 하드웨어 연결 작업에서 불안정했던 문제
+
+증상:
+- CronJob이 Pod를 worker2로 돌리려 하지만 하드웨어 연결이 불안정하면 Pod가 계속 재생성되어 시스템이 멈춘다.
+
+원인:
+- 하드웨어 의존 워크로드를 Kubernetes CronJob으로 강제 이동하면 재시작 루프가 발생할 수 있다.
+
+확인 명령:
+
+```bash
+kubectl -n ai-apps get pod -o wide
+kubectl -n ai-apps describe pod <pod-name>
+```
+
+해결/판단:
+- Kubernetes CronJob 대신 master OS cron에서 `kubectl`만 실행하는 Kubernetes-only 스크립트를 사용한다.
+
+재발 방지:
+- worker2가 Ready이고 기존 worker2 Pod 상태가 안전할 때만 worker1 Pod를 삭제한다.
+
+## 10. preferred affinity만으로 자동 failback이 즉시 일어나지 않음
+
+증상:
+- worker2가 복구되어도 Pod가 자동으로 worker2로 바로 돌아오지 않는다.
+
+원인:
+- `preferredDuringSchedulingIgnoredDuringExecution`은 선호 조건이다.
+- 이미 worker1에서 Running인 Pod를 Kubernetes가 즉시 옮기지는 않는다.
+
+확인 명령:
+
+```bash
+kubectl -n ai-apps get pod -o wide
+kubectl -n monitoring get pod -o wide
+```
+
+해결/판단:
+- master OS cron이 worker2 Ready를 확인한 뒤 worker1에 남은 대상 Pod를 순차 삭제한다.
+
+재발 방지:
+- 자동 failback은 scheduler 기본 동작이 아니라 운영 자동화 정책으로 본다.
+
+## 11. LAN 제거 테스트에서 10초 bucket 공백이 보이지 않음
+
+증상:
+- worker2 LAN을 제거했는데 10초 bucket 기준 데이터 공백이 없다.
+
+원인:
+- worker2에서 기존 프로세스가 잠시 계속 write했거나, 10초 bucket이 짧은 공백을 가릴 수 있다.
+
+확인 명령:
+
+```sql
+SELECT count(temperature)
+FROM environment_data
+WHERE time >= '<START>' AND time <= '<END>'
+GROUP BY time(10s) fill(0)
+```
+
+해결/판단:
+- 10초 bucket과 1초 bucket을 함께 본다.
+- LAN 제거 테스트에서는 10초 bucket 공백 없음, 중복 write 후보 있음으로 기록했다.
+
+재발 방지:
+- 장애 분석은 항상 10초 bucket과 1초 bucket을 같이 남긴다.
+
+## 12. 전원 제거 테스트에서 1초 bucket 공백 산정 방법
+
+증상:
+- 1초 단위로 봤을 때 실제 공백이 몇 초인지 따로 계산해야 한다.
+
+원인:
+- zero bucket 개수와 연속 zero bucket 길이는 다르다.
+
+확인 명령:
+
+```sql
+SELECT count(temperature)
+FROM environment_data
+WHERE time >= '<START>' AND time <= '<END>'
+GROUP BY time(1s) fill(0)
+```
+
+해결/판단:
+- 연속 zero-count 최대 길이 기준으로 산정했다.
+
+```text
+failover environment_data: 최대 65초
+failover ai_detection: 최대 72초
+failover acoustic_detection: 최대 75초
+failback 각 항목: 최대 2초
+```
+
+재발 방지:
+- 결과 문서에는 zero bucket 총합과 최대 연속 공백을 분리해 기록한다.
+
+## 13. Longhorn volume degraded가 worker2 복구 후 일시적으로 발생
+
+증상:
+- worker2 전원 복구 직후 Longhorn volume이 degraded로 보인다.
+
+원인:
+- worker2 전원 차단 동안 replica가 끊기고, 복구 후 재동기화가 필요하다.
+
+확인 명령:
+
+```bash
+kubectl -n longhorn-system get volumes.longhorn.io -o wide
+```
+
+해결/판단:
+- 전원 제거 테스트에서 degraded 후 healthy 복귀를 확인했다.
+
+재발 방지:
+- failback 완료 판단은 Pod Running뿐 아니라 Longhorn healthy까지 함께 본다.
+
+## 14. safe-edge-image-prepull DaemonSet의 의미
+
+증상:
+- DaemonSet으로 이미지를 미리 받는다는 의미가 혼동된다.
+
+원인:
+- failover 시 worker1이 큰 이미지를 처음 pull하면 복구 시간이 길어질 수 있다.
+
+확인 명령:
+
+```bash
+kubectl -n ai-apps get ds safe-edge-image-prepull -o wide
+kubectl -n ai-apps describe ds safe-edge-image-prepull
+```
+
+해결/판단:
+- worker1/worker2에 AI/Audio 이미지를 미리 pull해 failover 시 이미지 다운로드 지연을 줄인다.
+
+재발 방지:
+- 새 이미지 태그를 배포하면 prepull DaemonSet의 image도 같은 태그로 갱신한다.
+
+## 15. AI 이벤트 이미지가 Pod 내부 /app/snapshots에만 저장되던 문제
+
+증상:
+- AI 감지 이미지는 `/app/snapshots`에 저장되지만 Pod 재생성 시 사라질 수 있다.
+
+원인:
+- 기존에는 `/app/snapshots`가 PVC가 아니라 컨테이너 내부 파일시스템이었다.
+
+확인 명령:
+
+```bash
+kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c ai-processor -- ls -lah /app/snapshots
+```
+
+해결/판단:
+- `safe-edge-ai-snapshots` Longhorn PVC를 `/app/snapshots`에 mount했다.
+
+재발 방지:
+- AI snapshot 경로는 PVC mount 여부를 함께 확인한다.
+
+## 16. AI snapshot PVC 적용 후 기존 임시 이미지가 자동 이관되지 않음
+
+증상:
+- PVC 적용 후 `/app/snapshots`가 비어 보일 수 있다.
+
+원인:
+- 기존 이미지는 이전 Pod 컨테이너 내부 layer에 있었고, 새 PVC로 자동 복사되지 않는다.
+
+확인 명령:
+
+```bash
+kubectl -n ai-apps get pod -l app=safe-edge-integrated-ai -o wide
+kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c ai-processor -- mount | grep snapshots
+```
+
+해결/판단:
+- 기존 임시 이미지는 보존 대상이 아니면 이관하지 않는다.
+- 앞으로 생성되는 이미지는 PVC에 저장된다.
+
+재발 방지:
+- PVC 적용 전 임시 이미지 보존이 필요하면 별도 백업 절차를 먼저 수행한다.
+
+## 17. AI snapshot을 24시간 초과 저장하지 않게 하는 방식
+
+증상:
+- 이미지 증거를 저장해야 하지만 장기 보존은 피해야 한다.
+
+원인:
+- AI event image는 Longhorn PVC에 저장되므로 별도 cleanup이 없으면 계속 누적된다.
+
+확인 명령:
+
+```bash
+kubectl -n ai-apps get pod -l app=safe-edge-integrated-ai -o jsonpath='{.items[0].spec.containers[*].name}{"\n"}'
+kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c snapshot-cleanup -- ps
+```
+
+해결/판단:
+- `snapshot-cleanup` sidecar가 `/app/snapshots`에서 24시간 초과 jpg/jpeg/png 파일을 삭제한다.
+
+재발 방지:
+- retention은 `ai-apps/values.yaml`의 `snapshotStorage.retentionHours`로 관리한다.
+
+## 18. cron에 비밀번호가 필요하다는 오해
+
+증상:
+- failback cron이 worker2에 SSH 접속하려면 비밀번호가 필요한지 혼동한다.
+
+원인:
+- 테스트 중 SSH 접근은 상태 확인용이었고, 실제 failback은 master에서 Kubernetes API로만 처리한다.
+
+확인 명령:
+
+```bash
+crontab -l
+kubectl get nodes
+```
+
+해결/판단:
+- 실제 cron에는 worker2 SSH 비밀번호가 필요 없다.
+- master에서 `kubectl` 명령만 사용한다.
+
+재발 방지:
+- failback 방식은 Kubernetes-only로 문서화한다.
+
+## 19. worker2가 Ready로 보여도 첫 5분은 판정하지 않는 이유
+
+증상:
+- 장애 직후 worker2가 Ready처럼 보이면 failback 성공으로 판단할 수 있다.
+
+원인:
+- Kubernetes node/pod 상태는 물리 단절 직후 지연되어 보일 수 있다.
+
+확인 명령:
+
+```bash
+kubectl get nodes -o wide
+kubectl -n ai-apps get pod -o wide
+```
+
+해결/판단:
+- 장애 시작 후 최소 5분은 판정 보류한다.
+- 그 후 재연결/복구 단계를 진행한다.
+
+재발 방지:
+- 테스트 절차에 초기 5분 판정 보류를 고정한다.
+
+## 20. 데이터 공백과 중복 write를 10초/1초 bucket으로 나눠 봐야 하는 이유
+
+증상:
+- 10초 bucket에서는 공백이 없는데 실제 순간 공백이 있었을 수 있다.
+- failback 중 count가 증가해 중복 write처럼 보일 수 있다.
+
+원인:
+- bucket 크기에 따라 짧은 공백이나 중복 write 후보가 가려질 수 있다.
+
+확인 명령:
+
+```sql
+SELECT count(temperature)
+FROM environment_data
+WHERE time >= '<START>' AND time <= '<END>'
+GROUP BY time(10s) fill(0)
+
+SELECT count(temperature)
+FROM environment_data
+WHERE time >= '<START>' AND time <= '<END>'
+GROUP BY time(1s) fill(0)
+```
+
+해결/판단:
+- 10초 bucket은 운영 관점의 큰 공백 확인에 사용한다.
+- 1초 bucket은 전환 구간의 짧은 공백 후보 확인에 사용한다.
+
+재발 방지:
+- 장애 테스트 결과에는 두 기준을 모두 기록한다.

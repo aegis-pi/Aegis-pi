@@ -1,114 +1,59 @@
 # 데모 운영 메모
 
-상태: draft
-기준일: 2026-04-24
+상태: source of truth
+기준일: 2026-04-28
 
 ## 목적
 
-데모 당일 운영자가 확인해야 할 준비 사항, 직전 점검, 시연 중 유의점, 문제 발생 시 대응 방향을 기록한다.
+`factory-a` 단독 데모 전에 확인해야 할 운영 항목을 기록한다.
 
-## 현재 상태
+## 데모 전 확인
 
-- 현재는 데모 운영 체크 문서 초안이다.
-- 데모 시나리오를 실제로 실행하기 위한 운영 메모 성격이다.
+```bash
+kubectl get nodes -o wide
+kubectl -n argocd get application
+kubectl -n monitoring get pod -o wide
+kubectl -n ai-apps get pod -o wide
+kubectl -n longhorn-system get volumes.longhorn.io -o wide
+```
 
-## 범위
+정상 기준:
 
-- 사전 준비
-- 시연 전 확인
-- 시연 중 대응
-- 백업 플랜
+```text
+All nodes Ready
+ArgoCD Synced / Healthy
+Grafana 접근 가능
+Longhorn healthy
+target Pods worker2 Running
+```
 
-## 상세 내용
+## 브라우저 준비
 
-## 운영 원칙
+```text
+ArgoCD: http://10.10.10.200
+Longhorn: http://10.10.10.201
+Grafana: http://10.10.10.202
+GitHub: https://github.com/aegis-pi/safe-edge-config-main.git
+```
 
-- 데모는 `운영형 Spoke + 테스트베드형 Spoke + Hub 관제` 흐름을 보여주는 것이 핵심이다.
-- 모든 기능을 다 보여주기보다, 핵심 메시지가 흔들리지 않게 진행한다.
-- 문제가 생기면 운영형 Spoke를 억지로 건드리기보다 테스트베드형 시나리오 중심으로 전환한다.
+## 시연 중 주의
 
-## 사전 준비
-
-- `factory-a` 상태 확인
-- `factory-b`, `factory-c` Dummy 시나리오 준비
-- Hub 서비스 상태 확인
-- 대시보드 접근 경로 확인
-
-추가 준비 항목:
-- 발표용 화면 순서 확인
-- 대체 시연 순서 준비
-- 스크린샷 또는 백업 화면 준비 여부 확인
-
-## 데모 전날 확인
-
-- `factory-a` Safe-Edge 기준선 상태 점검
-- Hub 핵심 서비스 상태 점검
-- Tailscale 연결 점검
-- Dummy 시나리오 전환 테스트
-- 최근 로그와 상태 카드 반영 테스트
-
-## 데모 직전 확인
-
-## 시연 전 확인
-
-- ArgoCD 상태 확인
-- Tailscale 연결 확인
-- IoT Core 수신 확인
-- 최근 로그가 비어 있지 않은지 확인
-- 대시보드 로그인 또는 접근 경로 재확인
-- `factory-a`, `factory-b`, `factory-c`가 모두 구분되는지 확인
-
-## 시연 중 유의점
-
-- 운영형과 테스트베드형 역할 차이를 먼저 설명한다.
-- Dummy 시나리오는 수동 전환형임을 설명한다.
-- 내부 Risk Score는 계산되지만 메인 카드에는 숨겨져 있음을 설명한다.
-- `pipeline_status`는 Hub 계산값이라는 점을 혼동 없이 설명한다.
-- `event`, `analysis`, LLM 계층은 현재 MVP 범위가 아님을 분명히 한다.
-
-## 데모 진행 중 체크 포인트
-
-- 공장별 상태 카드가 정상적으로 보이는가
-- 이상 시스템 목록이 변하는가
-- 최근 로그가 갱신되는가
-- Dummy 전환이 관제에 반영되는가
-- 운영형 Spoke와 테스트베드형 Spoke가 혼동되지 않는가
-
-## 문제 발생 시 대응
-
-- 테스트베드형 장애는 재시도 또는 자동 롤백 설명
-- 운영형 장애는 수동 대응 원칙 설명
-
-추가 대응 원칙:
-- 전체 데모가 막히면 구조 설명 -> 대시보드 현재 상태 -> 백업 화면 순으로 전환
-- Risk 상태 반영이 늦으면 S3 적재/최근 로그 먼저 보여주고 설명으로 보완
-- Dummy 전환 실패 시 미리 준비한 다른 시나리오 또는 캡처로 전환
+- 실제 전원/LAN 장애 테스트를 다시 수행할 경우 시작 전 상태와 timestamp를 기록한다.
+- 장애 시작 후 첫 5분은 성공/실패 판정하지 않는다.
+- worker2 Ready만으로 failback 완료로 보지 않는다.
+- 대상 Pod 3개가 worker2 Running이어야 failback 완료다.
 
 ## 백업 플랜
 
-### 1. 운영형 Spoke 입력이 불안정한 경우
+실시간 장애 테스트가 어려우면 이미 기록된 결과를 사용한다.
 
-- `factory-a`의 기준선과 역할 설명을 중심으로 진행
-- 실시간 입력보다 구조와 기준선 의미를 강조
+```text
+docs/ops/09_failover_failback_test_results.md
+docs/ops/03_test_checklist.md
+```
 
-### 2. 테스트베드형 Spoke 전환이 실패한 경우
+## 데모 메시지
 
-- 미리 준비한 상태 변화 캡처 또는 로그를 사용
-- 테스트베드형의 목적이 시나리오 검증임을 설명
-
-### 3. Hub 관제 화면 접근이 불안정한 경우
-
-- 아키텍처 다이어그램과 API/로그 자료로 대체 설명
-- TODO: 실제 백업 자료 위치 기록
-
-## 데모 종료 후 기록할 것
-
-- 어떤 단계에서 가장 불안정했는지
-- Dummy 전환 반영 시간
-- 설명이 필요했던 포인트
-- 다음 데모 전 보강할 항목
-
-## TODO
-
-- TODO: 실제 데모 담당자 체크 항목 추가
-- TODO: 백업 자료 경로 추가
+- Safe-Edge를 버리지 않고 실제 운영형 기준선으로 복구했다.
+- GitOps, monitoring, storage, failover/failback까지 검증했다.
+- Hub/Risk Twin 확장은 이 기준선 위에 올린다.

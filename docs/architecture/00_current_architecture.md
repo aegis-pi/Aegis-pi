@@ -1,251 +1,237 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-04-24
+기준일: 2026-04-28
 
 ## 목적
 
-현재 freeze된 Aegis-Pi 구조를 구현 기준 관점에서 요약한다.
+현재 실제로 구축된 `factory-a` Safe-Edge 로컬 구조를 설명한다.
 
 ## 현재 상태
 
-- 이 문서는 현재 설계 기준 구조를 설명한다.
-- 수치 기준 일부는 테스트 후 보정 예정이다.
-- 실제 구현은 아직 시작 전이므로, 이 문서는 "현재 freeze된 설계 기준"을 설명한다.
-- `docs/issues/` 하위 마일스톤 문서를 반영해 현재 구현 순서와 현재 MVP 저장/관제 해석을 함께 정리한다.
+- 현재 구현 완료 범위는 `factory-a` 단일 운영형 Spoke다.
+- AWS Hub, `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions, Tailscale은 아직 구축 전이다.
+- 이 문서는 목표 Hub/Spoke 구조가 아니라 현재 동작 중인 로컬 기준선을 설명한다.
 
-## 범위
+## 물리 / 클러스터 구조
 
-- Hub/Spoke 구조
-- 공장 역할
-- 데이터/제어 평면
-- 현재 확정된 운영 원칙
-- 현재 구조에서 구현 범위와 후속 확장 범위의 경계
+```text
+factory-a
+├── master  10.10.10.10  K3s control plane
+├── worker1 10.10.10.11  failover standby
+└── worker2 10.10.10.12  sensor / AI / audio preferred
+```
 
-## 상세 내용
+Kubernetes:
 
-## 전체 구조
+```text
+K3s v1.34.6+k3s1
+```
 
-- Hub: AWS EKS 기반 중앙 제어/관제 영역
-- Spoke:
-  - `factory-a`: 실제 운영형 Raspberry Pi Safe-Edge K3s
-  - `factory-b`: Mac mini VM K3s 테스트베드
-  - `factory-c`: Windows VM K3s 테스트베드
+## Namespace 구조
 
-현재 구조는 `Hub가 여러 독립 Spoke를 중앙에서 다루는 구조`다.
-즉, 클라우드와 엣지가 하나의 단일 Kubernetes 클러스터를 이루는 방식이 아니라,
-`EKS Hub + 공장별 독립 K3s Spoke` 구조를 기준으로 한다.
+```text
+argocd
+longhorn-system
+monitoring
+ai-apps
+```
 
-## 공장별 역할
+역할:
 
-### `factory-a`
+| Namespace | 역할 |
+| --- | --- |
+| `argocd` | GitOps 배포 제어 |
+| `longhorn-system` | PVC 및 replica storage |
+| `monitoring` | InfluxDB, Prometheus, Grafana |
+| `ai-apps` | BME280, integrated AI, audio, image prepull |
 
-- 실제 운영형 Spoke
-- Safe-Edge 기준선 복구 대상
-- Longhorn 유지
-- 실제 센서/카메라/마이크/시스템 상태 입력 사용
+## 관리 UI
 
-### `factory-b`
+| UI | 주소 |
+| --- | --- |
+| ArgoCD | `http://10.10.10.200` |
+| Longhorn | `http://10.10.10.201` |
+| Grafana | `http://10.10.10.202` |
 
-- Mac mini VM 기반 테스트베드형 Spoke
-- Dummy 시나리오 기반 검증
-- Longhorn 제외
-- 배포 검증 + 데이터 플레인 검증 대상
+## 배포 구조
 
-### `factory-c`
+현재 배포 흐름:
 
-- Windows VM 기반 테스트베드형 Spoke
-- Dummy 시나리오 기반 검증
-- Longhorn 제외
-- 배포 검증 + 데이터 플레인 검증 대상
+```text
+GitHub safe-edge-config-main
+    -> ArgoCD UI refresh / sync
+    -> safe-edge-monitoring
+    -> safe-edge-ai-apps
+    -> factory-a K3s
+```
 
-## 제어 평면
+GitOps repo:
 
-- GitHub Push
-- GitHub Actions
-- ECR
-- ArgoCD
-- Tailscale 경유 Spoke 롤아웃
+```text
+https://github.com/aegis-pi/safe-edge-config-main.git
+```
 
-제어 평면의 목적은 아래와 같다.
+Application:
 
-- 표준 템플릿을 여러 공장에 배포
-- 공장별 values 기준으로 ApplicationSet 생성
-- 운영형 Spoke와 테스트베드형 Spoke의 sync 정책 차등 적용
-- 배포 상태를 `Sync / Healthy / Running` 기준으로 확인
+```text
+safe-edge-monitoring
+safe-edge-ai-apps
+```
 
-현재 제어 평면 해석:
+현재는 GitHub Actions / ECR / ApplicationSet 기반 멀티 Spoke 배포가 아니라, GitHub repo와 ArgoCD Application을 이용한 로컬 `factory-a` GitOps 기준선이다.
 
-`GitHub Push -> GitHub Actions -> ECR -> ArgoCD -> Tailscale -> 각 Spoke 롤아웃`
+## 데이터 구조
 
-## 데이터 평면
+현재 데이터 흐름:
 
-- 입력 모듈
-- Edge Agent
-- IoT Core
-- S3
-- 정규화/판단
-- Risk Score 처리
+```text
+BME280 / camera / mic / AI
+    -> ai-apps Pods
+    -> InfluxDB safe_edge_db
+    -> Grafana dashboard
+```
 
-데이터 평면의 목적은 아래와 같다.
+InfluxDB measurement:
 
-- Edge 입력을 표준 경로로 수집
-- IoT Core와 S3를 통해 중앙 적재
-- EKS 내부 정규화/판단 서비스에서 처리
-- Risk Score Engine에 빠르게 반영
+```text
+environment_data
+ai_detection
+acoustic_detection
+```
 
-현재 데이터 평면 해석:
+주요 field:
 
-`입력 모듈 -> Edge Agent -> IoT Core -> S3 -> 정규화/판단 -> Risk Score`
+```text
+environment_data.temperature
+environment_data.humidity
+environment_data.pressure
+ai_detection.fire_detected
+ai_detection.fallen_detected
+ai_detection.bending_detected
+acoustic_detection.is_danger
+```
 
-추가 원칙:
+## 저장소 구조
 
-- `sensor`, `system_status`, `event`는 Edge origin 입력
-- `pipeline_status`는 Hub derived 상태
-- `event`는 구조상 수용하지만 현재 점수 반영은 보류
-- S3 경로는 `factory_id / source_type / 날짜` 파티셔닝을 기준으로 한다.
+```text
+InfluxDB PVC -> Longhorn
+AI snapshot PVC -> Longhorn
+```
 
-## Hub 내부 역할
+보존 정책:
 
-- `argocd`: 배포 제어
-- `observability`: 관제/메트릭
-- `risk`: 정규화/판단, Risk Score 처리
-- `ops-support`: `pipeline_status` 집계 보조 기능
+```text
+InfluxDB safe_edge_db: 1일 retention
+AI snapshots: 24시간 초과 jpg/jpeg/png 삭제
+```
 
-### EKS 내부 배치 원칙
+AI snapshot:
 
-- 네임스페이스는 기능 기준으로 분리한다.
-  - `argocd`
-  - `observability`
-  - `risk`
-  - `ops-support`
-- 내부 앱은 역할 단위로 분리한다.
-  - `risk`: `risk-score-engine`, `risk-normalizer`
-  - `ops-support`: `pipeline-status-aggregator`
+```text
+mount path: /app/snapshots
+PVC: safe-edge-ai-snapshots
+cleanup: snapshot-cleanup sidecar
+```
 
-### AWS 관리형 서비스 역할
+## 모니터링 구조
 
-- IoT Core: 중앙 수신 진입점
-- S3: 원본 데이터 적재
-- AMP: 메트릭 백엔드
-- Timestream: 현재 MVP 필수 저장소가 아니라 후속 후보
+Grafana datasource:
 
-즉, 현재 구조는 `AWS 관리형 서비스가 백엔드 저장/수집 축`, `EKS가 제어/처리/조회 축`을 맡는 형태다.
+```text
+InfluxDB: 센서 / AI / 소리 데이터
+Prometheus: 노드 상태
+```
 
-## 설정 관리 구조
+Dashboard:
 
-- 중앙 설정 파일: `configs/runtime/runtime-config.yaml`
-- 구조:
-  - `global`
-  - `factories`
-- 필드별 제어:
-  - `display`
-  - `risk_enabled`
-  - `weight`
+```text
+Factory-A sensor / AI dashboard
+Node Exporter Full 1860
+```
 
-현재 원칙:
-- 초기 운영은 전역 설정을 사용한다.
-- 공장별 override 구조는 준비만 되어 있고, 실제 활성화는 후속 단계다.
+## Failover / Failback 구조
 
-## Risk 모델 요약
+정책:
 
-- 표현 방식: 하이브리드
-- 상태 단계:
-  - 안전
-  - 주의
-  - 위험
-- 내부 점수 구간:
-  - 0~39
-  - 40~69
-  - 70~100
+```text
+worker2 preferred affinity
+tolerationSeconds: 30
+worker1 failover standby
+master OS cron 기반 Kubernetes-only failback
+```
 
-현재 주요 Risk 입력:
+대상 Pod:
 
-- `temperature`
-- `humidity`
-- `sensor_status`
-- `edge_agent_status`
-- `node_status`
-- `camera_status`
-- `mic_status`
-- `pipeline_status`
+```text
+bme280-sensor
+safe-edge-integrated-ai
+safe-edge-audio
+```
 
-현재 출력:
+Failback 원칙:
 
-- 상태
-- 내부 Risk Score
-- 최근 10분 변화량
-- 주요 원인 Top 3
-- `event_timestamp`
-- `processed_at`
+- worker2가 Ready일 때만 진행한다.
+- worker2에 대상 Pod가 이미 Running이면 skip한다.
+- worker1에 남은 대상 Pod만 순차 삭제한다.
+- Kubernetes CronJob이 아니라 master OS cron에서 `kubectl`만 실행한다.
 
-현재 MVP에서 Risk Twin 결과는 별도 저장소를 강하게 전제하지 않고, Prometheus 호환 메트릭 형태로 노출해 AMP / Grafana 축에서 읽는 구조를 우선한다.
+## Image Prepull 구조
 
-## 관제 구조 요약
+`safe-edge-image-prepull` DaemonSet은 worker1/worker2에 큰 이미지를 미리 받아 둔다.
 
-메인 관제 화면은 아래 구조를 기준으로 한다.
+목적:
 
-- 상단: 공장별 위험 상태 카드
-- 중단 왼쪽: 온도/습도 센서 현황
-- 중단 오른쪽: 이상 시스템 목록
-- 하단: 최근 상태 변화 / 주요 이벤트 로그
+```text
+failover 시 worker1에서 이미지 pull 지연 감소
+새 이미지 태그 배포 전 worker1/worker2 이미지 준비
+```
 
-카드에는 아래를 보여준다.
+## 현재 검증 결과
 
-- 공장명
-- 현재 상태
-- 최근 10분 변화 방향
-- 이상 시스템 개수
+LAN 제거:
 
-메인 카드에는 내부 점수를 직접 노출하지 않는다.
+```text
+Failover 성공
+Failback 성공
+10초 bucket 기준 데이터 공백 없음
+중복 write 후보 있음
+```
 
-## 운영형 / 테스트베드형 차이
+전원 제거:
 
-| 구분 | 운영형 (`factory-a`) | 테스트베드형 (`factory-b`, `factory-c`) |
-| --- | --- | --- |
-| 입력 | 실제 센서/상태 | Dummy 시나리오 |
-| 스토리지 | Longhorn 유지 | Longhorn 제외 |
-| 배포 정책 | 보수적 | 더 빠른 반영 허용 |
-| 실패 처리 | 수동 확인 | 자동 롤백 허용 |
+```text
+Failover 성공
+Failback 성공
+전원 제거 첫 관찰 -> worker1 전체 Running: 약 74초
+전원 재연결 첫 관찰 -> worker2 전체 Running: 약 2분 11초
+Longhorn degraded 후 healthy 복귀
+```
 
-## 현재 구현 범위와 후속 확장 범위
+1초 bucket 연속 공백:
 
-### 현재 구현 범위
+```text
+failover environment_data: 최대 65초
+failover ai_detection: 최대 72초
+failover acoustic_detection: 최대 75초
+failback 각 항목: 최대 2초
+```
 
-- `factory-a` Safe-Edge 기준선 복구
-- Hub 기준선 구성
-- Mesh 기반 `factory-a` 연결
-- `factory-a` 배포 파이프라인
-- `factory-a` 데이터 플레인
-- `factory-b`, `factory-c` 테스트베드형 Spoke 추가
-- Risk Twin + 메인 관제 화면
+## 현재 구조 밖의 항목
 
-### 후속 확장 범위
+다음 항목은 현재 구조가 아니라 후속 목표 구조다.
 
-- `event` 기반 Risk 반영
-- 별도 이벤트 경로
-- Analysis 계층
-- LLM 기반 보고서/후처리
-- 공장별 override 실운영 활성화
-- 큐/이벤트 기반 데이터 트리거
+```text
+AWS EKS Hub
+factory-b / factory-c
+Tailscale Hub-Spoke 연결
+IoT Core
+S3
+ECR
+GitHub Actions
+Risk Score Engine
+AMP
+ApplicationSet
+```
 
-## 구현 시작 순서에서의 위치
-
-이 문서는 "최종 목표 구조" 설명이 아니라,
-현재 실제 작업 순서에서 아래 위치를 설명한다.
-
-1. `factory-a` Safe-Edge 기준선 복구
-2. Hub 기준선 구성
-3. Mesh 기반 `factory-a` 연결
-4. `factory-a` 배포/데이터 기준선 구성
-5. VM Spoke 확장
-6. Risk Twin 관제 연결
-7. 통합 검증
-
-즉, 현재 구조 문서는 Hub부터 단독으로 구현하는 문서가 아니라,
-Safe-Edge 기준선 이후 어떤 식으로 전체 구조를 묶을지 설명하는 기준 문서다.
-
-## TODO
-
-- TODO: 구현 후 실제 배포 구조 이미지 추가
-- TODO: 실제 네임스페이스/앱 배치 다이어그램 추가
+후속 구조는 `docs/architecture/01_target_architecture.md`에서 관리한다.

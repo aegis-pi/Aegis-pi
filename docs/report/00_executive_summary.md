@@ -1,94 +1,62 @@
 # 요약 보고서
 
-상태: draft
-기준일: 2026-04-24
+상태: source of truth
+기준일: 2026-04-28
 
-## 목적
+## 한 줄 요약
 
-짧은 분량으로 프로젝트의 핵심 구조, 현재 상태, 다음 단계만 빠르게 전달하기 위한 요약 보고서다.
+`factory-a` Raspberry Pi 3-node Safe-Edge 기준선을 구축하고, GitOps 배포, Grafana 관제, Longhorn 저장소, 장애 복구 검증까지 완료했다.
 
-## 현재 상태
+## 현재 완료한 것
 
-- 발표/보고 공용 초안이다.
-- 상세 구조는 이미 정리되었고, 본 문서는 그 내용을 압축한 1페이지 요약 성격이다.
+```text
+K3s 3-node cluster
+Longhorn storage
+ArgoCD Helm 설치
+GitHub GitOps repo 연결
+monitoring / ai-apps 배포 분리
+InfluxDB 1일 retention
+Grafana sensor / AI dashboard
+Prometheus Node Exporter Full 1860 dashboard
+image prepull DaemonSet
+AI snapshot PVC + 24시간 cleanup
+LAN 제거 failover/failback 테스트
+전원 제거 failover/failback 테스트
+```
 
-## 범위
+## 주요 성과
 
-- 프로젝트 한 줄 요약
-- 문제 정의
-- 현재 상태
-- 현재 결정 사항
-- 다음 단계
-- 주요 리스크
+- `factory-a`는 단독 Safe-Edge 기준선으로 운영 가능하다.
+- worker2 장애 시 worker1로 failover가 가능하다.
+- worker2 복구 후 master OS cron 기반 Kubernetes-only failback이 가능하다.
+- Longhorn volume은 전원 장애 중 degraded가 되었지만 복구 후 healthy로 돌아왔다.
+- 데이터 공백을 10초 bucket과 1초 bucket으로 측정했다.
 
-## 상세 내용
+## 핵심 수치
 
-## 프로젝트 한 줄 요약
+```text
+전원 제거 첫 관찰 -> worker2 NotReady: 약 42초
+worker2 NotReady -> worker1 전체 Running: 약 32초
+전원 제거 첫 관찰 -> worker1 전체 Running: 약 74초
+전원 재연결 첫 관찰 -> worker2 전체 Running: 약 2분 11초
+failover 1초 bucket 최대 공백: 65-75초
+failback 1초 bucket 최대 공백: 2초
+```
 
-Safe-Edge 기반 단일 공장 생존형 엣지를, 멀티 공장 중앙 Risk Twin 관제 구조로 확장하는 프로젝트다.
+## 현재 남은 과제
 
-## 문제 정의
+```text
+중복 write 처리 정책 결정
+데이터 공백 허용 범위 결정
+writer node tag 또는 active writer guard 검토
+M0 문서 전체 정합성 보정
+AWS Hub / factory-b / factory-c 확장
+```
 
-- 기존 Safe-Edge는 단일 공장 기준선으로는 의미가 있었지만, 본사 관제 기준의 멀티 공장 운영 구조는 부족했다.
-- 따라서 실제 운영형 기준선을 유지하면서, 여러 공장을 중앙에서 관제할 수 있는 상위 구조가 필요했다.
+## 후속 방향
 
-## 현재 상태
-
-- 문서 기준 설계 구조는 정리 완료
-- Safe-Edge 기준선 재구성 계획 완료
-- Hub/Spoke, 데이터 플레인, Risk 모델, 테스트 전략 확정
-- 실제 구축 산출물은 다음 단계에서 생성 예정
-
-## 현재 결정 사항
-
-### 구조
-
-- `factory-a`: 실제 운영형 Spoke
-- `factory-b`, `factory-c`: 테스트베드형 Spoke
-- Hub: AWS EKS 기반 중앙 제어/관제
-
-### 데이터 플레인
-
-- 입력 모듈 -> Edge Agent -> IoT Core -> S3 -> 정규화/판단 -> Risk Score 처리
-
-### 배포
-
-- GitHub Push -> GitHub Actions -> ECR -> ArgoCD -> Tailscale -> Spoke 롤아웃
-
-### Risk 표현
-
-- `안전 / 주의 / 위험`
-- 내부 Risk Score는 계산하되 메인 카드에는 직접 노출하지 않음
-
-## 다음 단계
-
-1. `factory-a` Safe-Edge 기준선 구축
-2. Hub 핵심 서비스 배치
-3. `factory-b`, `factory-c` 테스트베드 구성
-4. IoT Core -> S3 -> Risk Twin 확인
-
-## 현재 남아 있는 주요 작업
-
-- 실제 설치 명령과 운영 매니페스트 작성
-- `runtime-config.yaml` 초안 생성
-- 테스트 기반 수치 보정
-  - 온도/습도 임계값
-  - 데이터 지연 기준
-  - Dummy 시나리오 세부값
-
-## 주요 리스크
-
-- Safe-Edge 기준선 복구가 지연되면 전체 일정이 밀릴 수 있음
-- 테스트베드형 Dummy 입력과 실제 운영형 입력 사이의 차이를 충분히 검증해야 함
-- 일부 임계값은 테스트 전까지 확정하기 어려움
-
-## 기대 효과
-
-- 본사 관제 담당자가 공장별 상태를 한눈에 비교할 수 있음
-- 운영형과 테스트베드형을 분리해 실환경 보호와 검증 속도를 동시에 확보할 수 있음
-- event/analysis/보고서 계층으로 확장 가능한 기반 구조를 마련할 수 있음
-
-## TODO
-
-- TODO: 실제 진행률 수치 추가
-- TODO: 실제 구축 완료 후 한 줄 성과 요약 추가
+1. `factory-a` 문서 정합성 완료
+2. AWS EKS Hub 기준선 설계/구축
+3. Hub-Spoke 연결
+4. IoT Core / S3 데이터 플레인
+5. Risk Twin dashboard

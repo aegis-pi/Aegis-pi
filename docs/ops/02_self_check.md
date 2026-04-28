@@ -1,137 +1,127 @@
 # 셀프 체크 가이드
 
-상태: draft
-기준일: 2026-04-24
+상태: source of truth
+기준일: 2026-04-28
 
 ## 목적
 
-구성 후 현재 상태가 최소 기준을 만족하는지 빠르게 판단하기 위한 점검 체크리스트를 제공한다.
+`factory-a` Safe-Edge 기준선이 현재 운영 가능한 상태인지 빠르게 확인하기 위한 점검표다.
 
 ## 현재 상태
 
-- 현재 문서는 `구성 직후`, `배포 직후`, `데모 직전`에 공통으로 사용할 수 있는 기준 점검표다.
-- 실제 명령과 대시보드 URL은 일부 미정이다.
+- `factory-a`는 3노드 K3s, ArgoCD, Helm, Longhorn, InfluxDB, Grafana 기준선 구성이 완료됐다.
+- GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
+- ArgoCD repository 등록과 sync 조작은 UI에서 수행한다.
+- Hub, `factory-b`, `factory-c`, AWS IoT Core, S3, Risk Twin은 후속 단계다.
 
 ## 범위
 
-- Safe-Edge 기준선 점검
-- Hub 점검
-- 데이터 플레인 점검
-- Risk Twin 점검
-- 테스트베드형 Spoke 점검
+- K3s 노드 상태
+- GitOps/ArgoCD 상태
+- 모니터링 및 데이터 수집 상태
+- Longhorn 복제 상태
+- Failover/Failback 준비 상태
+- 후속 Hub 확장 전 확인 항목
 
-## 상세 내용
+## 기본 접속 정보
 
-## 사용 시점
+| 항목 | 값 |
+| --- | --- |
+| master | `10.10.10.10` |
+| worker1 | `10.10.10.11` |
+| worker2 | `10.10.10.12` |
+| ArgoCD UI | `http://10.10.10.200` |
+| Longhorn UI | `http://10.10.10.201` |
+| Grafana UI | `http://10.10.10.202` |
 
-### 1. Safe-Edge 기준선 복구 직후
+## 시작 전 체크
 
-- `factory-a`의 최소 운영 가능 상태를 확인한다.
+아래 항목은 세션을 시작할 때마다 확인한다.
 
-### 2. Hub 및 Spoke 배포 직후
-
-- Hub, Tailscale, 배포 파이프라인, 테스트베드형 Spoke를 확인한다.
-
-### 3. 데모 또는 검증 직전
-
-- Risk 상태, 최근 로그, Dummy 전환 반응까지 확인한다.
+```bash
+kubectl get nodes -o wide
+kubectl -n argocd get application
+kubectl -n monitoring get pod -o wide
+kubectl -n ai-apps get pod -o wide
+kubectl -n ai-apps get ds safe-edge-image-prepull -o wide
+kubectl -n monitoring get pvc
+kubectl -n ai-apps get pvc
+kubectl -n longhorn-system get volumes.longhorn.io -o wide
+```
 
 ## 판정 원칙
 
-- 핵심 항목은 모두 `예`여야 다음 단계로 넘어간다.
-- 보조 항목은 일부 미정이어도 진행 가능하지만, 데모 직전에는 다시 확인한다.
-- 하나라도 실패하면 `04_troubleshooting.md`를 먼저 본다.
+- 노드 3개는 모두 `Ready`여야 한다.
+- ArgoCD Application은 `Synced`와 `Healthy`여야 한다.
+- `monitoring`, `ai-apps`의 핵심 Pod는 `Running`이어야 한다.
+- Longhorn volume은 `healthy` 또는 의도한 복구 중 상태여야 한다.
+- Failover/Failback 테스트 직후에는 데이터 공백과 중복 write 가능성을 함께 확인한다.
 
 ## Safe-Edge 기준선 점검
 
-### 핵심 항목
+| 점검 항목 | 확인 방법 | 통과 기준 |
+| --- | --- | --- |
+| K3s 노드 | `kubectl get nodes -o wide` | master, worker1, worker2 모두 `Ready` |
+| ArgoCD 앱 | `kubectl -n argocd get application` | `safe-edge-monitoring`, `safe-edge-ai-apps`가 `Synced/Healthy` |
+| 모니터링 Pod | `kubectl -n monitoring get pod -o wide` | InfluxDB, Grafana, Prometheus 계열 Pod 정상 |
+| AI 앱 Pod | `kubectl -n ai-apps get pod -o wide` | 대상 AI Pod가 정상 노드에서 `Running` |
+| 이미지 prepull | `kubectl -n ai-apps get ds safe-edge-image-prepull -o wide` | worker1/worker2에 이미지 사전 적재 |
+| PVC | `kubectl -n monitoring get pvc`, `kubectl -n ai-apps get pvc` | 필요한 PVC가 `Bound` |
+| Longhorn | `kubectl -n longhorn-system get volumes.longhorn.io -o wide` | replica 상태 정상 |
 
-- [ ] `factory-a` K3s 3노드가 정상인가
-- [ ] Master / Worker 역할이 의도대로 구성됐는가
-- [ ] Longhorn 복제가 정상인가
-- [ ] 센서값이 수집되는가
-- [ ] 카메라/마이크 상태가 최소 수준으로 확인되는가
-- [ ] Grafana에서 기본 입력이 보이는가
+## Grafana/InfluxDB 점검
 
-### 실패 시 먼저 볼 것
+Grafana는 `http://10.10.10.202`에서 확인한다.
 
+| 패널 | 데이터 소스 | 기준 |
+| --- | --- | --- |
+| 현장 온도 | InfluxDB `environment_data.temperature` | 최근 값과 추세 표시 |
+| 현장 습도 | InfluxDB `environment_data.humidity` | 최근 값과 추세 표시 |
+| 현장 기압 | InfluxDB `environment_data.pressure` | 최근 값과 추세 표시 |
+| 화재 감지 | InfluxDB `ai_detection.fire_detected` 최근 N개 평균 | 안전/주의/화재 |
+| 넘어짐 감지 | InfluxDB `ai_detection.fallen_detected` 최근 N개 평균 | 안전/주의/넘어짐 |
+| 굽힘 감지 | InfluxDB `ai_detection.bending_detected` 최근 N개 평균 | 안전/주의/굽힘 |
+| 이상 소음 | InfluxDB `acoustic_detection.is_danger` 최근 N개 평균 | 안전/주의/필터링된 소리 레이블 |
+| 노드 상태 | Prometheus dashboard `1860` | CPU, memory, disk, network 확인 |
+
+최근 N개 기본값은 `LIMIT 10`으로 본다. Grafana 패널 Query의 InfluxQL에서 이 값을 조정하면 된다.
+
+## 보존 정책 점검
+
+- InfluxDB retention policy는 1일 보존 기준이다.
+- Longhorn replica도 InfluxDB가 보존하는 데이터 범위만 복제한다.
+- AI detect snapshot은 `/app/snapshots`에 저장되고 Longhorn PVC에 붙어 있다.
+- `snapshot-cleanup` sidecar가 24시간이 지난 이미지 파일을 정리한다.
+
+## Failover/Failback 점검
+
+실제 장애 테스트는 `docs/ops/03_test_checklist.md`와 `docs/ops/09_failover_failback_test_results.md`를 기준으로 진행한다.
+
+핵심 판정:
+
+- worker2 장애 시 대상 Pod가 worker1로 이동하는가
+- worker1 이동 후 하드웨어 입력이 유지되는가
+- worker2 복구 후 failback 스크립트가 worker2 상태를 확인한 뒤에만 대상 Pod를 되돌리는가
+- worker2가 이미 대상 Pod를 잡고 있으면 failback 스크립트가 실행되지 않는가
+- failback 이후 InfluxDB 10초/1초 bucket 기준으로 데이터 공백과 중복 write 여부를 확인했는가
+
+## 후속 Hub 확장 전 체크
+
+아래 항목은 아직 현재 완료 범위가 아니다. `factory-a` 기준선이 안정적으로 유지된 뒤 진행한다.
+
+- AWS EKS Hub 구성
+- Tailscale 기반 Hub-Spoke 연결
+- AWS IoT Core 및 S3 적재
+- GitHub Actions/ECR 이미지 빌드 파이프라인
+- `factory-b`, `factory-c` 테스트베드형 Spoke
+- Risk Twin 대시보드
+
+## 실패 시 먼저 볼 문서
+
+- `docs/ops/00_quick_start.md`
 - `docs/ops/01_safe_edge_bootstrap.md`
-- Longhorn 상태
-- 입력 모듈과 Edge Agent 상태
-
-## Hub 점검
-
-### 핵심 항목
-
-- [ ] EKS 핵심 서비스가 배치됐는가
-- [ ] `argocd`, `observability`, `risk`, `ops-support` 역할이 분리됐는가
-- [ ] ArgoCD가 동기화 가능한가
-- [ ] Tailscale 연결이 정상인가
-- [ ] Hub가 `factory-a`, `factory-b`, `factory-c`를 구분 가능한가
-
-### 실패 시 먼저 볼 것
-
-- Tailscale Master 연결
-- ArgoCD 대상 클러스터 등록 상태
-- Hub 핵심 서비스 배치 상태
-
-## 테스트베드형 Spoke 점검
-
-### 핵심 항목
-
-- [ ] `factory-b` K3s가 정상인가
-- [ ] `factory-c` K3s가 정상인가
-- [ ] Dummy 입력 모듈이 동작하는가
-- [ ] 두 공장이 독립 공장으로 식별되는가
-- [ ] 운영형/테스트베드형 배포 정책 차이가 반영되는가
-
-### 실패 시 먼저 볼 것
-
-- Dummy 입력 모듈 상태
-- values 기반 ApplicationSet 적용 상태
-- Tailscale 연결 상태
-
-## 데이터 플레인 점검
-
-### 핵심 항목
-
-- [ ] 입력 모듈 -> Edge Agent 경로가 정상인가
-- [ ] IoT Core 수신 확인
-- [ ] S3 적재 확인
-- [ ] `pipeline_status` 집계 확인
-- [ ] `pipeline_status`가 Edge가 아닌 Hub 계산 상태로 반영되는가
-
-### 실패 시 먼저 볼 것
-
-- payload 필수 필드 누락 여부
-- IoT Core Rule
-- S3 경로 및 날짜 파티셔닝
-- `pipeline-status-aggregator` 상태
-
-## Risk Twin 점검
-
-### 핵심 항목
-
-- [ ] 공장별 상태가 보이는가
-- [ ] `안전 / 주의 / 위험` 상태가 의도대로 반영되는가
-- [ ] 최근 10분 변화 방향이 계산되는가
-- [ ] 주요 원인 Top 3가 반영되는가
-- [ ] 메인 카드에 내부 Risk Score가 직접 노출되지 않는가
-
-### 시나리오 확인 항목
-
-- [ ] 센서 무수신 시 상태 변화가 보이는가
-- [ ] Dummy 시나리오 전환이 관제에 반영되는가
-- [ ] 시스템 이상 또는 파이프라인 이상이 목록과 로그에 반영되는가
-
-### 실패 시 먼저 볼 것
-
-- 정규화/판단 서비스
-- Risk Score Engine
-- 주요 원인 코드 매핑
-- 메인 대시보드 조회 데이터
-
-## TODO
-
-- TODO: 각 체크 항목의 실제 명령/대시보드 경로 추가
-- TODO: 단계별 점검 결과 기록 표 추가
+- `docs/ops/04_troubleshooting.md`
+- `docs/ops/06_argocd_gitops.md`
+- `docs/ops/07_grafana_dashboard.md`
+- `docs/ops/08_data_retention.md`
+- `docs/ops/09_failover_failback_test_results.md`

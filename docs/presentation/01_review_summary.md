@@ -1,144 +1,39 @@
 # 검토 및 발표 요약
 
-상태: draft
-기준일: 2026-04-24
-
-## 목적
-
-발표, 검토, 지도 상황에서 프로젝트의 핵심 메시지와 차별점을 짧게 설명하기 위한 요약 문서다.
-
-## 현재 상태
-
-- 구조 요약과 예상 질문 대응 포인트를 담은 초안이다.
-- 현재는 MVP 기준 구조와 발표 메시지를 정리한 상태다.
-
-## 범위
-
-- 문제 정의
-- 핵심 메시지
-- 구조 요약
-- 차별점
-- 현재 범위와 후속 범위
-- 예상 질문
-
-## 상세 내용
-
-## 한 줄 요약
-
-- Safe-Edge 기반 단일 공장 생존형 엣지를, 여러 공장을 중앙에서 관제하는 Risk Twin 구조로 확장하는 프로젝트다.
-
-## 문제 정의
-
-- 기존 Safe-Edge는 단일 공장 기준선으로는 유의미했지만, 본사 관제 관점의 멀티 공장 운영 구조는 없었다.
-- 현장 입력과 데이터 보존은 가능했지만, 공장 단위 위험 상태를 중앙에서 비교하고 판단하는 체계는 부족했다.
-- 따라서 `운영형 엣지 기준선 + 중앙 Hub + 공장별 위험 상태`를 함께 다루는 구조가 필요했다.
+상태: source of truth
+기준일: 2026-04-28
 
 ## 핵심 메시지
 
-- Safe-Edge를 폐기하지 않고 기준선으로 삼아 멀티 공장 구조로 확장했다.
-- 단순 이벤트 수집기가 아니라 공장 단위 위험 상태를 중앙에서 보는 Risk Twin 구조다.
-- 실제 운영형 Spoke와 테스트베드형 Spoke를 함께 사용해 설계와 검증을 분리했다.
+`factory-a` Safe-Edge 기준선은 실제 구축과 장애 검증까지 완료됐다. Aegis-Pi의 다음 단계는 이 기준선을 AWS Hub/Risk Twin 구조로 확장하는 것이다.
 
-## 현재 구조 요약
+## 발표 포인트
 
-### Spoke
+1. Safe-Edge 기준선 복구 완료
+2. ArgoCD GitOps 배포 확인
+3. Grafana 관제 확인
+4. Longhorn 저장소 확인
+5. LAN/전원 장애 테스트 완료
+6. 데이터 공백과 중복 write 후보까지 측정
 
-- `factory-a`
-  - Raspberry Pi 기반 실제 운영형 Spoke
-  - Safe-Edge 기준선 계승
-- `factory-b`
-  - Mac mini VM 기반 테스트베드형 Spoke
-- `factory-c`
-  - Windows VM 기반 테스트베드형 Spoke
+## 수치
 
-### Hub
+```text
+worker2 전원 제거 -> worker1 전체 Running: 약 74초
+worker2 전원 재연결 -> worker2 전체 Running: 약 2분 11초
+failover 1초 bucket 최대 공백: 65-75초
+failback 1초 bucket 최대 공백: 2초
+```
 
-- AWS EKS 기반 중앙 제어/관제 지점
-- ArgoCD
-- Grafana
-- Risk Score Engine
-- `pipeline_status` 집계 보조 기능
-- IoT Core / S3 / AMP 중심의 AWS 관리형 백엔드 연계
-- Timestream은 현재 MVP 필수 저장소가 아니라 후속 후보로 둔다
+## 후속 질문 대비
 
-### 데이터 흐름
+왜 Hub부터 하지 않았나:
+- 실제 운영형 기준선이 먼저 안정화되어야 멀티 공장 구조가 의미를 갖는다.
 
-- 입력 모듈 -> Edge Agent -> IoT Core -> S3 -> 정규화/판단 -> Risk Score 처리
+왜 CronJob이 아니라 master OS cron인가:
+- 하드웨어 의존 Pod에서 Kubernetes CronJob 방식은 불안정했다.
+- 현재는 master에서 Kubernetes API만 사용하는 방식으로 failback한다.
 
-### 배포 흐름
-
-- GitHub Push -> GitHub Actions -> ECR -> ArgoCD -> Tailscale -> Spoke 롤아웃
-
-## 차별점
-
-1. `factory-a` 실제 Safe-Edge 기준선 유지
-2. `factory-b/c` 테스트베드형 확장
-3. Tailscale 기반 Hub-Spoke 연결
-4. IoT Core -> S3 -> Risk Score 처리 흐름
-5. 본사 관제 담당자 중심 화면 구조
-
-## 현재 범위와 후속 범위
-
-### 현재 MVP 범위
-
-- 멀티 공장 관제 기본 구조
-- 운영형 Spoke 1개 + 테스트베드형 Spoke 2개
-- 상태 기반 메인 대시보드
-- Risk Score 내부 계산
-- `안전 / 주의 / 위험` 상태 표시
-
-### 후속 범위
-
-- event 기반 Risk 반영
-- analysis 계층
-- LLM 기반 일일 보고서/요약
-- 더 많은 공장 수와 정책 세분화
-
-## 이 프로젝트를 발표할 때 강조할 포인트
-
-1. Safe-Edge를 새 프로젝트의 출발점으로 재사용했다는 점
-2. 운영형과 테스트베드형을 의도적으로 분리했다는 점
-3. 단순 수집이 아니라 `공장 단위 상태 판단`을 목표로 한다는 점
-4. 지금은 MVP를 보수적으로 잡고, 확장 방향은 구조적으로 열어뒀다는 점
-
-## 예상 질문
-
-### 왜 K3s와 EKS를 함께 쓰는가
-
-- K3s는 공장 현장 자율 생존에 적합하고,
-- EKS는 중앙 Fleet 제어와 관제에 적합하다.
-
-### 왜 Tailscale인가
-
-- Spoke API에 대한 직접 인바운드 개방 없이 Hub와 연결할 수 있기 때문이다.
-
-### 왜 Longhorn은 VM에 두지 않는가
-
-- VM은 테스트베드형 Spoke이므로 데이터 생존 구조보다 배포/파이프라인 검증이 우선이다.
-
-### 왜 LLM을 지금 넣지 않는가
-
-- 현재 MVP는 Risk Score의 빠른 처리와 운영 관제가 우선이며,
-- LLM/보고서는 후속 확장으로 분리한다.
-
-### 왜 Risk Score를 메인 카드에 직접 보여주지 않는가
-
-- 본사 관제 담당자는 숫자 자체보다 즉시 판단 가능한 상태 정보를 먼저 봐야 한다.
-- 내부 점수는 계산과 추세 판단에는 쓰되, 메인 화면은 상태 중심으로 설계한다.
-
-### 왜 테스트베드형 Spoke가 필요한가
-
-- 실제 운영형 Spoke 하나만으로는 상태 전환, 배포 실패, 파이프라인 검증을 반복적으로 실험하기 어렵다.
-- 테스트베드형 Spoke를 통해 시나리오 검증과 운영형 보호를 동시에 달성한다.
-
-## 현재 리스크 또는 미정 항목
-
-- 온도/습도 임계값은 테스트 후 보정 예정
-- source_type별 지연 기준 수치는 테스트 후 보정 예정
-- Dummy 시나리오의 세부값은 테스트 단계에서 확정
-- 실제 구축 명령과 매니페스트는 후속 운영 문서로 생성 예정
-
-## TODO
-
-- TODO: 발표 대상별 버전 분기 여부 결정
-- TODO: 3분 / 5분 / 10분 발표용 축약 버전 분기 여부 결정
+왜 Longhorn retention이 아니라 InfluxDB retention인가:
+- Longhorn은 블록 복제 계층이다.
+- 실제 시계열 보존 기간은 InfluxDB retention policy가 결정한다.

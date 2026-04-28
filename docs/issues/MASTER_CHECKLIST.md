@@ -16,19 +16,19 @@
 
 원본: `docs/issues/M0_factory-a_safe-edge-baseline.md`
 
-- [ ] Issue 1 - [Safe-Edge/OS] Raspberry Pi OS Lite 각 노드 기본 세팅
-- [ ] Issue 2 - [Safe-Edge/네트워크] 하드웨어/네트워크 기준선 구성
-- [ ] Issue 3 - [Safe-Edge/K3s] 3-Node 클러스터 구성 및 taint/label 적용
-- [ ] Issue 4 - [Safe-Edge/MetalLB] MetalLB + Traefik 네트워크 서비스 계층 구성
-- [ ] Issue 5 - [Safe-Edge/Longhorn] 3-Node 복제 구성
-- [ ] Issue 6 - [Safe-Edge/NFS] Host PC NFS Cold Storage 구성
-- [ ] Issue 7 - [배포/ArgoCD] GitLab + ArgoCD GitOps 복구
-- [ ] Issue 8 - [관제/Grafana] Prometheus + InfluxDB + Grafana 모니터링 구성
-- [ ] Issue 9 - [데이터/BME280] BME280 + 카메라 + 마이크 입력 계층 구성
-- [ ] Issue 10 - [Safe-Edge/YOLOv8] YOLOv8 + YAMNet AI 파드 배포 및 Worker-2 배치
-- [ ] Issue 11 - [Safe-Edge/Failover] Failover 정책 복구 (tolerationSeconds, affinity)
-- [ ] Issue 12 - [자동화/Ansible] Hot/Cold 티어링 + Ansible Playbook 복구
-- [ ] Issue 13 - [검증/통합] Safe-Edge 기준선 통합 검증
+- [x] Issue 1 - [Safe-Edge/OS] Raspberry Pi OS Lite 각 노드 기본 세팅
+- [x] Issue 2 - [Safe-Edge/네트워크] 하드웨어/네트워크 기준선 구성
+- [x] Issue 3 - [Safe-Edge/K3s] 3-Node 클러스터 구성 및 taint/label 적용
+- [x] Issue 4 - [Safe-Edge/MetalLB] MetalLB + Traefik 네트워크 서비스 계층 구성
+- [x] Issue 5 - [Safe-Edge/Longhorn] 3-Node 복제 구성
+- [ ] Issue 6 - [Safe-Edge/NFS] Host PC NFS Cold Storage 구성 (보류)
+- [x] Issue 7 - [배포/ArgoCD] GitHub + ArgoCD GitOps 구성
+- [x] Issue 8 - [관제/Grafana] Prometheus + InfluxDB + Grafana 모니터링 구성
+- [x] Issue 9 - [데이터/BME280] BME280 + 카메라 + 마이크 입력 계층 구성
+- [x] Issue 10 - [Safe-Edge/AI] 통합 AI + Audio 파드 배포 및 Worker-2 배치
+- [x] Issue 11 - [Safe-Edge/Failover] Failover / Failback 정책 검증
+- [ ] Issue 12 - [자동화/Ansible] Hot/Cold 티어링 + Ansible Playbook 복구 (보류)
+- [x] Issue 13 - [검증/통합] Safe-Edge 기준선 통합 검증
 
 ## M1. Hub 클라우드 기반 구성
 

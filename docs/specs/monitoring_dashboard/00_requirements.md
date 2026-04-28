@@ -1,193 +1,86 @@
-# 관제 대시보드 요구사항
+# Monitoring Dashboard 요구사항
 
 상태: source of truth
-기준일: 2026-04-24
+기준일: 2026-04-28
 
 ## 목적
 
-본사 관제 담당자가 사용하는 메인 관제 대시보드의 요구사항을 정리한다.
+현재 `factory-a`에서 실제 사용하는 Grafana dashboard 요구사항을 정리한다.
 
 ## 현재 상태
 
-- 대시보드의 핵심 정보 구조는 확정되었다.
-- 상세 라우트와 일부 보조 패널은 TODO 상태다.
-- 이 문서는 현재 메인 관제 화면의 구현 기준 요구사항이다.
+- 현재 dashboard는 별도 Web API가 아니라 Grafana UI에서 구성한다.
+- Datasource는 InfluxDB와 Prometheus를 사용한다.
+- InfluxDB는 센서/AI/소리 데이터를 표시한다.
+- Prometheus는 Node Exporter Full `1860` dashboard로 노드 상태를 표시한다.
 
-## 범위
+## Datasource
 
-- 메인 화면 요구사항
-- 표시 정보
-- 사용자 액션
-- 예외 흐름
-- 데이터 의존성
-- 구현 시 반드시 지켜야 할 제약
-
-## 상세 내용
-
-## 사용자
-
-- 본사 관제 담당자
-
-## 핵심 목표
-
-- 여러 공장의 위험 상태를 한눈에 본다.
-- 어떤 공장이 먼저 대응 대상인지 파악한다.
-- 왜 위험한지 빠르게 추론한다.
-
-## 화면의 기본 역할
-
-이 화면은 "현장 상세 조작 화면"이 아니라
-"본사 관제 담당자의 통합 운영 관제 화면"이다.
-
-따라서 우선순위는 아래와 같다.
-
-1. 공장별 상태 비교
-2. 위험 공장 우선 식별
-3. 이상 시스템과 상태 변화 확인
-4. 세부 원인 추적을 위한 진입점 제공
-
-## 메인 화면 구성
-
-- 상단: 공장별 위험 상태 카드
-- 중단 왼쪽: 센서 현황
-- 중단 오른쪽: 이상 시스템 목록
-- 하단: 최근 상태 변화 및 주요 이벤트 로그
-
-## 메인 화면 필수 요구사항
-
-### 1. 공장별 위험 상태 카드
-
-표시 항목:
-- 공장명
-- 현재 상태: `안전 / 주의 / 위험`
-- 최근 10분 변화 방향: `상승 / 유지 / 하락`
-- 현재 이상 시스템 개수
-
-제약:
-- 메인 카드에는 내부 Risk Score 숫자를 노출하지 않는다.
-- 현재 이상 시스템 개수는 메인 카드 기준 `구성요소 개수형`으로 계산한다.
-- 카드 정렬 기준은 `확인 필요`다. TODO: 정렬 우선순위 고정
-
-의존 데이터:
-
-- `factory_id`
-- 현재 상태
-- 최근 10분 변화 방향
-- 이상 시스템 집계 결과
-
-구현 메모:
-
-- 상태 색상 체계는 `안전 / 주의 / 위험` 3단계에 맞춰 고정한다.
-- 상태와 변화 방향은 분리해서 보여준다.
-
-### 2. 센서 현황 영역
-
-표시 항목:
-- 공장별 현재 온도
-- 공장별 현재 습도
-- 최근 짧은 추세선
-
-제약:
-
-- 기본 필드는 `temperature`, `humidity`만 필수로 본다.
-- 추세선의 정확한 길이와 포인트 수는 `확인 필요`다.
-
-의존 데이터:
-
-- `temperature`
-- `humidity`
-- 최근 추세 데이터
-
-예외 처리:
-
-- 센서값이 비어 있으면 `미수신` 또는 `확인 필요` 상태로 표현한다.
-
-### 3. 이상 시스템 목록
-
-표시 항목:
-- 이상 시스템 종류
-- 속한 공장
-- 발생 시각 또는 최근 갱신 시각
-- 상태
-
-정렬 기준:
-1. 공장 위험도 순
-2. 같은 위험도 안에서는 최신 발생 순
-
-포함 대상:
-
-- 센서
-- 엣지 에이전트
-- 노드
-- 카메라
-- 마이크
-- 데이터 수집 파이프라인
-
-구현 메모:
-
-- 운영형/테스트베드형 구분이 필요하면 공장 ID로 해석한다.
-- 상세 화면에서는 개별 인스턴스 개수 기준으로 확장 가능해야 한다.
-
-### 4. 최근 로그 영역
-
-포함 항목:
-- 공장 위험 상태 변화
-- 시스템 정상 -> 이상
-- 시스템 이상 -> 복구
-- 주요 운영 이벤트
-
-현재 구조에서의 "주요 운영 이벤트":
-
-- 센서 무수신
-- 파이프라인 지연/누락
-- 핵심 서비스 이상
-
-확장 가능성:
-
-- 환경 이벤트
-- 후속 event 입력
-
-## 데이터 의존성
-
-메인 관제 화면이 의존하는 기본 데이터는 아래와 같다.
-
-| 영역 | 기본 데이터 |
+| Datasource | 역할 |
 | --- | --- |
-| 위험 카드 | 상태, 최근 10분 변화 방향, 이상 시스템 개수 |
-| 센서 현황 | `temperature`, `humidity`, 최근 추세 |
-| 이상 시스템 목록 | `sensor_status`, `edge_agent_status`, `node_status`, `camera_status`, `mic_status`, `pipeline_status` |
-| 로그 | 상태 변화 기록, 시스템 이상 기록, 주요 이벤트 기록 |
+| InfluxDB | 온도, 습도, 기압, AI 감지, 소리 감지 |
+| Prometheus | 노드 CPU, Memory, Disk, Network |
+
+## 필수 Panel
+
+| Panel | Datasource | Measurement / Field | 표시 |
+| --- | --- | --- | --- |
+| 현장 온도 | InfluxDB | `environment_data.temperature` | Time series |
+| 현장 습도 | InfluxDB | `environment_data.humidity` | Time series |
+| 현장 기압 | InfluxDB | `environment_data.pressure` | Time series |
+| 화재 감지 | InfluxDB | `ai_detection.fire_detected` | Stat |
+| 넘어짐 감지 | InfluxDB | `ai_detection.fallen_detected` | Stat |
+| 굽힘 감지 | InfluxDB | `ai_detection.bending_detected` | Stat |
+| 이상 소음 감지 | InfluxDB | `acoustic_detection.is_danger` | Stat |
+| 노드 상태 | Prometheus | Node exporter metrics | Dashboard 1860 |
+
+## AI 상태 해석
+
+AI/Sound panel은 최근 N개 값을 평균낸 뒤 상태로 표시한다.
+
+기본 N:
+
+```text
+10
+```
+
+N 변경 위치:
+
+```text
+Grafana panel query의 LIMIT 숫자
+```
+
+상태 매핑:
+
+```text
+0.0-0.2: 안전
+0.3-0.7: 주의
+0.8-1.0: 위험 레이블
+```
+
+위험 레이블:
+
+```text
+fire_detected -> 화재
+fallen_detected -> 넘어짐
+bending_detected -> 굽힘
+is_danger -> 감지된 소리 레이블 또는 이상 소음
+```
 
 ## 구현 제약
 
-- 메인 화면은 내부 Risk Score를 직접 노출하지 않는다.
-- `pipeline_status`는 Edge가 아니라 Hub에서 계산한 상태를 사용한다.
-- `event`는 구조상 확장 가능하지만, 현재 MVP 요구사항의 필수 입력은 아니다.
-- 온도/습도 임계값은 현재 미정이며, 테스트 후 보정한다.
+- Dashboard 등록과 panel 구성은 Grafana UI에서 진행한다.
+- API 기반 dashboard는 후속 Hub/Risk Twin 단계에서 다룬다.
+- 현재 `factory-a` dashboard는 단일 공장 운영 관제용이다.
+- AWS Hub의 멀티 공장 Risk Twin dashboard와 혼동하지 않는다.
 
-## 사용자 액션
+## 완료 기준
 
-- 공장 위험 상태를 확인한다.
-- 이상 시스템을 확인한다.
-- 최근 상태 변화 흐름을 본다.
-- TODO: 상세 화면 이동 액션 정의
-
-## 예외 흐름
-
-- 데이터 미수신 시 `pipeline_status` 또는 `sensor_status` 이상 표시
-- 공장 상태가 동일해도 최근 변화 방향이 다를 수 있음
-- 센서값이 `null`인 경우 화면 표시는 `확인 필요` 또는 `미수신`으로 정리한다. TODO: 실제 문구 고정
-- 테스트베드형 Spoke의 Dummy 전환도 메인 화면에서 동일한 상태 변화로 반영되어야 한다.
-
-## 테스트 시 확인해야 할 요구사항
-
-- `factory-a`, `factory-b`, `factory-c`가 동시에 식별되는가
-- Dummy 시나리오 전환 시 상태 카드가 변하는가
-- 센서 무수신 시 로그와 이상 시스템 목록이 갱신되는가
-- 파이프라인 이상이 위험도 판단 축에 반영되는가
-
-## TODO
-
-- TODO: 상세 페이지 요구사항 별도 분리
-- TODO: 필터/검색 필요 여부 확인
-- TODO: 위험 카드 정렬 기준 고정
+```text
+Grafana UI 접근 가능
+InfluxDB datasource 연결 성공
+Prometheus datasource 연결 성공
+환경 센서 time series 갱신
+AI/Sound stat panel 상태 표시
+Node Exporter Full 1860 dashboard 표시
+```

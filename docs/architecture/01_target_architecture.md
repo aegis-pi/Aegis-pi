@@ -1,170 +1,145 @@
 # 목표 확장 아키텍처
 
 상태: draft
-기준일: 2026-04-24
+기준일: 2026-04-28
 
 ## 목적
 
-현재 freeze된 구조를 기준으로, MVP 이후 어떤 축으로 시스템을 확장할 수 있는지와 그 확장 조건을 정리한다.
+현재 완료된 `factory-a` Safe-Edge 기준선을 기반으로, 이후 Aegis-Pi가 확장할 목표 Hub/Spoke 구조를 정리한다.
 
-## 현재 상태
+## 현재와 목표의 경계
 
-- 현재 MVP 구조는 확정되었고, 본 문서는 후속 확장 방향을 정리한 초안이다.
-- 현재 구현 기준은 `docs/architecture/00_current_architecture.md`를 따른다.
-- 아직 구현하지 않을 확장 항목은 이 문서에서만 관리하고, 현재 구현 기준과 섞지 않는다.
+현재 완료:
 
-## 범위
+```text
+factory-a 로컬 Safe-Edge 기준선
+```
 
-- event 확장
-- analysis 계층 확장
-- 데이터/배포 확장
-- 운영 정책 확장
-- Fleet 확장
+후속 목표:
 
-## 상세 내용
+```text
+AWS EKS Hub
+factory-a / factory-b / factory-c 멀티 Spoke
+중앙 배포 / 중앙 수집 / Risk Twin 관제
+```
 
-## 이 문서를 읽는 목적
+## 목표 구조
 
-- 현재 구조가 어디까지 freeze됐는지 확인한다.
-- 지금 구현하지 않을 확장 축을 미리 구분한다.
-- 후속 단계에서 어떤 문서를 추가로 만들어야 할지 판단한다.
+```text
+AWS EKS Hub
+    ├── factory-a  Raspberry Pi 3-node K3s, 운영형
+    ├── factory-b  Mac mini VM K3s, 테스트베드형
+    └── factory-c  Windows VM K3s, 테스트베드형
+```
 
-## 확장 축
+Hub와 각 Spoke는 하나의 단일 Kubernetes cluster가 아니라 독립 cluster로 운영한다.
 
-### 1. 이벤트 기반 확장
+## 목표 제어 평면
 
-현재 상태:
-- `event` 코드는 예약만 되어 있고 실제 Risk Score 반영은 하지 않는다.
-
-확장 방향:
-- `event` 입력 활성화
-- 별도 이벤트 경로 가능성
-- Risk Score 반영 또는 상태 승격 로직 추가
-
-확장 조건:
-- event 입력 종류와 의미가 명확히 정의될 것
-- event 입력이 안정적으로 수집될 것
-- event를 보조 가중치로 볼지, 상태 승격으로 볼지 정책이 정리될 것
-
-후속 문서 후보:
-- `docs/specs/events/00_requirements.md`
-- `docs/specs/events/03_data_model.md`
-
-### 2. Analysis 계층
-
-현재 상태:
-- 현재는 미구현
-- Hub 내부에서 `analysis`는 별도 독립 계층으로만 예약돼 있다
-
-확장 방향:
-- 추후 별도 독립 계층/네임스페이스로 추가
-- 후보 기능:
-  - 일일 보고서
-  - 후처리 분석
-  - 위험도 해석
-  - LLM 연계 기능
+```text
+GitHub Push
+    -> GitHub Actions
+    -> ECR
+    -> ArgoCD
+    -> Tailscale
+    -> 각 Spoke rollout
+```
 
 확장 조건:
-- Risk 결과와 주요 원인 데이터가 안정적으로 축적될 것
-- 배치 또는 후처리 실행 주기가 정의될 것
-- 현재 운영형 관제 기능과 분리된 책임 경계가 필요해질 것
 
-예상 연결 지점:
-- Risk 결과 저장소
-- 관제 로그
-- 후속 API 또는 보고서 생성 흐름
+- `factory-a` GitOps 기준선이 안정적으로 유지될 것
+- 공장별 values 구조가 정리될 것
+- ArgoCD가 각 Spoke cluster에 접근 가능할 것
+- 운영형과 테스트베드형 sync 정책을 분리할 것
 
-### 3. 데이터 플레인 확장
+## 목표 데이터 평면
 
-현재 상태:
-- 정규화/판단 후 Risk Score Engine 직접 호출형
-- `sensor`, `system_status`, `pipeline_status` 중심
-
-확장 방향:
-- 직접 호출형 -> 이벤트/큐 기반 트리거
-- 더 많은 source_type
-- 보존/분석 정책 고도화
-- 원본/정규화/결과 계층별 보존 정책 분리
+```text
+Edge input
+    -> Edge Agent
+    -> AWS IoT Core
+    -> S3
+    -> Risk Normalizer
+    -> Risk Score Engine
+    -> Grafana / Risk Twin Dashboard
+```
 
 확장 조건:
-- 공장 수 또는 입력량 증가
-- 직접 호출형의 결합도가 운영 부담이 될 것
-- 이벤트성 입력이 별도 처리 경로를 필요로 할 것
 
-### 4. Fleet 확장
+- 현재 InfluxDB 기반 로컬 관제에서 표준 input schema를 분리할 것
+- IoT Core topic과 S3 partition 규칙을 확정할 것
+- `factory_id`, `source_type`, timestamp 기준을 고정할 것
 
-현재 상태:
-- `factory-a`, `factory-b`, `factory-c` 3개 공장 기준
-- 공장별 override 구조는 준비만 되어 있고 기본은 전역 설정 사용
+## 목표 Hub Namespace
 
-확장 방향:
-- 공장 수 확장
-- 공장별 설정 override 활성화
-- 운영 정책 세분화
-- 환경군별 운영/테스트 정책 분기 확대
+```text
+argocd
+observability
+risk
+ops-support
+```
 
-확장 조건:
-- 공장별 입력 특성 차이가 실제 운영 문제로 드러날 것
-- 동일 전역 설정으로 운영하기 어려워질 것
-- 테스트베드 외의 실제 공장 Spoke가 추가될 것
+역할:
 
-### 5. 운영 및 배포 확장
+| Namespace | 역할 |
+| --- | --- |
+| `argocd` | 멀티 Spoke 배포 제어 |
+| `observability` | Grafana, AMP, Prometheus 연동 |
+| `risk` | normalizer, score engine |
+| `ops-support` | pipeline status 집계 |
 
-현재 상태:
-- 운영형/테스트베드형의 sync 정책 차이만 분리
-- 테스트베드형만 자동 롤백 허용
+## Factory 역할
 
-확장 방향:
-- 배포 검증 자동화 강화
-- 운영형/테스트베드형 정책 세분화
-- 지연 시간 기준 기반 경고 체계
-- 장애/복구 리허설 자동화
-
-확장 조건:
-- 반복 배포가 일상화될 것
-- 현재 수동 검증이 병목이 될 것
-- 데모 수준이 아닌 상시 운영 요구가 생길 것
-
-## 확장 우선순위 제안
-
-### 1순위
-
-- `event` 입력 활성화 여부 판단
-- 데이터 플레인 지연/누락 수치 기준 고정
-- 공장별 override 활성화 조건 정리
-
-### 2순위
-
-- Analysis 계층 요구사항 분리
-- 이벤트/큐 기반 트리거 여부 검토
-- 배포 운영 자동화 확대
-
-### 3순위
-
-- LLM 기반 보고서/요약
-- 별도 이벤트 전용 파이프라인
-- 추가 공장군 확장
-
-## 현재 구조와 미래 구조의 구분
-
-| 구분 | 현재 구조 | 미래 확장 |
+| Factory | 역할 | 현재 상태 |
 | --- | --- | --- |
-| Risk Score | 직접 호출형 | 이벤트형 가능 |
-| Event 입력 | 구조만 준비 | 실제 반영 |
-| Analysis | 예약만 | 별도 계층 |
-| Override | 구조만 준비 | 운영 활성화 |
-| 배포 정책 | 최소 분리 | 자동화 확대 가능 |
-| Fleet 규모 | 3개 공장 | 추가 공장 확장 |
+| `factory-a` | 실제 운영형 Safe-Edge | 기준선 완료 |
+| `factory-b` | Mac mini VM 테스트베드 | 후속 |
+| `factory-c` | Windows VM 테스트베드 | 후속 |
 
-## 현재 구현으로 넘어오면 안 되는 항목
+## Risk Twin 목표
 
-- LLM 기반 자동 보고서를 현재 MVP 핵심 기능으로 간주하지 않는다.
-- `event` 입력을 현재 Risk 계산 필수 입력으로 간주하지 않는다.
-- 공장별 override를 지금부터 기본 운영 방식으로 열지 않는다.
-- 큐/이벤트 기반 데이터 플레인을 현재 구현 전제로 두지 않는다.
+표현:
 
-## TODO
+```text
+안전
+주의
+위험
+```
 
-- TODO: 확장 시점 우선순위 상세 표 추가
-- TODO: Analysis 계층 상세 요구사항 문서 분리
-- TODO: event 활성화 시 별도 요구사항 문서 추가
+목표 입력:
+
+```text
+sensor
+system_status
+pipeline_status
+event
+```
+
+현재 `factory-a`의 Grafana dashboard는 Risk Twin 전 단계의 로컬 관제 기준선이다. 후속 단계에서 이 값을 표준 schema와 Risk Score Engine으로 연결한다.
+
+## 확장 우선순위
+
+1. `factory-a` 현재 상태 문서화 완료
+2. Hub EKS 기준선 구성
+3. Tailscale 또는 동등한 Hub-Spoke 연결 방식 확정
+4. GitHub Actions / ECR / ArgoCD ApplicationSet 구성
+5. IoT Core / S3 데이터 수집 경로 구성
+6. Risk Score Engine 및 dashboard 구현
+7. `factory-b`, `factory-c` 테스트베드 확장
+
+## 현재 구조로 가져오면 안 되는 것
+
+현재 `factory-a` 문서에는 아래를 완료된 것으로 쓰지 않는다.
+
+```text
+AWS EKS Hub
+IoT Core / S3
+ECR
+GitHub Actions
+Tailscale
+factory-b / factory-c
+Risk Score Engine
+LLM 보고서
+```
+
+이 항목들은 목표 구조 또는 후속 계획 문서에서만 관리한다.

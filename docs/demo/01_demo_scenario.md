@@ -1,165 +1,112 @@
 # 데모 시나리오
 
-상태: draft
-기준일: 2026-04-24
+상태: source of truth
+기준일: 2026-04-28
 
 ## 목적
 
-MVP 시연 시 어떤 순서로 무엇을 보여주고, 각 장면에서 어떤 메시지를 전달할지 정의한다.
+현재 구현된 `factory-a` Safe-Edge 기준선으로 시연 가능한 데모 흐름을 정리한다.
 
-## 현재 상태
+## 현재 가능한 데모
 
-- 데모는 `factory-a` 실제 운영형 Spoke와 `factory-b/c` 테스트베드형 Spoke를 함께 보여주는 방향으로 설계돼 있다.
-- 본 문서는 발표/시연용 시퀀스 초안이다.
+```text
+factory-a 단독 Safe-Edge 운영 상태 확인
+Grafana 센서/AI dashboard 확인
+ArgoCD GitOps sync 확인
+Longhorn storage 확인
+worker2 장애 -> worker1 failover -> worker2 failback 확인
+```
 
-## 범위
+AWS Hub, `factory-b`, `factory-c`, IoT Core, S3, Risk Twin 통합 화면은 후속 데모다.
 
-- 시연 순서
-- 장면별 전달 메시지
-- 시연 포인트
-- 성공 기준
+## 데모 순서
 
-## 상세 내용
-
-## 시연 목표
-
-- Safe-Edge 기준선을 계승한 실제 운영형 Spoke가 존재함을 보여준다.
-- 여러 공장을 Hub에서 하나로 본다는 점을 보여준다.
-- 데이터 플레인과 Risk Twin이 연결돼 있음을 보여준다.
-
-## 데모의 핵심 메시지
-
-1. 이 프로젝트는 Safe-Edge를 버린 것이 아니라 기준선으로 삼아 확장한 구조다.
-2. `factory-a`는 실제 운영형 Spoke이고, `factory-b`, `factory-c`는 테스트베드형 Spoke다.
-3. Hub는 여러 공장을 통합 관제하는 중앙 지점이다.
-4. Risk Twin은 단순 로그 수집이 아니라 공장 단위 상태를 보여준다.
-
-## 장면별 시연 순서
-
-### 장면 1. 프로젝트 개요 설명
-
-1. 프로젝트 개요 설명
+### 1. Factory-A 구조 설명
 
 보여줄 것:
-- 프로젝트 한 줄 소개
-- 문제 정의
-- 왜 Safe-Edge부터 시작하는지
+
+```text
+master 10.10.10.10
+worker1 10.10.10.11
+worker2 10.10.10.12
+```
 
 전달 메시지:
-- 이 프로젝트의 출발점은 Safe-Edge다.
-- 목표는 멀티 공장 관제다.
+- 현재 완료된 것은 실제 Raspberry Pi 기반 `factory-a` 운영형 기준선이다.
+- worker2가 센서/AI/Audio 우선 노드이고 worker1이 failover standby다.
 
-### 장면 2. `factory-a` Safe-Edge 기준선 설명
+### 2. ArgoCD GitOps 확인
 
 보여줄 것:
-- `factory-a` 역할
-- Safe-Edge 기준선 의미
-- 실제 입력을 사용하는 운영형 Spoke라는 점
+
+```text
+ArgoCD UI: 10.10.10.200
+safe-edge-monitoring
+safe-edge-ai-apps
+```
 
 전달 메시지:
-- 실제 운영형 기준선이 하나 있어야 나머지 구조가 의미를 가진다.
+- monitoring과 ai-apps를 분리해 배포한다.
+- GitHub repo push 후 ArgoCD UI sync로 반영한다.
 
-### 장면 3. `factory-b`, `factory-c` 테스트베드 Spoke 설명
+### 3. Grafana Dashboard 확인
 
 보여줄 것:
-- Mac mini VM = `factory-b`
-- Windows VM = `factory-c`
-- Dummy 입력 기반 테스트베드라는 점
+
+```text
+Grafana UI: 10.10.10.202
+InfluxDB sensor / AI dashboard
+Node Exporter Full 1860
+```
 
 전달 메시지:
-- 두 VM은 Safe-Edge 전체 복제가 아니라, 표준 Spoke 구조와 데이터 파이프라인 검증용이다.
+- 온도/습도/기압과 AI 결과를 InfluxDB에서 읽는다.
+- 노드 상태는 Prometheus 1860 dashboard로 본다.
 
-### 장면 4. Hub 아키텍처와 Tailscale 연결 설명
+### 4. Longhorn Storage 확인
 
 보여줄 것:
-- EKS Hub 구조
-- Tailscale로 Spoke Master에 연결하는 방식
-- 운영형/테스트베드형 차이
+
+```text
+Longhorn UI: 10.10.10.201
+InfluxDB PVC
+safe-edge-ai-snapshots PVC
+```
 
 전달 메시지:
-- 단일 거대 클러스터가 아니라, 독립 Spoke를 중앙에서 관리하는 구조다.
+- 시계열 데이터와 AI event snapshot이 Longhorn PVC로 관리된다.
+- InfluxDB는 1일 retention, AI snapshot은 24시간 cleanup을 적용했다.
 
-### 장면 5. ArgoCD 배포 흐름 설명
+### 5. 장애 복구 결과 설명
 
 보여줄 것:
-- GitHub Push -> GitHub Actions -> ECR -> ArgoCD -> Spoke 롤아웃
+
+```text
+docs/ops/09_failover_failback_test_results.md
+```
 
 전달 메시지:
-- 실제 배포 자동화 경로를 검증 대상으로 본다.
+- LAN 제거와 전원 제거 테스트를 모두 수행했다.
+- 전원 제거 테스트에서 failover/failback이 성공했다.
+- 데이터 공백과 중복 write 후보도 측정했다.
 
-### 장면 6. IoT Core -> S3 -> Risk 처리 흐름 설명
+## 핵심 수치
 
-보여줄 것:
-- 입력 모듈 -> Edge Agent -> IoT Core -> S3 -> 정규화/판단 -> Risk Score
+```text
+전원 제거 첫 관찰 -> worker2 NotReady: 약 42초
+worker2 NotReady -> worker1 전체 Running: 약 32초
+전원 제거 첫 관찰 -> worker1 전체 Running: 약 74초
+전원 재연결 첫 관찰 -> worker2 전체 Running: 약 2분 11초
+failover 1초 bucket 최대 공백: 65-75초
+failback 1초 bucket 최대 공백: 2초
+```
 
-전달 메시지:
-- `pipeline_status`는 Edge가 보내는 값이 아니라 Hub 계산 상태다.
+## 데모 성공 기준
 
-### 장면 7. 메인 대시보드에서 공장별 상태 확인
-
-보여줄 것:
-- 상단 상태 카드
-- 센서 현황
-- 이상 시스템 목록
-- 최근 로그
-
-전달 메시지:
-- 본사 관제 담당자는 이 화면으로 여러 공장을 한눈에 본다.
-
-### 장면 8. Dummy 시나리오 전환으로 상태 변화 확인
-
-보여줄 것:
-- `factory-b` 또는 `factory-c`의 Dummy 시나리오를 바꿔 상태 변화를 유도
-
-전달 메시지:
-- 테스트베드형 Spoke를 통해 `정상 / 주의 / 위험` 전환을 검증한다.
-
-### 장면 9. 센서 무수신 또는 시스템 이상 시나리오 확인
-
-보여줄 것:
-- 센서 무수신
-- 시스템 이상
-- 파이프라인 이상 중 하나 이상
-
-전달 메시지:
-- 운영 관제 화면은 단순 환경값만이 아니라 운영 이상도 함께 본다.
-
-## 시연 중 확인 포인트
-
-- 공장별 상태 카드가 보이는가
-- 이상 시스템 목록이 변하는가
-- 최근 로그가 갱신되는가
-- 테스트베드 시나리오 전환이 관제에 반영되는가
-
-## 성공 기준
-
-- `factory-a`, `factory-b`, `factory-c`가 모두 화면에서 구분된다.
-- 최소 한 번 이상의 상태 변화가 시연 중 확인된다.
-- Dummy 시나리오 전환 또는 센서 무수신 시나리오가 로그와 상태 카드에 반영된다.
-
-## 실패 시 대체 흐름
-
-### 1. Dummy 전환이 반영되지 않는 경우
-
-- 사전에 저장한 상태 변화 화면 또는 로그를 사용
-- 문제는 테스트베드 입력 경로 문제로 설명
-
-### 2. Risk 상태가 늦게 반영되는 경우
-
-- 현재 구조가 주기 집계형 항목을 포함한다는 점 설명
-- S3 적재 또는 최근 로그부터 먼저 보여준다
-
-### 3. 운영형 Spoke 입력이 불안정한 경우
-
-- Safe-Edge 기준선 설명과 테스트베드 검증 흐름 중심으로 전환
-
-## 발표자 메모
-
-- 내부 Risk Score 숫자는 메인 카드에 직접 보이지 않는다는 점을 먼저 설명한다.
-- `factory-a`는 운영형, `factory-b/c`는 테스트베드형이라는 역할 차이를 초반에 분명히 말한다.
-- LLM/분석 계층은 현재 MVP 범위가 아니라 후속 확장임을 명확히 한다.
-
-## TODO
-
-- TODO: 실제 발표 시간에 맞는 분 단위 스크립트 추가
-- TODO: 데모 실패 시 백업 화면 목록 추가
+```text
+ArgoCD apps Synced / Healthy
+Grafana dashboard 갱신
+Longhorn volumes healthy
+대상 Pod 3개 worker2 Running
+장애 테스트 결과 문서화 완료
+```

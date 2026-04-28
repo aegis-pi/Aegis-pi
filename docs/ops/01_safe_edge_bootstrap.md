@@ -1,282 +1,230 @@
 # Safe-Edge 기준선 부트스트랩 가이드
 
 상태: source of truth
-기준일: 2026-04-24
+기준일: 2026-04-28
 
 ## 목적
 
-`factory-a`에서 Safe-Edge 기준선을 다시 구성하는 순서를 운영 문서 관점에서 정리한다.
+`factory-a` Safe-Edge 기준선을 현재 실제 구축 상태 기준으로 정리한다.
 
 ## 현재 상태
 
-- 이 문서는 구현 순서 기준 가이드다.
-- 실제 명령과 매니페스트 경로는 추후 보강 예정이다.
-- 현재는 `factory-a`를 Safe-Edge 기준선으로 다시 세우기 위한 운영 순서와 검증 기준을 정리한 상태다.
+`factory-a` 기준선은 구축 및 장애 검증까지 완료됐다. 이 문서는 신규 구축 또는 재구축 시 따라야 할 기준 순서와 완료 상태를 함께 기록한다.
 
-## 범위
+## 목표 상태
 
-- 선행 조건
-- 목표 상태
-- 단계별 구성 순서
-- 확인 방법
-- Aegis-Pi 확장으로 넘어가는 조건
+```text
+Raspberry Pi 3-node K3s cluster
+master: control plane
+worker1: failover standby
+worker2: sensor / AI / audio preferred node
+Longhorn: local replicated storage
+ArgoCD: Helm 기반 GitOps 배포
+Grafana: InfluxDB + Prometheus dashboard
+InfluxDB: safe_edge_db, 1일 retention
+AI snapshots: Longhorn PVC, 24시간 초과 자동 삭제
+Failback: master OS cron 기반 Kubernetes-only 스크립트
+```
 
-## 상세 내용
+## 노드와 서비스
 
-## Safe-Edge 기준선 목표
+| 항목 | 값 |
+| --- | --- |
+| master | `10.10.10.10` |
+| worker1 | `10.10.10.11` |
+| worker2 | `10.10.10.12` |
+| K3s | `v1.34.6+k3s1` |
+| ArgoCD | `http://10.10.10.200` |
+| Longhorn | `http://10.10.10.201` |
+| Grafana | `http://10.10.10.202` |
 
-이 문서에서 말하는 복구 완료 상태는 아래를 만족하는 상태다.
+## GitOps 구조
 
-- `factory-a`가 3노드 K3s 기반으로 동작한다.
-- 내부망에서 ArgoCD, Grafana, 주요 서비스 접근이 가능하다.
-- 센서/카메라/마이크 기반 입력 경로가 다시 동작한다.
-- Longhorn 복제와 NFS Cold Storage 경로가 복구된다.
-- Git push 이후 ArgoCD를 통한 반영이 가능하다.
-- Worker 장애 시 감시 워크로드가 재기동 가능한 기준선이 확보된다.
+| 항목 | 값 |
+| --- | --- |
+| GitHub repo | `https://github.com/aegis-pi/safe-edge-config-main.git` |
+| repo path | `monitoring/`, `ai-apps/` |
+| Aegis-pi reference | `docs/ops/06_argocd_gitops.md` |
+| monitoring app | `safe-edge-monitoring` |
+| ai app | `safe-edge-ai-apps` |
 
-## 전제조건
+구성 원칙:
 
-- Raspberry Pi 3노드 준비
-- 내부망 IP 계획 수립
-- Host PC 준비
-- 외장 SSD/NFS 대상 준비
+- ArgoCD 설치는 Helm으로 한다.
+- GitHub repo 등록과 sync는 ArgoCD UI에서 진행한다.
+- 배포 단위는 `monitoring`과 `ai-apps`로 분리한다.
+- 매니페스트 변경은 GitHub repo에 push하고 ArgoCD가 반영한다.
 
-추가 전제:
+## 구축 순서
 
-- `factory-a`는 실제 운영형 Spoke로 취급한다.
-- 이 단계에서는 아직 AWS Hub나 IoT Core를 붙이지 않는다.
-- 먼저 로컬 Safe-Edge 기준선을 복구하고, 그 다음 Aegis-Pi 확장으로 넘어간다.
-
-## 기본 노드 역할
-
-| 노드 | IP | 역할 |
-| --- | --- | --- |
-| `master` | `10.10.10.10` | K3s Control Plane, ArgoCD |
-| `worker-1` | `10.10.10.11` | Hot Standby, Longhorn 복제 |
-| `worker-2` | `10.10.10.12` | 센서/AI 워크로드 |
-| `host-pc` | `10.10.10.100` | NFS, GitLab, Grafana |
-
-## 단계
-
-1. Raspberry Pi OS 및 기본 설정
-2. K3s 3노드 클러스터 구성
-3. MetalLB / Traefik 구성
-4. Longhorn / NFS 구성
-5. GitLab + ArgoCD 기준선 복구
-6. Prometheus / InfluxDB / Grafana 구성
-7. 센서 / 카메라 / 마이크 입력 복구
-8. Failover / 운영 자동화 기준 확인
-
-## M0 이슈 흐름과의 대응
-
-현재 구현은 아래 흐름으로 진행한다.
-
-1. OS 기본 세팅
-2. 하드웨어 / 네트워크 기준선
-3. K3s 3-Node 구성 및 taint / label 적용
-4. MetalLB + Traefik
-5. Longhorn 3-Node 복제
-6. Host PC NFS Cold Storage
-7. GitLab + ArgoCD 복구
-8. Prometheus + InfluxDB + Grafana
-9. BME280 + 카메라 + 마이크 입력 계층
-10. YOLOv8 + YAMNet AI 파드 배치
-11. Failover 정책 복구
-12. Hot / Cold 티어링 + Ansible Playbook 복구
-13. Safe-Edge 기준선 통합 검증
-
-즉, 이 문서의 8개 단계는 실제로는 위 13개 이슈를 묶어서 설명한 운영 가이드다.
-
-## 단계별 상세 정리
-
-### 1. Raspberry Pi OS 및 기본 노드 준비
-
-목표:
-
-- 각 노드가 동일한 기본 운영 상태를 갖도록 맞춘다.
-
-해야 할 일:
-
-- hostname 고정
-- SSH 접속 확인
-- 시간 동기화 확인
-- SSD 마운트 준비
-- 카메라, 마이크, 센서 인식 확인
+### 1. 노드 준비
 
 완료 기준:
 
-- `master`, `worker-1`, `worker-2`가 고정 IP와 hostname으로 안정적으로 접근 가능
-- 장치 인식 상태를 OS 수준에서 확인 가능
+```bash
+kubectl get nodes -o wide
+```
 
-### 2. K3s 3노드 클러스터 구성
+정상 기준:
 
-목표:
+```text
+master Ready
+worker1 Ready
+worker2 Ready
+```
 
-- `master` 중심 Control Plane과 두 개의 Worker를 연결한다.
-
-해야 할 일:
-
-- Master에 K3s Control Plane 구성
-- Worker 1, Worker 2 조인
-- Master `NoSchedule` taint 적용
-- Worker 역할 label/taint 적용
+### 2. Longhorn 구성
 
 완료 기준:
 
-- 3노드 K3s 클러스터 정상 구성
-- Master 보호 정책 반영
-- Worker별 역할 구분 가능
+```bash
+kubectl -n longhorn-system get pods
+kubectl -n longhorn-system get volumes.longhorn.io -o wide
+```
 
-### 3. MetalLB / Traefik 네트워크 계층 구성
+정상 기준:
 
-목표:
+```text
+Longhorn UI 접근 가능
+Volume attached / healthy
+InfluxDB PVC Bound
+AI snapshot PVC Bound
+```
 
-- 내부망에서 서비스 접근이 가능하도록 네트워크 계층을 정리한다.
-
-해야 할 일:
-
-- MetalLB VIP 범위 확정
-- Traefik 노출 정책 정리
-- ArgoCD / Grafana / 주요 서비스 접근 경로 설정
-
-완료 기준:
-
-- 내부망에서 주요 관리 서비스 접근 가능
-- VIP 충돌 없음
-
-### 4. Longhorn / NFS 스토리지 계층 구성
-
-목표:
-
-- Hot Storage와 Cold Storage 기준선을 복구한다.
-
-해야 할 일:
-
-- Longhorn 배포
-- 복제본 수 3 기준 확인
-- SSD 경로 확인
-- Host PC NFS 구성
-- Hot / Cold tier 구분 반영
+### 3. ArgoCD 설치
 
 완료 기준:
 
-- Longhorn 복제 정상
-- NFS 마운트 정상
-- Hot/Cold 저장 경로가 다시 설명 가능
+```bash
+kubectl -n argocd get pods
+kubectl -n argocd get svc
+kubectl -n argocd get application
+```
 
-### 5. GitLab + ArgoCD 기준선 복구
+정상 기준:
 
-목표:
+```text
+ArgoCD UI 접근 가능
+safe-edge-monitoring Synced / Healthy
+safe-edge-ai-apps Synced / Healthy
+```
 
-- Safe-Edge 방식의 GitOps 운영 흐름을 다시 확보한다.
+### 4. monitoring 배포
 
-해야 할 일:
+포함:
 
-- Host PC GitLab 준비
-- Master ArgoCD 배치
-- 저장소 연결
-- Application 생성 및 동기화 확인
+```text
+InfluxDB
+Prometheus
+Grafana
+Node exporter
+```
 
-완료 기준:
+확인:
 
-- Git push -> ArgoCD sync -> K3s 반영 흐름 확인 가능
+```bash
+kubectl -n monitoring get pod -o wide
+kubectl -n monitoring get pvc
+```
 
-### 6. Prometheus / InfluxDB / Grafana 기준선 복구
+### 5. ai-apps 배포
 
-목표:
+포함:
 
-- 노드 상태와 센서/AI 시계열을 다시 볼 수 있게 한다.
+```text
+bme280-sensor
+safe-edge-integrated-ai
+safe-edge-audio
+safe-edge-image-prepull
+safe-edge-ai-snapshots PVC
+```
 
-해야 할 일:
+확인:
 
-- Prometheus 스택 확인
-- InfluxDB 저장 확인
-- Host PC Grafana 연동
-- 최소 메트릭과 시계열 패널 확인
+```bash
+kubectl -n ai-apps get pod -o wide
+kubectl -n ai-apps get ds safe-edge-image-prepull -o wide
+kubectl -n ai-apps get pvc safe-edge-ai-snapshots
+```
 
-완료 기준:
+정상 기준:
 
-- Prometheus 메트릭 조회 가능
-- InfluxDB 입력 가능
-- Grafana에서 주요 데이터가 보임
+```text
+bme280-sensor: worker2 Running
+safe-edge-integrated-ai: worker2 Running
+safe-edge-audio: worker2 Running
+safe-edge-image-prepull: worker1, worker2 Running
+safe-edge-ai-snapshots: Bound
+```
 
-### 7. 센서 / 카메라 / 마이크 입력 복구
+### 6. InfluxDB 보존 정책
 
-목표:
+정책:
 
-- 실제 운영형 입력 계층을 Safe-Edge 기준선 수준으로 다시 세운다.
+```text
+safe_edge_db autogen retention: 1d
+```
 
-해야 할 일:
+확인:
 
-- BME280 입력 확인
-- 카메라 연결 및 관련 프로세스 상태 확인
-- 마이크 연결 및 관련 프로세스 상태 확인
-- Worker 2 우선 배치 구조 확인
+```bash
+kubectl -n monitoring exec deploy/influxdb -- \
+  influx -execute 'SHOW RETENTION POLICIES ON safe_edge_db'
+```
 
-완료 기준:
+### 7. Grafana dashboard
 
-- 온도/습도 수집 가능
-- 카메라/마이크 상태 확인 가능
-- 입력 계층이 다시 운영 기준선에 올라옴
+구성:
 
-### 8. Failover / 운영 자동화 기준 확인
+```text
+InfluxDB datasource: 센서/AI/소리 시계열
+Prometheus datasource: Node Exporter Full 1860 dashboard
+```
 
-목표:
+Grafana dashboard 등록은 UI에서 진행한다.
 
-- Safe-Edge가 의미 있던 이유였던 생존성과 운영 자동화를 다시 확인한다.
+### 8. Failover / Failback
 
-해야 할 일:
+정책:
 
-- Worker 2 우선 / Worker 1 대기 구조 확인
-- 장애 시 재기동 흐름 확인
-- tiering / failback / healthcheck 스크립트 기준 확인
+```text
+worker2 preferred affinity
+tolerationSeconds: 30
+master OS cron 기반 Kubernetes-only failback
+worker2에 대상 Pod가 이미 있으면 skip
+worker1에 남은 대상 Pod만 순차 삭제
+```
 
-완료 기준:
+검증 완료:
 
-- Worker 장애 시 승계 흐름 설명 가능
-- 데이터 보존 구조 유지
-- 운영 자동화 복구 방향이 정리됨
+```text
+worker2 LAN 제거 테스트
+worker2 전원 제거 테스트
+```
 
-## 확인 방법
+상세 결과:
 
-- `kubectl get nodes`
-- Longhorn 복제 상태 확인
-- ArgoCD sync 확인
-- InfluxDB 입력 확인
-- Grafana 대시보드 조회
+```text
+docs/ops/09_failover_failback_test_results.md
+```
 
-추가 확인 항목:
+## 완료 판단
 
-- 센서값이 실제로 갱신되는가
-- 카메라/마이크 관련 프로세스 상태가 정상인가
-- Worker 2 정지 시 Worker 1 승계 가능성이 보이는가
+`factory-a`는 다음 조건을 만족하면 기준선 완료로 판단한다.
 
-## Safe-Edge 완료로 판단하는 최소 기준
+```text
+3-node K3s Ready
+Longhorn healthy
+ArgoCD Synced / Healthy
+InfluxDB write 정상
+Grafana dashboard 갱신
+AI/BME280/Audio worker2 Running
+worker2 장애 시 worker1 failover
+worker2 복구 후 failback 성공
+AI snapshot PVC와 cleanup 정상
+```
 
-- 3노드 K3s가 정상 동작한다.
-- Longhorn 복제와 NFS 경로가 복구된다.
-- GitOps 반영이 가능하다.
-- Grafana에서 기본 메트릭과 센서 데이터가 보인다.
-- 센서/카메라/마이크 입력이 다시 연결된다.
+## 후속 단계
 
-## Aegis-Pi 확장으로 넘어가는 조건
-
-아래가 만족된 뒤에만 다음 단계로 넘어간다.
-
-1. `factory-a`가 Safe-Edge 기준선으로 다시 동작한다.
-2. 센서/상태/저장/모니터링의 최소 경로가 확인된다.
-3. Failover와 운영 자동화의 기준선이 다시 설명 가능하다.
-
-그 다음 단계:
-
-1. `factory-b`, `factory-c` 테스트베드형 Spoke 구성
-2. Hub 배포 제어 구조 연결
-3. IoT Core -> S3 -> Risk Twin 연결
-
-## TODO
-
-- TODO: 실제 설치 명령 추가
-- TODO: Longhorn values 경로 추가
-- TODO: MetalLB IP pool 값 추가
-- TODO: GitLab / ArgoCD 실제 구성 파일 경로 추가
-- TODO: Failover 검증 절차를 별도 운영 문서로 분리할지 결정
+- M0 문서와 체크리스트를 실제 완료 상태로 갱신한다.
+- AWS Hub, `factory-b`, `factory-c`, IoT Core, S3는 후속 확장 단계에서 진행한다.

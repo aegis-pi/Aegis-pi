@@ -1,105 +1,44 @@
 # 지도/검토용 브리프
 
-상태: draft
-기준일: 2026-04-24
+상태: source of truth
+기준일: 2026-04-28
 
-## 목적
+## 현재 진행 상태
 
-지도교수, 검토자, 리뷰어가 짧은 시간 안에 프로젝트의 현재 상태, 핵심 결정, 미정 항목을 파악하도록 돕는 문서다.
+`factory-a` Safe-Edge 기준선 구축과 장애 검증이 완료됐다.
 
-## 현재 상태
+완료된 핵심:
 
-- 본 문서는 구조 설계 1차 완료 시점의 브리프다.
-- 상세 구현 산출물보다 `어디까지 정리됐고 무엇이 남았는지`를 빠르게 전달하는 데 목적이 있다.
+```text
+3-node K3s
+Longhorn
+ArgoCD GitOps
+Grafana / InfluxDB / Prometheus
+BME280 / AI / Audio workload
+Failover / Failback
+Data retention
+AI snapshot retention
+```
 
-## 범위
+## 검증 결과
 
-- 프로젝트 방향
-- 현재 freeze 범위
-- 핵심 설계 판단 근거
-- 미정 항목
-- 검토 포인트
+```text
+LAN 제거: failover/failback 성공, 10초 bucket 공백 없음
+전원 제거: failover/failback 성공, Longhorn healthy 복귀
+전원 제거 failover 공백: 65-75초
+failback 공백: 최대 2초
+```
 
-## 상세 내용
+## 현재 판단
 
-## 프로젝트 한 줄 요약
+- M0는 핵심 기준선 완료로 볼 수 있다.
+- NFS Cold Storage와 Ansible tiering은 보류했다.
+- AWS Hub와 멀티 Spoke는 후속 단계로 분리한다.
 
-- Safe-Edge 기준선을 유지하면서, 여러 공장을 중앙에서 관제하는 Hub/Spoke 기반 Risk Twin 구조로 확장하는 프로젝트다.
+## 다음 검토 주제
 
-## 현재 방향
-
-- Safe-Edge를 기준선으로 삼는다.
-- `factory-a`는 실제 운영형 Spoke다.
-- `factory-b`, `factory-c`는 테스트베드형 Spoke다.
-- Hub는 EKS 기반 중앙 지휘소다.
-
-## 왜 이렇게 설계했는가
-
-- Safe-Edge는 실제 현장형 기준선으로 의미가 있으므로 폐기하지 않는다.
-- 운영형과 테스트베드형을 분리해야 실환경 보호와 반복 검증을 동시에 할 수 있다.
-- 본사 관제 담당자를 1차 사용자로 두기 때문에, 구조도 현장 장비 제어보다 중앙 상태 가시화에 맞춰야 한다.
-
-## 현재 freeze 범위
-
-- 아키텍처 방향
-- 배포 파이프라인 구조
-- 데이터 플레인 구조
-- Risk Twin 기본 구조
-- 메인 대시보드 핵심 요구사항
-
-### 구체적으로 확정된 것
-
-- `EKS Hub + 독립 K3s Spoke` 구조
-- Tailscale 기반 Hub-Spoke 연결
-- `factory-a / factory-b / factory-c` 공장 단위 식별
-- `안전 / 주의 / 위험` 3단계 상태 모델
-- 메인 카드에는 상태만 표시하고 내부 Risk Score는 직접 노출하지 않음
-- `pipeline_status`는 Hub 계산 상태
-- 배포는 GitHub Actions -> ECR -> ArgoCD -> Spoke 구조
-
-## 현재 구현 선행 조건
-
-- `factory-a` Safe-Edge 기준선 복구가 선행되어야 한다.
-- 이후 Hub 구성, 테스트베드형 Spoke 구성, 데이터 플레인 연결 순서로 진행한다.
-
-## 아직 구현되지 않았지만 열어둔 확장
-
-- `event` 기반 Risk 반영
-- `analysis` 독립 계층
-- LLM 기반 보고서/후처리
-- 이벤트/큐 기반 데이터 트리거
-- 공장별 override 활성화
-
-## 아직 테스트 후 결정할 것
-
-- 온도/습도 임계값
-- 데이터 지연 수치 기준
-- Dummy 시나리오 세부값
-- 배포 지연 수치 기준
-
-## 검토 포인트
-
-### 현재 구조에서 특히 봐야 할 부분
-
-1. Safe-Edge를 기준선으로 두는 접근이 타당한가
-2. 운영형 Spoke와 테스트베드형 Spoke의 역할 분리가 적절한가
-3. `pipeline_status`를 Hub 계산 상태로 두는 것이 타당한가
-4. 메인 관제 화면을 상태 중심으로 두는 것이 적절한가
-
-### 현재 단계에서 굳이 확정하지 않은 부분
-
-- 세부 임계값
-- 실제 명령어/매니페스트
-- event 반영 로직
-- LLM 계층 구체화
-
-## 검토자에게 전달할 메모
-
-- 지금은 구조 설계 1차 완료 단계다.
-- 남은 것은 대부분 구현 산출물과 테스트 기반 보정이다.
-- 따라서 검토는 `구조 방향`과 `우선순위 설정`에 초점을 맞추는 것이 적절하다.
-
-## TODO
-
-- TODO: 검토 회의용 질문 항목 추가
-- TODO: 회의 대상별 1페이지 버전 분리 여부 결정
+1. failover 데이터 공백 허용 범위
+2. failback 중복 write 처리 필요성
+3. active writer guard 필요 여부
+4. AWS Hub 확장 우선순위
+5. Risk Twin dashboard 범위
