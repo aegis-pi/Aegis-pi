@@ -78,6 +78,7 @@ InfluxDB PVC: Longhorn
 AI snapshot: node-local /var/lib/safe-edge/snapshots, mounted at /app/snapshots
 InfluxDB retention: 1d
 AI snapshot retention: 24h cleanup sidecar
+AI snapshot daily purge: worker1/worker2 CronJob, 03:00 KST
 ```
 
 ## 시작 시 확인 명령

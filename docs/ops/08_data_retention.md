@@ -58,7 +58,8 @@ PVC:
 보존 정책:
 
 ```text
-24시간 초과 jpg/jpeg/png 자동 삭제
+1시간마다 24시간 초과 jpg/jpeg/png 자동 삭제
+매일 03:00 KST에 worker1/worker2 local snapshot directory 전체 비우기
 ```
 
 구현 방식:
@@ -68,12 +69,16 @@ safe-edge-integrated-ai Pod 안의 snapshot-cleanup sidecar
 /app/snapshots는 node-local /var/lib/safe-edge/snapshots hostPath
 1시간마다 /app/snapshots를 검사
 24시간 초과 이미지 삭제
+
+safe-edge-snapshot-daily-purge-worker1 / worker2 CronJob
+매일 03:00 KST에 각 노드의 /var/lib/safe-edge/snapshots 하위 항목 전체 삭제
 ```
 
 확인:
 
 ```bash
 kubectl -n ai-apps get pvc
+kubectl -n ai-apps get cronjob safe-edge-snapshot-daily-purge-worker1 safe-edge-snapshot-daily-purge-worker2
 kubectl -n ai-apps get pod -l app=safe-edge-integrated-ai -o wide
 kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c ai-processor -- mount | grep snapshots
 kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c snapshot-cleanup -- ps
