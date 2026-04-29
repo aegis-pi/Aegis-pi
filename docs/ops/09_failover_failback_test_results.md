@@ -352,3 +352,26 @@ InfluxDB ai_detection count over last 2m: 117
 하지만 현재 AI Pod는 snapshot PVC를 사용하지 않으므로, worker1 failover 시 ContainerCreating 또는 Multi-Attach에 막히지 않았다.
 AI 추론 결과는 InfluxDB를 통해 계속 기록됐고, worker2 재연결 후 정상 failback됐다.
 ```
+
+InfluxDB 데이터 공백:
+
+```text
+분석 구간: 2026-04-29 16:45:00 KST ~ 17:10:00 KST
+
+1초 bucket 최대 연속 0-count:
+ai_detection:        87초  (16:47:56 ~ 16:49:22)
+acoustic_detection:  90초  (16:47:56 ~ 16:49:25)
+environment_data:    83초  (16:47:54 ~ 16:49:16)
+
+10초 bucket 운영 기준 0-count:
+ai_detection:        80초  (16:48:00 ~ 16:49:19)
+acoustic_detection:  80초  (16:48:00 ~ 16:49:19)
+environment_data:    70초  (16:48:00 ~ 16:49:09)
+```
+
+운영 판단:
+
+```text
+이번 랜선 제거 테스트의 실질적인 InfluxDB 데이터 공백은 약 1분 20초 ~ 1분 30초다.
+BME environment_data는 샘플 주기가 1초보다 느려 1초 bucket에서는 평상시에도 0-count가 섞일 수 있으므로, 운영 판단은 10초 bucket 기준이 더 적절하다.
+```
