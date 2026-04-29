@@ -24,7 +24,8 @@
 5. `ops/07_grafana_dashboard.md`
 6. `ops/08_data_retention.md`
 7. `ops/09_failover_failback_test_results.md`
-8. `issues/M0_factory-a_safe-edge-baseline.md`
+8. `ops/10_edge_workload_placement.md`
+9. `issues/M0_factory-a_safe-edge-baseline.md`
 
 ## 문서 구조
 
@@ -45,7 +46,8 @@ docs/
 │   ├── 06_argocd_gitops.md
 │   ├── 07_grafana_dashboard.md
 │   ├── 08_data_retention.md
-│   └── 09_failover_failback_test_results.md
+│   ├── 09_failover_failback_test_results.md
+│   └── 10_edge_workload_placement.md
 ├── architecture/
 ├── planning/
 ├── product/
