@@ -180,22 +180,17 @@ bme280-sensor:
 
 AI, audio, BME280 sensor는 하드웨어 장치를 직접 잡으므로 기본 `RollingUpdate`를 사용하지 않는다. 새 Pod와 기존 Pod가 동시에 떠서 `/dev`, `/dev/snd`, `/dev/i2c-1` 접근이 겹치지 않도록 `Recreate`로 둔다.
 
-### AI Longhorn PVC와 Fencing
+### AI Snapshot 저장과 Failover
 
-`safe-edge-integrated-ai`는 snapshot 저장을 위해 Longhorn RWO PVC `safe-edge-ai-snapshots`를 `/app/snapshots`에 마운트한다. 이 때문에 `worker2`가 `NotReady`가 되어도 기존 writer가 완전히 사라졌다는 보장이 없으면 `worker1`에서 `Multi-Attach`가 발생할 수 있다.
+`safe-edge-integrated-ai`는 추론 결과를 InfluxDB에 기록한다. InfluxDB PVC는 Longhorn을 사용하므로 위험도/탐지 결과는 InfluxDB를 통해 Longhorn에 저장된다.
 
-현재 대응은 `worker2` watchdog 기반 reboot fencing이다.
+반면 snapshot 이미지는 AI Pod failover를 막지 않도록 Longhorn RWO PVC를 사용하지 않는다.
 
 ```text
-watchdog:
-  checks:
-    - k3s-agent active
-    - master 10.10.10.10:6443 reachable
-  threshold: 90s unhealthy
-  action: worker2 reboot
+/app/snapshots -> node-local hostPath /var/lib/safe-edge/snapshots
 ```
 
-이 방식은 `worker2`의 stale writer를 제거하고 빠르게 자기 복구시키는 데 유효하다. 다만 `worker2`가 빠르게 복귀하면 AI가 `worker1`에서 장기 Running 상태가 되기 전에 다시 `worker2`로 failback될 수 있다. 따라서 장기 `worker1` failover 검증은 전원 차단 또는 외부 power fencing 기준으로 별도 확인한다.
+이전 `safe-edge-ai-snapshots` Longhorn RWO PVC 방식은 `worker2` 장애 시 stale Pod/VolumeAttachment 때문에 AI가 `worker1`에서 `ContainerCreating`에 머무는 문제가 있었다. 현재 운영 구성에서는 해당 PVC와 worker2 watchdog fencing을 제거했다.
 
 AI/audio/BME에는 Downward API로 pod identity를 주입한다.
 

@@ -353,18 +353,19 @@ kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c ai-processor -- ls -la
 ```
 
 해결/판단:
-- `safe-edge-ai-snapshots` Longhorn PVC를 `/app/snapshots`에 mount했다.
+- 현재 운영 구성에서는 `/app/snapshots`를 node-local `/var/lib/safe-edge/snapshots` hostPath로 mount한다.
+- AI 추론 결과는 InfluxDB를 통해 Longhorn에 저장한다.
 
 재발 방지:
-- AI snapshot 경로는 PVC mount 여부를 함께 확인한다.
+- AI snapshot 경로는 hostPath mount 여부를 함께 확인한다.
 
-## 16. AI snapshot PVC 적용 후 기존 임시 이미지가 자동 이관되지 않음
+## 16. AI snapshot 저장 방식 변경 후 기존 이미지가 자동 이관되지 않음
 
 증상:
-- PVC 적용 후 `/app/snapshots`가 비어 보일 수 있다.
+- hostPath 전환 후 `/app/snapshots`가 비어 보일 수 있다.
 
 원인:
-- 기존 이미지는 이전 Pod 컨테이너 내부 layer에 있었고, 새 PVC로 자동 복사되지 않는다.
+- 기존 이미지는 이전 Pod 컨테이너 내부 layer 또는 과거 Longhorn PVC에 있었고, 새 node-local hostPath로 자동 복사되지 않는다.
 
 확인 명령:
 
@@ -375,10 +376,10 @@ kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c ai-processor -- mount 
 
 해결/판단:
 - 기존 임시 이미지는 보존 대상이 아니면 이관하지 않는다.
-- 앞으로 생성되는 이미지는 PVC에 저장된다.
+- 앞으로 생성되는 이미지는 해당 Pod가 실행 중인 노드의 local path에 저장된다.
 
 재발 방지:
-- PVC 적용 전 임시 이미지 보존이 필요하면 별도 백업 절차를 먼저 수행한다.
+- 저장 방식 변경 전 임시 이미지 보존이 필요하면 별도 백업 절차를 먼저 수행한다.
 
 ## 17. AI snapshot을 24시간 초과 저장하지 않게 하는 방식
 
@@ -386,7 +387,7 @@ kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c ai-processor -- mount 
 - 이미지 증거를 저장해야 하지만 장기 보존은 피해야 한다.
 
 원인:
-- AI event image는 Longhorn PVC에 저장되므로 별도 cleanup이 없으면 계속 누적된다.
+- AI event image는 node-local hostPath에 저장되므로 별도 cleanup이 없으면 각 노드 디스크에 계속 누적된다.
 
 확인 명령:
 

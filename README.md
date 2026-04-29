@@ -91,8 +91,9 @@ BME280 / camera / mic / AI
 
 - InfluxDB retention: 1일
 - AI event snapshot: `/app/snapshots`
-- AI snapshot PVC: `safe-edge-ai-snapshots`
+- AI event snapshot backing: node-local `/var/lib/safe-edge/snapshots`
 - AI snapshot cleanup: 24시간 초과 이미지 삭제
+- AI inference result: InfluxDB PVC를 통해 Longhorn에 저장
 
 ## 장애 검증 결과
 

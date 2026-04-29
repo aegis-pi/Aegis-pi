@@ -118,7 +118,8 @@ acoustic_detection.is_danger
 
 ```text
 InfluxDB PVC -> Longhorn
-AI snapshot PVC -> Longhorn
+AI snapshot -> node-local hostPath
+AI inference result -> InfluxDB PVC -> Longhorn
 ```
 
 보존 정책:
@@ -132,7 +133,7 @@ AI snapshot:
 
 ```text
 mount path: /app/snapshots
-PVC: safe-edge-ai-snapshots
+hostPath: /var/lib/safe-edge/snapshots
 cleanup: snapshot-cleanup sidecar
 ```
 

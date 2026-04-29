@@ -52,7 +52,7 @@ kubectl -n monitoring exec deploy/influxdb -- \
 PVC:
 
 ```text
-safe-edge-ai-snapshots
+사용하지 않음
 ```
 
 보존 정책:
@@ -65,6 +65,7 @@ safe-edge-ai-snapshots
 
 ```text
 safe-edge-integrated-ai Pod 안의 snapshot-cleanup sidecar
+/app/snapshots는 node-local /var/lib/safe-edge/snapshots hostPath
 1시간마다 /app/snapshots를 검사
 24시간 초과 이미지 삭제
 ```
@@ -72,7 +73,7 @@ safe-edge-integrated-ai Pod 안의 snapshot-cleanup sidecar
 확인:
 
 ```bash
-kubectl -n ai-apps get pvc safe-edge-ai-snapshots
+kubectl -n ai-apps get pvc
 kubectl -n ai-apps get pod -l app=safe-edge-integrated-ai -o wide
 kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c ai-processor -- mount | grep snapshots
 kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c snapshot-cleanup -- ps
@@ -80,6 +81,7 @@ kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c snapshot-cleanup -- ps
 
 ## 주의
 
-- PVC 적용 전 Pod 내부 `/app/snapshots`에 있던 이미지는 새 PVC로 자동 이관되지 않는다.
-- 앞으로 생성되는 이미지만 Longhorn PVC에 저장된다.
+- AI snapshot 이미지는 Longhorn에 직접 저장하지 않고 각 노드 local path에 임시 저장한다.
+- AI 추론 결과는 InfluxDB에 기록되며, InfluxDB PVC를 통해 Longhorn에 저장된다.
+- worker2에서 생성된 snapshot과 worker1 failover 중 생성된 snapshot은 서로 다른 노드 local path에 남는다.
 - retention 값 변경은 GitOps repo의 `ai-apps/values.yaml`에서 관리한다.

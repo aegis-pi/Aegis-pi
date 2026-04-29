@@ -207,3 +207,51 @@ worker2 memory: 3715Mi, 46%
 실패 원인은 worker1 리소스 부족이 아니라 기존 worker2 AI Pod/VolumeAttachment가 stale 상태로 남는 것이다.
 기존 writer가 fencing으로 확실히 종료됐음을 보장한 뒤 stale Pod/VolumeAttachment 정리를 수행하면 worker1 AI Running은 가능하다.
 ```
+
+## AI Snapshot PVC 제거 후 재검증
+
+2026-04-29에 AI snapshot 저장을 Longhorn RWO PVC에서 node-local hostPath로 변경하고, worker2 fencing watchdog을 제거했다.
+
+```text
+/app/snapshots -> /var/lib/safe-edge/snapshots hostPath
+ai-apps PVC: 없음
+safe-edge-agent-watchdog: 제거
+GitOps revision: 0edffca74312568ff829ef51e4c561a667f0cf8c
+```
+
+### test_07 k3s-agent 중지
+
+```text
+Failover: 성공
+Failback: 성공
+bme280/audio: worker1 Running
+AI: worker1 2/2 Running
+Longhorn Multi-Attach: 재발 없음
+InfluxDB ai_detection write: 지속 확인
+```
+
+핵심 관찰:
+
+```text
+16:02:51 KST
+worker2: NotReady
+safe-edge-integrated-ai: worker1 2/2 Running
+safe-edge-audio: worker1 Running
+bme280-sensor: worker1 Running
+worker1 memory: 5845Mi, 72%
+
+16:07:49 KST
+worker2: Ready
+safe-edge-integrated-ai: worker2 2/2 Running
+safe-edge-audio: worker2 Running
+bme280-sensor: worker2 Running
+InfluxDB ai_detection count over last 2m: 110
+```
+
+해석:
+
+```text
+AI 추론 결과는 InfluxDB를 통해 Longhorn에 저장된다.
+Snapshot 이미지는 node-local hostPath에 임시 저장된다.
+AI Pod가 Longhorn RWO snapshot PVC를 기다리지 않으므로 worker1 failover가 정상 동작한다.
+```

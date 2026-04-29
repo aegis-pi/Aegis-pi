@@ -1,7 +1,0 @@
-[Unit]
-Description=Safe-Edge k3s-agent fencing watchdog
-Documentation=file:/usr/local/sbin/safe-edge-agent-watchdog.sh
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/sbin/safe-edge-agent-watchdog.sh

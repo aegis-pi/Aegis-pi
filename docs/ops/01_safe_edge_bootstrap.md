@@ -88,7 +88,6 @@ kubectl -n longhorn-system get volumes.longhorn.io -o wide
 Longhorn UI 접근 가능
 Volume attached / healthy
 InfluxDB PVC Bound
-AI snapshot PVC Bound
 ```
 
 ### 3. ArgoCD 설치
@@ -136,7 +135,6 @@ bme280-sensor
 safe-edge-integrated-ai
 safe-edge-audio
 safe-edge-image-prepull
-safe-edge-ai-snapshots PVC
 ```
 
 확인:
@@ -144,7 +142,8 @@ safe-edge-ai-snapshots PVC
 ```bash
 kubectl -n ai-apps get pod -o wide
 kubectl -n ai-apps get ds safe-edge-image-prepull -o wide
-kubectl -n ai-apps get pvc safe-edge-ai-snapshots
+kubectl -n ai-apps get pvc
+kubectl -n ai-apps get deploy safe-edge-integrated-ai -o jsonpath='{.spec.template.spec.volumes}{"\n"}'
 ```
 
 정상 기준:
@@ -154,7 +153,8 @@ bme280-sensor: worker2 Running
 safe-edge-integrated-ai: worker2 Running
 safe-edge-audio: worker2 Running
 safe-edge-image-prepull: worker1, worker2 Running
-safe-edge-ai-snapshots: Bound
+ai-apps PVC: 없음
+safe-edge-integrated-ai snapshot-storage: /var/lib/safe-edge/snapshots hostPath
 ```
 
 ### 6. InfluxDB 보존 정책
@@ -221,7 +221,7 @@ Grafana dashboard 갱신
 AI/BME280/Audio worker2 Running
 worker2 장애 시 worker1 failover
 worker2 복구 후 failback 성공
-AI snapshot PVC와 cleanup 정상
+AI snapshot hostPath와 cleanup 정상
 ```
 
 ## 후속 단계
