@@ -165,3 +165,45 @@ worker1 최대 관찰: 1033m CPU, 5492Mi memory, 68%
 하지만 장기 worker1 AI failover를 보장하려면 worker2를 계속 격리하는 외부 power fencing 또는 전원 차단 상황을 별도로 검증해야 한다.
 AI failover 실패 원인은 CPU/메모리가 아니라 Longhorn RWO PVC attach 제약이다.
 ```
+
+### test_06 worker2 장기 격리 중 AI worker1 failover
+
+```text
+worker2 reboot 후 master API 차단 유지: 성공
+worker2 NotReady 유지: 성공
+bme280/audio worker1 failover: 성공
+AI worker1 자동 failover: 실패
+AI worker1 수동 stale Pod 정리 후 Running: 성공
+worker2 복구/failback: 성공
+Longhorn 최종 healthy: 성공
+```
+
+핵심 관찰:
+
+```text
+15:27:22 KST
+safe-edge-integrated-ai: worker1 ContainerCreating
+safe-edge-ai-snapshots: attaching/unknown
+VolumeAttachment: worker2 attached=true
+worker1 memory: 5472Mi, 67%
+
+15:29:03 KST
+기존 worker2 AI Pod 강제 삭제 후
+safe-edge-integrated-ai: worker1 2/2 Running
+safe-edge-ai-snapshots: attached/degraded, worker1
+worker1 memory: 5472Mi, 67%
+
+15:34:18 KST
+worker2 복구 후
+AI/audio/BME: worker2 Running
+safe-edge-ai-snapshots: attached/healthy, worker2
+worker2 memory: 3715Mi, 46%
+```
+
+해석:
+
+```text
+현재 구성에서 AI Longhorn RWO PVC는 worker2 장애 시 자동으로 worker1에 안정 attach되지 않는다.
+실패 원인은 worker1 리소스 부족이 아니라 기존 worker2 AI Pod/VolumeAttachment가 stale 상태로 남는 것이다.
+기존 writer가 fencing으로 확실히 종료됐음을 보장한 뒤 stale Pod/VolumeAttachment 정리를 수행하면 worker1 AI Running은 가능하다.
+```
