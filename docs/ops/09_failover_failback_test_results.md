@@ -255,3 +255,47 @@ AI 추론 결과는 InfluxDB를 통해 Longhorn에 저장된다.
 Snapshot 이미지는 node-local hostPath에 임시 저장된다.
 AI Pod가 Longhorn RWO snapshot PVC를 기다리지 않으므로 worker1 failover가 정상 동작한다.
 ```
+
+### test_08 k3s-agent 중지 재검증
+
+Daily snapshot purge CronJob 추가 후 같은 방식으로 재검증했다.
+
+```text
+Failover: 성공
+Failback: 성공
+AI worker1 2/2 Running: 성공
+audio/BME worker1 Running: 성공
+InfluxDB ai_detection write: 지속 확인
+Longhorn Multi-Attach: 재발 없음
+```
+
+핵심 관찰:
+
+```text
+16:32:14 KST
+worker2 k3s-agent stop
+
+16:33:00 KST
+worker2 metrics unknown, kubectl node status는 아직 Ready
+
+16:34:28 KST
+worker2 NotReady
+safe-edge-integrated-ai: worker1 2/2 Running
+safe-edge-audio: worker1 Running
+bme280-sensor: worker1 Running
+worker1 memory: 5835Mi, 72%
+
+16:37:17 KST
+worker2 Ready
+AI/audio/BME: worker2 Running
+InfluxDB ai_detection count over last 2m: 126
+```
+
+실제 랜선 제거와의 차이:
+
+```text
+k3s-agent stop은 Kubernetes agent만 멈추며 OS/SSH/물리 NIC는 살아 있다.
+랜선 제거는 kubelet heartbeat뿐 아니라 Pod network, node-exporter, Longhorn/CSI 통신까지 끊긴다.
+따라서 네트워크 timeout, 데이터 공백, 기존 worker2 프로세스의 로컬 잔존은 랜선 제거 테스트에서 별도 확인해야 한다.
+다만 현재 AI Pod는 snapshot PVC를 사용하지 않으므로, 과거 safe-edge-ai-snapshots RWO Multi-Attach 문제는 랜선 제거에서도 재발 가능성이 낮다.
+```
