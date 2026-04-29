@@ -180,6 +180,33 @@ bme280-sensor:
 
 AI, audio, BME280 sensor는 하드웨어 장치를 직접 잡으므로 기본 `RollingUpdate`를 사용하지 않는다. 새 Pod와 기존 Pod가 동시에 떠서 `/dev`, `/dev/snd`, `/dev/i2c-1` 접근이 겹치지 않도록 `Recreate`로 둔다.
 
+### AI Longhorn PVC와 Fencing
+
+`safe-edge-integrated-ai`는 snapshot 저장을 위해 Longhorn RWO PVC `safe-edge-ai-snapshots`를 `/app/snapshots`에 마운트한다. 이 때문에 `worker2`가 `NotReady`가 되어도 기존 writer가 완전히 사라졌다는 보장이 없으면 `worker1`에서 `Multi-Attach`가 발생할 수 있다.
+
+현재 대응은 `worker2` watchdog 기반 reboot fencing이다.
+
+```text
+watchdog:
+  checks:
+    - k3s-agent active
+    - master 10.10.10.10:6443 reachable
+  threshold: 90s unhealthy
+  action: worker2 reboot
+```
+
+이 방식은 `worker2`의 stale writer를 제거하고 빠르게 자기 복구시키는 데 유효하다. 다만 `worker2`가 빠르게 복귀하면 AI가 `worker1`에서 장기 Running 상태가 되기 전에 다시 `worker2`로 failback될 수 있다. 따라서 장기 `worker1` failover 검증은 전원 차단 또는 외부 power fencing 기준으로 별도 확인한다.
+
+AI/audio/BME에는 Downward API로 pod identity를 주입한다.
+
+```text
+NODE_NAME = spec.nodeName
+POD_NAME = metadata.name
+POD_UID = metadata.uid
+```
+
+이는 후속 `event_id`, `sequence`, cloud idempotency 적용을 위한 기반이다.
+
 ## ArgoCD Resource 기준
 
 ArgoCD는 Helm release로 설치되어 있으며 `safe-edge-config-main` GitOps repository에 직접 포함하지 않는다. 운영 중에는 Helm values로 resource 기준을 유지한다.

@@ -138,6 +138,31 @@ factory_id + measurement/source_type + source_timestamp
 
 AI 이벤트처럼 동일 timestamp에 여러 이벤트가 생길 수 있으면 `event_id` 또는 원본 row hash를 추가한다.
 
+현재 `factory-a` 운영 워크로드에는 `NODE_NAME`, `POD_NAME`, `POD_UID` Downward API 환경변수를 주입해 두었다. 이는 AI/audio/BME 이미지가 원본 이벤트에 `event_id`, `node_id`, `pod_uid`, `sequence`를 넣기 위한 전제 조건이다.
+
+권장 원본 이벤트 key:
+
+```text
+event_id = source_type + pod_uid + session_id + sequence
+```
+
+예시:
+
+```text
+bme280:9c2a...:20260429T145300Z:00000123
+ai:7f5b...:20260429T145300Z:00000045
+audio:aa81...:20260429T145300Z:00000210
+```
+
+남은 작업:
+
+```text
+AI/audio/BME 이미지 소스에서 session_id 생성
+measurement별 sequence 증가
+InfluxDB write payload에 event_id, node_id, pod_name, pod_uid, sequence 추가
+edge-agent는 event_id를 IoT Core message_id로 사용
+```
+
 ### Checkpoint
 
 `edge-agent`는 마지막으로 성공 publish한 위치를 기록한다.

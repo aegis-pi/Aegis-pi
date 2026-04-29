@@ -1,7 +1,7 @@
 # Failover / Failback 테스트 결과
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-04-29
 
 ## 목적
 
@@ -118,4 +118,50 @@ GROUP BY time(1s) fill(0)
 failback 전환 구간 중복 write 처리 정책 필요
 writer node tag 또는 active writer guard 필요성 검토
 Grafana에서 장애 시간대 공백/스파이크 시각 확인 필요
+```
+
+## Longhorn PVC 적용 후 재검증
+
+2026-04-29에 AI snapshot 저장을 Longhorn RWO PVC `safe-edge-ai-snapshots`로 유지한 상태에서 추가 검증했다.
+
+### test_03 k3s-agent 중지
+
+```text
+Failover: 부분 성공
+Failback: 성공
+bme280/audio: worker1 Running
+AI: worker1 ContainerCreating, Multi-Attach 발생
+원인: 기존 worker2 AI Pod가 RWO PVC를 사용 중인 것으로 남음
+```
+
+### test_04 랜선 제거
+
+```text
+Failover: 부분 성공
+Failback: 성공
+bme280/audio: worker1 Running
+AI: 5분 이상 worker1 Running 실패
+Longhorn: safe-edge-ai-snapshots unknown/attaching 관찰
+최종: 랜선 재연결 후 worker2 Running, Longhorn healthy 복귀
+```
+
+### test_05 watchdog reboot fencing
+
+```text
+watchdog 설치: 성공
+master API unreachable 감지: 성공
+worker2 reboot fencing: 성공
+bme280/audio worker1 failover: 성공
+AI worker1 장기 failover: 미확인
+worker2 자기 복구/failback: 성공
+Longhorn 최종 healthy: 성공
+worker1 최대 관찰: 1033m CPU, 5492Mi memory, 68%
+```
+
+해석:
+
+```text
+현재 watchdog reboot는 worker2 stale writer를 제거하고 self-healing을 빠르게 만드는 데 효과가 있다.
+하지만 장기 worker1 AI failover를 보장하려면 worker2를 계속 격리하는 외부 power fencing 또는 전원 차단 상황을 별도로 검증해야 한다.
+AI failover 실패 원인은 CPU/메모리가 아니라 Longhorn RWO PVC attach 제약이다.
 ```
