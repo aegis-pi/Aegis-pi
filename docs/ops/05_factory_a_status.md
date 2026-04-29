@@ -1,7 +1,7 @@
 # Factory-A 현재 상태
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-04-29
 
 ## 목적
 
@@ -48,15 +48,18 @@ ai-apps
 
 ```text
 monitoring:
-- influxdb
-- prometheus
-- grafana
+- grafana: master
+- influxdb: worker1
+- prometheus: worker1
 
 ai-apps:
-- bme280-sensor
-- safe-edge-integrated-ai
-- safe-edge-audio
+- bme280-sensor: worker2
+- safe-edge-integrated-ai: worker2
+- safe-edge-audio: worker2
 - safe-edge-image-prepull
+
+argocd:
+- argocd components: worker1
 ```
 
 ## 저장소
@@ -84,7 +87,10 @@ kubectl -n longhorn-system get volumes.longhorn.io -o wide
 ```text
 All nodes Ready
 ArgoCD apps Synced / Healthy
-target Pods worker2 Running
+Grafana master Running
+ArgoCD worker1 Running
+Prometheus/InfluxDB worker1 Running
+AI/audio/BME target Pods worker2 Running
 Longhorn volumes healthy
 Grafana dashboard 갱신
 ```

@@ -1,7 +1,7 @@
 # Grafana Dashboard 운영
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-04-29
 
 ## 목적
 
@@ -14,6 +14,15 @@ Grafana UI: http://10.10.10.202
 ```
 
 Dashboard 등록은 사용자가 Grafana UI에서 진행한다.
+
+현재 Grafana Pod는 master에 배치한다. Service는 계속 MetalLB LoadBalancer `10.10.10.202`를 사용한다.
+
+```text
+node: master
+strategy: Recreate
+request: 100m CPU / 256Mi memory
+limit: 500m CPU / 768Mi memory
+```
 
 ## Datasource
 
@@ -110,6 +119,7 @@ Datasource: Prometheus
 
 ```bash
 kubectl -n monitoring get pod -o wide
+kubectl -n monitoring get pod -l app=grafana -o wide
 kubectl -n monitoring exec deploy/influxdb -- \
   influx -database safe_edge_db -execute 'SHOW MEASUREMENTS'
 ```

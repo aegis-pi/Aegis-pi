@@ -1,7 +1,7 @@
 # ArgoCD GitOps 운영
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-04-29
 
 ## 목적
 
@@ -33,6 +33,36 @@ safe-edge-ai-apps
 - sync도 사용자가 UI에서 확인하고 진행한다.
 - monitoring과 ai-apps는 별도 Application으로 분리한다.
 - 민감 정보는 repo에 기록하지 않는다.
+- ArgoCD 자체는 worker1에 배치한다. ArgoCD가 worker에 있어도 실제 Deployment 갱신과 Pod scheduling은 master의 Kubernetes control-plane이 수행한다.
+- ArgoCD resource requests/limits와 worker1 nodeAffinity는 Helm release values로 관리한다.
+
+## ArgoCD 자체 배치
+
+```text
+Helm release: argocd
+namespace: argocd
+chart: argo/argo-cd 9.5.4
+nodeAffinity: worker1 required
+```
+
+Resource 기준:
+
+```text
+application-controller:       request 100m / 256Mi, limit 500m / 512Mi
+repo-server:                  request 100m / 128Mi, limit 500m / 512Mi
+server:                       request 50m / 128Mi,  limit 300m / 384Mi
+dex-server:                   request 50m / 128Mi,  limit 300m / 384Mi
+redis:                        request 50m / 64Mi,   limit 300m / 256Mi
+applicationset-controller:    request 50m / 64Mi,   limit 300m / 256Mi
+notifications-controller:     request 25m / 64Mi,   limit 200m / 256Mi
+```
+
+확인:
+
+```bash
+kubectl -n argocd get pod -o wide
+kubectl -n argocd top pod --containers
+```
 
 ## 상태 확인
 

@@ -35,19 +35,18 @@ Grafana와 InfluxDB는 Longhorn RWO PVC를 사용하므로 Deployment 전략을 
 
 ## 기준 사용률
 
-2026-04-29 점검 당시 기준이다.
+2026-04-29 리소스 제한과 배치 정책 적용 후 기준이다.
 
 ```text
-master   183m CPU / 4%    2972Mi / 4147Mi = 73%
-worker1  133m CPU / 3%    3563Mi / 8256Mi = 44%
-worker2  458m CPU / 11%   3728Mi / 8256Mi = 46%
+master   158m CPU / 3%    2767Mi / 4147Mi = 68%
+worker1  118m CPU / 2%    3277Mi / 8256Mi = 40%
+worker2  499m CPU / 12%   4043Mi / 8256Mi = 50%
 ```
 
 worker1의 주요 파드 사용량은 다음과 같다.
 
 ```text
-Grafana                 5m CPU    461Mi
-ArgoCD 전체             17m CPU   약 804Mi
+ArgoCD 전체             worker1
 Prometheus              3m CPU    255Mi
 InfluxDB                6m CPU    139Mi
 kube-state-metrics      2m CPU     77Mi
@@ -165,16 +164,21 @@ AI, audio, BME280 sensor는 worker2 우선 배치를 유지한다.
 ```text
 safe-edge-integrated-ai:
   requests: 500m / 1500Mi
-  limits:   2000m / 2500Mi
+  limits:   2000m / 2000Mi
+  strategy: Recreate
 
 safe-edge-audio:
   requests: 100m / 1500Mi
-  limits:   1000m / 2200Mi
+  limits:   1000m / 2000Mi
+  strategy: Recreate
 
 bme280-sensor:
   requests: 50m / 64Mi
   limits:   200m / 256Mi
+  strategy: Recreate
 ```
+
+AI, audio, BME280 sensor는 하드웨어 장치를 직접 잡으므로 기본 `RollingUpdate`를 사용하지 않는다. 새 Pod와 기존 Pod가 동시에 떠서 `/dev`, `/dev/snd`, `/dev/i2c-1` 접근이 겹치지 않도록 `Recreate`로 둔다.
 
 ## ArgoCD Resource 기준
 
