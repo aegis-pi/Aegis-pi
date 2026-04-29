@@ -31,6 +31,8 @@ ArgoCD는 worker1에 유지한다. ArgoCD는 Git 변경을 감지하고 Kubernet
 
 Grafana는 master로 이동한다. Grafana는 관측 UI이며 데이터 수집 경로의 핵심 처리 파드가 아니므로 worker1에서 분리해도 운영 위험이 낮다. worker1의 failover 여유를 확보하는 효과가 있다.
 
+Grafana와 InfluxDB는 Longhorn RWO PVC를 사용하므로 Deployment 전략을 `Recreate`로 둔다. 기본 RollingUpdate는 새 Pod가 다른 노드에서 먼저 뜨면서 기존 Pod가 잡고 있는 RWO volume 때문에 Multi-Attach 대기가 발생할 수 있다.
+
 ## 기준 사용률
 
 2026-04-29 점검 당시 기준이다.
@@ -68,6 +70,15 @@ ArgoCD는 worker1에 유지한다.
 - ArgoCD 전체를 master로 이동하면 master 메모리가 90% 전후로 올라갈 수 있다.
 - edge 처리 파드와 control-plane을 분리하는 것이 운영 안정성에 더 유리하다.
 
+적용 기준:
+
+```text
+Helm release: argocd
+namespace: argocd
+chart: argo/argo-cd 9.5.4
+nodeAffinity: worker1 required
+```
+
 배포 흐름:
 
 ```text
@@ -99,6 +110,7 @@ tolerations:
 resources:
   requests: 100m / 256Mi
   limits:   500m / 768Mi
+strategy: Recreate
 ```
 
 ### Prometheus
@@ -135,6 +147,7 @@ InfluxDB는 worker1에 유지한다.
 resources:
   requests: 100m / 256Mi
   limits:   1000m / 768Mi
+strategy: Recreate
 ```
 
 ### AI/audio/BME
