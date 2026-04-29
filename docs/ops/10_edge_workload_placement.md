@@ -216,6 +216,54 @@ notifications-controller:
   limits:   200m / 256Mi
 ```
 
+## Edge Agent 배치 계획
+
+`edge-agent`는 현재 운영 중인 workload가 아니라 후속 클라우드 송신 컴포넌트다. 초기에는 기존 Safe-Edge workload를 대체하지 않고 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 추가한다.
+
+배치 기준:
+
+```text
+namespace: ai-apps
+replicas: 1
+preferred: worker2
+failover: worker1
+avoid: master
+```
+
+Resource 기준:
+
+```text
+requests: 50m CPU / 128Mi memory
+limits:   200m CPU / 256Mi memory
+expected steady memory: 60~150Mi
+target peak memory: 200Mi 이하
+strategy: Recreate for MVP
+```
+
+초기 데이터 수집 방식:
+
+```text
+edge-agent
+  -> InfluxDB query
+  -> Kubernetes API status query
+  -> AWS IoT Core MQTT publish
+```
+
+초기에는 `/dev/i2c-1`, camera, mic 같은 장치를 직접 잡지 않는다. 따라서 AI/audio/BME처럼 하드웨어 충돌 때문에 `Recreate`가 필수인 것은 아니지만, 중복 publish를 피하기 위해 MVP에서는 1 replica를 유지하고 rolling update 동작은 별도 검증 후 확정한다.
+
+송신 안정성 기준:
+
+```text
+message_id idempotency key 필수
+last sent checkpoint 필수
+MQTT QoS 1 권장
+reconnect/backoff 필수
+cluster-admin 금지, 최소 RBAC 사용
+AWS IoT certificate/private key는 Kubernetes Secret으로만 주입
+```
+
+상세 계획은 `docs/planning/06_edge_agent_deployment_plan.md`를 기준으로 한다.
+
 ## 검증
 
 적용 후 다음 명령으로 확인한다.

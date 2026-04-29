@@ -1,7 +1,7 @@
 # 목표 확장 아키텍처
 
 상태: draft
-기준일: 2026-04-28
+기준일: 2026-04-29
 
 ## 목적
 
@@ -56,6 +56,8 @@ GitHub Push
 
 ```text
 Edge input
+    -> local Safe-Edge workloads
+    -> InfluxDB / Kubernetes API
     -> Edge Agent
     -> AWS IoT Core
     -> S3
@@ -67,8 +69,20 @@ Edge input
 확장 조건:
 
 - 현재 InfluxDB 기반 로컬 관제에서 표준 input schema를 분리할 것
+- `edge-agent` 이미지를 만들고 `factory-a`에서는 real mode, `factory-b/c`에서는 dummy mode로 공통 송신 로직을 재사용할 것
 - IoT Core topic과 S3 partition 규칙을 확정할 것
 - `factory_id`, `source_type`, timestamp 기준을 고정할 것
+
+초기 topic 기준:
+
+```text
+aegis/factory-a/sensor
+aegis/factory-a/system_status
+aegis/factory-b/sensor
+aegis/factory-b/system_status
+aegis/factory-c/sensor
+aegis/factory-c/system_status
+```
 
 ## 목표 Hub Namespace
 
@@ -123,7 +137,7 @@ event
 2. Hub EKS 기준선 구성
 3. Tailscale 또는 동등한 Hub-Spoke 연결 방식 확정
 4. GitHub Actions / ECR / ArgoCD ApplicationSet 구성
-5. IoT Core / S3 데이터 수집 경로 구성
+5. Edge Agent 구현 및 IoT Core / S3 데이터 수집 경로 구성
 6. Risk Score Engine 및 dashboard 구현
 7. `factory-b`, `factory-c` 테스트베드 확장
 

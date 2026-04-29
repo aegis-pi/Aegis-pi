@@ -1,7 +1,7 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-04-29
 
 ## 목적
 
@@ -91,6 +91,8 @@ BME280 / camera / mic / AI
     -> InfluxDB safe_edge_db
     -> Grafana dashboard
 ```
+
+`edge-agent`는 현재 운영 workload가 아니다. 후속 클라우드 확장 단계에서 기존 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 추가될 송신 컴포넌트다. 초기 계획은 직접 장치 접근이 아니라 InfluxDB query와 Kubernetes API status query를 사용해 AWS IoT Core로 전송하는 방식이다.
 
 InfluxDB measurement:
 
@@ -232,6 +234,7 @@ GitHub Actions
 Risk Score Engine
 AMP
 ApplicationSet
+edge-agent
 ```
 
 후속 구조는 `docs/architecture/01_target_architecture.md`에서 관리한다.

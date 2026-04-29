@@ -94,6 +94,17 @@
 - 핵심 내용:
   - ArgoCD, Grafana, InfluxDB, Longhorn, failback, prepull, snapshot 문제
 
+### 9. `docs/ops/11_ansible_test_automation.md`
+
+- 역할:
+  - `start_test` 기반 반복 검증 절차를 Ansible playbook으로 표준화하기 위한 계획
+- 핵심 내용:
+  - baseline 수집
+  - 테스트 실행
+  - failover/failback 관측
+  - InfluxDB bucket query
+  - evidence pack 생성
+
 ## 2차 유지 문서
 
 ### 1. `docs/planning/00_project_overview.md`
@@ -116,12 +127,31 @@
 - 역할:
   - 실측 결과와 후속 평가 기준 정리
 
-### 5. `docs/architecture/00_current_architecture.md`
+### 5. `docs/planning/05_decision_rationale.md`
+
+- 역할:
+  - 주요 기술 선택과 대안 보류 이유 정리
+- 핵심 내용:
+  - K3s + Edge Agent + IoT Core 선택 이유
+  - Greengrass, Lambda, 직접 HTTP API, Custom Dashboard 보류 이유
+  - ArgoCD/ApplicationSet, AMP/Grafana, Ansible 자동화 선택 이유
+
+### 6. `docs/planning/06_edge_agent_deployment_plan.md`
+
+- 역할:
+  - 클라우드 송신용 `edge-agent` 이미지와 K3s 배포 기준 정리
+- 핵심 내용:
+  - 예상 CPU/Memory
+  - worker2 preferred / worker1 failover / master avoid 배치
+  - AWS IoT 인증서 Secret mount
+  - InfluxDB/Kubernetes API 기반 초기 수집 방식
+
+### 7. `docs/architecture/00_current_architecture.md`
 
 - 역할:
   - 현재 `factory-a` 로컬 아키텍처 설명
 
-### 6. `docs/architecture/01_target_architecture.md`
+### 8. `docs/architecture/01_target_architecture.md`
 
 - 역할:
   - AWS Hub와 멀티 공장 확장 목표 설명
@@ -157,5 +187,6 @@
 
 1. 실제 `factory-a` 상태가 바뀌면 `docs/ops/05_factory_a_status.md`부터 갱신한다.
 2. GitOps, Grafana, retention, failover 관련 변경은 각각의 `docs/ops/06~09` 문서에 먼저 반영한다.
-3. 운영 문서 변경이 프로젝트 방향에 영향을 주면 planning, architecture, product 문서를 따라 갱신한다.
-4. 발표나 데모 일정이 잡히면 demo, presentation, report 문서를 마지막에 맞춘다.
+3. 반복 검증 자동화 범위가 바뀌면 `docs/ops/03_test_checklist.md`와 `docs/ops/11_ansible_test_automation.md`를 함께 갱신한다.
+4. 운영 문서 변경이 프로젝트 방향에 영향을 주면 planning, architecture, product 문서를 따라 갱신한다.
+5. 발표나 데모 일정이 잡히면 demo, presentation, report 문서를 마지막에 맞춘다.

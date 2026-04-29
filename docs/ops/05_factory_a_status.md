@@ -62,6 +62,15 @@ argocd:
 - argocd components: worker1
 ```
 
+후속 planned workload:
+
+```text
+edge-agent: not deployed
+planned namespace: ai-apps
+planned placement: worker2 preferred, worker1 failover, master avoid
+planned role: InfluxDB/Kubernetes API 기반 상태 수집 후 AWS IoT Core 송신
+```
+
 ## 저장소
 
 ```text

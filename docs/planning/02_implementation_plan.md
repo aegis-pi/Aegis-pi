@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-04-29
 
 ## 목적
 
@@ -138,6 +138,8 @@
 
 - 표준 입력 스키마 확정
 - Edge Agent 구현 / 컨테이너화
+- `docs/planning/06_edge_agent_deployment_plan.md` 기준으로 `factory-a` real mode와 `factory-b/c` dummy mode를 분리
+- 초기 데이터 수집은 직접 장치 접근이 아니라 InfluxDB query와 Kubernetes API status query로 구현
 - IoT Core 연결
 - S3 적재
 - 정규화/판단 서비스
@@ -146,6 +148,7 @@
 완료 조건:
 
 - `factory-a` 데이터가 S3까지 실제 적재되고 Hub에서 처리 가능
+- worker2 장애 시 edge-agent가 worker1로 재스케줄되고 `system_status` 또는 pipeline 관련 상태를 계속 송신
 
 ### Phase 6. M5 VM Spoke 확장 - `factory-b`, `factory-c`
 

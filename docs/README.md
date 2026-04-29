@@ -1,7 +1,7 @@
 # Aegis-Pi Docs
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-04-29
 
 ## 목적
 
@@ -25,7 +25,9 @@
 6. `ops/08_data_retention.md`
 7. `ops/09_failover_failback_test_results.md`
 8. `ops/10_edge_workload_placement.md`
-9. `issues/M0_factory-a_safe-edge-baseline.md`
+9. `ops/11_ansible_test_automation.md`
+10. `planning/06_edge_agent_deployment_plan.md`
+11. `issues/M0_factory-a_safe-edge-baseline.md`
 
 ## 문서 구조
 
@@ -47,9 +49,17 @@ docs/
 │   ├── 07_grafana_dashboard.md
 │   ├── 08_data_retention.md
 │   ├── 09_failover_failback_test_results.md
-│   └── 10_edge_workload_placement.md
+│   ├── 10_edge_workload_placement.md
+│   └── 11_ansible_test_automation.md
 ├── architecture/
 ├── planning/
+│   ├── 00_project_overview.md
+│   ├── 01_safe_edge_transition.md
+│   ├── 02_implementation_plan.md
+│   ├── 03_evaluation_plan.md
+│   ├── 04_document_creation_priority.md
+│   ├── 05_decision_rationale.md
+│   └── 06_edge_agent_deployment_plan.md
 ├── product/
 ├── specs/
 ├── demo/

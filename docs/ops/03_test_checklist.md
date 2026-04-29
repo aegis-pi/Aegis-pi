@@ -59,6 +59,8 @@ kubectl -n monitoring exec deploy/influxdb -- \
 - worker2가 일시적으로 Ready처럼 보여도 5분 전에는 failback 성공으로 보지 않는다.
 - 최종 성공은 대상 Pod 3개가 worker2에서 Running일 때만 인정한다.
 - 테스트 후 InfluxDB 10초 bucket과 1초 bucket을 모두 확인한다.
+- 차후 반복 검증에서는 `start_test` 기반 절차를 Ansible playbook으로 표준화한다.
+- 물리 장애 유발은 초기 자동화 범위에서 제외하고, Ansible은 baseline 수집, 테스트 실행, 관측, 로그 수집, 결과 파일화를 우선 담당한다.
 
 대상 Pod:
 
@@ -66,6 +68,55 @@ kubectl -n monitoring exec deploy/influxdb -- \
 bme280-sensor
 safe-edge-integrated-ai
 safe-edge-audio
+```
+
+## Ansible 테스트 자동화 체크
+
+상세 계획은 `docs/ops/11_ansible_test_automation.md`를 기준으로 한다.
+
+초기 목표:
+
+```text
+start_test 절차를 사람이 매번 손으로 재구성하지 않고,
+동일한 baseline 수집 -> 테스트 실행 -> 관측 -> 결과 수집 순서로 반복 가능하게 만든다.
+```
+
+자동화 범위:
+
+```text
+[ ] Ansible inventory에 master, worker1, worker2 정의
+[ ] master 기준 kubectl 실행 가능 여부 확인
+[ ] 테스트 결과 저장 디렉터리 생성
+[ ] 테스트 시작 전 node/pod/pvc/application 상태 수집
+[ ] InfluxDB 최신 timestamp 수집
+[ ] start_test 실행 또는 동등한 테스트 시작 명령 표준화
+[ ] 테스트 중 10초 간격 node/pod 상태 수집
+[ ] failback cron log 또는 관련 system log 수집
+[ ] 테스트 종료 후 InfluxDB 10초 bucket query 실행
+[ ] 테스트 종료 후 InfluxDB 1초 bucket query 실행
+[ ] Longhorn volume 상태 수집
+[ ] Grafana 확인용 시간창 기록
+[ ] 결과 파일을 evidence pack으로 묶기
+```
+
+초기에는 수동으로 남길 항목:
+
+```text
+[ ] worker2 LAN 물리 제거
+[ ] worker2 LAN 재연결
+[ ] worker2 전원 물리 제거
+[ ] worker2 전원 재연결
+[ ] 최종 성공/실패 해석
+```
+
+차후 확장 후보:
+
+```text
+[ ] 네트워크 인터페이스 down/up 자동화
+[ ] 스마트 플러그 또는 PDU 기반 전원 차단 자동화
+[ ] 1초 bucket 최대 공백 자동 산출
+[ ] 중복 write 후보 자동 표시
+[ ] Markdown/CSV 테스트 리포트 자동 생성
 ```
 
 ## LAN 제거 테스트 기준
@@ -140,4 +191,25 @@ failback acoustic_detection 최대 2초
 [ ] failback 전환 구간 중복 write 허용 여부 결정
 [ ] active writer guard 또는 writer node tag 필요성 검토
 [ ] Grafana에서 장애 시간대 공백/스파이크 시각 확인
+```
+
+## Edge Agent 배포 후 추가 검증
+
+`edge-agent`는 아직 현재 운영 workload가 아니다. 배포 후에는 `docs/planning/06_edge_agent_deployment_plan.md`의 기준을 따라 아래 항목을 추가로 확인한다.
+
+```text
+[ ] edge-agent Pod가 ai-apps namespace에서 Running
+[ ] edge-agent가 worker2에 우선 배치됨
+[ ] resource request 50m / 128Mi, limit 200m / 256Mi 반영
+[ ] AWS IoT Core MQTT test client에서 aegis/factory-a/sensor 수신
+[ ] AWS IoT Core MQTT test client에서 aegis/factory-a/system_status 수신
+[ ] payload에 message_id, factory_id, node_id, source_type, source_timestamp, published_at 포함
+[ ] edge-agent 재시작 후 checkpoint 기준으로 중복 송신이 제한됨
+[ ] AWS IoT Core 연결 단절 후 backoff 재연결 확인
+[ ] ServiceAccount/RBAC가 최소 읽기 권한으로 제한됨
+[ ] AWS IoT 인증서 private key가 Git repo에 포함되지 않음
+[ ] worker2 장애 시 edge-agent가 worker1로 재스케줄
+[ ] 재스케줄 후 system_status 또는 pipeline 관련 상태 송신 유지
+[ ] 평상시 메모리 150Mi 이하
+[ ] 피크 메모리 200Mi 이하
 ```
