@@ -1,7 +1,7 @@
 # Safe-Edge 기준선 부트스트랩 가이드
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-04-29
 
 ## 목적
 
@@ -22,7 +22,8 @@ Longhorn: local replicated storage
 ArgoCD: Helm 기반 GitOps 배포
 Grafana: InfluxDB + Prometheus dashboard
 InfluxDB: safe_edge_db, 1일 retention
-AI snapshots: Longhorn PVC, 24시간 초과 자동 삭제
+AI snapshots: node-local hostPath, 24시간 초과 자동 삭제, 매일 03:00 KST purge
+AI inference result: InfluxDB PVC를 통해 Longhorn 저장
 Failback: master OS cron 기반 Kubernetes-only 스크립트
 ```
 

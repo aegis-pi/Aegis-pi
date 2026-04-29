@@ -127,6 +127,7 @@ AI inference result -> InfluxDB PVC -> Longhorn
 ```text
 InfluxDB safe_edge_db: 1일 retention
 AI snapshots: 24시간 초과 jpg/jpeg/png 삭제
+AI snapshots: 매일 03:00 KST worker1/worker2 local directory 전체 purge
 ```
 
 AI snapshot:
@@ -135,6 +136,7 @@ AI snapshot:
 mount path: /app/snapshots
 hostPath: /var/lib/safe-edge/snapshots
 cleanup: snapshot-cleanup sidecar
+daily purge: safe-edge-snapshot-daily-purge-worker1 / worker2 CronJob
 ```
 
 ## 모니터링 구조
@@ -197,27 +199,33 @@ LAN 제거:
 ```text
 Failover 성공
 Failback 성공
-10초 bucket 기준 데이터 공백 없음
-중복 write 후보 있음
+AI/audio/BME worker1 Running 성공
+worker2 복구 후 worker2 failback 성공
+Longhorn Multi-Attach 재발 없음
 ```
 
-전원 제거:
+`k3s-agent` 중지:
 
 ```text
 Failover 성공
 Failback 성공
-전원 제거 첫 관찰 -> worker1 전체 Running: 약 74초
-전원 재연결 첫 관찰 -> worker2 전체 Running: 약 2분 11초
-Longhorn degraded 후 healthy 복귀
+AI/audio/BME worker1 Running 성공
+worker2 복구 후 worker2 failback 성공
+Longhorn Multi-Attach 재발 없음
 ```
 
-1초 bucket 연속 공백:
+LAN 제거 InfluxDB 공백:
 
 ```text
-failover environment_data: 최대 65초
-failover ai_detection: 최대 72초
-failover acoustic_detection: 최대 75초
-failback 각 항목: 최대 2초
+1초 bucket:
+  ai_detection:        87초
+  acoustic_detection:  90초
+  environment_data:    83초
+
+10초 bucket 운영 기준:
+  ai_detection:        80초
+  acoustic_detection:  80초
+  environment_data:    70초
 ```
 
 ## 현재 구조 밖의 항목

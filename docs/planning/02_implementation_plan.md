@@ -44,9 +44,10 @@
 - InfluxDB, Grafana, Prometheus
 - Longhorn 기반 PVC
 - InfluxDB 1일 retention policy
-- AI snapshot Longhorn PVC 및 24시간 cleanup
+- AI snapshot node-local hostPath 및 24시간 cleanup, 매일 03:00 KST purge
+- AI inference result InfluxDB PVC 기반 Longhorn 저장
 - 이미지 prepull DaemonSet
-- LAN 제거 및 전원 제거 기반 failover/failback 실측
+- LAN 제거 및 k3s-agent 중지 기반 failover/failback 실측
 
 완료 조건:
 
@@ -238,8 +239,8 @@
 ## 현재 실측 완료 항목
 
 - worker2 LAN 제거 failover/failback
-- worker2 전원 제거 failover/failback
-- 전원 제거 테스트 1초 bucket 데이터 공백
+- worker2 k3s-agent 중지 failover/failback
+- LAN 제거 테스트 1초/10초 bucket 데이터 공백
 - 이미지 prepull 적용 후 failover 준비 상태
 - InfluxDB 1일 retention policy
-- AI snapshot 24시간 cleanup
+- AI snapshot 24시간 cleanup 및 매일 03:00 KST purge

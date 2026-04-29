@@ -243,13 +243,14 @@ kubectl -n monitoring get pod -o wide
 재발 방지:
 - 자동 failback은 scheduler 기본 동작이 아니라 운영 자동화 정책으로 본다.
 
-## 11. LAN 제거 테스트에서 10초 bucket 공백이 보이지 않음
+## 11. LAN 제거 테스트의 InfluxDB 데이터 공백 산정
 
 증상:
-- worker2 LAN을 제거했는데 10초 bucket 기준 데이터 공백이 없다.
+- worker2 LAN 제거 중 InfluxDB 데이터 공백이 얼마나 발생했는지 산정해야 한다.
 
 원인:
-- worker2에서 기존 프로세스가 잠시 계속 write했거나, 10초 bucket이 짧은 공백을 가릴 수 있다.
+- worker2가 NotReady로 전환되고 worker1 Pod가 Running될 때까지 write가 끊길 수 있다.
+- 1초 bucket은 세부 공백을 잘 보여주지만, BME처럼 샘플 주기가 1초보다 긴 데이터는 평상시에도 0-count가 섞인다.
 
 확인 명령:
 
@@ -262,10 +263,23 @@ GROUP BY time(10s) fill(0)
 
 해결/판단:
 - 10초 bucket과 1초 bucket을 함께 본다.
-- LAN 제거 테스트에서는 10초 bucket 공백 없음, 중복 write 후보 있음으로 기록했다.
+- 2026-04-29 test_09 LAN 제거 테스트에서는 다음과 같이 기록했다.
+
+```text
+1초 bucket 최대 연속 0-count:
+ai_detection:        87초
+acoustic_detection:  90초
+environment_data:    83초
+
+10초 bucket 운영 기준 0-count:
+ai_detection:        80초
+acoustic_detection:  80초
+environment_data:    70초
+```
 
 재발 방지:
 - 장애 분석은 항상 10초 bucket과 1초 bucket을 같이 남긴다.
+- 운영 판단은 10초 bucket 기준을 우선 사용한다.
 
 ## 12. 전원 제거 테스트에서 1초 bucket 공백 산정 방법
 

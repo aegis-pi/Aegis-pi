@@ -19,9 +19,10 @@ InfluxDB 1일 retention
 Grafana sensor / AI dashboard
 Prometheus Node Exporter Full 1860 dashboard
 image prepull DaemonSet
-AI snapshot PVC + 24시간 cleanup
+AI snapshot hostPath + 24시간 cleanup + 매일 03:00 KST purge
+AI inference result InfluxDB PVC 기반 Longhorn 저장
 LAN 제거 failover/failback 테스트
-전원 제거 failover/failback 테스트
+k3s-agent 중지 failover/failback 테스트
 ```
 
 ## 주요 성과
@@ -29,18 +30,17 @@ LAN 제거 failover/failback 테스트
 - `factory-a`는 단독 Safe-Edge 기준선으로 운영 가능하다.
 - worker2 장애 시 worker1로 failover가 가능하다.
 - worker2 복구 후 master OS cron 기반 Kubernetes-only failback이 가능하다.
-- Longhorn volume은 전원 장애 중 degraded가 되었지만 복구 후 healthy로 돌아왔다.
+- AI snapshot PVC 제거 후 Longhorn RWO Multi-Attach 없이 AI failover가 가능하다.
 - 데이터 공백을 10초 bucket과 1초 bucket으로 측정했다.
 
 ## 핵심 수치
 
 ```text
-전원 제거 첫 관찰 -> worker2 NotReady: 약 42초
-worker2 NotReady -> worker1 전체 Running: 약 32초
-전원 제거 첫 관찰 -> worker1 전체 Running: 약 74초
-전원 재연결 첫 관찰 -> worker2 전체 Running: 약 2분 11초
-failover 1초 bucket 최대 공백: 65-75초
-failback 1초 bucket 최대 공백: 2초
+LAN 제거 test_09:
+worker2 NotReady -> AI/audio/BME worker1 Running 성공
+worker2 재연결 -> AI/audio/BME worker2 failback 성공
+1초 bucket 최대 공백: AI 87초, audio 90초, BME 83초
+10초 bucket 운영 기준 공백: AI 80초, audio 80초, BME 70초
 ```
 
 ## 현재 남은 과제

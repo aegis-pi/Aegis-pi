@@ -1,7 +1,7 @@
 # Quick Start
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-04-29
 
 ## 목적
 
@@ -76,9 +76,10 @@ Prometheus Node Exporter Full 1860 dashboard 사용
 worker2 preferred affinity + 30초 tolerationSeconds
 master OS cron 기반 Kubernetes-only failback
 safe-edge-image-prepull DaemonSet
-AI snapshot Longhorn PVC + 24시간 cleanup
+AI snapshot node-local hostPath + 24시간 cleanup + 매일 03:00 KST purge
+AI inference result InfluxDB PVC 기반 Longhorn 저장
 LAN 제거 장애 테스트
-전원 제거 장애 테스트
+k3s-agent 중지 장애 테스트
 ```
 
 ## 다음 단계

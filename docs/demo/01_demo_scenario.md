@@ -70,12 +70,13 @@ Node Exporter Full 1860
 ```text
 Longhorn UI: 10.10.10.201
 InfluxDB PVC
-safe-edge-ai-snapshots PVC
+ai-apps PVC 없음
+AI snapshot hostPath /var/lib/safe-edge/snapshots
 ```
 
 전달 메시지:
-- 시계열 데이터와 AI event snapshot이 Longhorn PVC로 관리된다.
-- InfluxDB는 1일 retention, AI snapshot은 24시간 cleanup을 적용했다.
+- 시계열 데이터와 AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장된다.
+- AI event snapshot은 node-local hostPath에 임시 저장하고, 24시간 cleanup과 매일 03:00 KST purge를 적용했다.
 
 ### 5. 장애 복구 결과 설명
 
@@ -86,8 +87,8 @@ docs/ops/09_failover_failback_test_results.md
 ```
 
 전달 메시지:
-- LAN 제거와 전원 제거 테스트를 모두 수행했다.
-- 전원 제거 테스트에서 failover/failback이 성공했다.
+- LAN 제거와 k3s-agent 중지 테스트에서 failover/failback이 성공했다.
+- AI snapshot PVC 제거 후 Longhorn Multi-Attach 없이 AI가 worker1로 정상 failover됐다.
 - 데이터 공백과 중복 write 후보도 측정했다.
 
 ## 핵심 수치

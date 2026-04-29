@@ -61,9 +61,10 @@
 - Grafana에서 InfluxDB 센서/AI 결과 대시보드 구성
 - Prometheus Node Exporter Full `1860` 대시보드 구성
 - InfluxDB 1일 retention policy 적용
-- AI snapshot Longhorn PVC 및 24시간 cleanup 적용
+- AI snapshot node-local hostPath 및 24시간 cleanup, 매일 03:00 KST purge 적용
+- AI inference result는 InfluxDB PVC를 통해 Longhorn 저장
 - LAN 제거 기반 failover/failback 테스트
-- 전원 제거 기반 failover/failback 테스트
+- k3s-agent 중지 기반 failover/failback 테스트
 - 이미지 prepull DaemonSet 적용
 
 ## 후속 연결 문서

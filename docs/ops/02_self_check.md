@@ -90,8 +90,10 @@ Grafana는 `http://10.10.10.202`에서 확인한다.
 
 - InfluxDB retention policy는 1일 보존 기준이다.
 - Longhorn replica도 InfluxDB가 보존하는 데이터 범위만 복제한다.
-- AI detect snapshot은 `/app/snapshots`에 저장되고 Longhorn PVC에 붙어 있다.
+- AI detect snapshot은 `/app/snapshots`에 저장되고 node-local `/var/lib/safe-edge/snapshots` hostPath에 붙어 있다.
+- AI 추론 결과는 InfluxDB에 기록되고, InfluxDB PVC를 통해 Longhorn에 저장된다.
 - `snapshot-cleanup` sidecar가 24시간이 지난 이미지 파일을 정리한다.
+- `safe-edge-snapshot-daily-purge-worker1/worker2` CronJob이 매일 03:00 KST에 각 노드 snapshot directory를 비운다.
 
 ## Failover/Failback 점검
 

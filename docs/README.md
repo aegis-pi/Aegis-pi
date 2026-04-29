@@ -11,6 +11,8 @@
 
 - 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선이다.
 - `factory-a`는 Raspberry Pi 3-node K3s 기반 운영형 Spoke다.
+- 2026-04-29 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
+- 2026-04-29 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
 - AWS Hub, `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions, Tailscale은 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
@@ -77,6 +79,7 @@ ArgoCD UI: 10.10.10.200
 Longhorn UI: 10.10.10.201
 Grafana UI: 10.10.10.202
 GitOps repo: https://github.com/aegis-pi/safe-edge-config-main.git
+safe-edge-ai-apps revision: 8e9ae861d9e374e24edaba5efbe63c785292878a
 ```
 
 ## 문서 상태 규칙

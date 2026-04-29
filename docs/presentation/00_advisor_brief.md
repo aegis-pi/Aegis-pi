@@ -23,10 +23,10 @@ AI snapshot retention
 ## 검증 결과
 
 ```text
-LAN 제거: failover/failback 성공, 10초 bucket 공백 없음
-전원 제거: failover/failback 성공, Longhorn healthy 복귀
-전원 제거 failover 공백: 65-75초
-failback 공백: 최대 2초
+LAN 제거: failover/failback 성공, AI/audio/BME worker1 Running
+k3s-agent 중지: failover/failback 성공
+AI snapshot PVC 제거 후 Multi-Attach 재발 없음
+LAN 제거 InfluxDB 공백: 10초 bucket 기준 AI/audio 80초, BME 70초
 ```
 
 ## 현재 판단

@@ -44,9 +44,11 @@ GitOps repo: https://github.com/aegis-pi/safe-edge-config-main.git
 - worker2 preferred affinity + 30초 `tolerationSeconds`
 - master OS cron 기반 Kubernetes-only failback
 - `safe-edge-image-prepull` DaemonSet
-- AI event snapshot Longhorn PVC + 24시간 cleanup
+- AI event snapshot node-local hostPath + 24시간 cleanup + 매일 03:00 KST purge
+- AI inference result는 InfluxDB PVC를 통해 Longhorn 저장
 - worker2 LAN 제거 장애 테스트
-- worker2 전원 제거 장애 테스트
+- worker2 `k3s-agent` 중지 장애 테스트
+- 과거 worker2 전원 제거 장애 테스트
 
 ## 현재 로컬 구조
 
@@ -103,31 +105,34 @@ LAN 제거 테스트:
 ```text
 Failover: 성공
 Failback: 성공
-10초 bucket 기준 데이터 공백 없음
-전환 구간 중복 write 후보 있음
+AI/audio/BME worker1 Running 성공
+worker2 복구 후 worker2 failback 성공
+Longhorn Multi-Attach 재발 없음
+10초 bucket 기준 데이터 공백: AI/audio 약 80초, BME 약 70초
 ```
 
-전원 제거 테스트:
+`k3s-agent` 중지 테스트:
 
 ```text
 Failover: 성공
 Failback: 성공
-worker2 전원 제거 첫 관찰 -> worker2 NotReady: 약 42초
-worker2 NotReady -> worker1 전체 Running: 약 32초
-전원 제거 첫 관찰 -> worker1 전체 Running: 약 74초
-전원 재연결 첫 관찰 -> worker2 전체 Running: 약 2분 11초
-Longhorn degraded 발생 후 healthy 복귀
+AI/audio/BME worker1 Running 성공
+worker2 복구 후 worker2 failback 성공
+Longhorn Multi-Attach 재발 없음
 ```
 
-1초 bucket 연속 공백:
+LAN 제거 InfluxDB 공백:
 
 ```text
-failover environment_data: 최대 65초
-failover ai_detection: 최대 72초
-failover acoustic_detection: 최대 75초
-failback environment_data: 최대 2초
-failback ai_detection: 최대 2초
-failback acoustic_detection: 최대 2초
+1초 bucket:
+  ai_detection:        87초
+  acoustic_detection:  90초
+  environment_data:    83초
+
+10초 bucket 운영 기준:
+  ai_detection:        80초
+  acoustic_detection:  80초
+  environment_data:    70초
 ```
 
 ## 목표 확장 구조
