@@ -55,14 +55,14 @@ ArgoCD, Grafana, Risk Score Engine 등 모든 Hub 컴포넌트가 EKS 위에서 
 
 - [x] Issue 0의 AWS CLI MFA 및 Terraform 접근 설정 완료
 - [x] 리전, VPC/서브넷 사용 방식, EKS API endpoint 공개 범위 결정
-- [ ] EKS 클러스터 생성 (리전 결정 및 적용)
-- [ ] 노드그룹 구성 (인스턴스 타입, 최소/최대 노드 수 설정)
-- [ ] `kubectl` 로컬 접근 설정 (`kubeconfig` 업데이트)
-- [ ] EKS Add-on 설치
+- [x] EKS 클러스터 생성 (리전 결정 및 적용)
+- [x] 노드그룹 구성 (인스턴스 타입, 최소/최대 노드 수 설정)
+- [x] `kubectl` 로컬 접근 설정 (`kubeconfig` 업데이트)
+- [x] EKS Add-on 설치
   - `vpc-cni`
   - `coredns`
   - `kube-proxy`
-- [ ] IAM OIDC Provider 연결 (IRSA 사용을 위한 전제)
+- [x] IAM OIDC Provider 연결 (IRSA 사용을 위한 전제)
 
 ### Acceptance Criteria
 
@@ -75,10 +75,33 @@ ArgoCD, Grafana, Risk Score Engine 등 모든 Hub 컴포넌트가 EKS 위에서 
 - 문서: `docs/planning/09_m1_eks_vpc_decision_record.md`
 - Region: `ap-south-1`
 - VPC: Terraform 신규 생성
-- Subnet: 2 AZ, public 2개 + private 2개
+- VPC CIDR: `10.0.0.0/16`
+- Subnet: `ap-south-1a`, `ap-south-1c`에 public 2개 + private 2개
+- NAT Gateway: public Azone/Czone에 각 1개, private route table도 Azone/Czone 별도 구성
+- Resource naming: `AEGIS-[resource]-[feature]-[zone]`
+- Target cluster name: `AEGIS-EKS`
+- Target Kubernetes version: `1.34`
 - EKS nodegroup: private subnet, On-Demand, `t3.medium` 기본, 2대
 - EKS API endpoint: MVP bootstrap 단계에서는 public endpoint + `0.0.0.0/0` 허용
 - 테스트 종료 시 `terraform destroy`로 EKS, NAT Gateway, node group을 반드시 제거
+
+### 완료 기록
+
+- 완료일: 2026-04-30
+- 비고: 아래 리소스는 A/C zone, `10.0.0.0/16`, `AEGIS-*` 네이밍 기준으로 생성/검증한 뒤 비용 절감을 위해 `terraform destroy`로 제거했다.
+- Terraform apply 결과: `infra/hub` + `infra/platform` 합산 `64 added, 0 changed, 0 destroyed`
+- Terraform destroy 결과: `64 destroyed`
+- Cluster: `AEGIS-EKS`
+- Region: `ap-south-1`
+- Kubernetes API: `ACTIVE`, Kubernetes `1.34`
+- VPC: `vpc-099138d8d344bda9b`
+- Private subnets: `subnet-0f08c63b578cd815b`, `subnet-0f6536a1d45d25594`
+- Public subnets: `subnet-02bcb3ab6a4768128`, `subnet-02f443deece3d6bbf`
+- Node group: `AEGIS-EKS-node`, `t3.medium`, desired/min/max `2`
+- `kubectl get nodes` 확인: worker node 2대 모두 `Ready`
+- `kubectl cluster-info` 확인: control plane 및 CoreDNS endpoint 응답 정상
+- 최소 분리 구조: `infra/hub`는 VPC/EKS, `infra/platform`은 namespace/LimitRange, `infra/foundation`은 향후 영속 리소스
+- 현재 `infra/hub` state는 비어 있고, 빈 state 기준 `terraform plan -detailed-exitcode`는 `56 to add, 0 to change, 0 to destroy`
 
 ---
 
@@ -92,18 +115,29 @@ Risk Score Engine 독립 운영이 가능하다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] 아래 네임스페이스 생성 및 역할 정의 문서화
+- [x] 아래 네임스페이스 생성 및 역할 정의 문서화
   - `argocd` - Hub에서 Spoke 배포 제어
   - `observability` - Grafana, AMP 연동 메트릭 관제
   - `risk` - Risk Score Engine, 정규화 서비스
   - `ops-support` - `pipeline_status` 집계 보조 기능
-- [ ] 각 네임스페이스에 기본 ResourceQuota 또는 LimitRange 설정 (선택)
-- [ ] 네임스페이스 구조를 `docs/architecture/00_current_architecture.md` 또는 Hub 운영 문서에 반영
+- [x] 각 네임스페이스에 기본 ResourceQuota 또는 LimitRange 설정 (선택)
+- [x] 네임스페이스 구조를 `docs/architecture/00_current_architecture.md` 또는 Hub 운영 문서에 반영
 
 ### 🔍 Acceptance Criteria
 
 - `kubectl get namespaces`에서 4개 네임스페이스 확인
 - 각 네임스페이스 역할이 문서에 명시되어 있음
+
+### 구현 기록
+
+- Terraform 리소스: `infra/platform/namespaces.tf`
+- 관리 방식: `kubernetes_namespace_v1` + namespace별 `kubernetes_limit_range_v1`
+- Namespace 역할 문서: `infra/hub/README.md`, `docs/ops/13_hub_namespace_baseline.md`
+- Terraform apply 결과: `64 added, 0 changed, 0 destroyed`
+- `kubectl get namespaces argocd observability risk ops-support` 확인: 4개 namespace 모두 `Active`
+- `kubectl get limitrange` 확인: 각 namespace에 `default-limits` 생성 완료
+- 이후 최소 분리 작업에서 테스트용 AWS 리소스는 `terraform destroy`로 제거했고, namespace 관리는 `infra/platform` root로 이동했다.
+- 현재 AWS에는 namespace가 없으며, 재생성은 `infra/hub` apply 후 `infra/platform` apply 순서로 진행한다.
 
 ---
 

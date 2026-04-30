@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-04-29
+기준일: 2026-04-30
 
 ## 목적
 
@@ -9,9 +9,10 @@
 
 ## 현재 상태
 
-- Phase 0 문서 기준선 정리는 진행 중이다.
+- Phase 0 문서 기준선 정리는 완료 상태로 유지 보수 중이다.
 - Phase 1 M0 `factory-a` Safe-Edge 기준선은 구축 및 실측 검증까지 완료됐다.
-- 현재 다음 단계는 AWS Hub, Hub-Spoke 연결, 중앙 데이터 플레인, Dashboard VPC, Risk Twin으로 확장하는 것이다.
+- Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace 기준선 검증까지 완료했다.
+- 현재 다음 단계는 Hub ArgoCD 설치 후 Hub-Spoke 연결, 중앙 데이터 플레인, Dashboard VPC, Risk Twin으로 확장하는 것이다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
 - AWS 인프라 작업 전 로컬 AWS CLI MFA 및 Terraform 접근 설정은 `docs/planning/08_aws_cli_mfa_terraform_access.md`를 따른다.
@@ -78,10 +79,11 @@
 
 주요 작업:
 
-- AWS CLI MFA 및 Terraform 접근 설정 검증
-- AWS EKS
+- AWS CLI MFA 및 Terraform 접근 설정 검증 완료
+- AWS EKS/VPC 기준선 검증 완료
+- Hub namespace/LimitRange 기준선 검증 완료
+- 최소 Terraform root 분리 완료: `infra/hub`, `infra/platform`, `infra/foundation`
 - Dashboard VPC / public authenticated ingress 설계
-- Hub 네임스페이스 구성
 - ArgoCD 설치 또는 중앙 ArgoCD 운영 기준 정리
 - S3 버킷 및 경로 파티셔닝 설계
 - IoT Core Thing / 인증서 / 규칙
@@ -225,9 +227,9 @@
 
 | 단계 | 현재 상태 | 핵심 산출물 |
 | --- | --- | --- |
-| Phase 0 | 진행 중 | 기준 문서 |
+| Phase 0 | 완료 | 기준 문서 |
 | Phase 1 (M0) | 완료 | `factory-a` Safe-Edge 기준선 |
-| Phase 2 (M1) | 다음 단계 | Hub 핵심 서비스 |
+| Phase 2 (M1) | 진행 중, Issue 0~2 완료 | Hub 핵심 서비스 |
 | Phase 3 (M2) | 후속 | Mesh 기반 `factory-a` 연결 |
 | Phase 4 (M3) | 후속 | 배포 파이프라인 |
 | Phase 5 (M4) | 후속 | `factory-a` 중앙 데이터 플레인 |

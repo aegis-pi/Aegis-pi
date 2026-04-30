@@ -15,17 +15,17 @@ output "cluster_endpoint" {
 
 output "vpc_id" {
   description = "Hub Processing VPC ID."
-  value       = module.vpc.vpc_id
+  value       = aws_vpc.hub.id
 }
 
 output "private_subnet_ids" {
   description = "Private subnet IDs for EKS worker nodes."
-  value       = module.vpc.private_subnets
+  value       = [for zone in local.zone_names : aws_subnet.private[zone].id]
 }
 
 output "public_subnet_ids" {
   description = "Public subnet IDs for ingress/NAT resources."
-  value       = module.vpc.public_subnets
+  value       = [for zone in local.zone_names : aws_subnet.public[zone].id]
 }
 
 output "update_kubeconfig_command" {

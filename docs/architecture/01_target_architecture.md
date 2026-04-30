@@ -1,7 +1,7 @@
 # 목표 확장 아키텍처
 
 상태: draft
-기준일: 2026-04-29
+기준일: 2026-04-30
 
 ## 목적
 
@@ -13,6 +13,7 @@
 
 ```text
 factory-a 로컬 Safe-Edge 기준선
+M1 Issue 0~2 Hub EKS/VPC/namespace 기준선 검증 후 destroy
 ```
 
 후속 목표:
@@ -128,6 +129,8 @@ risk
 ops-support
 ```
 
+이 namespace 기준선은 `infra/platform` Terraform root에서 관리한다. Hub EKS 자체는 `infra/hub`, S3/ECR/AMP/IoT Core 같은 영속 리소스는 후속 `infra/foundation` root에서 분리 관리한다.
+
 역할:
 
 | Namespace | 역할 |
@@ -169,12 +172,13 @@ event
 ## 확장 우선순위
 
 1. `factory-a` 현재 상태 문서화 완료
-2. Hub EKS 기준선 구성
-3. Tailscale 또는 동등한 Hub-Spoke 연결 방식 확정
-4. GitHub Actions / ECR / ArgoCD ApplicationSet 구성
-5. Edge Agent 구현 및 IoT Core / S3 데이터 수집 경로 구성
-6. Dashboard VPC, latest status store, Risk Score Engine 및 dashboard 구현
-7. `factory-b`, `factory-c` 테스트베드 확장
+2. Hub EKS 기준선 구성 완료, 필요 시 `infra/hub`와 `infra/platform` 순서로 재생성
+3. Hub ArgoCD 설치
+4. Tailscale 또는 동등한 Hub-Spoke 연결 방식 확정
+5. GitHub Actions / ECR / ArgoCD ApplicationSet 구성
+6. Edge Agent 구현 및 IoT Core / S3 데이터 수집 경로 구성
+7. Dashboard VPC, latest status store, Risk Score Engine 및 dashboard 구현
+8. `factory-b`, `factory-c` 테스트베드 확장
 
 ## 현재 구조로 가져오면 안 되는 것
 

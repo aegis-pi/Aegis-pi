@@ -1,7 +1,7 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-04-29
+기준일: 2026-04-30
 
 ## 목적
 
@@ -9,9 +9,10 @@
 
 ## 현재 상태
 
-- 현재 구현 완료 범위는 `factory-a` 단일 운영형 Spoke다.
-- AWS Hub, `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions, Tailscale은 아직 구축 전이다.
-- 이 문서는 목표 Hub/Spoke 구조가 아니라 현재 동작 중인 로컬 기준선을 설명한다.
+- 현재 상시 운영 중인 구현 범위는 `factory-a` 단일 운영형 Spoke다.
+- AWS Hub는 M1 Issue 0~2에서 EKS/VPC/namespace 기준선을 Terraform으로 생성 검증한 뒤 비용 절감을 위해 destroy한 상태다.
+- `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions, Tailscale은 아직 구축 전이다.
+- 이 문서는 현재 동작 중인 로컬 기준선을 중심으로 설명하고, Hub는 검증 완료/미운영 상태로만 기록한다.
 
 ## 물리 / 클러스터 구조
 
@@ -80,6 +81,26 @@ safe-edge-ai-apps
 ```
 
 현재는 GitHub Actions / ECR / ApplicationSet 기반 멀티 Spoke 배포가 아니라, GitHub repo와 ArgoCD Application을 이용한 로컬 `factory-a` GitOps 기준선이다.
+
+## 현재 Hub 상태
+
+M1 Hub 기준선은 Terraform으로 검증했지만 현재 AWS에는 남겨두지 않는다.
+
+```text
+AWS actual state: destroyed
+EKS: AEGIS-EKS 검증 후 삭제
+VPC CIDR: 10.0.0.0/16 검증 후 삭제
+AZ: ap-south-1a, ap-south-1c
+Hub namespaces: argocd, observability, risk, ops-support 검증 후 삭제
+```
+
+Terraform root:
+
+```text
+infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group
+infra/platform    Kubernetes namespace, LimitRange, 이후 ArgoCD/관측 컴포넌트
+infra/foundation  S3, ECR, AMP, IoT Core 등 영속 리소스 예정
+```
 
 ## 데이터 구조
 

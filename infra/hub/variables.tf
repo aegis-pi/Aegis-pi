@@ -1,7 +1,7 @@
 variable "project_name" {
   description = "Project name used for AWS resource naming and tagging."
   type        = string
-  default     = "aegis-pi"
+  default     = "AEGIS"
 }
 
 variable "environment" {
@@ -19,7 +19,7 @@ variable "aws_region" {
 variable "vpc_cidr" {
   description = "CIDR block for the Hub Processing VPC."
   type        = string
-  default     = "10.40.0.0/16"
+  default     = "10.0.0.0/16"
 }
 
 variable "az_count" {
@@ -33,16 +33,27 @@ variable "az_count" {
   }
 }
 
+variable "availability_zone_suffixes" {
+  description = "Availability Zone suffixes used for Hub Processing VPC subnets."
+  type        = list(string)
+  default     = ["a", "c"]
+
+  validation {
+    condition     = length(var.availability_zone_suffixes) == 2
+    error_message = "availability_zone_suffixes must contain exactly 2 suffixes."
+  }
+}
+
 variable "cluster_name" {
   description = "EKS cluster name."
   type        = string
-  default     = "aegis-pi-hub-mvp"
+  default     = "AEGIS-EKS"
 }
 
 variable "kubernetes_version" {
   description = "EKS Kubernetes version."
   type        = string
-  default     = "1.33"
+  default     = "1.34"
 }
 
 variable "cluster_endpoint_public_access_cidrs" {

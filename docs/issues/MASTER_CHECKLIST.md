@@ -36,8 +36,8 @@
 원본: `docs/issues/M1_hub-cloud.md`
 
 - [x] Issue 0 - [AWS/Auth] AWS CLI MFA 및 Terraform 접근 설정
-- [ ] Issue 1 - [Hub/EKS] 클러스터 생성 및 기본 설정
-- [ ] Issue 2 - [Hub/Kubernetes] 네임스페이스 설계 및 생성
+- [x] Issue 1 - [Hub/EKS] 클러스터 생성 및 기본 설정
+- [x] Issue 2 - [Hub/Kubernetes] 네임스페이스 설계 및 생성
 - [ ] Issue 3 - [Hub/ArgoCD] ArgoCD 설치 (Spoke 등록 전 단계)
 - [ ] Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계
 - [ ] Issue 5 - [Hub/IoT Core] Thing / 인증서 / 규칙 구성

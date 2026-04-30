@@ -33,7 +33,7 @@ LAN 제거 InfluxDB 공백: 10초 bucket 기준 AI/audio 80초, BME 70초
 
 - M0는 핵심 기준선 완료로 볼 수 있다.
 - NFS Cold Storage와 Ansible tiering은 보류했다.
-- AWS Hub와 멀티 Spoke는 후속 단계로 분리한다.
+- AWS Hub EKS/VPC/namespace 기준선은 검증했고, Hub ArgoCD와 멀티 Spoke는 후속 단계로 분리한다.
 
 ## 다음 검토 주제
 

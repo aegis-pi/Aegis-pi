@@ -1,33 +1,117 @@
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "6.6.1"
-
-  name = "${local.name_prefix}-vpc"
-  cidr = var.vpc_cidr
-
-  azs             = local.azs
-  public_subnets  = local.public_subnets
-  private_subnets = local.private_subnets
-
+resource "aws_vpc" "hub" {
+  cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  enable_nat_gateway = true
-  single_nat_gateway = true
+  tags = {
+    Name = local.resource_names.vpc
+  }
+}
 
+resource "aws_internet_gateway" "hub" {
+  vpc_id = aws_vpc.hub.id
+
+  tags = {
+    Name = "${local.naming_prefix}-IGW"
+  }
+}
+
+resource "aws_subnet" "public" {
+  for_each = local.zone_config
+
+  vpc_id                  = aws_vpc.hub.id
+  availability_zone       = each.value.az
+  cidr_block              = each.value.public_subnet_cidr
   map_public_ip_on_launch = true
 
-  public_subnet_tags = {
+  tags = {
+    Name                     = each.value.public_subnet_name
     "kubernetes.io/role/elb" = "1"
   }
+}
 
-  private_subnet_tags = {
+resource "aws_subnet" "private" {
+  for_each = local.zone_config
+
+  vpc_id            = aws_vpc.hub.id
+  availability_zone = each.value.az
+  cidr_block        = each.value.private_subnet_cidr
+
+  tags = {
+    Name                              = each.value.private_subnet_name
     "kubernetes.io/role/internal-elb" = "1"
   }
+}
+
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.hub.id
+
+  tags = {
+    Name = "${local.naming_prefix}-RouteTable-public"
+  }
+}
+
+resource "aws_route" "public_internet_gateway" {
+  route_table_id         = aws_route_table.public.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.hub.id
+}
+
+resource "aws_route_table_association" "public" {
+  for_each = aws_subnet.public
+
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_eip" "nat" {
+  for_each = local.zone_config
+
+  domain = "vpc"
+
+  tags = {
+    Name = "${local.naming_prefix}-EIP-NAT-public-${each.key}"
+  }
+
+  depends_on = [aws_internet_gateway.hub]
+}
+
+resource "aws_nat_gateway" "public" {
+  for_each = local.zone_config
+
+  allocation_id = aws_eip.nat[each.key].id
+  subnet_id     = aws_subnet.public[each.key].id
+
+  tags = {
+    Name = "${local.naming_prefix}-NAT-public-${each.key}"
+  }
+
+  depends_on = [aws_internet_gateway.hub]
+}
+
+resource "aws_route_table" "private" {
+  for_each = local.zone_config
+
+  vpc_id = aws_vpc.hub.id
+
+  tags = {
+    Name = "${local.naming_prefix}-RouteTable-private-${each.key}"
+  }
+}
+
+resource "aws_route" "private_nat_gateway" {
+  for_each = local.zone_config
+
+  route_table_id         = aws_route_table.private[each.key].id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.public[each.key].id
+}
+
+resource "aws_route_table_association" "private" {
+  for_each = aws_subnet.private
+
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.private[each.key].id
 }
 
 module "eks" {
@@ -43,6 +127,15 @@ module "eks" {
 
   enable_cluster_creator_admin_permissions = true
 
+  iam_role_name            = local.resource_names.eks_cluster_iam_role
+  iam_role_use_name_prefix = false
+
+  security_group_name            = local.resource_names.eks_cluster_security
+  security_group_use_name_prefix = false
+
+  node_security_group_name            = "${local.naming_prefix}-SG-EKS-node"
+  node_security_group_use_name_prefix = false
+
   addons = {
     vpc-cni = {
       before_compute = true
@@ -51,15 +144,22 @@ module "eks" {
     kube-proxy = {}
   }
 
-  vpc_id                   = module.vpc.vpc_id
-  subnet_ids               = module.vpc.private_subnets
-  control_plane_subnet_ids = module.vpc.private_subnets
+  vpc_id                   = aws_vpc.hub.id
+  subnet_ids               = [for zone in local.zone_names : aws_subnet.private[zone].id]
+  control_plane_subnet_ids = [for zone in local.zone_names : aws_subnet.private[zone].id]
 
   eks_managed_node_groups = {
     hub = {
-      name = "${local.name_prefix}-nodes"
+      name            = local.resource_names.eks_node_group
+      use_name_prefix = false
 
-      subnet_ids = module.vpc.private_subnets
+      iam_role_name            = local.resource_names.eks_node_iam_role
+      iam_role_use_name_prefix = false
+
+      launch_template_name            = local.resource_names.eks_node_launch_template
+      launch_template_use_name_prefix = false
+
+      subnet_ids = [for zone in local.zone_names : aws_subnet.private[zone].id]
 
       instance_types = var.node_instance_types
       capacity_type  = "ON_DEMAND"

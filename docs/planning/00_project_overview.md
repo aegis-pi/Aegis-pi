@@ -1,7 +1,7 @@
 # 프로젝트 개요
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-04-30
 
 ## 목적
 
@@ -9,10 +9,11 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 
 ## 현재 상태
 
-- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축 및 실장 테스트다.
+- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트와 M1 Hub Issue 0~2 기준선 검증이다.
 - `factory-a`는 로컬 K3s 3노드, ArgoCD, Helm, Longhorn, InfluxDB, Grafana, AI 앱 failover/failback 기준선을 갖는다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
-- AWS Hub, `factory-b`, `factory-c`, IoT Core, S3, Risk Twin은 다음 확장 단계다.
+- AWS Hub는 EKS/VPC/namespace 기준선을 Terraform으로 검증한 뒤 현재 destroy 완료 상태다.
+- `factory-b`, `factory-c`, IoT Core, S3, Risk Twin은 다음 확장 단계다.
 
 ## 프로젝트명
 
@@ -72,7 +73,7 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 | 이미지 prepull | 완료 | `safe-edge-image-prepull` DaemonSet |
 | InfluxDB 1일 보존 | 완료 | retention policy 기준 |
 | AI snapshot 1일 보존 | 완료 | `/app/snapshots` cleanup sidecar |
-| AWS Hub | 후속 | M1 이후 |
+| AWS Hub | 부분 완료 | M1 Issue 0~2 검증 완료, 현재 destroy 상태 |
 | `factory-b`, `factory-c` | 후속 | 테스트베드형 Spoke |
 | Risk Twin | 후속 | M6 이후 |
 
