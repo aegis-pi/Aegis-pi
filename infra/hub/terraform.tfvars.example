@@ -1,0 +1,18 @@
+aws_region   = "ap-south-1"
+project_name = "aegis-pi"
+environment  = "hub-mvp"
+
+vpc_cidr = "10.40.0.0/16"
+
+cluster_name       = "aegis-pi-hub-mvp"
+kubernetes_version = "1.33"
+
+# MVP bootstrap default. This allows kubectl access from changing work locations.
+# IAM/MFA still protects the API, but this must be narrowed or moved to private access before operational use.
+cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
+
+# Start with t3.medium. Change to ["t3.large"] if ArgoCD/Grafana/Risk workloads need more memory.
+node_instance_types = ["t3.medium"]
+node_min_size       = 2
+node_desired_size   = 2
+node_max_size       = 2
