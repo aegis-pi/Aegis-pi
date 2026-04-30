@@ -9,6 +9,8 @@
 
 `edge-agent`는 기존 Safe-Edge 워크로드를 대체하는 것이 아니라, 초기에는 기존 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 추가되는 클라우드 송신 컴포넌트다.
 
+Dashboard VPC 확장 기준에서는 대시보드가 Spoke나 Processing VPC 내부 API를 직접 조회하지 않는다. 따라서 `edge-agent`는 센서/AI/audio 결과뿐 아니라 노드, 장치, 워크로드, heartbeat 상태도 표준 payload로 송신한다.
+
 ## 역할
 
 `edge-agent`는 `factory-a`의 로컬 데이터와 상태를 표준 입력 스키마로 변환하고 AWS IoT Core로 전송한다.
@@ -21,6 +23,7 @@ existing workloads
 
 edge-agent
   -> collect latest local data/status
+  -> collect node/device/workload/heartbeat status
   -> build standard schema
   -> MQTT publish to AWS IoT Core
 ```
@@ -45,6 +48,7 @@ local data/status 수집
 표준 스키마 변환
 AWS IoT Core 인증서 기반 MQTT 연결
 factory_id / node_id / source_type 포함 메시지 발행
+system_status / device_status / workload_status / heartbeat 발행
 중복 publish 방지를 위한 idempotency key 생성
 last sent checkpoint 관리
 연결 끊김 시 재연결
@@ -137,6 +141,27 @@ factory_id + measurement/source_type + source_timestamp
 ```
 
 AI 이벤트처럼 동일 timestamp에 여러 이벤트가 생길 수 있으면 `event_id` 또는 원본 row hash를 추가한다.
+
+Dashboard VPC에서 사용할 상태 payload는 아래 source type으로 분리한다.
+
+```text
+sensor
+system_status
+device_status
+workload_status
+pipeline_heartbeat
+event
+```
+
+권장 전송 주기:
+
+```text
+heartbeat: 10~15초
+full system_status: 30~60초
+status change event: 즉시
+```
+
+상세 기준은 `docs/planning/07_dashboard_vpc_extension_plan.md`를 따른다.
 
 현재 `factory-a` 운영 워크로드에는 `NODE_NAME`, `POD_NAME`, `POD_UID` Downward API 환경변수를 주입해 두었다. 이는 AI/audio/BME 이미지가 원본 이벤트에 `event_id`, `node_id`, `pod_uid`, `sequence`를 넣기 위한 전제 조건이다.
 
@@ -526,10 +551,19 @@ Deployment update 전략은 초기에는 `Recreate`를 권장한다. `edge-agent
 ```text
 aegis/factory-a/sensor
 aegis/factory-a/system_status
+aegis/factory-a/device_status
+aegis/factory-a/workload_status
+aegis/factory-a/heartbeat
 aegis/factory-b/sensor
 aegis/factory-b/system_status
+aegis/factory-b/device_status
+aegis/factory-b/workload_status
+aegis/factory-b/heartbeat
 aegis/factory-c/sensor
 aegis/factory-c/system_status
+aegis/factory-c/device_status
+aegis/factory-c/workload_status
+aegis/factory-c/heartbeat
 ```
 
 payload에는 반드시 `message_id`, `factory_id`, `node_id`, `source_type`, `source_timestamp`, `published_at`을 포함한다.

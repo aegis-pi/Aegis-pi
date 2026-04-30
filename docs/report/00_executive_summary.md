@@ -59,4 +59,5 @@ AWS Hub / factory-b / factory-c 확장
 2. AWS EKS Hub 기준선 설계/구축
 3. Hub-Spoke 연결
 4. IoT Core / S3 데이터 플레인
-5. Risk Twin dashboard
+5. Dashboard VPC 기반 관리자 관제 화면
+6. Risk Twin dashboard

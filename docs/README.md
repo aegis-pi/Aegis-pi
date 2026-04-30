@@ -16,6 +16,9 @@
 - AWS Hub, `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions, Tailscale은 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
+- 계획과 실제 구현이 달라진 결정은 `docs/changes/`에서 추적한다.
+- 후속 관리자 대시보드는 `planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
+- AWS CLI MFA 및 Terraform 접근 준비는 `planning/08_aws_cli_mfa_terraform_access.md`를 따른다.
 
 ## 먼저 읽을 문서
 
@@ -28,8 +31,11 @@
 7. `ops/09_failover_failback_test_results.md`
 8. `ops/10_edge_workload_placement.md`
 9. `ops/11_ansible_test_automation.md`
-10. `planning/06_edge_agent_deployment_plan.md`
-11. `issues/M0_factory-a_safe-edge-baseline.md`
+10. `changes/README.md`
+11. `planning/06_edge_agent_deployment_plan.md`
+12. `planning/07_dashboard_vpc_extension_plan.md`
+13. `planning/08_aws_cli_mfa_terraform_access.md`
+14. `issues/M0_factory-a_safe-edge-baseline.md`
 
 ## 문서 구조
 
@@ -40,6 +46,9 @@ docs/
 │   ├── MASTER_CHECKLIST.md
 │   ├── M0_factory-a_safe-edge-baseline.md
 │   └── M1~M7...
+├── changes/
+│   ├── README.md
+│   └── 0001~...
 ├── ops/
 │   ├── 00_quick_start.md
 │   ├── 01_safe_edge_bootstrap.md
@@ -61,7 +70,9 @@ docs/
 │   ├── 03_evaluation_plan.md
 │   ├── 04_document_creation_priority.md
 │   ├── 05_decision_rationale.md
-│   └── 06_edge_agent_deployment_plan.md
+│   ├── 06_edge_agent_deployment_plan.md
+│   ├── 07_dashboard_vpc_extension_plan.md
+│   └── 08_aws_cli_mfa_terraform_access.md
 ├── product/
 ├── specs/
 ├── demo/

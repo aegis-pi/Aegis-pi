@@ -41,4 +41,4 @@ LAN 제거 InfluxDB 공백: 10초 bucket 기준 AI/audio 80초, BME 70초
 2. failback 중복 write 처리 필요성
 3. active writer guard 필요 여부
 4. AWS Hub 확장 우선순위
-5. Risk Twin dashboard 범위
+5. Dashboard VPC와 Risk Twin dashboard 범위

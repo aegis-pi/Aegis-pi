@@ -37,9 +37,11 @@ SELECT "bending_detected" FROM "ai_detection" WHERE $timeFilter ORDER BY time DE
 SELECT "is_danger" FROM "acoustic_detection" WHERE $timeFilter ORDER BY time DESC LIMIT 10
 ```
 
-## 후속 Hub API 후보
+## 후속 Dashboard VPC API 후보
 
-아래 API는 아직 구현 대상이 아니다. AWS Hub/Risk Twin 단계에서 다시 검토한다.
+아래 API는 아직 구현 대상이 아니다. AWS Hub/Risk Twin 및 Dashboard VPC 단계에서 다시 검토한다.
+
+Dashboard API는 Spoke K3s, ArgoCD, Processing VPC 내부 서비스를 직접 호출하지 않는다. processed S3와 latest status store를 read-only로 조회한다.
 
 ```text
 GET /api/factories/summary
@@ -49,8 +51,21 @@ GET /api/logs/recent
 GET /api/pipeline/status
 ```
 
+예상 접근 경로:
+
+```text
+Route53 -> ALB -> WAF/Auth -> Dashboard API -> latest status store / S3 processed
+```
+
+목표 반영 지연:
+
+```text
+일반 상태 변화: 10~35초
+장애 판정: 40~60초
+```
+
 ## 현재 판단
 
 - `factory-a` 운영 dashboard는 Grafana datasource query로 충분하다.
-- API spec은 M6 Risk Twin dashboard 구현 시 source of truth로 승격한다.
+- API spec은 M6 Risk Twin / Dashboard VPC 구현 시 source of truth로 승격한다.
 - 현재는 후속 설계 초안으로만 유지한다.

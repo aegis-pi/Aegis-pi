@@ -91,15 +91,22 @@ kubectl get nodes -o wide
 완료 내용:
 - Longhorn 설치
 - InfluxDB PVC 구성
-- AI snapshot PVC 구성
-- worker2 전원 제거 테스트에서 degraded 후 healthy 복귀 확인
+- Grafana PVC 구성
+- AI 추론 결과를 InfluxDB PVC를 통해 Longhorn에 저장
+- AI snapshot 저장소는 Longhorn PVC가 아니라 node-local hostPath로 변경
+- worker2 전원 제거 테스트에서 Longhorn volume degraded 후 healthy 복귀 확인
+
+변경 기록:
+
+```text
+docs/changes/0001-ai-snapshot-pvc-to-hostpath.md
+```
 
 확인:
 
 ```bash
 kubectl -n longhorn-system get volumes.longhorn.io -o wide
 kubectl -n monitoring get pvc
-kubectl -n ai-apps get pvc
 ```
 
 완료 기준:
@@ -118,6 +125,12 @@ kubectl -n ai-apps get pvc
 - InfluxDB `safe_edge_db` retention: `1d`
 - AI snapshot retention: `24h`
 
+변경 기록:
+
+```text
+docs/changes/0003-nfs-cold-storage-deferred.md
+```
+
 ### Issue 7 - [배포/ArgoCD] GitHub + ArgoCD GitOps
 
 상태: 완료
@@ -126,6 +139,12 @@ kubectl -n ai-apps get pvc
 - 기존 로컬 저장소 기준이 아니라 GitHub repo를 사용한다.
 - ArgoCD 설치는 Helm으로 진행했다.
 - GitHub repo 등록 및 sync는 ArgoCD UI에서 진행한다.
+
+변경 기록:
+
+```text
+docs/changes/0004-safe-edge-config-github-gitops.md
+```
 
 GitOps repo:
 
@@ -202,14 +221,20 @@ kubectl -n monitoring exec deploy/influxdb -- \
 - `safe-edge-audio` worker2 우선 배치
 - AI 결과 InfluxDB 저장
 - AI event image `/app/snapshots` 저장
-- `safe-edge-ai-snapshots` Longhorn PVC 연결
+- `/app/snapshots`는 node-local hostPath `/var/lib/safe-edge/snapshots`에 연결
 - `snapshot-cleanup` sidecar로 24시간 초과 이미지 삭제
+
+변경 기록:
+
+```text
+docs/changes/0001-ai-snapshot-pvc-to-hostpath.md
+```
 
 확인:
 
 ```bash
 kubectl -n ai-apps get pod -o wide
-kubectl -n ai-apps get pvc safe-edge-ai-snapshots
+kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c ai-processor -- mount | grep snapshots
 ```
 
 ### Issue 11 - [Safe-Edge/Failover] Failover / Failback 정책
@@ -222,6 +247,12 @@ kubectl -n ai-apps get pvc safe-edge-ai-snapshots
 - worker2 장애 시 worker1 failover 확인
 - master OS cron 기반 Kubernetes-only failback 적용
 - worker2에 대상 Pod가 이미 있으면 skip하도록 설계
+
+변경 기록:
+
+```text
+docs/changes/0002-failback-cron-instead-of-k8s-cronjob.md
+```
 
 대상 Pod:
 
@@ -248,6 +279,13 @@ worker2 NotReady -> worker1 전체 Running: 약 32초
 - 기존 Kubernetes CronJob 방식 failback은 하드웨어 의존 워크로드에서 불안정했다.
 - 현재는 master OS cron 기반 Kubernetes-only failback을 사용한다.
 - Ansible 및 NFS tiering은 후속 자동화 과제로 분리한다.
+
+변경 기록:
+
+```text
+docs/changes/0002-failback-cron-instead-of-k8s-cronjob.md
+docs/changes/0003-nfs-cold-storage-deferred.md
+```
 
 ### Issue 13 - [검증/통합] Safe-Edge 기준선 통합 검증
 

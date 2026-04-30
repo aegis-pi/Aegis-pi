@@ -134,7 +134,7 @@
 - 핵심 내용:
   - K3s + Edge Agent + IoT Core 선택 이유
   - Greengrass, Lambda, 직접 HTTP API, Custom Dashboard 보류 이유
-  - ArgoCD/ApplicationSet, AMP/Grafana, Ansible 자동화 선택 이유
+  - ArgoCD/ApplicationSet, Dashboard VPC/latest status store, Ansible 자동화 선택 이유
 
 ### 6. `docs/planning/06_edge_agent_deployment_plan.md`
 

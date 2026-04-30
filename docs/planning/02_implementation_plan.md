@@ -11,8 +11,10 @@
 
 - Phase 0 문서 기준선 정리는 진행 중이다.
 - Phase 1 M0 `factory-a` Safe-Edge 기준선은 구축 및 실측 검증까지 완료됐다.
-- 현재 다음 단계는 AWS Hub, Hub-Spoke 연결, 중앙 데이터 플레인, Risk Twin으로 확장하는 것이다.
+- 현재 다음 단계는 AWS Hub, Hub-Spoke 연결, 중앙 데이터 플레인, Dashboard VPC, Risk Twin으로 확장하는 것이다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
+- 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
+- AWS 인프라 작업 전 로컬 AWS CLI MFA 및 Terraform 접근 설정은 `docs/planning/08_aws_cli_mfa_terraform_access.md`를 따른다.
 
 ## 단계 계획
 
@@ -70,14 +72,19 @@
 
 - Phase 1 완료
 - `factory-a` 기준선 문서와 GitOps repo 정합성 확인
+- 기존 IAM 사용자, Access Key, MFA 장치, AWS 권한 준비
+- `docs/planning/08_aws_cli_mfa_terraform_access.md` 기준으로 AWS CLI MFA 세션과 Terraform 접근 검증
 
 주요 작업:
 
+- AWS CLI MFA 및 Terraform 접근 설정 검증
 - AWS EKS
+- Dashboard VPC / public authenticated ingress 설계
 - Hub 네임스페이스 구성
 - ArgoCD 설치 또는 중앙 ArgoCD 운영 기준 정리
 - S3 버킷 및 경로 파티셔닝 설계
 - IoT Core Thing / 인증서 / 규칙
+- latest status 저장소 후보 결정
 - AMP 또는 Hub 관측 기준
 - `runtime-config.yaml` 구조 초안
 
@@ -141,10 +148,11 @@
 - Edge Agent 구현 / 컨테이너화
 - `docs/planning/06_edge_agent_deployment_plan.md` 기준으로 `factory-a` real mode와 `factory-b/c` dummy mode를 분리
 - 초기 데이터 수집은 직접 장치 접근이 아니라 InfluxDB query와 Kubernetes API status query로 구현
+- Edge Agent가 `system_status`, `device_status`, `workload_status`, `pipeline_heartbeat`를 함께 송신해 Dashboard VPC가 Spoke에 직접 붙지 않아도 현장 상태를 볼 수 있게 한다.
 - IoT Core 연결
 - S3 적재
 - 정규화/판단 서비스
-- `pipeline_status` 집계
+- `pipeline_status` 집계 및 latest status 저장소 반영
 
 완료 조건:
 
@@ -185,7 +193,8 @@
 - `runtime-config.yaml` 적용
 - 온도/습도 기준 초안 반영
 - Risk Twin 출력 구조 구현
-- Grafana 또는 별도 관제 화면 구현
+- Dashboard Web/API 또는 Grafana 관제 화면 구현
+- Dashboard VPC에서 ALB/WAF/Auth를 통해 접근하고, processed S3와 latest status store를 read-only로 조회
 
 완료 조건:
 
@@ -222,7 +231,7 @@
 | Phase 4 (M3) | 후속 | 배포 파이프라인 |
 | Phase 5 (M4) | 후속 | `factory-a` 중앙 데이터 플레인 |
 | Phase 6 (M5) | 후속 | VM Spoke 확장 |
-| Phase 7 (M6) | 후속 | Risk Twin + 관제 |
+| Phase 7 (M6) | 후속 | Risk Twin + Dashboard VPC 관제 |
 | Phase 8 (M7) | 후속 | 통합 검증 + 문서 보정 |
 
 ## 구현 중 테스트로 결정할 항목

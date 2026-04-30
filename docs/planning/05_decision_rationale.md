@@ -230,7 +230,7 @@ S3 raw data
 S3 event
   -> Lambda
   -> DynamoDB / Timestream / S3 processed
-  -> Grafana
+  -> Dashboard
 ```
 
 ### 판단
@@ -252,7 +252,7 @@ safe / warning / danger 상태 전환
 
 이 계산은 공장별 최근 상태를 유지하고, 이전 상태와 현재 상태를 비교해야 한다.
 
-또한 현재 관제 방향은 Prometheus-compatible metrics를 노출하고 AMP/Grafana에서 조회하는 구조다. EKS 서비스는 `/metrics` 노출, ConfigMap 기반 설정, ArgoCD 배포, Kubernetes rollout과 자연스럽게 맞는다.
+또한 현재 관제 방향은 Risk 결과를 latest status store와 processed S3에 기록하고, 필요하면 Prometheus-compatible metrics도 함께 노출하는 구조다. EKS 서비스는 ConfigMap 기반 설정, ArgoCD 배포, Kubernetes rollout과 자연스럽게 맞는다.
 
 Lambda로 구현하면 아래가 추가로 필요해진다.
 
@@ -260,7 +260,7 @@ Lambda로 구현하면 아래가 추가로 필요해진다.
 상태 저장소
 Lambda 배포 파이프라인
 IAM/권한 분리
-Grafana 조회용 저장소
+Dashboard 조회용 저장소
 EKS/ArgoCD와 별도 운영 체계
 ```
 
@@ -273,45 +273,51 @@ Risk Normalizer와 Risk Score Engine은 EKS `risk` namespace에서 실행한다.
 Lambda는 필요하면 후속 보조 트리거 또는 가벼운 전처리 용도로만 검토한다.
 ```
 
-## 왜 AMP / Grafana인가
+## 왜 Dashboard VPC + latest status store인가
 
 ### 선택한 방식
 
 ```text
 Risk Score Engine
-  -> Prometheus-compatible metrics
-  -> AMP
-  -> Grafana Hub
+  -> S3 processed
+  -> latest status store
+  -> Dashboard VPC Web/API
+  -> Route53 / ALB / WAF / Auth
 ```
 
 ### 대안
 
 ```text
-Risk Service
-  -> 별도 REST API
-  -> Custom Dashboard
+Risk Score Engine
+  -> Prometheus-compatible metrics
+  -> AMP
+  -> Grafana Hub public exposure
 ```
 
 ### 판단
 
-현재 `factory-a`는 이미 Grafana 기반 관제가 운영 기준선으로 검증되어 있다.
+현재 `factory-a`는 이미 Grafana 기반 로컬 관제가 운영 기준선으로 검증되어 있다. 하지만 후속 본사 관리자 대시보드는 Tailscale/VPN 없이 접근할 수 있어야 한다.
 
-Hub 확장에서도 Grafana를 유지하면 아래 이점이 있다.
+Dashboard VPC를 별도로 두면 아래 이점이 있다.
 
 ```text
-기존 관제 경험 재사용
-Prometheus/AMP 기반 메트릭 조회
-Risk Score와 시스템 메트릭을 같은 화면에서 표현
-별도 프론트엔드 MVP 구현 부담 감소
+Route53/ALB/WAF/Auth 기반 관리자 접근
+Processing VPC public ingress 제거
+Dashboard VPC와 Processing VPC 사이 VPC Peering 없음
+processed S3와 latest status store만 read-only 조회
+대시보드 침해 시 EKS/ArgoCD/Spoke API로 lateral movement 제한
 ```
 
-Custom Dashboard는 최종 제품 관점에서는 가능하지만, MVP에서는 구현 부담이 크다. 먼저 Grafana로 중앙 관제 구조를 완성하고, 이후 필요하면 별도 UI로 확장한다.
+Grafana는 내부 관측 또는 AMP 탐색용으로 유지할 수 있지만, public 관리자 화면의 기본 방향은 Dashboard Web/API다.
+
+S3만으로 대시보드를 구성하면 최신 상태 조회가 느릴 수 있으므로 latest status store를 둔다. 일반 상태 변화는 10~35초, 장애 판정은 40~60초 반영을 MVP 목표로 삼는다.
 
 ### 결론
 
 ```text
-MVP 관제는 AMP + Grafana Hub를 사용한다.
-Risk Twin 결과는 Prometheus-compatible metrics로 노출한다.
+MVP 관리자 관제는 Dashboard VPC + latest status store를 목표로 한다.
+Risk Twin 결과는 latest status store와 S3 processed에 기록한다.
+필요하면 AMP/Grafana용 Prometheus-compatible metrics도 함께 노출한다.
 ```
 
 ## 왜 ArgoCD / ApplicationSet인가
@@ -416,9 +422,9 @@ Ansible은 M7 반복 검증을 위한 evidence 수집 자동화로 도입한다.
 | 선택지 | 보류 이유 |
 | --- | --- |
 | AWS IoT Greengrass 메인 런타임 | K3s/ArgoCD와 역할이 겹치며 MVP 복잡도가 증가 |
-| Lambda 기반 Risk 계산 | 상태 기반 Risk 계산과 AMP/Grafana 메트릭 노출 구조에 덜 적합 |
+| Lambda 기반 Risk 계산 | 상태 기반 Risk 계산과 latest status 유지 구조에 덜 적합 |
 | 직접 HTTP API 수신 | 디바이스 인증, 메시지 라우팅, S3 적재를 직접 구현해야 함 |
-| Custom Dashboard 우선 구현 | MVP에서는 Grafana 재사용이 더 빠르고 검증 가능 |
+| Grafana public 관리자 화면 | 인증/접근 제어와 VPC 분리 요구를 Dashboard VPC로 푸는 편이 명확 |
 | 완전 자동 물리 장애 유발 | 하드웨어/안전/권한 리스크가 있어 후속으로 분리 |
 
 ## 향후 재검토 조건
@@ -430,6 +436,7 @@ Ansible은 M7 반복 검증을 위한 evidence 수집 자동화로 도입한다.
 K3s 운영 부담이 Greengrass fleet 관리보다 커지는 경우
 엣지 로컬 메시징과 필터링이 복잡해지는 경우
 Risk 계산이 단순 이벤트 변환 수준으로 축소되는 경우
-Grafana로 MVP 관제 요구를 만족하지 못하는 경우
+Dashboard VPC 구현 부담이 MVP 범위를 크게 초과하는 경우
+latest status store 반영 지연이 관제 요구를 만족하지 못하는 경우
 물리 장애 테스트를 정기적으로 무인 수행해야 하는 경우
 ```

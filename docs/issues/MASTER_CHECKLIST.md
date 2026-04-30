@@ -34,14 +34,16 @@
 
 원본: `docs/issues/M1_hub-cloud.md`
 
+- [x] Issue 0 - [AWS/Auth] AWS CLI MFA 및 Terraform 접근 설정
 - [ ] Issue 1 - [Hub/EKS] 클러스터 생성 및 기본 설정
 - [ ] Issue 2 - [Hub/Kubernetes] 네임스페이스 설계 및 생성
 - [ ] Issue 3 - [Hub/ArgoCD] ArgoCD 설치 (Spoke 등록 전 단계)
 - [ ] Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계
 - [ ] Issue 5 - [Hub/IoT Core] Thing / 인증서 / 규칙 구성
 - [ ] Issue 6 - [관제/AMP] AMP(Amazon Managed Prometheus) Workspace 생성 및 접근 권한 준비
+- [ ] Issue 6A - [관제/Dashboard VPC] 외부 관리자 접근 VPC 설계
 - [ ] Issue 7 - [관제/Prometheus] Hub Prometheus 설치 및 AMP remote_write 구성
-- [ ] Issue 8 - [관제/Grafana] Grafana Hub 설치 및 AMP 데이터 소스 연결
+- [ ] Issue 8 - [관제/Grafana] 내부 관측용 Grafana/AMP 데이터 소스 기준 결정
 - [ ] Issue 9 - [Risk/Config] `runtime-config.yaml` 파일 구조 초안 작성
 
 ## M2. Mesh VPN + Hub-Spoke 연결
@@ -101,9 +103,9 @@
 - [ ] Issue 2 - [Risk/Config] `runtime-config.yaml` 전역 설정 적용 및 필드 제어 구현
 - [ ] Issue 3 - [Risk/Config] 온도/습도 이상 기준값 초안 적용
 - [ ] Issue 4 - [Risk/Twin] Risk Twin 출력 구조 구현
-- [ ] Issue 5 - [관제/Grafana] 메인 대시보드 - 공장별 위험도 카드
-- [ ] Issue 6 - [관제/Grafana] 메인 대시보드 - 센서 현황 + 이상 시스템 목록
-- [ ] Issue 7 - [관제/Grafana] 메인 대시보드 - 하단 이벤트/상태 변화 로그
+- [ ] Issue 5 - [관제/Dashboard] 메인 대시보드 - 공장별 위험도 카드
+- [ ] Issue 6 - [관제/Dashboard] 메인 대시보드 - 센서 현황 + 이상 시스템 목록
+- [ ] Issue 7 - [관제/Dashboard] 메인 대시보드 - 하단 이벤트/상태 변화 로그
 - [ ] Issue 8 - [검증/Risk] 시나리오별 Risk Score 변화 확인
 
 ## M7. 통합 검증

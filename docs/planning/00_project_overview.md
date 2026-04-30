@@ -38,8 +38,9 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 - 로컬 GitOps는 GitHub repository와 ArgoCD UI sync를 기준으로 운영한다.
 - Grafana는 InfluxDB 센서/AI 결과와 Prometheus 노드 상태를 함께 보여준다.
 - `factory-b`, `factory-c`를 테스트베드형 Spoke로 추가한다.
-- AWS EKS Hub에서 여러 Spoke를 중앙 배포/관제한다.
+- AWS EKS Hub에서 여러 Spoke를 중앙 배포/처리한다.
 - IoT Core -> S3 -> Risk Score 처리 흐름으로 공장별 위험 상태를 만든다.
+- 관리자 대시보드는 Tailscale에 의존하지 않는 Dashboard VPC에서 Route53/ALB/WAF/Auth 뒤에 제공하고, processed S3와 latest status store를 read-only로 조회한다.
 
 ## 대상 사용자
 
@@ -87,6 +88,7 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 ## 향후 확장
 
 - AWS Hub와 Tailscale 기반 Hub-Spoke 연결
+- Dashboard VPC 기반 관리자 관제 접근
 - GitHub Actions/ECR 이미지 빌드 파이프라인
 - IoT Core/S3 데이터 플레인
 - `factory-b`, `factory-c` 테스트베드형 Spoke

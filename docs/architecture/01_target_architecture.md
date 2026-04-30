@@ -19,6 +19,7 @@ factory-a 로컬 Safe-Edge 기준선
 
 ```text
 AWS EKS Hub
+Dashboard VPC
 factory-a / factory-b / factory-c 멀티 Spoke
 중앙 배포 / 중앙 수집 / Risk Twin 관제
 ```
@@ -63,7 +64,8 @@ Edge input
     -> S3
     -> Risk Normalizer
     -> Risk Score Engine
-    -> Grafana / Risk Twin Dashboard
+    -> S3 processed / latest status store
+    -> Dashboard VPC Web/API
 ```
 
 확장 조건:
@@ -72,16 +74,49 @@ Edge input
 - `edge-agent` 이미지를 만들고 `factory-a`에서는 real mode, `factory-b/c`에서는 dummy mode로 공통 송신 로직을 재사용할 것
 - IoT Core topic과 S3 partition 규칙을 확정할 것
 - `factory_id`, `source_type`, timestamp 기준을 고정할 것
+- Dashboard VPC가 Spoke나 Processing VPC에 직접 붙지 않도록, Edge Agent가 `system_status`, `device_status`, `workload_status`, `pipeline_heartbeat`까지 송신할 것
 
 초기 topic 기준:
 
 ```text
 aegis/factory-a/sensor
 aegis/factory-a/system_status
+aegis/factory-a/device_status
+aegis/factory-a/workload_status
+aegis/factory-a/heartbeat
 aegis/factory-b/sensor
 aegis/factory-b/system_status
+aegis/factory-b/device_status
+aegis/factory-b/workload_status
+aegis/factory-b/heartbeat
 aegis/factory-c/sensor
 aegis/factory-c/system_status
+aegis/factory-c/device_status
+aegis/factory-c/workload_status
+aegis/factory-c/heartbeat
+```
+
+## 목표 Dashboard VPC
+
+관리자 대시보드는 Tailscale/VPN 의존 없이 Route53, ALB, WAF, Cognito 또는 사내 IdP 인증 뒤에 제공한다.
+
+Dashboard VPC와 Processing VPC는 VPC Peering 또는 Transit Gateway로 직접 연결하지 않는다. Dashboard Web/API는 processed S3 prefix와 latest status store를 read-only IAM 권한으로 조회한다.
+
+```text
+Dashboard VPC
+    -> Route53
+    -> ALB
+    -> WAF
+    -> Auth
+    -> Dashboard Web/API
+    -> S3 processed read-only
+    -> DynamoDB/Timestream latest status read-only
+```
+
+상세 기준:
+
+```text
+docs/planning/07_dashboard_vpc_extension_plan.md
 ```
 
 ## 목표 Hub Namespace
@@ -98,7 +133,7 @@ ops-support
 | Namespace | 역할 |
 | --- | --- |
 | `argocd` | 멀티 Spoke 배포 제어 |
-| `observability` | Grafana, AMP, Prometheus 연동 |
+| `observability` | AMP, Prometheus 연동, 내부 관측 |
 | `risk` | normalizer, score engine |
 | `ops-support` | pipeline status 집계 |
 
@@ -129,7 +164,7 @@ pipeline_status
 event
 ```
 
-현재 `factory-a`의 Grafana dashboard는 Risk Twin 전 단계의 로컬 관제 기준선이다. 후속 단계에서 이 값을 표준 schema와 Risk Score Engine으로 연결한다.
+현재 `factory-a`의 Grafana dashboard는 Risk Twin 전 단계의 로컬 관제 기준선이다. 후속 단계에서 이 값을 표준 schema, Risk Score Engine, Dashboard VPC 관제 화면으로 연결한다.
 
 ## 확장 우선순위
 
@@ -138,7 +173,7 @@ event
 3. Tailscale 또는 동등한 Hub-Spoke 연결 방식 확정
 4. GitHub Actions / ECR / ArgoCD ApplicationSet 구성
 5. Edge Agent 구현 및 IoT Core / S3 데이터 수집 경로 구성
-6. Risk Score Engine 및 dashboard 구현
+6. Dashboard VPC, latest status store, Risk Score Engine 및 dashboard 구현
 7. `factory-b`, `factory-c` 테스트베드 확장
 
 ## 현재 구조로 가져오면 안 되는 것
@@ -151,6 +186,7 @@ IoT Core / S3
 ECR
 GitHub Actions
 Tailscale
+Dashboard VPC
 factory-b / factory-c
 Risk Score Engine
 LLM 보고서

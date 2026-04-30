@@ -33,6 +33,7 @@
 4. `docs/ops/08_data_retention.md`
 5. `docs/ops/09_failover_failback_test_results.md`
 6. `docs/ops/04_troubleshooting.md`
+7. `docs/changes/README.md`
 
 ## 빠른 상태 확인
 
@@ -84,7 +85,7 @@ k3s-agent 중지 장애 테스트
 
 ## 다음 단계
 
-1. M0 문서를 실제 완료 상태로 업데이트한다.
-2. `README.md`, `docs/README.md`, architecture 문서를 현재 `factory-a` 기준으로 보정한다.
-3. Grafana/dashboard 스펙을 실제 InfluxDB + Prometheus 기준으로 보정한다.
+1. 계획과 실제 구현이 달라진 항목은 `docs/changes/`에 Change Record로 남긴다.
+2. `README.md`, `docs/README.md`, architecture 문서를 현재 `factory-a` 기준으로 유지한다.
+3. Grafana/dashboard 스펙을 실제 InfluxDB + Prometheus 기준으로 유지한다.
 4. 이후 AWS Hub, `factory-b`, `factory-c` 확장 단계로 넘어간다.
