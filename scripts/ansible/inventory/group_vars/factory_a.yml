@@ -1,0 +1,48 @@
+---
+factory_a_ssh_user: minsoo
+
+factory_a_nodes:
+  master:
+    name: master
+    ip: 10.10.10.10
+    password_var: factory_a_master_password
+  worker1:
+    name: worker1
+    ip: 10.10.10.11
+    password_var: factory_a_worker1_password
+  worker2:
+    name: worker2
+    ip: 10.10.10.12
+    password_var: factory_a_worker2_password
+
+factory_a_metal_lb:
+  argocd_pool: 10.10.10.200/32
+  safe_edge_pool: 10.10.10.201-10.10.10.250
+
+factory_a_services:
+  argocd_server:
+    name: argocd-server
+    ip: 10.10.10.200
+  longhorn_frontend:
+    name: longhorn-frontend-lb
+    ip: 10.10.10.201
+    url: http://10.10.10.201
+  grafana:
+    name: grafana-svc
+    ip: 10.10.10.202
+  traefik:
+    name: traefik
+    ip: 10.10.10.203
+
+factory_a_workloads:
+  preferred_node: worker2
+  failover_node: worker1
+  bme280_app: bme280-sensor
+  integrated_ai_app: safe-edge-integrated-ai
+  audio_app: safe-edge-audio
+  prepull_app: safe-edge-image-prepull
+
+ansible_user: "{{ factory_a_ssh_user }}"
+ansible_host: "{{ factory_a_nodes[inventory_hostname].ip }}"
+ansible_password: "{{ lookup('vars', factory_a_nodes[inventory_hostname].password_var) }}"
+ansible_become_password: "{{ lookup('vars', factory_a_nodes[inventory_hostname].password_var) }}"

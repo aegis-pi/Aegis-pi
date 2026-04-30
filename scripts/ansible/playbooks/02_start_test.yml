@@ -1,0 +1,223 @@
+---
+- name: Safe-Edge start_test checks
+  hosts: factory_a_master
+  gather_facts: false
+
+  vars_prompt:
+    - name: factory_a_master_password
+      prompt: "master SSH/sudo password"
+      private: true
+
+  vars:
+    evidence_root: "{{ playbook_dir }}/../evidence"
+    report_name: "start_test_{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}.md"
+    expected_nodes: "{{ factory_a_nodes.values() | list }}"
+    expected_loadbalancers: "{{ factory_a_services.values() | list }}"
+
+  tasks:
+    - name: Get check timestamp from master
+      ansible.builtin.command: date "+%Y-%m-%d %H:%M:%S %Z"
+      register: check_time
+      changed_when: false
+
+    - name: Run start_test commands on master
+      ansible.builtin.shell: "{{ item.cmd }}"
+      args:
+        executable: /bin/bash
+      loop:
+        - name: kubectl get nodes -o wide
+          cmd: kubectl get nodes -o wide
+        - name: kube-system svclb pods
+          cmd: kubectl -n kube-system get pods | grep svclb || true
+        - name: metallb pods
+          cmd: kubectl -n metallb-system get pods -o wide
+        - name: metallb pools
+          cmd: kubectl -n metallb-system get ipaddresspool,l2advertisement
+        - name: LoadBalancer services
+          cmd: kubectl get svc -A | grep LoadBalancer
+        - name: longhorn pods
+          cmd: kubectl -n longhorn-system get pods -o wide
+        - name: longhorn frontend lb
+          cmd: kubectl -n longhorn-system get svc longhorn-frontend-lb -o wide
+        - name: longhorn UI curl
+          cmd: "curl -I --max-time 5 {{ factory_a_services.longhorn_frontend.url }}"
+        - name: storageclass
+          cmd: kubectl get storageclass
+        - name: master taints
+          cmd: kubectl describe node master | grep -i Taints
+        - name: argocd applications
+          cmd: kubectl -n argocd get applications
+        - name: monitoring pods,pvc,svc
+          cmd: kubectl -n monitoring get pods,pvc,svc -o wide
+        - name: ai-apps pods,ds
+          cmd: kubectl -n ai-apps get pods,ds -o wide
+        - name: longhorn volumes
+          cmd: kubectl -n longhorn-system get volumes.longhorn.io -o wide
+      register: start_test_results
+      changed_when: false
+      failed_when: false
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Read failback log
+      ansible.builtin.command: tail -20 /var/log/safe-edge-failback.log
+      become: true
+      register: failback_log
+      changed_when: false
+      failed_when: false
+
+    - name: Build result lookup facts
+      ansible.builtin.set_fact:
+        nodes_output: "{{ start_test_results.results[0].stdout }}"
+        svclb_output: "{{ start_test_results.results[1].stdout }}"
+        metallb_pods_output: "{{ start_test_results.results[2].stdout }}"
+        metallb_pools_output: "{{ start_test_results.results[3].stdout }}"
+        loadbalancer_output: "{{ start_test_results.results[4].stdout }}"
+        longhorn_pods_output: "{{ start_test_results.results[5].stdout }}"
+        longhorn_frontend_output: "{{ start_test_results.results[6].stdout }}"
+        longhorn_curl_output: "{{ start_test_results.results[7].stdout }}"
+        storageclass_output: "{{ start_test_results.results[8].stdout }}"
+        master_taints_output: "{{ start_test_results.results[9].stdout }}"
+        argocd_output: "{{ start_test_results.results[10].stdout }}"
+        monitoring_output: "{{ start_test_results.results[11].stdout }}"
+        ai_apps_output: "{{ start_test_results.results[12].stdout }}"
+        longhorn_volumes_output: "{{ start_test_results.results[13].stdout }}"
+
+    - name: Validate critical start_test expectations
+      ansible.builtin.assert:
+        that:
+          - nodes_output is regex(item.name ~ '\\s+Ready')
+          - nodes_output is search(item.ip)
+        fail_msg: "Node {{ item.name }} is not Ready with expected IP {{ item.ip }}"
+      loop: "{{ expected_nodes }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Validate ServiceLB is disabled
+      ansible.builtin.assert:
+        that:
+          - svclb_output | trim == ""
+        fail_msg: "Unexpected svclb pod found in kube-system"
+
+    - name: Validate MetalLB pools
+      ansible.builtin.assert:
+        that:
+          - metallb_pools_output is search(factory_a_metal_lb.argocd_pool)
+          - metallb_pools_output is search(factory_a_metal_lb.safe_edge_pool)
+        fail_msg: "MetalLB address pools do not match expected factory-a ranges"
+
+    - name: Validate LoadBalancer IPs
+      ansible.builtin.assert:
+        that:
+          - loadbalancer_output is search(item.name)
+          - loadbalancer_output is search(item.ip)
+        fail_msg: "LoadBalancer {{ item.name }} does not have expected IP {{ item.ip }}"
+      loop: "{{ expected_loadbalancers }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Validate Longhorn UI and volumes
+      ansible.builtin.assert:
+        that:
+          - longhorn_curl_output is search('HTTP/1.1 200 OK')
+          - longhorn_volumes_output is search('healthy')
+        fail_msg: "Longhorn UI or volume health check failed"
+
+    - name: Validate master taint
+      ansible.builtin.assert:
+        that:
+          - master_taints_output is search('node-role.kubernetes.io/control-plane=true:NoSchedule')
+        fail_msg: "master control-plane NoSchedule taint is missing"
+
+    - name: Validate Argo CD applications
+      ansible.builtin.assert:
+        that:
+          - argocd_output is search('safe-edge-monitoring\\s+Synced\\s+Healthy')
+          - argocd_output is search('safe-edge-ai-apps\\s+Synced\\s+Healthy')
+        fail_msg: "Argo CD applications are not Synced/Healthy"
+
+    - name: Validate app placement
+      ansible.builtin.assert:
+        that:
+          - monitoring_output is regex(factory_a_workloads.bme280_app ~ '.*Running.*' ~ factory_a_workloads.preferred_node)
+          - ai_apps_output is regex(factory_a_workloads.integrated_ai_app ~ '.*Running.*' ~ factory_a_workloads.preferred_node)
+          - ai_apps_output is regex(factory_a_workloads.audio_app ~ '.*Running.*' ~ factory_a_workloads.preferred_node)
+          - ai_apps_output is regex(factory_a_workloads.prepull_app ~ '.*Running.*' ~ factory_a_workloads.failover_node)
+          - ai_apps_output is regex(factory_a_workloads.prepull_app ~ '.*Running.*' ~ factory_a_workloads.preferred_node)
+        fail_msg: "Expected Safe-Edge pods are not Running on expected nodes"
+
+    - name: Validate failback cron skip state
+      ansible.builtin.assert:
+        that:
+          - failback_log.stdout is search('SKIP monitoring/' ~ factory_a_workloads.bme280_app ~ ': pod already exists on ' ~ factory_a_workloads.preferred_node)
+          - failback_log.stdout is search('SKIP ai-apps/' ~ factory_a_workloads.integrated_ai_app ~ ': pod already exists on ' ~ factory_a_workloads.preferred_node)
+          - failback_log.stdout is search('SKIP ai-apps/' ~ factory_a_workloads.audio_app ~ ': pod already exists on ' ~ factory_a_workloads.preferred_node)
+        fail_msg: "Failback cron did not report expected worker2 skip state"
+
+    - name: Create local evidence directory
+      ansible.builtin.file:
+        path: "{{ evidence_root }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      run_once: true
+
+    - name: Write local Markdown evidence report
+      ansible.builtin.copy:
+        dest: "{{ evidence_root }}/{{ report_name }}"
+        mode: "0644"
+        content: |
+          # Safe-Edge start_test evidence
+
+          - execution_host: master
+          - check_time: {{ check_time.stdout }}
+          - automation: ansible
+          - result: PASS
+
+          {% for result in start_test_results.results %}
+          ## {{ result.item.name }}
+
+          command:
+
+          ```bash
+          {{ result.item.cmd }}
+          ```
+
+          rc: {{ result.rc }}
+
+          stdout:
+
+          ```text
+          {{ result.stdout | default('') }}
+          ```
+
+          stderr:
+
+          ```text
+          {{ result.stderr | default('') }}
+          ```
+
+          {% endfor %}
+          ## failback log
+
+          command:
+
+          ```bash
+          sudo tail -20 /var/log/safe-edge-failback.log
+          ```
+
+          rc: {{ failback_log.rc }}
+
+          stdout:
+
+          ```text
+          {{ failback_log.stdout | default('') }}
+          ```
+
+          stderr:
+
+          ```text
+          {{ failback_log.stderr | default('') }}
+          ```
+      delegate_to: localhost
+      run_once: true

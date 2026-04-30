@@ -51,15 +51,35 @@ Ansible inventory는 `factory-a` 기준으로 시작한다.
 
 ```ini
 [factory_a_master]
-master ansible_host=10.10.10.10
+master
 
 [factory_a_workers]
-worker1 ansible_host=10.10.10.11
-worker2 ansible_host=10.10.10.12
+worker1
+worker2
 
 [factory_a:children]
 factory_a_master
 factory_a_workers
+```
+
+IP, LoadBalancer 주소, SSH 사용자, 워크로드 노드명은 inventory에 직접 쓰지 않고 아래 변수 파일에서 관리한다.
+
+```text
+scripts/ansible/inventory/group_vars/factory_a.yml
+```
+
+예:
+
+```yaml
+factory_a_nodes:
+  master:
+    ip: 10.10.10.10
+  worker1:
+    ip: 10.10.10.11
+  worker2:
+    ip: 10.10.10.12
+
+ansible_host: "{{ factory_a_nodes[inventory_hostname].ip }}"
 ```
 
 명령 실행 기준:
@@ -85,7 +105,72 @@ scripts/ansible/
     06_build_evidence_pack.yml
 ```
 
-현재 저장소에는 아직 실제 Ansible 파일을 두지 않는다. 이 문서는 후속 구현 기준이다.
+현재 저장소에는 `02_start_test.yml`까지 구현해 두었다. 이후 장애 관측과 InfluxDB bucket 분석 playbook은 이 구조를 확장한다.
+
+## 현재 구현된 start_test 자동화
+
+구현 위치:
+
+```text
+scripts/ansible/
+  ansible.cfg
+  README.md
+  inventory/
+    factory-a.ini
+    group_vars/factory_a.yml
+  playbooks/
+    02_start_test.yml
+  evidence/.gitignore
+```
+
+실행 기준:
+
+```bash
+cd scripts/ansible
+ansible-playbook playbooks/02_start_test.yml
+```
+
+비밀번호 SSH를 사용하는 경우 control host에 `sshpass`가 필요하다.
+
+```bash
+sudo apt-get install -y sshpass
+```
+
+현재 `02_start_test.yml`은 `master`에만 SSH 접속하고, worker 상태는 `master`의 `kubectl` 결과로 확인한다. 따라서 start_test 실행 시에는 `master SSH/sudo password` 프롬프트 하나만 입력한다.
+
+node별 비밀번호 변수는 아래처럼 `inventory/group_vars/factory_a.yml`에서 매핑한다.
+
+```yaml
+factory_a_nodes:
+  master:
+    password_var: factory_a_master_password
+  worker1:
+    password_var: factory_a_worker1_password
+  worker2:
+    password_var: factory_a_worker2_password
+```
+
+worker에 직접 SSH 접속하는 playbook을 추가할 때는 해당 playbook의 `vars_prompt`에 `factory_a_worker1_password`, `factory_a_worker2_password`를 추가한다. 비밀번호는 prompt로만 받고 파일에 저장하지 않는다.
+
+현재 playbook은 아래를 수행한다.
+
+```text
+1. master에서 start_test 명령 실행
+2. 노드 Ready/IP, ServiceLB 비활성, MetalLB pool, LoadBalancer IP 검증
+3. Longhorn UI/volume 상태 검증
+4. master taint, Argo CD Application, monitoring/ai-apps Pod 배치 검증
+5. failback cron skip 로그 검증
+6. scripts/ansible/evidence/ 아래 Markdown evidence 생성
+```
+
+앞으로 새 세션의 `start_test`는 먼저 이 Ansible playbook으로 실행하고, evidence 결과를 기준으로 판정한다. 수동 kubectl 실행은 playbook 실패 원인 조사나 추가 분석이 필요할 때만 사용한다.
+
+민감 정보 정책:
+
+```text
+SSH 비밀번호, sudo 비밀번호, K3s token, GitHub token, AWS credential은 inventory, 변수 파일, evidence, 문서에 기록하지 않는다.
+scripts/ansible/evidence/의 실행 산출물은 로컬 보관용이며 Git push 대상에서 제외한다.
+```
 
 ## 00 Preflight
 
