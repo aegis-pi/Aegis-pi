@@ -193,7 +193,8 @@ docs/
 │   ├── 05_decision_rationale.md
 │   ├── 06_edge_agent_deployment_plan.md
 │   ├── 07_dashboard_vpc_extension_plan.md
-│   └── 08_aws_cli_mfa_terraform_access.md
+│   ├── 08_aws_cli_mfa_terraform_access.md
+│   └── 09_m1_eks_vpc_decision_record.md
 ├── product/
 ├── specs/
 ├── demo/
@@ -214,7 +215,8 @@ docs/
 9. `docs/planning/06_edge_agent_deployment_plan.md`
 10. `docs/planning/07_dashboard_vpc_extension_plan.md`
 11. `docs/planning/08_aws_cli_mfa_terraform_access.md`
-12. `docs/issues/M0_factory-a_safe-edge-baseline.md`
+12. `docs/planning/09_m1_eks_vpc_decision_record.md`
+13. `docs/issues/M0_factory-a_safe-edge-baseline.md`
 
 ## 문서 상태 기준
 

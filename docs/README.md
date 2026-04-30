@@ -19,6 +19,7 @@
 - 계획과 실제 구현이 달라진 결정은 `docs/changes/`에서 추적한다.
 - 후속 관리자 대시보드는 `planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
 - AWS CLI MFA 및 Terraform 접근 준비는 `planning/08_aws_cli_mfa_terraform_access.md`를 따른다.
+- M1 EKS/VPC 설계 결정은 `planning/09_m1_eks_vpc_decision_record.md`를 따른다.
 
 ## 먼저 읽을 문서
 
@@ -35,7 +36,8 @@
 11. `planning/06_edge_agent_deployment_plan.md`
 12. `planning/07_dashboard_vpc_extension_plan.md`
 13. `planning/08_aws_cli_mfa_terraform_access.md`
-14. `issues/M0_factory-a_safe-edge-baseline.md`
+14. `planning/09_m1_eks_vpc_decision_record.md`
+15. `issues/M0_factory-a_safe-edge-baseline.md`
 
 ## 문서 구조
 
@@ -72,7 +74,8 @@ docs/
 │   ├── 05_decision_rationale.md
 │   ├── 06_edge_agent_deployment_plan.md
 │   ├── 07_dashboard_vpc_extension_plan.md
-│   └── 08_aws_cli_mfa_terraform_access.md
+│   ├── 08_aws_cli_mfa_terraform_access.md
+│   └── 09_m1_eks_vpc_decision_record.md
 ├── product/
 ├── specs/
 ├── demo/

@@ -74,6 +74,7 @@
 - `factory-a` 기준선 문서와 GitOps repo 정합성 확인
 - 기존 IAM 사용자, Access Key, MFA 장치, AWS 권한 준비
 - `docs/planning/08_aws_cli_mfa_terraform_access.md` 기준으로 AWS CLI MFA 세션과 Terraform 접근 검증
+- `docs/planning/09_m1_eks_vpc_decision_record.md` 기준으로 EKS/VPC MVP 설계값 확정
 
 주요 작업:
 

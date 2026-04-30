@@ -2,6 +2,7 @@
 
 상태: working tracker
 기준 문서: `docs/issues/M0_factory-a_safe-edge-baseline.md` ~ `docs/issues/M7_integration-test.md`
+세션 이어받기: `docs/issues/SESSION_STATE.md`
 
 ## 사용 방식
 
@@ -27,7 +28,7 @@
 - [x] Issue 9 - [데이터/BME280] BME280 + 카메라 + 마이크 입력 계층 구성
 - [x] Issue 10 - [Safe-Edge/AI] 통합 AI + Audio 파드 배포 및 Worker-2 배치
 - [x] Issue 11 - [Safe-Edge/Failover] Failover / Failback 정책 검증
-- [ ] Issue 12 - [자동화/Ansible] Hot/Cold 티어링 + Ansible Playbook 복구 (보류)
+- [ ] Issue 12 - [자동화/Ansible] start_test 자동화 부분 완료, Hot/Cold 티어링 보류
 - [x] Issue 13 - [검증/통합] Safe-Edge 기준선 통합 검증
 
 ## M1. Hub 클라우드 기반 구성
