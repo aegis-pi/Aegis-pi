@@ -16,6 +16,7 @@
 | `07_dashboard_vpc_extension_plan.md` | Dashboard VPC 기반 관리자 관제 구조 |
 | `08_aws_cli_mfa_terraform_access.md` | AWS CLI MFA와 Terraform 접근 준비 |
 | `09_m1_eks_vpc_decision_record.md` | M1 EKS/VPC 설계 결정과 적용 결과 |
+| `10_portfolio_idea_assessment.md` | 포트폴리오 관점의 아이디어 평가와 MVP 메시지 |
 
 ## 기준
 
