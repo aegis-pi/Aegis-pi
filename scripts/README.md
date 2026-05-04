@@ -14,6 +14,8 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | `hub/destroy-hub.sh` | MFA OTP 입력 후 `infra/hub` Terraform destroy 실행 |
 | `hub/argocd-initial-password.sh` | MFA 세션 확인 후 Hub ArgoCD 초기 admin 비밀번호 조회 |
 | `hub/argocd-port-forward.sh` | Hub ArgoCD UI 로컬 접근용 kubeconfig 갱신 및 port-forward 실행 |
+| `iot/register-thing.sh` | IoT Thing, Policy, certificate/key 발급 템플릿. 출력은 `secret/`에 저장 |
+| `iot/cleanup-thing.sh` | CLI로 만든 IoT Thing, Policy, certificate 정리 템플릿 |
 | `ansible/inventory/hub_eks_dynamic.sh` | `infra/hub` Terraform output 기반 Hub EKS dynamic inventory |
 | `ansible/playbooks/hub_argocd_bootstrap.yml` | Hub namespace, LimitRange, ArgoCD Helm 설치 및 검증 |
 | `ansible/playbooks/hub_argocd_verify.yml` | Hub ArgoCD bootstrap 상태 확인 |
