@@ -26,11 +26,17 @@ secret/iot/factory-a/
 
 ## 등록 실행
 
-MFA session이 설정된 shell에서 실행한다.
+MFA session이 없으면 실행 초기에 OTP를 입력받는다.
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
 scripts/iot/register-thing.sh
+```
+
+OTP를 인자로 넘길 수도 있다.
+
+```bash
+scripts/iot/register-thing.sh <MFA_OTP>
 ```
 
 기본값:
@@ -87,6 +93,12 @@ AWS IoT 리소스만 정리하고 local secret 파일은 보존한다.
 
 ```bash
 scripts/iot/cleanup-thing.sh
+```
+
+OTP를 인자로 넘길 수도 있다.
+
+```bash
+scripts/iot/cleanup-thing.sh <MFA_OTP>
 ```
 
 local secret 파일까지 지우려면 명시적으로 설정한다.

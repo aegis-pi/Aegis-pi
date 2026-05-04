@@ -10,6 +10,38 @@ THING_NAME="${THING_NAME:-AEGIS-IoTThing-${FACTORY_ID}}"
 POLICY_NAME="${POLICY_NAME:-AEGIS-IoTPolicy-${FACTORY_ID}}"
 SECRET_DIR="${SECRET_DIR:-${REPO_ROOT}/secret/iot/${FACTORY_ID}}"
 DELETE_LOCAL_FILES="${DELETE_LOCAL_FILES:-false}"
+OTP="${1:-}"
+
+if [[ -z "${AWS_SESSION_TOKEN:-}" ]]; then
+  if [[ -z "${OTP}" ]]; then
+    read -r -p "MFA OTP: " OTP
+  fi
+
+  if [[ -z "${OTP}" ]]; then
+    echo "MFA OTP is required when AWS_SESSION_TOKEN is not set" >&2
+    exit 1
+  fi
+
+  if [[ -f "${HOME}/.bashrc" ]]; then
+    # shellcheck disable=SC1090
+    source "${HOME}/.bashrc"
+  fi
+
+  if declare -F setToken >/dev/null 2>&1; then
+    setToken "${OTP}"
+  elif [[ -x "/home/vicbear/Aegis/.tools/aws-mfa-script/mfa.sh" ]]; then
+    /home/vicbear/Aegis/.tools/aws-mfa-script/mfa.sh "${OTP}"
+    # shellcheck disable=SC1090
+    source "${HOME}/.token_file"
+  else
+    echo "MFA helper not found. Expected setToken function or /home/vicbear/Aegis/.tools/aws-mfa-script/mfa.sh" >&2
+    exit 1
+  fi
+fi
+
+unset AWS_PROFILE
+export AWS_REGION
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-${AWS_REGION}}"
 
 if [[ ! -f "${SECRET_DIR}/certificate-arn.txt" || ! -f "${SECRET_DIR}/certificate-id.txt" ]]; then
   echo "certificate ARN/ID files not found in ${SECRET_DIR}" >&2
