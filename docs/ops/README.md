@@ -20,6 +20,7 @@
 | `11_ansible_test_automation.md` | Ansible 기반 반복 점검 자동화 계획 |
 | `12_iot_core_thing_secret_mount.md` | IoT Core Thing 등록과 K3s Secret mount 절차 |
 | `13_hub_namespace_baseline.md` | Hub EKS namespace 기준 |
+| `14_hub_run_commands.md` | Hub 실행 및 ArgoCD 초기 비밀번호 확인 명령어 |
 
 ## 기준
 

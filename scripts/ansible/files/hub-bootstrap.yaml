@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    app.kubernetes.io/part-of: aegis-hub
+    aegis.io/component: gitops
+  annotations:
+    aegis.io/role: Hub에서 Spoke 배포 제어
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: argocd
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    app.kubernetes.io/part-of: aegis-hub
+    aegis.io/component: observability
+  annotations:
+    aegis.io/role: Grafana, AMP 연동 메트릭 관제
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: observability
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: risk
+  labels:
+    app.kubernetes.io/part-of: aegis-hub
+    aegis.io/component: risk
+  annotations:
+    aegis.io/role: Risk Score Engine, 정규화 서비스
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: risk
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ops-support
+  labels:
+    app.kubernetes.io/part-of: aegis-hub
+    aegis.io/component: ops-support
+  annotations:
+    aegis.io/role: pipeline_status 집계 보조 기능
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: ops-support
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi

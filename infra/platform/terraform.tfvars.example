@@ -1,4 +1,0 @@
-aws_region   = "ap-south-1"
-cluster_name = "AEGIS-EKS"
-project_name = "AEGIS"
-environment  = "hub-mvp"

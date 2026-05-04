@@ -1,7 +1,7 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-04-30
+기준일: 2026-05-04
 
 ## 목적
 
@@ -10,7 +10,8 @@
 ## 현재 상태
 
 - 현재 상시 운영 중인 구현 범위는 `factory-a` 단일 운영형 Spoke다.
-- AWS Hub는 M1 Issue 0~2에서 EKS/VPC/namespace 기준선을 Terraform으로 생성 검증한 뒤 비용 절감을 위해 destroy한 상태다.
+- AWS Hub는 M1 Issue 0~3에서 EKS/VPC/namespace/ArgoCD bootstrap 기준선을 검증한 뒤 비용 절감을 위해 destroy한 상태다.
+- 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions, Tailscale은 아직 구축 전이다.
 - 이 문서는 현재 동작 중인 로컬 기준선을 중심으로 설명하고, Hub는 검증 완료/미운영 상태로만 기록한다.
 
@@ -98,8 +99,13 @@ Terraform root:
 
 ```text
 infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group
-infra/platform    Kubernetes namespace, LimitRange, 이후 ArgoCD/관측 컴포넌트
 infra/foundation  S3, ECR, AMP, IoT Core 등 영속 리소스 예정
+```
+
+Hub Kubernetes bootstrap:
+
+```text
+scripts/ansible  kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install
 ```
 
 ## 데이터 구조

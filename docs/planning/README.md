@@ -17,8 +17,10 @@
 | `08_aws_cli_mfa_terraform_access.md` | AWS CLI MFA와 Terraform 접근 준비 |
 | `09_m1_eks_vpc_decision_record.md` | M1 EKS/VPC 설계 결정과 적용 결과 |
 | `10_portfolio_idea_assessment.md` | 포트폴리오 관점의 아이디어 평가와 MVP 메시지 |
+| `11_delivery_ownership_flow.md` | Terraform, Ansible, GitHub Actions, ArgoCD 책임 경계 |
 
 ## 기준
 
 - 실제 적용된 결정은 가능한 한 Decision Record 형태로 남긴다.
 - 운영 절차로 확정된 내용은 `docs/ops/` 문서로 옮겨 실행 기준을 분리한다.
+- 신규 작업 전에는 `11_delivery_ownership_flow.md`의 책임 경계를 먼저 확인한다.

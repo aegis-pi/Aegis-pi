@@ -1,7 +1,7 @@
 # 목표 확장 아키텍처
 
 상태: draft
-기준일: 2026-04-30
+기준일: 2026-05-04
 
 ## 목적
 
@@ -13,7 +13,7 @@
 
 ```text
 factory-a 로컬 Safe-Edge 기준선
-M1 Issue 0~2 Hub EKS/VPC/namespace 기준선 검증 후 destroy
+M1 Issue 0~3 Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선 검증 후 destroy
 ```
 
 후속 목표:
@@ -23,6 +23,15 @@ AWS EKS Hub
 Dashboard VPC
 factory-a / factory-b / factory-c 멀티 Spoke
 중앙 배포 / 중앙 수집 / Risk Twin 관제
+```
+
+구현 책임 경계:
+
+```text
+Terraform: AWS 인프라
+Ansible: bootstrap / 설정 / 소프트웨어 설치
+GitHub Actions: CI
+GitHub + ArgoCD: CD
 ```
 
 ## 목표 구조
@@ -129,7 +138,7 @@ risk
 ops-support
 ```
 
-이 namespace 기준선은 `infra/platform` Terraform root에서 관리한다. Hub EKS 자체는 `infra/hub`, S3/ECR/AMP/IoT Core 같은 영속 리소스는 후속 `infra/foundation` root에서 분리 관리한다.
+이 namespace 기준선은 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다. Hub EKS 자체는 `infra/hub`, S3/ECR/AMP/IoT Core 같은 영속 리소스는 후속 `infra/foundation` root에서 분리 관리한다.
 
 역할:
 
@@ -172,8 +181,8 @@ event
 ## 확장 우선순위
 
 1. `factory-a` 현재 상태 문서화 완료
-2. Hub EKS 기준선 구성 완료, 필요 시 `infra/hub`와 `infra/platform` 순서로 재생성
-3. Hub ArgoCD 설치
+2. Hub EKS 기준선 구성 완료, 필요 시 `infra/hub` Terraform apply와 `scripts/ansible` bootstrap 순서로 재생성
+3. Hub ArgoCD Ansible bootstrap
 4. Tailscale 또는 동등한 Hub-Spoke 연결 방식 확정
 5. GitHub Actions / ECR / ArgoCD ApplicationSet 구성
 6. Edge Agent 구현 및 IoT Core / S3 데이터 수집 경로 구성

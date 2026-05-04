@@ -17,7 +17,7 @@ Longhorn storage 확인
 worker2 장애 -> worker1 failover -> worker2 failback 확인
 ```
 
-AWS Hub EKS/VPC/namespace 기준선은 검증 완료됐지만 현재 destroy 상태다. Hub ArgoCD, `factory-b`, `factory-c`, IoT Core, S3, Risk Twin 통합 화면은 후속 데모다.
+AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선은 검증 완료됐지만 현재 destroy 상태다. `factory-b`, `factory-c`, IoT Core, S3, Risk Twin 통합 화면은 후속 데모다.
 
 ## 데모 순서
 

@@ -6,6 +6,30 @@
 
 ---
 
+## 수정 이력
+
+| 날짜 | 버전 | 내용 |
+| --- | --- | --- |
+| 2026-05-04 | rev-20260504-01 | GitHub Actions는 CI, GitHub+ArgoCD는 CD로 사용하는 책임 경계 기준을 반영 |
+
+---
+
+## 책임 경계
+
+이 마일스톤은 `docs/planning/11_delivery_ownership_flow.md`를 따른다.
+
+```text
+GitHub Actions:
+  CI, image build, test, ECR push, manifest/value update
+
+GitHub + ArgoCD:
+  CD, Application/ApplicationSet sync, deployment drift control
+```
+
+GitHub Actions는 운영 클러스터에 직접 `kubectl apply`하지 않는다. 실제 배포는 GitHub repository에 남은 desired state를 ArgoCD가 sync하는 방식으로 수행한다.
+
+---
+
 ## Issue 1 - [배포/Helm] GitHub 저장소 구조 설계 (베이스 + 공장별 values)
 
 ### 🎯 목표 (What & Why)

@@ -1,0 +1,35 @@
+---
+- name: Verify Hub ArgoCD bootstrap
+  hosts: hub_eks
+  gather_facts: false
+
+  tasks:
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command | default('aws eks update-kubeconfig --region ' ~ aws_region ~ ' --name ' ~ eks_cluster_name) }}"
+      changed_when: true
+
+    - name: Read Hub namespaces
+      ansible.builtin.command:
+        cmd: kubectl get namespaces argocd observability risk ops-support
+      register: hub_namespaces_output
+      changed_when: false
+
+    - name: Read ArgoCD pods
+      ansible.builtin.command:
+        cmd: kubectl -n argocd get pods
+      register: argocd_pods_output
+      changed_when: false
+
+    - name: Read ArgoCD Helm release
+      ansible.builtin.command:
+        cmd: helm list -n argocd
+      register: argocd_helm_output
+      changed_when: false
+
+    - name: Print verification summary
+      ansible.builtin.debug:
+        msg:
+          - "{{ hub_namespaces_output.stdout_lines }}"
+          - "{{ argocd_pods_output.stdout_lines }}"
+          - "{{ argocd_helm_output.stdout_lines }}"

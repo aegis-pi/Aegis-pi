@@ -9,6 +9,18 @@
 
 ---
 
+## 수정 이력
+
+| 날짜 | 버전 | 내용 |
+| --- | --- | --- |
+| 2026-05-04 | rev-20260504-01 | Issue 3 Hub ArgoCD 설치 완료 결과, 접근 운영 기준, Terraform 편입 계획을 반영 |
+| 2026-05-04 | rev-20260504-02 | ArgoCD Helm release를 `infra/platform` Terraform 관리 대상으로 편입하고 포트포워딩 스크립트 기준을 반영 |
+| 2026-05-04 | rev-20260504-03 | Hub/Platform destroy 완료 상태와 재적용 시 ArgoCD 자동 재생성 기준을 반영 |
+| 2026-05-04 | rev-20260504-04 | ArgoCD와 Hub namespace 재생성을 Terraform에서 Ansible dynamic inventory 기반 bootstrap으로 전환 |
+| 2026-05-04 | rev-20260504-05 | Terraform, Ansible, GitHub Actions, GitHub+ArgoCD 책임 경계 기준을 반영 |
+
+---
+
 ## Issue 0 - [AWS/Auth] AWS CLI MFA 및 Terraform 접근 설정
 
 ### 목표 (What & Why)
@@ -73,6 +85,7 @@ ArgoCD, Grafana, Risk Score Engine 등 모든 Hub 컴포넌트가 EKS 위에서 
 ### 설계 결정 기록
 
 - 문서: `docs/planning/09_m1_eks_vpc_decision_record.md`
+- Delivery ownership: `docs/planning/11_delivery_ownership_flow.md`
 - Region: `ap-south-1`
 - VPC: Terraform 신규 생성
 - VPC CIDR: `10.0.0.0/16`
@@ -89,7 +102,7 @@ ArgoCD, Grafana, Risk Score Engine 등 모든 Hub 컴포넌트가 EKS 위에서 
 
 - 완료일: 2026-04-30
 - 비고: 아래 리소스는 A/C zone, `10.0.0.0/16`, `AEGIS-*` 네이밍 기준으로 생성/검증한 뒤 비용 절감을 위해 `terraform destroy`로 제거했다.
-- Terraform apply 결과: `infra/hub` + `infra/platform` 합산 `64 added, 0 changed, 0 destroyed`
+- Terraform apply 결과: 당시 `infra/hub` + `infra/platform` 합산 `64 added, 0 changed, 0 destroyed`; 현재 기준은 `infra/hub` Terraform + `scripts/ansible` bootstrap으로 전환
 - Terraform destroy 결과: `64 destroyed`
 - Cluster: `AEGIS-EKS`
 - Region: `ap-south-1`
@@ -100,7 +113,8 @@ ArgoCD, Grafana, Risk Score Engine 등 모든 Hub 컴포넌트가 EKS 위에서 
 - Node group: `AEGIS-EKS-node`, `t3.medium`, desired/min/max `2`
 - `kubectl get nodes` 확인: worker node 2대 모두 `Ready`
 - `kubectl cluster-info` 확인: control plane 및 CoreDNS endpoint 응답 정상
-- 최소 분리 구조: `infra/hub`는 VPC/EKS, `infra/platform`은 namespace/LimitRange, `infra/foundation`은 향후 영속 리소스
+- 최소 분리 구조: `infra/hub`는 VPC/EKS, `scripts/ansible`은 namespace/LimitRange/ArgoCD bootstrap, `infra/foundation`은 향후 영속 리소스
+- 이후 모든 신규 작업은 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD 기준으로 분류한다.
 - 현재 `infra/hub` state는 비어 있고, 빈 state 기준 `terraform plan -detailed-exitcode`는 `56 to add, 0 to change, 0 to destroy`
 
 ---
@@ -130,14 +144,14 @@ Risk Score Engine 독립 운영이 가능하다.
 
 ### 구현 기록
 
-- Terraform 리소스: `infra/platform/namespaces.tf`
-- 관리 방식: `kubernetes_namespace_v1` + namespace별 `kubernetes_limit_range_v1`
+- 관리 파일: `scripts/ansible/files/hub-bootstrap.yaml`
+- 관리 방식: Ansible local bootstrap + `kubectl apply`
 - Namespace 역할 문서: `infra/hub/README.md`, `docs/ops/13_hub_namespace_baseline.md`
 - Terraform apply 결과: `64 added, 0 changed, 0 destroyed`
 - `kubectl get namespaces argocd observability risk ops-support` 확인: 4개 namespace 모두 `Active`
 - `kubectl get limitrange` 확인: 각 namespace에 `default-limits` 생성 완료
-- 이후 최소 분리 작업에서 테스트용 AWS 리소스는 `terraform destroy`로 제거했고, namespace 관리는 `infra/platform` root로 이동했다.
-- 현재 AWS에는 namespace가 없으며, 재생성은 `infra/hub` apply 후 `infra/platform` apply 순서로 진행한다.
+- 이후 테스트용 AWS 리소스는 `terraform destroy`로 제거했고, namespace 관리는 Ansible bootstrap으로 전환했다.
+- 현재 AWS에는 namespace가 없으며, 재생성은 `infra/hub` apply 후 `scripts/ansible/playbooks/hub_argocd_bootstrap.yml` 실행 순서로 진행한다.
 
 ---
 
@@ -151,17 +165,86 @@ ArgoCD 자체가 정상 동작하는 상태까지만 완료한다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] `argocd` 네임스페이스에 ArgoCD 설치
-- [ ] ArgoCD 초기 admin 비밀번호 확인
-- [ ] ArgoCD UI 접근 가능 확인 (LoadBalancer 또는 포트포워딩)
-- [ ] ArgoCD CLI 로컬 설정 완료
-- [ ] ArgoCD 버전 및 설치 방식 관련 문서에 기록
+- [x] `argocd` 네임스페이스에 ArgoCD 설치
+- [x] ArgoCD 초기 admin 비밀번호 확인
+- [x] ArgoCD UI 접근 가능 확인 (LoadBalancer 또는 포트포워딩)
+- [x] ArgoCD CLI 로컬 설정 완료
+- [x] ArgoCD 버전 및 설치 방식 관련 문서에 기록
 
 ### 🔍 Acceptance Criteria
 
 - ArgoCD UI 브라우저 접근 가능
 - `argocd cluster list`에서 in-cluster(EKS 자체) 확인
 - Spoke 등록 없이도 ArgoCD 자체 `Healthy` 상태
+
+### 구현 기록
+
+- 완료일: 2026-05-04
+- 설치 방식: Helm chart `argo/argo-cd`
+- Helm release: `argocd`
+- Namespace: `argocd`
+- Chart version: `argo-cd-9.5.11`
+- ArgoCD app version: `v3.3.9`
+- ArgoCD CLI: `/home/vicbear/Aegis/.tools/bin/argocd`, `v3.3.9`
+- UI 접근 방식: `kubectl -n argocd port-forward service/argocd-server 8080:443`
+- UI 검증: `https://127.0.0.1:8080` HTTP 200 확인
+- Service 노출: `argocd-server`는 `ClusterIP` 유지. M1 Issue 3에서는 AWS LoadBalancer를 만들지 않았다.
+- 초기 admin secret: `argocd-initial-admin-secret` 생성 확인. 비밀번호 값은 문서에 기록하지 않는다.
+- CLI 검증: admin login 성공, `argocd cluster list`에서 `https://kubernetes.default.svc` / `in-cluster` 확인.
+- Pod 검증: `argocd-application-controller`, `argocd-applicationset-controller`, `argocd-dex-server`, `argocd-notifications-controller`, `argocd-redis`, `argocd-repo-server`, `argocd-server` 모두 `Running` / `Ready` 확인.
+
+### 운영 기준
+
+- 현재 단계의 ArgoCD UI 접근은 사용자 로컬 PC에서 EKS kubeconfig를 설정한 뒤 `kubectl port-forward`로 수행한다.
+- `argocd-server`는 `ClusterIP`로 유지한다.
+- M1 단계에서는 ArgoCD public `LoadBalancer`를 만들지 않는다.
+- UI는 상태 확인, diff 확인, 수동 sync 검증 용도로 사용한다.
+- repo, Project, Application, ApplicationSet처럼 반복 적용해야 하는 설정은 UI 클릭에만 의존하지 않고 Git/YAML/ApplicationSet으로 코드화한다.
+- M2에서 Tailscale을 구성할 때 ArgoCD 접근 경로를 private access로 전환한다.
+- Tailscale 적용 후 EKS API endpoint public CIDR `0.0.0.0/0`를 더 좁힌다.
+
+### Ansible bootstrap 기준
+
+ArgoCD는 수동 Helm install과 Terraform Helm release 편입을 검증한 뒤, 최종 운영 기준을 Ansible local bootstrap으로 전환했다. 이후 EKS를 destroy/recreate할 때는 `infra/hub terraform apply` 후 Ansible playbook이 namespace, LimitRange, ArgoCD Helm release를 재생성한다.
+
+구성:
+
+- `scripts/ansible/inventory/hub_eks_dynamic.sh` 추가 완료
+- `scripts/ansible/inventory/group_vars/hub_eks.yml` 추가 완료
+- `scripts/ansible/files/hub-bootstrap.yaml` 추가 완료
+- `scripts/ansible/files/argocd-values.yaml` 추가 완료
+- `scripts/ansible/playbooks/hub_argocd_bootstrap.yml` 추가 완료
+- `scripts/ansible/playbooks/hub_argocd_verify.yml` 추가 완료
+- `helm upgrade --install`로 `argo/argo-cd` chart `9.5.11` 관리
+- release name `argocd`, namespace `argocd` 유지
+- `argocd-server` service type `ClusterIP` 명시
+- repo, AppProject, Application, ApplicationSet은 후속으로 코드화
+
+Ansible inventory는 EC2 node SSH 대상이 아니라 `localhost` 대상이다. `infra/hub`의 `terraform output -json`에서 `cluster_name`, `aws_region`, `update_kubeconfig_command`를 읽어 EKS Kubernetes API에 접근한다.
+
+포트포워딩은 Ansible 설치 대상에 넣지 않는다. 장기 실행 로컬 프로세스이므로 `scripts/hub/argocd-port-forward.sh` 운영 스크립트로 제공한다.
+
+### Destroy 이후 현재 상태
+
+2026-05-04 테스트 종료 시점에 비용 방지를 위해 아래 순서로 리소스를 제거했다.
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi/infra/hub
+terraform destroy -auto-approve
+```
+
+결과:
+
+- `infra/hub`: `56 destroyed`
+- `infra/hub` Terraform state: empty
+- `aws eks describe-cluster --region ap-south-1 --name AEGIS-EKS`: `ResourceNotFoundException`
+
+따라서 현재 AWS에는 Hub EKS와 ArgoCD가 떠 있지 않다. 이후 다시 올릴 때는 `infra/hub` apply 후 아래 playbook을 실행하면 namespace, LimitRange, ArgoCD Helm release가 함께 재생성된다.
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ansible
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
+```
 
 ---
 

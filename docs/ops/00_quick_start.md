@@ -1,7 +1,7 @@
 # Quick Start
 
 상태: source of truth
-기준일: 2026-04-30
+기준일: 2026-05-04
 
 ## 목적
 
@@ -11,8 +11,9 @@
 
 - `factory-a` 로컬 Raspberry Pi 3-node K3s 기준선 구축이 완료됐다.
 - ArgoCD, Longhorn, Grafana, InfluxDB, AI/Audio/BME280 워크로드가 동작한다.
-- AWS Hub는 EKS/VPC/namespace 기준선 검증 후 destroy 완료 상태다.
-- `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions, Tailscale은 후속 단계다.
+- AWS Hub는 EKS/VPC/namespace/ArgoCD bootstrap 기준선 검증 후 destroy 완료 상태다.
+- `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions CI, Tailscale은 후속 단계다.
+- 후속 구현은 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD 기준을 따른다.
 
 ## 현재 운영 주소
 
@@ -89,4 +90,4 @@ k3s-agent 중지 장애 테스트
 1. 계획과 실제 구현이 달라진 항목은 `docs/changes/`에 Change Record로 남긴다.
 2. `README.md`, `docs/README.md`, architecture 문서를 현재 `factory-a` 기준으로 유지한다.
 3. Grafana/dashboard 스펙을 실제 InfluxDB + Prometheus 기준으로 유지한다.
-4. 이후 Hub ArgoCD, `factory-b`, `factory-c` 확장 단계로 넘어간다.
+4. 이후 M1 Issue 4 S3, IoT Core, M2 Tailscale Hub-Spoke 연결 단계로 넘어간다.

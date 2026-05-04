@@ -1,6 +1,42 @@
-# Safe-Edge Ansible Checks
+# Ansible Automation
 
-Factory-A Safe-Edge 반복 점검용 Ansible 파일이다.
+Safe-Edge 반복 점검과 Hub EKS bootstrap 자동화를 관리한다.
+
+## Hub ArgoCD bootstrap
+
+Hub EKS의 ArgoCD bootstrap은 SSH를 사용하지 않는다. Ansible은 `localhost`에서 실행되고, `infra/hub` Terraform output을 dynamic inventory로 읽은 뒤 EKS Kubernetes API에 접근한다.
+
+선행 조건:
+
+- AWS MFA 세션이 현재 shell에 설정되어 있음
+- `infra/hub` Terraform apply가 완료되어 output을 조회할 수 있음
+- `aws`, `kubectl`, `helm`, `terraform`, `jq`, `ansible-playbook` 사용 가능
+
+실행:
+
+```bash
+cd scripts/ansible
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
+```
+
+검증:
+
+```bash
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
+```
+
+초기 admin 비밀번호를 명시적으로 출력해야 할 때만 아래처럼 실행한다. 비밀번호 값은 문서에 기록하지 않는다.
+
+```bash
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml \
+  -e argocd_print_initial_admin_password=true
+```
+
+UI 접근:
+
+```bash
+../hub/argocd-port-forward.sh
+```
 
 ## start_test 실행
 

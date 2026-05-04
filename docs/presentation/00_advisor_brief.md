@@ -1,7 +1,7 @@
 # 지도/검토용 브리프
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-05-04
 
 ## 현재 진행 상태
 
@@ -33,7 +33,8 @@ LAN 제거 InfluxDB 공백: 10초 bucket 기준 AI/audio 80초, BME 70초
 
 - M0는 핵심 기준선 완료로 볼 수 있다.
 - NFS Cold Storage와 Ansible tiering은 보류했다.
-- AWS Hub EKS/VPC/namespace 기준선은 검증했고, Hub ArgoCD와 멀티 Spoke는 후속 단계로 분리한다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선은 검증했고, 멀티 Spoke는 후속 단계로 분리한다.
+- 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 
 ## 다음 검토 주제
 

@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-04-30
+기준일: 2026-05-04
 
 ## 목적
 
@@ -29,7 +29,7 @@
 | M1 | Issue 0 - AWS/Auth | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 1 - Hub/EKS | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 2 - Hub/Kubernetes | 완료 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 3 - Hub/ArgoCD | 대기 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 3 - Hub/ArgoCD | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 4 - Hub/S3 | 대기 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 5 - Hub/IoT Core | 대기 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 6 - 관제/AMP | 대기 | `docs/issues/M1_hub-cloud.md` |
@@ -41,7 +41,7 @@
 현재 바로 이어서 할 이슈:
 
 ```text
-M1 Issue 3 - [Hub/ArgoCD] ArgoCD 설치
+M1 Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계
 ```
 
 ## 현재 큰 상태
@@ -52,9 +52,11 @@ M1 Issue 3 - [Hub/ArgoCD] ArgoCD 설치
 완료: M1 Issue 0 AWS CLI MFA 및 Terraform 접근 설정
 완료: M1 Issue 1 EKS/VPC Terraform apply 및 kubectl 접근 확인
 완료: M1 Issue 2 Hub Kubernetes 네임스페이스 설계 및 생성
+완료: M1 Issue 3 Hub ArgoCD 설치 및 CLI/UI 검증, Ansible bootstrap 전환
 완료: Safe-Edge start_test Ansible playbook
-AWS 실제 리소스 생성: 테스트 완료 후 destroy 완료
-Terraform apply 실행 여부: 현재 state empty
+확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
+AWS 실제 리소스 생성: 테스트 후 destroy 완료, 현재 비활성
+Terraform apply 실행 여부: infra/hub apply 검증 완료 후 destroy 완료
 ```
 
 ## 지금까지 완료한 일
@@ -105,11 +107,12 @@ Terraform apply 실행 여부: 현재 state empty
 - 리소스 네이밍 규칙을 `AEGIS-[resource]-[feature]-[zone]`로 고정
 - Terraform EKS 이름은 `AEGIS-EKS`, Kubernetes 버전은 `1.34`
 - Issue 2 namespace/LimitRange 적용 후 최소 분리 작업을 위해 테스트용 Hub 리소스를 `terraform destroy -auto-approve`로 제거
-- Terraform root를 `infra/hub`, `infra/platform`, `infra/foundation` 기준으로 분리
+- 책임 범위를 `infra/hub`, `scripts/ansible`, `infra/foundation` 기준으로 분리
 
 관련 문서:
 
 - `docs/planning/09_m1_eks_vpc_decision_record.md`
+- `docs/planning/11_delivery_ownership_flow.md`
 - `infra/hub/README.md`
 - `infra/hub/*.tf`
 
@@ -118,8 +121,9 @@ Terraform apply 실행 여부: 현재 state empty
 ```text
 Terraform roots:
 - infra/hub: VPC, subnet, NAT Gateway, EKS cluster, node group
-- infra/platform: Kubernetes namespace, LimitRange, 이후 ArgoCD/관측 컴포넌트
 - infra/foundation: S3, ECR, AMP, IoT Core처럼 EKS destroy와 분리할 영속 리소스
+Ansible bootstrap:
+- scripts/ansible: kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, 검증
 Region: ap-south-1
 VPC: 신규 생성
 VPC CIDR: 10.0.0.0/16
@@ -141,14 +145,34 @@ Capacity: On-Demand
 
 `t3.micro`는 사용하지 않는 기준이다. EKS system pod, CNI, CoreDNS, ArgoCD/Grafana/관측 컴포넌트까지 고려하면 메모리 여유가 작아 Hub MVP 기준선으로 부적합하다고 판단했다.
 
+### M1 Issue 3 Hub ArgoCD
+
+- 2026-05-04에 Hub EKS를 재생성했다.
+- `infra/hub` Terraform apply 결과 `56 added, 0 changed, 0 destroyed`.
+- `aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS` 완료.
+- `kubectl get nodes -o wide`에서 EKS worker node 2대 `Ready` 확인.
+- Hub namespace/LimitRange는 처음 Terraform으로 검증했고, 최종 기준은 Ansible bootstrap으로 전환했다.
+- `argocd`, `observability`, `risk`, `ops-support` namespace `Active` 확인.
+- 각 namespace에 `default-limits` LimitRange 생성 확인.
+- ArgoCD Helm chart `argo/argo-cd` `9.5.11` 설치 완료.
+- ArgoCD app version은 `v3.3.9`.
+- Helm release는 `argocd`, namespace는 `argocd`.
+- `/home/vicbear/Aegis/.tools/bin/argocd` CLI `v3.3.9` 설치 완료.
+- `kubectl -n argocd port-forward service/argocd-server 8080:443`로 UI 접근을 검증했다.
+- `https://127.0.0.1:8080` HTTP 200 확인.
+- 초기 admin secret 생성 확인. 비밀번호 값은 문서에 기록하지 않는다.
+- CLI admin login 성공.
+- `argocd cluster list`에서 `https://kubernetes.default.svc` / `in-cluster` 확인.
+- `argocd-server` service는 `ClusterIP` 유지. M1 Issue 3에서는 AWS LoadBalancer를 만들지 않았다.
+
 ## 현재 AWS 상태
 
 ```text
 AWS 계정 연결: MFA 세션으로 확인 완료
-AWS 리소스 생성: 테스트 완료
-terraform destroy: 완료
-terraform state: empty
-EKS describe-cluster: ResourceNotFoundException
+AWS 리소스 생성: 현재 비활성
+terraform destroy: infra/hub 완료
+terraform state: infra/hub empty
+EKS describe-cluster: AEGIS-EKS ResourceNotFoundException
 ```
 
 주의:
@@ -156,21 +180,24 @@ EKS describe-cluster: ResourceNotFoundException
 - `terraform init`은 provider/module을 로컬에 내려받는 작업이라 AWS 리소스를 만들지 않는다.
 - AWS 리소스가 실제로 만들어지는 시점은 `terraform apply` 실행 시점이다.
 - 테스트가 끝나면 반드시 `terraform destroy`로 EKS, NAT Gateway, node group을 제거한다.
+- 2026-05-04 현재 테스트 리소스는 제거 완료 상태다.
 
-최근 생성 후 삭제된 주요 리소스:
+마지막 검증 후 제거된 주요 리소스:
 
 ```text
 Cluster: AEGIS-EKS
 Region: ap-south-1
 Kubernetes version: 1.34
-VPC: vpc-099138d8d344bda9b
-Private subnets: subnet-0f08c63b578cd815b, subnet-0f6536a1d45d25594
-Public subnets: subnet-02bcb3ab6a4768128, subnet-02f443deece3d6bbf
+VPC: vpc-09ee4698847b2586d
+Private subnets: subnet-0039656dbf579fb82, subnet-0f72d0e52ef0d0648
+Public subnets: subnet-00eeeb6f502ecf887, subnet-075409b6b6dee6e96
 Node group: AEGIS-EKS-node
 Node status: 2 Ready
 Hub namespaces: argocd, observability, risk, ops-support
-Terraform apply: 64 added, 0 changed, 0 destroyed
-Terraform destroy: 64 destroyed
+Terraform apply: infra/hub 56 added
+Ansible bootstrap: namespace, LimitRange, ArgoCD Helm release 재생성 기준 추가
+Terraform destroy: infra/hub 56 destroyed
+ArgoCD Helm release: argocd / argo-cd-9.5.11 / app v3.3.9
 ```
 
 현재 Terraform 기준 이름:
@@ -193,71 +220,112 @@ Node security group: AEGIS-SG-EKS-node
 최신 확인:
 
 ```text
-terraform state list
+kubectl get nodes -o wide
+2 Ready
+
+kubectl get namespaces argocd observability risk ops-support
+4 Active
+
+kubectl -n argocd get pods
+all Running / Ready
+
+helm list -n argocd
+argocd deployed argo-cd-9.5.11 app v3.3.9
+```
+
+2026-05-04 destroy 확인:
+
+```text
+infra/hub terraform state list
 empty
 
 aws eks describe-cluster --region ap-south-1 --name AEGIS-EKS
 ResourceNotFoundException
-
-cd infra/hub && terraform plan -detailed-exitcode
-56 to add, 0 to change, 0 to destroy
 ```
 
 ## 다음에 할 일
 
-### 1. MFA 세션 확인
+### 1. 다음 Hub 재기동 순서
 
-```bash
-source ~/.bashrc
-mfa <OTP>
-unset AWS_PROFILE
-export AWS_REGION=ap-south-1
-export AWS_DEFAULT_REGION=ap-south-1
-aws sts get-caller-identity
-```
-
-### 2. Hub 인프라 재생성
-
-Hub EKS를 먼저 올린다.
+Hub EKS가 필요한 작업을 다시 시작할 때는 아래 순서로 올린다.
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi/infra/hub
-terraform init
-terraform apply
+terraform plan -out=tfplan
+terraform apply tfplan
+
 aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS
 ```
 
-### 3. Platform namespace 재생성
+Ansible bootstrap은 namespace, LimitRange, ArgoCD Helm release를 함께 재생성한다.
 
 ```bash
-cd /home/vicbear/Aegis/git_clone/Aegis-pi/infra/platform
-terraform init
-terraform apply
+cd /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ansible
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
 ```
 
-적용 대상:
-
-- `argocd`
-- `observability`
-- `risk`
-- `ops-support`
-
-Terraform 구현:
-
-- `infra/platform/namespaces.tf`에서 `kubernetes_namespace_v1`로 namespace 4개를 관리한다.
-- 각 namespace에는 `kubernetes_limit_range_v1` `default-limits`를 적용한다.
-- 역할 문서는 `docs/ops/13_hub_namespace_baseline.md`에 작성했다.
-- `terraform apply` 결과 `64 added, 0 changed, 0 destroyed`로 실제 생성 완료.
-- `kubectl get namespaces argocd observability risk ops-support`에서 4개 namespace `Active` 확인.
-- 각 namespace에 `default-limits` LimitRange 생성 확인.
-
-### 4. 테스트 종료 후 destroy
+ArgoCD UI 접근:
 
 ```bash
-cd /home/vicbear/Aegis/git_clone/Aegis-pi/infra/platform
-terraform destroy
+/home/vicbear/Aegis/git_clone/Aegis-pi/scripts/hub/argocd-port-forward.sh
+```
 
-cd ../hub
+### 2. M1 Issue 4 S3 설계 및 Terraform 구성
+
+다음 공식 이슈는 `M1 Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계`다.
+
+작업 내용:
+
+- S3 bucket 이름 결정
+- public access block 적용
+- versioning/encryption/lifecycle 기준 결정
+- 경로 파티셔닝 규칙 확정: `{factory_id}/{source_type}/{yyyy}/{MM}/{dd}/`
+- `infra/foundation`에 S3 Terraform 구성 추가
+- 이후 IoT Core Rule이 적재할 prefix 기준 문서화
+
+### 3. ArgoCD 접근 전략 유지
+
+현재 ArgoCD 접근 기준:
+
+- 지금은 사용자 로컬 PC에서 EKS kubeconfig를 설정한 뒤 `kubectl port-forward`로 접근한다.
+- M2에서 Tailscale을 구성할 때 ArgoCD 접근 경로를 private access로 함께 정리한다.
+- Tailscale 적용 후 EKS API endpoint public CIDR `0.0.0.0/0`를 축소한다.
+- ArgoCD 설정은 UI 클릭보다 Git/YAML/ApplicationSet으로 코드화한다.
+- ArgoCD public `LoadBalancer`는 만들지 않는다.
+
+### 4. ArgoCD 재생성 자동화
+
+EKS를 destroy/recreate할 때 ArgoCD 재설치를 반복하지 않도록 현재 수동 Helm install 기준을 Ansible bootstrap으로 전환했다.
+
+적용 내용:
+
+- `scripts/ansible/inventory/hub_eks_dynamic.sh` 추가 완료
+- `scripts/ansible/inventory/group_vars/hub_eks.yml` 추가 완료
+- `scripts/ansible/files/hub-bootstrap.yaml` 추가 완료
+- `scripts/ansible/files/argocd-values.yaml` 추가 완료
+- `scripts/ansible/playbooks/hub_argocd_bootstrap.yml` 추가 완료
+- `scripts/ansible/playbooks/hub_argocd_verify.yml` 추가 완료
+- `helm upgrade --install`로 `argo/argo-cd` chart `9.5.11` 관리
+- release name `argocd`, namespace `argocd`, service type `ClusterIP` 유지
+- repo, AppProject, Application, ApplicationSet은 후속 코드화
+- 포트포워딩은 Terraform에 넣지 않고 `scripts/hub/argocd-port-forward.sh`로 제공
+- dynamic inventory는 `infra/hub`의 `terraform output -json`을 읽어 cluster name, region, kubeconfig 명령을 Ansible 변수로 제공한다.
+- 다음 `hub_argocd_bootstrap.yml` 실행 때 ArgoCD Helm release가 새로 생성된다.
+
+포트포워딩 스크립트는 아래 흐름을 따른다.
+
+```text
+aws eks update-kubeconfig
+kubectl -n argocd wait
+kubectl -n argocd port-forward service/argocd-server 8080:443
+```
+
+### 5. 리소스 종료 기준
+
+현재는 이미 제거 완료 상태다. 다음에 다시 올린 뒤 작업을 멈추거나 장시간 사용하지 않을 때는 비용 방지를 위해 아래 순서로 제거한다.
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi/infra/hub
 terraform destroy
 ```
 
@@ -265,19 +333,25 @@ terraform destroy
 
 ## 문서 갱신 상태
 
-M1 Issue 2와 최소 Terraform root 분리 기준을 다음 문서에 반영했다.
+M1 Issue 3 Hub ArgoCD 설치, Ansible bootstrap 전환, destroy 완료 상태를 다음 문서에 반영했다.
+또한 앞으로의 구현 책임 경계를 Terraform, Ansible, GitHub Actions, GitHub+ArgoCD 흐름으로 고정하고 관련 문서를 최신화했다.
 
 - `README.md`
 - `docs/README.md`
 - `docs/issues/M1_hub-cloud.md`
+- `docs/issues/M3_deploy-pipeline.md`
 - `docs/issues/MASTER_CHECKLIST.md`
 - `docs/issues/SESSION_STATE.md`
+- `docs/ops/README.md`
 - `docs/ops/13_hub_namespace_baseline.md`
+- `docs/ops/14_hub_run_commands.md`
 - `docs/planning/09_m1_eks_vpc_decision_record.md`
+- `docs/planning/11_delivery_ownership_flow.md`
 - `infra/README.md`
 - `infra/hub/README.md`
-- `infra/platform/README.md`
 - `infra/foundation/README.md`
+- `scripts/README.md`
+- `scripts/ansible/README.md`
 
 ## 주의사항
 
@@ -299,17 +373,22 @@ f8ed233 Document dashboard VPC and AWS MFA setup
 현재 세션 정리 내용:
 
 ```text
-M1 Issue 1 EKS/VPC Terraform apply 검증 완료
-M1 Issue 2 namespace/LimitRange Terraform apply 검증 완료
+M1 Issue 1 EKS/VPC Terraform apply 재실행 및 검증 완료
+M1 Issue 2 namespace/LimitRange 검증 완료 및 Ansible bootstrap 전환 완료
+M1 Issue 3 Hub ArgoCD Helm 설치 및 CLI/UI 검증 완료
+M1 Issue 3 ArgoCD Helm release Ansible bootstrap 전환 완료
+Hub/bootstrap 테스트 리소스 destroy 완료
+infra/hub state empty
+AWS AEGIS-EKS describe-cluster ResourceNotFoundException 확인
 리소스 네이밍 규칙 AEGIS-[resource]-[feature]-[zone] 고정
 Target EKS name AEGIS-EKS
 Target Kubernetes version 1.34
 EKS endpoint 0.0.0.0/0 MVP bootstrap 기준 유지
 kubectl v1.34.7 로컬 설치
 worker node 2대 Ready 확인
-최종 terraform destroy 완료
-현재 Terraform state empty
-Terraform root 최소 분리 완료: infra/hub, infra/platform, infra/foundation
+ArgoCD CLI v3.3.9 로컬 설치
+책임 범위 분리 완료: infra/hub, scripts/ansible, infra/foundation
+Delivery flow 확정: Terraform -> Ansible -> GitHub Actions CI -> GitHub/ArgoCD CD
 ```
 
 ## 갱신 규칙

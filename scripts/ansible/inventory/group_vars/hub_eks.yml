@@ -1,0 +1,24 @@
+hub_namespaces:
+  - name: argocd
+    component: gitops
+    role: Hub에서 Spoke 배포 제어
+  - name: observability
+    component: observability
+    role: Grafana, AMP 연동 메트릭 관제
+  - name: risk
+    component: risk
+    role: Risk Score Engine, 정규화 서비스
+  - name: ops-support
+    component: ops-support
+    role: pipeline_status 집계 보조 기능
+
+argocd_namespace: argocd
+argocd_helm_repo_name: argo
+argocd_helm_repo_url: https://argoproj.github.io/argo-helm
+argocd_chart_ref: argo/argo-cd
+argocd_chart_version: 9.5.11
+argocd_release_name: argocd
+argocd_server_service_type: ClusterIP
+argocd_local_port: 8080
+argocd_remote_port: 443
+argocd_print_initial_admin_password: false

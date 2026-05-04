@@ -362,6 +362,24 @@ GitHub Actions에서 직접 `kubectl apply`를 수행하면 빠르게 만들 수
 GitHub Actions는 이미지 build/push와 manifest update에 집중한다.
 ```
 
+## 왜 Terraform / Ansible / GitHub Actions / ArgoCD 책임 분리인가
+
+최종 운영 흐름은 `docs/planning/11_delivery_ownership_flow.md`를 따른다.
+
+```text
+Terraform -> Ansible -> GitHub Actions CI -> GitHub + ArgoCD CD
+```
+
+Terraform은 AWS 인프라의 source of truth로 둔다. VPC, subnet, NAT Gateway, EKS, IAM, OIDC, S3, ECR, AMP, IoT Core, Dashboard VPC처럼 클라우드 리소스의 생명주기를 관리한다.
+
+Ansible은 인프라 위에 올라가는 bootstrap과 설정을 담당한다. EKS kubeconfig 갱신, namespace, LimitRange, Helm chart 설치, ArgoCD 설치, 운영 도구 설치, health check처럼 절차와 검증이 필요한 작업에 사용한다.
+
+GitHub Actions는 CI에 집중한다. 코드 검증, 이미지 빌드, 테스트, ECR push, Helm values 또는 manifest update를 수행한다.
+
+ArgoCD는 GitHub repository를 CD source of truth로 삼아 실제 클러스터 배포 상태를 유지한다. Application, ApplicationSet, sync, drift 확인은 ArgoCD가 담당한다.
+
+이 분리는 Terraform Kubernetes/Helm provider가 클러스터 내부 애플리케이션 상태까지 오래 들고 가면서 생기는 순서 의존성과 drift 문제를 줄인다. 또한 CI가 운영 클러스터에 직접 apply하지 않게 만들어 배포 이력과 desired state를 Git과 ArgoCD에 남긴다.
+
 ## 왜 Ansible 테스트 자동화인가
 
 ### 선택한 방식

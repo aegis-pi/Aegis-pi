@@ -78,7 +78,7 @@ AI snapshot: 24시간 초과 자동 삭제
 
 - failover 시 전원 장애 기준 약 65-75초의 데이터 공백이 있었다.
 - failback 전환 구간에서 중복 write 후보가 있다.
-- AWS Hub EKS/VPC/namespace 기준선은 검증 후 destroy했으며, Dashboard VPC/Risk Twin 구조는 아직 후속 단계다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선은 검증 후 destroy했으며, Dashboard VPC/Risk Twin 구조는 아직 후속 단계다.
 - NFS Cold Storage와 Ansible tiering은 보류했다.
 
 ## 7. 다음 단계

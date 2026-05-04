@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-04-30
+기준일: 2026-05-04
 
 ## 목적
 
@@ -11,9 +11,11 @@
 
 - Phase 0 문서 기준선 정리는 완료 상태로 유지 보수 중이다.
 - Phase 1 M0 `factory-a` Safe-Edge 기준선은 구축 및 실측 검증까지 완료됐다.
-- Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace 기준선 검증까지 완료했다.
-- 현재 다음 단계는 Hub ArgoCD 설치 후 Hub-Spoke 연결, 중앙 데이터 플레인, Dashboard VPC, Risk Twin으로 확장하는 것이다.
+- Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace, Hub ArgoCD 기준선 검증까지 완료했다.
+- 현재 테스트용 Hub AWS 리소스는 비용 방지를 위해 destroy 완료 상태다.
+- 현재 다음 단계는 필요 시 Hub를 재기동한 뒤 S3/IoT Core 중심의 중앙 데이터 플레인으로 확장하는 것이다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
+- 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
 - AWS 인프라 작업 전 로컬 AWS CLI MFA 및 Terraform 접근 설정은 `docs/planning/08_aws_cli_mfa_terraform_access.md`를 따른다.
 
@@ -82,7 +84,10 @@
 - AWS CLI MFA 및 Terraform 접근 설정 검증 완료
 - AWS EKS/VPC 기준선 검증 완료
 - Hub namespace/LimitRange 기준선 검증 완료
-- 최소 Terraform root 분리 완료: `infra/hub`, `infra/platform`, `infra/foundation`
+- Hub ArgoCD Ansible bootstrap 기준 전환 완료
+- Delivery ownership flow 확정: Terraform은 인프라, Ansible은 bootstrap/설정/소프트웨어, GitHub Actions는 CI, GitHub+ArgoCD는 CD
+- 테스트 리소스 destroy 완료
+- 최소 책임 분리 완료: `infra/hub`, `scripts/ansible`, `infra/foundation`
 - Dashboard VPC / public authenticated ingress 설계
 - ArgoCD 설치 또는 중앙 ArgoCD 운영 기준 정리
 - S3 버킷 및 경로 파티셔닝 설계
@@ -96,6 +101,33 @@
 - Hub 자체가 독립적으로 배치되어 있음
 - Spoke 연결을 받을 준비가 완료됨
 
+ArgoCD 접근 운영 기준:
+
+- 현재 단계에서는 사용자 로컬 PC에서 EKS kubeconfig를 설정한 뒤 `kubectl port-forward`로 ArgoCD UI에 접근한다.
+- `argocd-server`는 `ClusterIP`로 유지하고 public `LoadBalancer`는 만들지 않는다.
+- UI는 상태 확인, diff 확인, 수동 sync 같은 검증 용도로 사용한다.
+- 반복 적용해야 하는 ArgoCD 설정은 UI 클릭에 의존하지 않고 Git/YAML/ApplicationSet으로 코드화한다.
+- M2에서 Tailscale을 붙일 때 ArgoCD 접근 경로도 함께 정리한다.
+- Tailscale 적용 후에는 EKS API endpoint public CIDR `0.0.0.0/0`를 더 좁힌다.
+
+ArgoCD 재생성 자동화 기준:
+
+- `scripts/ansible`에 Terraform output 기반 dynamic inventory와 Hub ArgoCD bootstrap playbook을 추가했다.
+- ArgoCD chart version은 현재 검증된 `argo-cd-9.5.11`, app version은 `v3.3.9`를 기준으로 고정한다.
+- `scripts/ansible/files/argocd-values.yaml`을 두고 `server.service.type=ClusterIP`를 명시한다.
+- `infra/hub terraform apply` 후 `ansible-playbook` 실행으로 namespace, LimitRange, ArgoCD Helm release가 재생성되게 한다.
+- repo, AppProject, Application, ApplicationSet은 이후 별도 GitOps bootstrap 디렉터리 또는 ArgoCD self-management 구조로 코드화한다.
+- 포트포워딩은 Terraform 리소스로 관리하지 않는다. 로컬에서 실행하는 운영 스크립트로 제공한다.
+- 포트포워딩 스크립트는 `scripts/hub/argocd-port-forward.sh`에 두고, 내부에서 `aws eks update-kubeconfig`, `kubectl -n argocd wait`, `kubectl -n argocd port-forward service/argocd-server 8080:443` 순서로 실행하게 한다.
+- 초기 admin 비밀번호 조회는 별도 명령 또는 `--print-password` 옵션처럼 명시적인 경우에만 수행하고, 문서나 로그에 저장하지 않는다.
+
+Hub 재기동 순서:
+
+- `infra/hub`에서 Terraform plan/apply를 실행해 VPC, NAT Gateway, EKS, node group을 생성한다.
+- `aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS`로 로컬 kubeconfig를 갱신한다.
+- `scripts/ansible`에서 `hub_argocd_bootstrap.yml`을 실행해 namespace, LimitRange, ArgoCD Helm release를 생성한다.
+- ArgoCD UI가 필요하면 `scripts/hub/argocd-port-forward.sh`를 실행해 로컬 `https://127.0.0.1:8080`으로 접근한다.
+
 ### Phase 3. M2 Mesh VPN + Hub-Spoke 연결
 
 선행 조건:
@@ -108,6 +140,8 @@
 - Tailscale 계정 및 Spoke별 키 정책
 - `factory-a` master Tailscale 참여
 - EKS Hub Tailscale 참여
+- ArgoCD UI 접근 경로를 Tailscale 기반 private access로 전환
+- EKS API endpoint public CIDR 축소
 - kubeconfig Tailscale IP 기반 구성
 - ArgoCD `factory-a` 등록
 - Hub -> `factory-a` Sync 검증
@@ -116,6 +150,8 @@
 
 - Hub에서 `factory-a` Spoke API 접근 가능
 - ArgoCD가 `factory-a`에 테스트 배포 가능
+- ArgoCD UI를 public LoadBalancer 없이 접근 가능
+- EKS API endpoint가 MVP bootstrap용 `0.0.0.0/0` 상태에서 축소됨
 
 ### Phase 4. M3 배포 파이프라인 구성
 
@@ -128,8 +164,8 @@
 
 - Helm base + 공장별 values 구조
 - ECR 저장소 및 이미지 태그 전략
-- GitHub Actions 빌드/푸시
-- ArgoCD ApplicationSet
+- GitHub Actions 기반 CI, 이미지 빌드/테스트/ECR push
+- GitHub repository와 ArgoCD ApplicationSet 기반 CD
 - manifest 갱신 워크플로우
 - 배포 검증 워크플로우
 
@@ -229,7 +265,7 @@
 | --- | --- | --- |
 | Phase 0 | 완료 | 기준 문서 |
 | Phase 1 (M0) | 완료 | `factory-a` Safe-Edge 기준선 |
-| Phase 2 (M1) | 진행 중, Issue 0~2 완료 | Hub 핵심 서비스 |
+| Phase 2 (M1) | 진행 중, Issue 0~3 완료 | Hub 핵심 서비스 |
 | Phase 3 (M2) | 후속 | Mesh 기반 `factory-a` 연결 |
 | Phase 4 (M3) | 후속 | 배포 파이프라인 |
 | Phase 5 (M4) | 후속 | `factory-a` 중앙 데이터 플레인 |

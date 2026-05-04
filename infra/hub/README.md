@@ -2,7 +2,9 @@
 
 이 디렉터리는 Hub EKS를 실행하기 위한 AWS 네트워크와 클러스터 기준선을 관리한다.
 
-현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. Kubernetes namespace와 클러스터 내부 플랫폼 리소스는 `infra/platform`에서 따로 관리한다.
+현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. Kubernetes namespace, LimitRange, ArgoCD 같은 클러스터 bootstrap 리소스는 Terraform이 아니라 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다.
+
+전체 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 따른다. 이 디렉터리는 Terraform 기반 AWS 인프라만 담당한다.
 
 후속 확장에서는 관리자 대시보드용 Dashboard VPC도 함께 설계한다.
 
@@ -37,7 +39,7 @@ infra/hub/
 
 ```text
 infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group
-infra/platform    Kubernetes namespace, LimitRange, 이후 ArgoCD/관측 컴포넌트
+scripts/ansible   kubeconfig, Kubernetes namespace, LimitRange, ArgoCD bootstrap
 infra/foundation  S3, ECR, AMP, IoT Core처럼 EKS destroy와 분리할 영속 리소스
 ```
 
@@ -115,22 +117,22 @@ AEGIS-[resource]-[feature]-[zone]
 | EKS cluster | `AEGIS-EKS` | - | Kubernetes `1.34` |
 | EKS node group | `AEGIS-EKS-node` | private A/C | `t3.medium`, desired `2` |
 
-## Hub Namespace 기준
+## Hub Bootstrap 기준
 
-Issue 2 기준 Hub namespace는 `infra/platform`의 Terraform Kubernetes provider로 관리한다. 각 namespace에는 MVP 기본 `LimitRange`를 적용해 컨테이너별 기본 request/limit을 부여한다.
+Issue 2~3 기준 Hub namespace와 ArgoCD는 Ansible local bootstrap으로 관리한다. Ansible은 EC2 SSH가 아니라 로컬/CI에서 EKS Kubernetes API에 접근한다.
 
-| Namespace | 역할 | Terraform 리소스 |
+| Namespace | 역할 | 관리 위치 |
 | --- | --- | --- |
-| `argocd` | Hub에서 Spoke 배포 제어 | `kubernetes_namespace_v1.hub["argocd"]` |
-| `observability` | Grafana, AMP 연동 메트릭 관제 | `kubernetes_namespace_v1.hub["observability"]` |
-| `risk` | Risk Score Engine, 정규화 서비스 | `kubernetes_namespace_v1.hub["risk"]` |
-| `ops-support` | `pipeline_status` 집계 보조 기능 | `kubernetes_namespace_v1.hub["ops-support"]` |
+| `argocd` | Hub에서 Spoke 배포 제어 | `scripts/ansible/files/hub-bootstrap.yaml` |
+| `observability` | Grafana, AMP 연동 메트릭 관제 | `scripts/ansible/files/hub-bootstrap.yaml` |
+| `risk` | Risk Score Engine, 정규화 서비스 | `scripts/ansible/files/hub-bootstrap.yaml` |
+| `ops-support` | `pipeline_status` 집계 보조 기능 | `scripts/ansible/files/hub-bootstrap.yaml` |
 
 검증:
 
 ```bash
-kubectl get namespaces argocd observability risk ops-support
-kubectl get limitrange -A
+cd /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ansible
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
 ```
 
 ## 현재 AWS 상태
@@ -139,7 +141,7 @@ kubectl get limitrange -A
 
 | 항목 | 값 |
 | --- | --- |
-| Destroy result | `64 destroyed` |
+| Destroy result | `infra/hub 56 destroyed`, bootstrap 리소스는 EKS와 함께 제거 |
 | Terraform state | empty |
 | AWS EKS describe-cluster | `ResourceNotFoundException` |
 | Cluster | 삭제됨 |
@@ -180,17 +182,11 @@ terraform validate
 terraform plan
 ```
 
-`terraform apply` 후 kubeconfig를 갱신하고 platform root를 적용한다.
+`terraform apply` 후 Ansible bootstrap을 실행한다.
 
 ```bash
-aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS
-kubectl get nodes
-kubectl cluster-info
-
-cd ../platform
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform apply
+cd /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ansible
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
 ```
 
 ## 테스트 후 정리 원칙
@@ -198,11 +194,8 @@ terraform apply
 MVP Hub 인프라는 비용이 지속 발생한다. EKS control plane, NAT Gateway, managed node group은 테스트가 끝나면 반드시 제거한다.
 
 ```bash
-cd /home/vicbear/Aegis/git_clone/Aegis-pi/infra/platform
-terraform destroy
-
-cd ../hub
+cd /home/vicbear/Aegis/git_clone/Aegis-pi/infra/hub
 terraform destroy
 ```
 
-장시간 사용하지 않을 인프라를 남겨두지 않는다. `terraform apply`는 실험 시작, `terraform destroy`는 실험 종료 절차로 함께 기록한다. 삭제 순서는 EKS API에 의존하는 `infra/platform`을 먼저 내리고, 그 다음 `infra/hub`를 내린다.
+장시간 사용하지 않을 인프라를 남겨두지 않는다. `terraform apply`는 실험 시작, `terraform destroy`는 실험 종료 절차로 함께 기록한다. ArgoCD와 namespace는 EKS 내부 리소스라 EKS destroy와 함께 제거된다.

@@ -1,7 +1,7 @@
 # Aegis-Pi Docs
 
 상태: source of truth
-기준일: 2026-04-30
+기준일: 2026-05-04
 
 ## 목적
 
@@ -9,17 +9,18 @@
 
 ## 현재 상태
 
-- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선과 M1 Hub Issue 0~2 기준선 검증이다.
+- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선과 M1 Hub Issue 0~3 기준선 검증이다.
 - `factory-a`는 Raspberry Pi 3-node K3s 기반 운영형 Spoke다.
 - 2026-04-30 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
-- AWS Hub는 EKS/VPC/namespace 기준선을 Terraform으로 검증한 뒤 destroy 완료 상태다.
-- `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions, Tailscale은 후속 단계다.
+- AWS Hub는 EKS/VPC/namespace/ArgoCD bootstrap 기준선을 검증한 뒤 destroy 완료 상태다.
+- `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions CI, Tailscale은 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
 - 계획과 실제 구현이 달라진 결정은 `docs/changes/`에서 추적한다.
 - 후속 관리자 대시보드는 `planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
 - AWS CLI MFA 및 Terraform 접근 준비는 `planning/08_aws_cli_mfa_terraform_access.md`를 따른다.
+- 인프라/설정/CI/CD 책임 경계는 `planning/11_delivery_ownership_flow.md`를 따른다.
 - M1 EKS/VPC 설계 결정은 `planning/09_m1_eks_vpc_decision_record.md`를 따른다.
 
 ## 먼저 읽을 문서
@@ -39,9 +40,11 @@
 13. `planning/07_dashboard_vpc_extension_plan.md`
 14. `planning/08_aws_cli_mfa_terraform_access.md`
 15. `planning/09_m1_eks_vpc_decision_record.md`
-16. `ops/13_hub_namespace_baseline.md`
-17. `issues/M0_factory-a_safe-edge-baseline.md`
-18. `issues/M1_hub-cloud.md`
+16. `planning/11_delivery_ownership_flow.md`
+17. `ops/13_hub_namespace_baseline.md`
+18. `ops/14_hub_run_commands.md`
+19. `issues/M0_factory-a_safe-edge-baseline.md`
+20. `issues/M1_hub-cloud.md`
 
 ## 문서 구조
 
@@ -69,7 +72,8 @@ docs/
 │   ├── 10_edge_workload_placement.md
 │   ├── 11_ansible_test_automation.md
 │   ├── 12_iot_core_thing_secret_mount.md
-│   └── 13_hub_namespace_baseline.md
+│   ├── 13_hub_namespace_baseline.md
+│   └── 14_hub_run_commands.md
 ├── architecture/
 ├── planning/
 │   ├── 00_project_overview.md
@@ -81,7 +85,9 @@ docs/
 │   ├── 06_edge_agent_deployment_plan.md
 │   ├── 07_dashboard_vpc_extension_plan.md
 │   ├── 08_aws_cli_mfa_terraform_access.md
-│   └── 09_m1_eks_vpc_decision_record.md
+│   ├── 09_m1_eks_vpc_decision_record.md
+│   ├── 10_portfolio_idea_assessment.md
+│   └── 11_delivery_ownership_flow.md
 ├── product/
 ├── specs/
 ├── demo/
@@ -106,12 +112,13 @@ safe-edge-ai-apps revision: 8e9ae861d9e374e24edaba5efbe63c785292878a
 
 ```text
 AWS actual state: destroyed
-Terraform roots:
+Hub bootstrap roots:
 - infra/hub: VPC/EKS/node group
-- infra/platform: namespace/LimitRange
+- scripts/ansible: namespace/LimitRange/ArgoCD bootstrap
 - infra/foundation: future durable resources
-Next apply order: infra/hub -> infra/platform
-Next destroy order: infra/platform -> infra/hub
+Next apply order: infra/hub terraform apply -> scripts/ansible hub_argocd_bootstrap
+Next destroy order: infra/hub terraform destroy
+Delivery flow: Terraform -> Ansible -> GitHub Actions CI -> GitHub/ArgoCD CD
 ```
 
 ## 문서 상태 규칙
