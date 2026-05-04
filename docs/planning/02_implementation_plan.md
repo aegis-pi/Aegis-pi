@@ -11,9 +11,9 @@
 
 - Phase 0 문서 기준선 정리는 완료 상태로 유지 보수 중이다.
 - Phase 1 M0 `factory-a` Safe-Edge 기준선은 구축 및 실측 검증까지 완료됐다.
-- Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace, Hub ArgoCD 기준선 검증까지 완료했다.
-- 현재 테스트용 Hub AWS 리소스는 비용 방지를 위해 destroy 완료 상태다.
-- 현재 다음 단계는 필요 시 Hub를 재기동한 뒤 S3/IoT Core 중심의 중앙 데이터 플레인으로 확장하는 것이다.
+- Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace, Hub ArgoCD, foundation S3, `factory-a` IoT Thing/Policy/K3s Secret까지 진행했다.
+- 현재 Hub AWS 리소스와 foundation S3는 2026-05-04 전체 destroy로 삭제된 상태다.
+- 현재 다음 단계는 필요 시 Hub/foundation/IoT를 재생성한 뒤 IoT Rule을 만들어 IoT Core topic을 S3 `raw/` prefix로 적재하는 것이다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
@@ -86,12 +86,12 @@
 - Hub namespace/LimitRange 기준선 검증 완료
 - Hub ArgoCD Ansible bootstrap 기준 전환 완료
 - Delivery ownership flow 확정: Terraform은 인프라, Ansible은 bootstrap/설정/소프트웨어, GitHub Actions는 CI, GitHub+ArgoCD는 CD
-- 테스트 리소스 destroy 완료
+- Hub EKS/ArgoCD 검증 후 destroy 완료
 - 최소 책임 분리 완료: `infra/hub`, `scripts/ansible`, `infra/foundation`
 - Dashboard VPC / public authenticated ingress 설계
 - ArgoCD 설치 또는 중앙 ArgoCD 운영 기준 정리
 - S3 버킷 및 경로 파티셔닝 설계
-- IoT Core Thing / 인증서 / 규칙
+- IoT Core Thing / 인증서 / Policy / K3s Secret 생성 완료, IoT Rule은 다음 작업
 - latest status 저장소 후보 결정
 - AMP 또는 Hub 관측 기준
 - `runtime-config.yaml` 구조 초안
@@ -118,15 +118,15 @@ ArgoCD 재생성 자동화 기준:
 - `infra/hub terraform apply` 후 `ansible-playbook` 실행으로 namespace, LimitRange, ArgoCD Helm release가 재생성되게 한다.
 - repo, AppProject, Application, ApplicationSet은 이후 별도 GitOps bootstrap 디렉터리 또는 ArgoCD self-management 구조로 코드화한다.
 - 포트포워딩은 Terraform 리소스로 관리하지 않는다. 로컬에서 실행하는 운영 스크립트로 제공한다.
-- 포트포워딩 스크립트는 `scripts/hub/argocd-port-forward.sh`에 두고, 내부에서 `aws eks update-kubeconfig`, `kubectl -n argocd wait`, `kubectl -n argocd port-forward service/argocd-server 8080:443` 순서로 실행하게 한다.
+- 포트포워딩 스크립트는 `scripts/ops/argocd-port-forward.sh`에 두고, 내부에서 `aws eks update-kubeconfig`, `kubectl -n argocd wait`, `kubectl -n argocd port-forward service/argocd-server 8080:443` 순서로 실행하게 한다.
 - 초기 admin 비밀번호 조회는 별도 명령 또는 `--print-password` 옵션처럼 명시적인 경우에만 수행하고, 문서나 로그에 저장하지 않는다.
 
-Hub 재기동 순서:
+Hub 생성 순서:
 
-- `infra/hub`에서 Terraform plan/apply를 실행해 VPC, NAT Gateway, EKS, node group을 생성한다.
-- `aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS`로 로컬 kubeconfig를 갱신한다.
-- `scripts/ansible`에서 `hub_argocd_bootstrap.yml`을 실행해 namespace, LimitRange, ArgoCD Helm release를 생성한다.
-- ArgoCD UI가 필요하면 `scripts/hub/argocd-port-forward.sh`를 실행해 로컬 `https://127.0.0.1:8080`으로 접근한다.
+- `scripts/build/build-hub.sh`를 실행해 VPC, NAT Gateway, EKS, node group을 생성한다.
+- 같은 실행 흐름에서 `aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS`로 로컬 kubeconfig를 갱신한다.
+- Ansible `hub_argocd_bootstrap.yml`이 namespace, LimitRange, ArgoCD Helm release를 생성한다.
+- ArgoCD UI가 필요하면 `scripts/ops/argocd-port-forward.sh`를 실행해 로컬 `https://127.0.0.1:8080`으로 접근한다.
 
 ### Phase 3. M2 Mesh VPN + Hub-Spoke 연결
 
@@ -265,7 +265,7 @@ Hub 재기동 순서:
 | --- | --- | --- |
 | Phase 0 | 완료 | 기준 문서 |
 | Phase 1 (M0) | 완료 | `factory-a` Safe-Edge 기준선 |
-| Phase 2 (M1) | 진행 중, Issue 0~3 완료 | Hub 핵심 서비스 |
+| Phase 2 (M1) | 진행 중, Issue 0~4 완료, Issue 5 부분 완료 | Hub 핵심 서비스 |
 | Phase 3 (M2) | 후속 | Mesh 기반 `factory-a` 연결 |
 | Phase 4 (M3) | 후속 | 배포 파이프라인 |
 | Phase 5 (M4) | 후속 | `factory-a` 중앙 데이터 플레인 |

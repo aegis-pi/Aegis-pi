@@ -31,7 +31,7 @@
 | M1 | Issue 2 - Hub/Kubernetes | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 3 - Hub/ArgoCD | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 4 - Hub/S3 | 부분 완료 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 5 - Hub/IoT Core | 대기 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 5 - Hub/IoT Core | 부분 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 6 - 관제/AMP | 대기 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 6A - 관제/Dashboard VPC | 대기 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 7 - 관제/Prometheus | 대기 | `docs/issues/M1_hub-cloud.md` |
@@ -41,7 +41,7 @@
 현재 바로 이어서 할 이슈:
 
 ```text
-M1 Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계
+M1 Issue 5 - [Hub/IoT Core] IoT Rule -> S3 적재 연결
 ```
 
 ## 현재 큰 상태
@@ -54,10 +54,11 @@ M1 Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계
 완료: M1 Issue 2 Hub Kubernetes 네임스페이스 설계 및 생성
 완료: M1 Issue 3 Hub ArgoCD 설치 및 CLI/UI 검증, Ansible bootstrap 전환
 부분 완료: M1 Issue 4 S3 bucket apply 및 보안 설정 검증 완료, IoT Rule/IRSA 연계 미완료
+부분 완료: M1 Issue 5 IoT Thing, certificate, policy 생성 및 K3s Secret 등록 완료, IoT Rule/S3 적재 미완료
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 생성: Hub EKS는 destroy 완료, foundation S3 bucket은 active
-Terraform apply 실행 여부: infra/hub apply 검증 완료 후 destroy 완료
+AWS 실제 리소스 상태: 2026-05-04 전체 destroy 완료. Hub EKS/ArgoCD/foundation S3/IoT/K3s Secret 삭제됨
+Terraform state: infra/hub empty, infra/foundation empty
 ```
 
 ## 지금까지 완료한 일
@@ -148,7 +149,7 @@ Capacity: On-Demand
 
 ### M1 Issue 3 Hub ArgoCD
 
-- 2026-05-04에 Hub EKS를 재생성했다.
+- 2026-05-04에 Hub EKS를 재생성하고 검증한 뒤 전체 destroy로 삭제했다.
 - `infra/hub` Terraform apply 결과 `56 added, 0 changed, 0 destroyed`.
 - `aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS` 완료.
 - `kubectl get nodes -o wide`에서 EKS worker node 2대 `Ready` 확인.
@@ -170,35 +171,38 @@ Capacity: On-Demand
 
 ```text
 AWS 계정 연결: MFA 세션으로 확인 완료
-AWS 리소스 생성: foundation S3 bucket active, Hub EKS inactive
-terraform destroy: infra/hub 완료
+AWS 리소스 상태: 전체 destroy 완료
+destroy command: DESTROY_FOUNDATION=true scripts/destroy/destroy-all.sh
+IoT/K3s: ai-apps/aws-iot-factory-a-cert 삭제, AEGIS-IoTThing-factory-a 관련 AWS IoT 리소스 삭제
+Hub destroy: infra/hub 56 destroyed
+Foundation destroy: infra/foundation 6 destroyed
 terraform state: infra/hub empty
-terraform state: infra/foundation has S3 data bucket resources
-EKS describe-cluster: AEGIS-EKS ResourceNotFoundException
+terraform state: infra/foundation empty
+EKS cluster: AEGIS-EKS deleted
+S3 bucket: aegis-bucket-data deleted
 ```
 
 주의:
 
 - `terraform init`은 provider/module을 로컬에 내려받는 작업이라 AWS 리소스를 만들지 않는다.
 - AWS 리소스가 실제로 만들어지는 시점은 `terraform apply` 실행 시점이다.
-- 테스트가 끝나면 반드시 `terraform destroy`로 EKS, NAT Gateway, node group을 제거한다.
-- 2026-05-04 현재 Hub 테스트 리소스는 제거 완료 상태다. Foundation S3 bucket은 영속 리소스로 유지한다.
+- 테스트가 끝나면 반드시 `scripts/destroy/destroy-hub.sh` 또는 `terraform destroy`로 EKS, NAT Gateway, node group을 제거한다.
+- 2026-05-04에는 foundation까지 포함한 전체 destroy를 완료했다.
 
-마지막 검증 후 제거된 주요 리소스:
+삭제 전 검증했던 주요 리소스:
 
 ```text
 Cluster: AEGIS-EKS
 Region: ap-south-1
 Kubernetes version: 1.34
-VPC: vpc-09ee4698847b2586d
-Private subnets: subnet-0039656dbf579fb82, subnet-0f72d0e52ef0d0648
-Public subnets: subnet-00eeeb6f502ecf887, subnet-075409b6b6dee6e96
+VPC: vpc-0f5ce54353ff2e3ac
+Private subnets: subnet-0a9bb5682ea4025d5, subnet-0a28852262f757477
+Public subnets: subnet-0e7cb5c97552bb8cd, subnet-0754802aef5b374e2
 Node group: AEGIS-EKS-node
-Node status: 2 Ready
+Node status: 2 Ready 확인 후 삭제
 Hub namespaces: argocd, observability, risk, ops-support
-Terraform apply: infra/hub 56 added
+Terraform apply: infra/hub 56 added 확인 후 destroy
 Ansible bootstrap: namespace, LimitRange, ArgoCD Helm release 재생성 기준 추가
-Terraform destroy: infra/hub 56 destroyed
 ArgoCD Helm release: argocd / argo-cd-9.5.11 / app v3.3.9
 ```
 
@@ -235,44 +239,91 @@ helm list -n argocd
 argocd deployed argo-cd-9.5.11 app v3.3.9
 ```
 
-2026-05-04 destroy 확인:
+2026-05-04 destroy 전 확인:
 
 ```text
-infra/hub terraform state list
-empty
+kubectl get nodes
+2 Ready
 
-aws eks describe-cluster --region ap-south-1 --name AEGIS-EKS
-ResourceNotFoundException
+kubectl -n argocd get pods
+all Running / Ready
+
+ssh minsoo@10.10.10.10 'kubectl -n ai-apps get secret aws-iot-factory-a-cert'
+secret exists, DATA=4
 ```
 
 ## 다음에 할 일
 
-### 1. 다음 Hub 재기동 순서
+### 1. 다음 시작 작업: M1 Issue 5 IoT Rule -> S3 적재 연결
 
-Hub EKS가 필요한 작업을 다시 시작할 때는 아래 순서로 올린다.
+다음 세션은 필요한 리소스를 다시 생성한 뒤 시작한다. 바로 이어서 할 작업은 IoT Core Rule을 만들고 S3 raw prefix로 테스트 메시지를 적재하는 것이다.
 
-```bash
-cd /home/vicbear/Aegis/git_clone/Aegis-pi/infra/hub
-terraform plan -out=tfplan
-terraform apply tfplan
+검증 완료 후 현재는 삭제된 전제:
 
-aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS
+- Foundation S3 bucket `aegis-bucket-data` 생성 검증 완료, 현재 deleted
+- Hub EKS `AEGIS-EKS` 생성 검증 완료, 현재 deleted
+- ArgoCD Helm release `argocd` 설치 검증 완료, 현재 deleted
+- IoT Thing `AEGIS-IoTThing-factory-a` 생성 검증 완료, 현재 deleted
+- IoT certificate active/Thing attach 검증 완료, 현재 deleted
+- IoT Policy `AEGIS-IoTPolicy-factory-a` 생성 검증 완료, 현재 deleted
+- K3s Secret `ai-apps/aws-iot-factory-a-cert` 생성 검증 완료, 현재 deleted
+
+다음 구현 순서:
+
+```text
+1. `scripts/build/build-all.sh`로 foundation, Hub, IoT 전제를 재생성
+2. infra/foundation 또는 새 Terraform 파일에 IoT Rule용 IAM Role/Policy 추가
+3. IoT Rule 생성
+   - topic: aegis/factory-a/*
+   - target bucket: aegis-bucket-data
+   - key prefix: raw/factory-a/{source_type}/yyyy=.../mm=.../dd=.../{message_id}.json
+4. 테스트 publish 방법 결정
+   - local MQTT client 또는 AWS IoT test client
+   - Edge Agent 구현 전이면 CLI/임시 테스트 payload 사용
+5. S3 raw prefix에 object 생성 확인
+6. Issue 4 S3 acceptance와 Issue 5 IoT Rule acceptance를 함께 갱신
 ```
 
-Ansible bootstrap은 namespace, LimitRange, ArgoCD Helm release를 함께 재생성한다.
+바로 확인할 명령:
 
 ```bash
-cd /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ansible
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
+cd /home/vicbear/Aegis/git_clone/Aegis-pi
+kubectl get nodes
+kubectl -n argocd get pods
+ssh minsoo@10.10.10.10 'kubectl -n ai-apps get secret aws-iot-factory-a-cert'
+aws iot describe-thing --thing-name AEGIS-IoTThing-factory-a
+aws s3 ls s3://aegis-bucket-data/raw/
+```
+
+주의:
+
+- Secret 값, private key, SSH 비밀번호, MFA OTP는 문서에 기록하지 않는다.
+- 현재 local `secret/iot/factory-a/registration-summary.txt` 기준 Thing 이름은 `AEGIS-IoTThing-factory-a`다.
+- `scripts/config/defaults.sh`의 IoT Thing prefix도 실제 리소스 기준 `AEGIS-IoTThing`으로 맞춰 두었다.
+
+### 2. Hub 재기동 순서
+
+Hub EKS를 destroy한 뒤 다시 필요한 작업을 시작할 때는 아래 순서로 올린다.
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi
+scripts/build/build-hub.sh
+```
+
+전체 생성은 아래 진입점을 사용한다.
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi
+scripts/build/build-all.sh
 ```
 
 ArgoCD UI 접근:
 
 ```bash
-/home/vicbear/Aegis/git_clone/Aegis-pi/scripts/hub/argocd-port-forward.sh
+/home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ops/argocd-port-forward.sh
 ```
 
-### 2. M1 Issue 4 S3 apply 및 연계 검증
+### 3. M1 Issue 4 S3 apply 및 연계 검증
 
 현재 공식 이슈는 `M1 Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계`다.
 
@@ -297,7 +348,7 @@ ArgoCD UI 접근:
 - IoT Rule이 사용할 S3 object key template을 Issue 5에 연결
 - EKS service account 또는 후속 처리 파드용 S3 접근 IAM/IRSA 정책 설계
 
-### 3. ArgoCD 접근 전략 유지
+### 4. ArgoCD 접근 전략 유지
 
 현재 ArgoCD 접근 기준:
 
@@ -307,7 +358,7 @@ ArgoCD UI 접근:
 - ArgoCD 설정은 UI 클릭보다 Git/YAML/ApplicationSet으로 코드화한다.
 - ArgoCD public `LoadBalancer`는 만들지 않는다.
 
-### 4. ArgoCD 재생성 자동화
+### 5. ArgoCD 재생성 자동화
 
 EKS를 destroy/recreate할 때 ArgoCD 재설치를 반복하지 않도록 현재 수동 Helm install 기준을 Ansible bootstrap으로 전환했다.
 
@@ -322,7 +373,7 @@ EKS를 destroy/recreate할 때 ArgoCD 재설치를 반복하지 않도록 현재
 - `helm upgrade --install`로 `argo/argo-cd` chart `9.5.11` 관리
 - release name `argocd`, namespace `argocd`, service type `ClusterIP` 유지
 - repo, AppProject, Application, ApplicationSet은 후속 코드화
-- 포트포워딩은 Terraform에 넣지 않고 `scripts/hub/argocd-port-forward.sh`로 제공
+- 포트포워딩은 Terraform에 넣지 않고 `scripts/ops/argocd-port-forward.sh`로 제공
 - dynamic inventory는 `infra/hub`의 `terraform output -json`을 읽어 cluster name, region, kubeconfig 명령을 Ansible 변수로 제공한다.
 - 다음 `hub_argocd_bootstrap.yml` 실행 때 ArgoCD Helm release가 새로 생성된다.
 
@@ -334,20 +385,20 @@ kubectl -n argocd wait
 kubectl -n argocd port-forward service/argocd-server 8080:443
 ```
 
-### 5. 리소스 종료 기준
+### 6. 리소스 종료 기준
 
-현재는 이미 제거 완료 상태다. 다음에 다시 올린 뒤 작업을 멈추거나 장시간 사용하지 않을 때는 비용 방지를 위해 아래 순서로 제거한다.
+작업을 멈추거나 장시간 사용하지 않을 때는 비용 방지를 위해 아래 순서로 제거한다.
 
 ```bash
-cd /home/vicbear/Aegis/git_clone/Aegis-pi/infra/hub
-terraform destroy
+cd /home/vicbear/Aegis/git_clone/Aegis-pi
+scripts/destroy/destroy-hub.sh
 ```
 
 장시간 사용하지 않을 리소스를 남기지 않는다. EKS control plane, NAT Gateway, managed node group은 켜져 있는 동안 비용이 발생한다.
 
 ## 문서 갱신 상태
 
-M1 Issue 3 Hub ArgoCD 설치, Ansible bootstrap 전환, destroy 완료 상태를 다음 문서에 반영했다.
+M1 Issue 3 Hub ArgoCD 설치, Ansible bootstrap 전환, 전체 destroy 완료 상태를 다음 문서에 반영했다.
 또한 앞으로의 구현 책임 경계를 Terraform, Ansible, GitHub Actions, GitHub+ArgoCD 흐름으로 고정하고 관련 문서를 최신화했다.
 
 - `README.md`
@@ -387,22 +438,26 @@ f8ed233 Document dashboard VPC and AWS MFA setup
 현재 세션 정리 내용:
 
 ```text
-M1 Issue 1 EKS/VPC Terraform apply 재실행 및 검증 완료
-M1 Issue 2 namespace/LimitRange 검증 완료 및 Ansible bootstrap 전환 완료
-M1 Issue 3 Hub ArgoCD Helm 설치 및 CLI/UI 검증 완료
-M1 Issue 3 ArgoCD Helm release Ansible bootstrap 전환 완료
-Hub/bootstrap 테스트 리소스 destroy 완료
-infra/hub state empty
-AWS AEGIS-EKS describe-cluster ResourceNotFoundException 확인
-리소스 네이밍 규칙 AEGIS-[resource]-[feature]-[zone] 고정
-Target EKS name AEGIS-EKS
-Target Kubernetes version 1.34
-EKS endpoint 0.0.0.0/0 MVP bootstrap 기준 유지
-kubectl v1.34.7 로컬 설치
-worker node 2대 Ready 확인
-ArgoCD CLI v3.3.9 로컬 설치
-책임 범위 분리 완료: infra/hub, scripts/ansible, infra/foundation
-Delivery flow 확정: Terraform -> Ansible -> GitHub Actions CI -> GitHub/ArgoCD CD
+2026-05-04 세션 저장 기준
+M1 Issue 1 EKS/VPC Terraform apply 재실행 완료
+M1 Issue 2 namespace/LimitRange Ansible bootstrap 완료
+M1 Issue 3 Hub ArgoCD Helm 설치 및 verify 완료
+Hub EKS AEGIS-EKS 검증 후 deleted
+infra/hub apply 결과 56 added, destroy 결과 56 destroyed
+EKS worker node 2대 Ready 확인
+ArgoCD Pod 전체 Running 확인
+ArgoCD 초기 비밀번호 조회 스크립트 동작 확인
+Foundation S3 bucket aegis-bucket-data 검증 후 deleted, destroy 결과 6 destroyed
+IoT Thing AEGIS-IoTThing-factory-a 확인 후 deleted
+IoT certificate ACTIVE 확인 후 deleted
+IoT Policy AEGIS-IoTPolicy-factory-a 확인 후 deleted
+K3s Secret ai-apps/aws-iot-factory-a-cert 등록 및 DATA=4 확인 후 deleted
+1차/2차/3차 scripts 구조 정리 진행
+scripts/config/defaults.sh 추가: 환경별 기본값 source
+scripts/lib/aws-mfa.sh, scripts/lib/terraform.sh, scripts/lib/config.sh 추가
+scripts/ops/argocd-port-forward.sh, scripts/ops/argocd-initial-password.sh 추가
+다음 작업: M1 Issue 5 IoT Rule -> S3 raw prefix 적재 연결
+주의: scripts/ansible/playbooks/02_start_test.yml -> start_test.yml rename 상태는 별도 변경으로 남아 있음
 ```
 
 ## 갱신 규칙

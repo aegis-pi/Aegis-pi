@@ -9,12 +9,12 @@
 
 ## 현재 상태
 
-- 현재 상시 운영 중인 구현 범위는 `factory-a` 단일 운영형 Spoke다.
-- AWS Hub는 M1 Issue 0~3에서 EKS/VPC/namespace/ArgoCD bootstrap 기준선을 검증한 뒤 비용 절감을 위해 destroy한 상태다.
-- M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했다.
+- 현재 운영 중인 구현 범위는 `factory-a` 단일 운영형 Spoke와 M1 Hub EKS/ArgoCD 기준선이다.
+- AWS Hub는 M1 Issue 0~4에서 EKS/VPC/namespace/ArgoCD bootstrap과 foundation S3 기준선을 검증했고 2026-05-04 전체 destroy로 삭제했다.
+- M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록을 완료했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
-- `factory-b`, `factory-c`, IoT Core, ECR, GitHub Actions, Tailscale은 아직 구축 전이다.
-- 이 문서는 현재 동작 중인 로컬 기준선을 중심으로 설명하고, Hub는 검증 완료/미운영 상태로만 기록한다.
+- `factory-b`, `factory-c`, IoT Rule -> S3 적재, ECR, GitHub Actions, Tailscale은 아직 구축 전이다.
+- 이 문서는 현재 동작 중인 로컬 기준선과 active Hub 기준선을 함께 기록한다.
 
 ## 물리 / 클러스터 구조
 
@@ -86,14 +86,14 @@ safe-edge-ai-apps
 
 ## 현재 Hub 상태
 
-M1 Hub 기준선은 Terraform으로 검증했지만 현재 AWS에는 남겨두지 않는다.
+M1 Hub 기준선은 Terraform과 Ansible로 생성/검증했으며 2026-05-04 전체 destroy로 AWS에서 삭제했다.
 
 ```text
-AWS actual state: Hub EKS destroyed, foundation S3 active
-EKS: AEGIS-EKS 검증 후 삭제
-VPC CIDR: 10.0.0.0/16 검증 후 삭제
+AWS actual state: Hub EKS deleted, ArgoCD deleted, foundation S3 deleted
+EKS: AEGIS-EKS active
+VPC CIDR: 10.0.0.0/16 active
 AZ: ap-south-1a, ap-south-1c
-Hub namespaces: argocd, observability, risk, ops-support 검증 후 삭제
+Hub namespaces: argocd, observability, risk, ops-support active
 ```
 
 Terraform root:

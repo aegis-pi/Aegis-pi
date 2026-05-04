@@ -5,6 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 HUB_TERRAFORM_DIR="${HUB_TERRAFORM_DIR:-${REPO_ROOT}/infra/hub}"
 
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/lib/config.sh"
+aegis_load_config "${REPO_ROOT}"
+
 if [[ "${1:-}" != "--list" && "${1:-}" != "" ]]; then
   echo '{"_meta":{"hostvars":{}}}'
   exit 0
@@ -29,8 +33,8 @@ update_kubeconfig_command="$(jq -r '.update_kubeconfig_command.value // empty' <
 
 if [[ -z "${cluster_name}" || -z "${aws_region}" ]]; then
   if [[ "${HUB_EKS_ALLOW_DEFAULTS:-false}" == "true" ]]; then
-    cluster_name="${EKS_CLUSTER_NAME:-AEGIS-EKS}"
-    aws_region="${AWS_REGION:-ap-south-1}"
+    cluster_name="${EKS_CLUSTER_NAME:-${AEGIS_HUB_CLUSTER_NAME}}"
+    aws_region="${AWS_REGION:-${AEGIS_AWS_REGION}}"
     cluster_endpoint=""
     update_kubeconfig_command="aws eks update-kubeconfig --region ${aws_region} --name ${cluster_name}"
   else

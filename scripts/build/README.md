@@ -84,5 +84,5 @@ BUILD_FOUNDATION=false BUILD_HUB=false scripts/build/build-all.sh
 
 - `build-all.sh`는 Hub EKS와 NAT Gateway를 생성할 수 있어 비용이 발생한다.
 - ArgoCD UI port-forward는 장기 실행 프로세스이므로 전체 build에는 포함하지 않는다.
-- UI 접속은 별도로 `scripts/hub/argocd-port-forward.sh`를 실행한다.
+- UI 접속은 별도로 `scripts/ops/argocd-port-forward.sh`를 실행한다.
 - 인증서/private key 출력은 `secret/`에만 저장되고 Git에는 들어가지 않는다.

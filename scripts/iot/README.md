@@ -86,11 +86,11 @@ scripts/iot/register-k3s-secret.sh
 ```text
 FACTORY_ID=factory-a
 SECRET_DIR=secret/iot/factory-a
-REMOTE_USER=vicbear
+REMOTE_USER=minsoo
 REMOTE_HOST=10.10.10.10
 REMOTE_DIR=/tmp/aegis-iot-factory-a
-K8S_NAMESPACE=edge-system
-K8S_SECRET_NAME=factory-a-iot-cert
+K8S_NAMESPACE=ai-apps
+K8S_SECRET_NAME=aws-iot-factory-a-cert
 ```
 
 다른 SSH 사용자로 접속해야 하면:
@@ -104,8 +104,8 @@ REMOTE_USER=<ssh-user> scripts/iot/register-k3s-secret.sh
 ```text
 1. local secret 파일 존재 확인
 2. scp로 master /tmp 디렉터리에 임시 복사
-3. edge-system namespace 생성/갱신
-4. factory-a-iot-cert Secret 생성/갱신
+3. ai-apps namespace 생성/갱신
+4. aws-iot-factory-a-cert Secret 생성/갱신
 5. master의 임시 인증서 파일 삭제
 6. Secret 존재 확인
 ```
@@ -117,9 +117,9 @@ REMOTE_USER=<ssh-user> scripts/iot/register-k3s-secret.sh
 ```bash
 SECRET_DIR=/home/vicbear/Aegis/git_clone/Aegis-pi/secret/iot/factory-a
 
-kubectl create namespace edge-system --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace ai-apps --dry-run=client -o yaml | kubectl apply -f -
 
-kubectl -n edge-system create secret generic factory-a-iot-cert \
+kubectl -n ai-apps create secret generic aws-iot-factory-a-cert \
   --from-file=certificate.pem.crt="${SECRET_DIR}/certificate.pem.crt" \
   --from-file=private.pem.key="${SECRET_DIR}/private.pem.key" \
   --from-file=AmazonRootCA1.pem="${SECRET_DIR}/AmazonRootCA1.pem" \
@@ -156,7 +156,7 @@ DELETE_LOCAL_FILES=true scripts/iot/cleanup-thing.sh
 K3s Secret도 Terraform state에 없다. 필요하면 아래처럼 삭제한다.
 
 ```bash
-kubectl -n edge-system delete secret factory-a-iot-cert
+kubectl -n ai-apps delete secret aws-iot-factory-a-cert
 ```
 
 ## 주의

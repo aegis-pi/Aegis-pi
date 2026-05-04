@@ -184,10 +184,10 @@ terraform destroy
 
 ```text
 infra/hub apply: 56 added, 0 changed, 0 destroyed.
-final destroy: 56 destroyed.
+current state: active.
 ```
 
-생성 후 삭제한 주요 리소스:
+현재 주요 리소스:
 
 | 항목 | 값 |
 | --- | --- |
@@ -195,16 +195,16 @@ final destroy: 56 destroyed.
 | Region | `ap-south-1` |
 | Kubernetes API status | `ACTIVE` |
 | Kubernetes version | `1.34` |
-| VPC | `vpc-099138d8d344bda9b` |
-| Private subnets | `subnet-0f08c63b578cd815b`, `subnet-0f6536a1d45d25594` |
-| Public subnets | `subnet-02bcb3ab6a4768128`, `subnet-02f443deece3d6bbf` |
+| VPC | `vpc-0f5ce54353ff2e3ac` |
+| Private subnets | `subnet-0a9bb5682ea4025d5`, `subnet-0a28852262f757477` |
+| Public subnets | `subnet-0e7cb5c97552bb8cd`, `subnet-0754802aef5b374e2` |
 | Node group | `AEGIS-EKS-node` |
 | Node instance type | `t3.medium` |
 | Node count | desired/min/max `2` |
 | Hub namespaces | `argocd`, `observability`, `risk`, `ops-support` |
-| Current AWS status | destroyed |
-| Current Terraform state | empty |
-| Empty-state hub plan | `56 to add, 0 to change, 0 to destroy` |
+| Current AWS status | active |
+| Current Terraform state | active |
+| Hub apply result | `56 added, 0 changed, 0 destroyed` |
 
 검증:
 
@@ -220,14 +220,12 @@ kubectl cluster-info
 
 EKS control plane과 CoreDNS endpoint 응답을 확인했다.
 
-최종 destroy 후 확인:
+현재 상태 확인:
 
 ```text
-terraform state list
-empty
-
 aws eks describe-cluster --region ap-south-1 --name AEGIS-EKS
-ResourceNotFoundException
+kubectl get nodes
+kubectl -n argocd get pods
 ```
 
 ## 완료 기준 매핑

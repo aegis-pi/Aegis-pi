@@ -258,9 +258,9 @@ Thing 등록은 AWS IoT Core에서 공장 단위로 한다.
 
 ```text
 Thing:
-  aegis-factory-a
-  aegis-factory-b
-  aegis-factory-c
+  AEGIS-IoTThing-factory-a
+  AEGIS-IoTThing-factory-b
+  AEGIS-IoTThing-factory-c
 ```
 
 K3s에는 Thing 자체를 등록하지 않는다. K3s에는 해당 Thing의 인증서를 Kubernetes Secret으로 배포한다.
@@ -282,9 +282,10 @@ K3s Secret 예시:
 
 ```bash
 kubectl -n ai-apps create secret generic aws-iot-factory-a-cert \
-  --from-file=certificate.pem.crt=factory-a.cert.pem \
-  --from-file=private.pem.key=factory-a.private.key \
-  --from-file=AmazonRootCA1.pem=AmazonRootCA1.pem
+  --from-file=certificate.pem.crt=certificate.pem.crt \
+  --from-file=private.pem.key=private.pem.key \
+  --from-file=AmazonRootCA1.pem=AmazonRootCA1.pem \
+  --from-file=endpoint.txt=endpoint.txt
 ```
 
 주의:
@@ -300,7 +301,7 @@ Pod 환경변수 예시:
 ```yaml
 env:
   - name: AWS_IOT_CLIENT_ID
-    value: aegis-factory-a
+    value: AEGIS-IoTThing-factory-a
   - name: FACTORY_ID
     value: factory-a
   - name: AWS_IOT_TOPIC_PREFIX

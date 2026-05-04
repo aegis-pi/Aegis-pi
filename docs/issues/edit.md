@@ -254,7 +254,7 @@ IoT policy topic 범위가 구체적이지 않다.
 수정 방향:
 
 ```text
-Thing은 aegis-factory-a, aegis-factory-b, aegis-factory-c 공장 단위로 시작
+Thing은 AEGIS-IoTThing-factory-a, AEGIS-IoTThing-factory-b, AEGIS-IoTThing-factory-c 공장 단위로 시작
 topic prefix는 aegis/factory-a, aegis/factory-b, aegis/factory-c
 policy는 각 Thing이 자기 factory topic에만 publish 가능하도록 제한
 인증서/private key는 Git 금지

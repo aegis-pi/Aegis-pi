@@ -4,11 +4,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-AWS_REGION="${AWS_REGION:-ap-south-1}"
-FACTORY_ID="${FACTORY_ID:-factory-a}"
-THING_NAME="${THING_NAME:-AEGIS-IoTThing-${FACTORY_ID}}"
-POLICY_NAME="${POLICY_NAME:-AEGIS-IoTPolicy-${FACTORY_ID}}"
-TOPIC_PREFIX="${TOPIC_PREFIX:-aegis/${FACTORY_ID}}"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/lib/config.sh"
+aegis_load_config "${REPO_ROOT}"
+
+AWS_REGION="${AWS_REGION:-${AEGIS_AWS_REGION}}"
+FACTORY_ID="${FACTORY_ID:-${AEGIS_FACTORY_ID}}"
+THING_NAME="${THING_NAME:-${AEGIS_IOT_THING_NAME_PREFIX}-${FACTORY_ID}}"
+POLICY_NAME="${POLICY_NAME:-${AEGIS_IOT_POLICY_NAME_PREFIX}-${FACTORY_ID}}"
+TOPIC_PREFIX="${TOPIC_PREFIX:-${AEGIS_IOT_TOPIC_ROOT}/${FACTORY_ID}}"
 SECRET_DIR="${SECRET_DIR:-${REPO_ROOT}/secret/iot/${FACTORY_ID}}"
 OTP="${1:-}"
 
@@ -23,34 +27,9 @@ require_command aws
 require_command jq
 require_command curl
 
-if [[ -z "${AWS_SESSION_TOKEN:-}" ]]; then
-  if [[ -z "${OTP}" ]]; then
-    read -r -p "MFA OTP: " OTP
-  fi
-
-  if [[ -z "${OTP}" ]]; then
-    echo "MFA OTP is required when AWS_SESSION_TOKEN is not set" >&2
-    exit 1
-  fi
-
-  if [[ -f "${HOME}/.bashrc" ]]; then
-    # shellcheck disable=SC1090
-    source "${HOME}/.bashrc"
-  fi
-
-  if declare -F setToken >/dev/null 2>&1; then
-    setToken "${OTP}"
-  elif [[ -x "/home/vicbear/Aegis/.tools/aws-mfa-script/mfa.sh" ]]; then
-    /home/vicbear/Aegis/.tools/aws-mfa-script/mfa.sh "${OTP}"
-    # shellcheck disable=SC1090
-    source "${HOME}/.token_file"
-  else
-    echo "MFA helper not found. Expected setToken function or /home/vicbear/Aegis/.tools/aws-mfa-script/mfa.sh" >&2
-    exit 1
-  fi
-fi
-
-unset AWS_PROFILE
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"
+AWS_REGION="${AWS_REGION}" aegis_ensure_aws_mfa "${OTP}"
 export AWS_REGION
 export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-${AWS_REGION}}"
 

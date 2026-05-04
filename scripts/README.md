@@ -14,10 +14,13 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | --- | --- |
 | `build/build-all.sh` | foundation, hub, IoT/K3s Secret 생성 순서 실행 |
 | `destroy/destroy-all.sh` | IoT/K3s Secret, hub 삭제 순서 실행. foundation은 명시 플래그 필요 |
-| `hub/run-hub.sh` | MFA OTP 입력 후 `infra/hub` Terraform apply, Ansible bootstrap, ArgoCD port-forward 순서 실행 |
-| `hub/destroy-hub.sh` | MFA OTP 입력 후 `infra/hub` Terraform destroy 실행 |
-| `hub/argocd-initial-password.sh` | MFA 세션 확인 후 Hub ArgoCD 초기 admin 비밀번호 조회 |
-| `hub/argocd-port-forward.sh` | Hub ArgoCD UI 로컬 접근용 kubeconfig 갱신 및 port-forward 실행 |
+| `hub/run-hub.sh` | `build/build-hub.sh` 실행 후 ArgoCD port-forward까지 연결하는 호환 wrapper |
+| `hub/destroy-hub.sh` | `destroy/destroy-hub.sh`를 호출하는 호환 wrapper |
+| `ops/argocd-initial-password.sh` | MFA 세션 확인 후 Hub ArgoCD 초기 admin 비밀번호 조회 |
+| `ops/argocd-port-forward.sh` | Hub ArgoCD UI 로컬 접근용 kubeconfig 갱신 및 port-forward 실행 |
+| `lib/aws-mfa.sh` | AWS MFA session 공통 함수 |
+| `lib/terraform.sh` | Terraform apply/destroy 공통 함수 |
+| `config/defaults.sh` | scripts 기본값 source |
 | `iot/register-thing.sh` | IoT Thing, Policy, certificate/key 발급 템플릿. 출력은 `secret/`에 저장 |
 | `iot/register-k3s-secret.sh` | IoT 인증서 파일을 K3s master에 전송하고 Kubernetes Secret 생성/갱신 |
 | `iot/cleanup-thing.sh` | CLI로 만든 IoT Thing, Policy, certificate 정리 템플릿 |

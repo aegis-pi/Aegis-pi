@@ -13,8 +13,8 @@
 
 ```text
 factory-a 로컬 Safe-Edge 기준선
-M1 Issue 0~3 Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선 검증 후 destroy
-M1 Issue 4 foundation S3 data bucket 생성 완료
+M1 Issue 0~4 Hub EKS/VPC/namespace/ArgoCD bootstrap 및 foundation S3 기준선 검증 후 destroy
+M1 Issue 5 factory-a IoT Thing/Policy/K3s Secret 생성 완료
 ```
 
 후속 목표:

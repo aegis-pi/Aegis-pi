@@ -1,7 +1,13 @@
 # IoT Core Thing and K3s Secret Mount Runbook
 
-상태: draft
-기준일: 2026-04-30
+상태: source of truth
+기준일: 2026-05-04
+
+## 수정 버전
+
+| 일자 | 수정 내용 |
+| --- | --- |
+| 2026-05-04 | 실제 생성된 `factory-a` IoT Thing/Policy/K3s Secret 기준으로 Thing 이름, 저장 위치, 자동화 스크립트, SSH 대상, Secret 이름을 최신화 |
 
 ## 목적
 
@@ -15,12 +21,12 @@ Thing 등록은 AWS IoT Core에서 공장 단위로 한다.
 
 ```text
 Thing:
-  aegis-factory-a
-  aegis-factory-b
-  aegis-factory-c
+  AEGIS-IoTThing-factory-a
+  AEGIS-IoTThing-factory-b
+  AEGIS-IoTThing-factory-c
 ```
 
-`factory-a` MVP에서는 먼저 `aegis-factory-a`만 생성한다.
+`factory-a` MVP에서는 먼저 `AEGIS-IoTThing-factory-a`만 생성했다.
 
 K3s에는 Thing을 등록하지 않는다. K3s에는 해당 Thing에 연결된 인증서와 private key를 Kubernetes Secret으로 주입하고, `edge-agent` Deployment가 그 Secret을 read-only volume으로 mount한다.
 
@@ -61,13 +67,15 @@ factory-a K3s:
 
 인증서와 private key는 Git repository에 넣지 않는다.
 
-현재 PC에서는 repo 밖의 임시 보관 디렉터리를 사용한다.
+현재 PC에서는 repository 내부의 Git 제외 디렉터리인 `secret/`만 사용한다.
 
 ```text
-~/Aegis-secrets/iot/factory-a/
-  factory-a.cert.pem
-  factory-a.private.key
+secret/iot/factory-a/
+  certificate.pem.crt
+  private.pem.key
   AmazonRootCA1.pem
+  endpoint.txt
+  registration-summary.txt
 ```
 
 로컬 보관 디렉터리는 백업, 공유, 커밋 대상이 아니다. 운영 전에는 별도 Secret 관리 방식을 다시 정한다.
@@ -98,21 +106,29 @@ aws sts get-caller-identity
 Thing을 생성한다.
 
 ```bash
-aws iot create-thing \
-  --thing-name aegis-factory-a
+scripts/iot/register-thing.sh
 ```
 
-인증서를 생성하고 파일로 저장한다.
+위 스크립트는 Thing, Policy, certificate/key, Root CA, endpoint를 생성해 `secret/iot/factory-a/`에 저장한다.
+
+수동으로 생성해야 할 때 Thing 이름은 아래 기준을 따른다.
 
 ```bash
-mkdir -p ~/Aegis-secrets/iot/factory-a
-cd ~/Aegis-secrets/iot/factory-a
+aws iot create-thing \
+  --thing-name AEGIS-IoTThing-factory-a
+```
+
+인증서를 수동 생성하고 파일로 저장한다.
+
+```bash
+mkdir -p secret/iot/factory-a
+cd secret/iot/factory-a
 
 aws iot create-keys-and-certificate \
   --set-as-active \
-  --certificate-pem-outfile factory-a.cert.pem \
-  --public-key-outfile factory-a.public.key \
-  --private-key-outfile factory-a.private.key \
+  --certificate-pem-outfile certificate.pem.crt \
+  --public-key-outfile public.pem.key \
+  --private-key-outfile private.pem.key \
   > certificate-result.json
 ```
 
@@ -155,7 +171,7 @@ aegis/factory-a
     {
       "Effect": "Allow",
       "Action": "iot:Connect",
-      "Resource": "arn:aws:iot:ap-south-1:<account-id>:client/aegis-factory-a"
+      "Resource": "arn:aws:iot:ap-south-1:<account-id>:client/AEGIS-IoTThing-factory-a"
     },
     {
       "Effect": "Allow",
@@ -196,7 +212,7 @@ Thing에 인증서를 연결한다.
 CERT_ARN="$(jq -r '.certificateArn' certificate-result.json)"
 
 aws iot attach-thing-principal \
-  --thing-name aegis-factory-a \
+  --thing-name AEGIS-IoTThing-factory-a \
   --principal "$CERT_ARN"
 ```
 
@@ -213,11 +229,18 @@ aws iot attach-policy \
 현재 PC에서 Raspberry Pi master로 인증서 파일을 전달한다.
 
 ```bash
+scripts/iot/register-k3s-secret.sh
+```
+
+수동으로 수행해야 할 때만 아래 명령을 사용한다.
+
+```bash
 ssh minsoo@10.10.10.10 'mkdir -p /tmp/aegis-iot'
 
-scp ~/Aegis-secrets/iot/factory-a/factory-a.cert.pem \
-    ~/Aegis-secrets/iot/factory-a/factory-a.private.key \
-    ~/Aegis-secrets/iot/factory-a/AmazonRootCA1.pem \
+scp secret/iot/factory-a/certificate.pem.crt \
+    secret/iot/factory-a/private.pem.key \
+    secret/iot/factory-a/AmazonRootCA1.pem \
+    secret/iot/factory-a/endpoint.txt \
     minsoo@10.10.10.10:/tmp/aegis-iot/
 ```
 
@@ -226,21 +249,23 @@ master에서 Secret을 생성한다.
 ```bash
 ssh minsoo@10.10.10.10
 
-kubectl get namespace ai-apps
+kubectl create namespace ai-apps --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl -n ai-apps create secret generic aws-iot-factory-a-cert \
-  --from-file=certificate.pem.crt=/tmp/aegis-iot/factory-a.cert.pem \
-  --from-file=private.pem.key=/tmp/aegis-iot/factory-a.private.key \
-  --from-file=AmazonRootCA1.pem=/tmp/aegis-iot/AmazonRootCA1.pem
+  --from-file=certificate.pem.crt=/tmp/aegis-iot/certificate.pem.crt \
+  --from-file=private.pem.key=/tmp/aegis-iot/private.pem.key \
+  --from-file=AmazonRootCA1.pem=/tmp/aegis-iot/AmazonRootCA1.pem \
+  --from-file=endpoint.txt=/tmp/aegis-iot/endpoint.txt
 ```
 
 이미 Secret이 있으면 갱신용 manifest를 만들어 적용한다.
 
 ```bash
 kubectl -n ai-apps create secret generic aws-iot-factory-a-cert \
-  --from-file=certificate.pem.crt=/tmp/aegis-iot/factory-a.cert.pem \
-  --from-file=private.pem.key=/tmp/aegis-iot/factory-a.private.key \
+  --from-file=certificate.pem.crt=/tmp/aegis-iot/certificate.pem.crt \
+  --from-file=private.pem.key=/tmp/aegis-iot/private.pem.key \
   --from-file=AmazonRootCA1.pem=/tmp/aegis-iot/AmazonRootCA1.pem \
+  --from-file=endpoint.txt=/tmp/aegis-iot/endpoint.txt \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
@@ -286,7 +311,7 @@ volumes:
 ```yaml
 env:
   - name: AWS_IOT_CLIENT_ID
-    value: aegis-factory-a
+    value: AEGIS-IoTThing-factory-a
   - name: FACTORY_ID
     value: factory-a
   - name: AWS_IOT_TOPIC_PREFIX
@@ -320,19 +345,19 @@ aegis/factory-a/#
 정상 기준:
 
 ```text
-Thing: aegis-factory-a
+Thing: AEGIS-IoTThing-factory-a
 Certificate: ACTIVE
 Policy: AEGIS-IoTPolicy-factory-a attached
 Thing principal: certificate attached
 K3s Secret: ai-apps/aws-iot-factory-a-cert exists
 edge-agent mount path: /etc/aegis/iot
-MQTT client id: aegis-factory-a
+MQTT client id: AEGIS-IoTThing-factory-a
 Topic prefix: aegis/factory-a
 ```
 
 ## 보안 주의
 
-- `factory-a.private.key`는 Git repository, 문서, evidence, Slack, 이메일에 올리지 않는다.
+- `private.pem.key`는 Git repository, 문서, evidence, Slack, 이메일에 올리지 않는다.
 - `kubectl get secret -o yaml` 결과는 base64 인코딩된 secret 값을 포함하므로 문서에 붙이지 않는다.
 - `scp`로 master에 전달한 `/tmp/aegis-iot` 파일은 Secret 생성 후 즉시 삭제한다.
 - 인증서 교체 시 기존 certificate를 IoT Core에서 비활성화하거나 삭제하는 절차를 별도로 기록한다.

@@ -137,18 +137,20 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
 
 ## 현재 AWS 상태
 
-2026-04-30 기준 테스트로 올렸던 Hub 인프라는 최소 분리 작업 전에 다시 `terraform destroy`로 제거했다.
+2026-05-04 기준 Hub 인프라는 `scripts/build/build-all.sh` 실행으로 생성/검증한 뒤 `DESTROY_FOUNDATION=true scripts/destroy/destroy-all.sh`로 삭제했다. Kubernetes namespace와 ArgoCD는 EKS 내부 리소스라 EKS destroy와 함께 제거됐다.
 
 | 항목 | 값 |
 | --- | --- |
-| Destroy result | `infra/hub 56 destroyed`, bootstrap 리소스는 EKS와 함께 제거 |
+| Terraform destroy result | `infra/hub 56 destroyed` |
 | Terraform state | empty |
-| AWS EKS describe-cluster | `ResourceNotFoundException` |
-| Cluster | 삭제됨 |
+| Cluster | 삭제됨 (`AEGIS-EKS`) |
 | Kubernetes version | `1.34` |
-| VPC | 삭제됨 |
-| Node group | 삭제됨 |
+| VPC | 삭제됨 (`vpc-0f5ce54353ff2e3ac`) |
+| Public subnets | 삭제됨 |
+| Private subnets | 삭제됨 |
+| Node group | 삭제됨 (`AEGIS-EKS-node`) |
 | Hub namespaces | 삭제됨 |
+| ArgoCD | 삭제됨 |
 
 검증:
 
@@ -156,6 +158,7 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
 aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS
 kubectl get nodes
 kubectl cluster-info
+kubectl -n argocd get pods
 ```
 
 `kubectl`은 프로젝트 로컬 도구 경로 `/home/vicbear/Aegis/.tools/bin/kubectl`에 `v1.34.7`로 설치했다.

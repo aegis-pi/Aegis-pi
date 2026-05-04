@@ -1,6 +1,6 @@
 # Hub Namespace Baseline
 
-상태: Ansible bootstrap 기준 전환 완료, 현재 테스트 리소스 destroy 완료
+상태: Ansible bootstrap 기준 전환 완료, 현재 Hub EKS destroy 완료
 기준일: 2026-05-04
 
 ## 목적
@@ -52,9 +52,9 @@ ops-support     Active
 
 각 namespace에 `default-limits` LimitRange가 생성되어 있다.
 
-2026-05-04 검증 후 비용 방지를 위해 Hub EKS를 제거했다. 현재 AWS에는 해당 namespace와 ArgoCD release가 떠 있지 않다.
+2026-05-04 전체 destroy 이후 현재 Hub EKS는 삭제된 상태다. 다시 생성하면 해당 namespace와 ArgoCD release는 Ansible bootstrap으로 재생성된다.
 
-다음에 `infra/hub` apply 후 Ansible bootstrap playbook을 실행하면 `argocd`, `observability`, `risk`, `ops-support` namespace와 `default-limits` LimitRange가 다시 생성된다. `argocd` namespace에는 Hub ArgoCD Helm release도 함께 생성된다.
+나중에 Hub EKS를 destroy/recreate하면 `scripts/build/build-hub.sh` 실행 시 Ansible bootstrap playbook이 `argocd`, `observability`, `risk`, `ops-support` namespace와 `default-limits` LimitRange를 다시 생성한다. `argocd` namespace에는 Hub ArgoCD Helm release도 함께 생성된다.
 
 ## 현재 ArgoCD 기준
 
@@ -132,21 +132,21 @@ scripts/ansible/playbooks/hub_argocd_verify.yml
 스크립트:
 
 ```text
-scripts/hub/argocd-port-forward.sh
+scripts/ops/argocd-port-forward.sh
 ```
 
 ## 종료 순서
 
-장시간 사용하지 않을 때는 비용 방지를 위해 Hub 인프라를 내린다. 2026-05-04 기준 아래 순서로 제거를 완료했다.
+장시간 사용하지 않을 때는 비용 방지를 위해 Hub 인프라를 내린다.
 
 ```bash
-cd /home/vicbear/Aegis/git_clone/Aegis-pi/infra/hub
-terraform destroy -auto-approve
+cd /home/vicbear/Aegis/git_clone/Aegis-pi
+scripts/destroy/destroy-hub.sh
 ```
 
-확인 결과:
+현재 active 확인:
 
 ```text
-infra/hub terraform state list: empty
-aws eks describe-cluster --region ap-south-1 --name AEGIS-EKS: ResourceNotFoundException
+kubectl get nodes: 2 Ready
+kubectl -n argocd get pods: all Running / Ready
 ```

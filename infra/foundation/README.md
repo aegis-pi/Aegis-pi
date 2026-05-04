@@ -6,7 +6,7 @@
 
 ## 현재 관리 리소스
 
-- S3 데이터 버킷: `aegis-bucket-data` 생성 완료
+- S3 데이터 버킷: `aegis-bucket-data` 생성/검증 후 2026-05-04 전체 destroy로 삭제 완료
 
 ## 후속 후보 리소스
 

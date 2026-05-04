@@ -1,7 +1,7 @@
 # MVP 범위
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-05-04
 
 ## 목적
 
@@ -10,6 +10,7 @@
 ## 현재 상태
 
 - MVP의 첫 기준선인 M0 `factory-a` Safe-Edge 구축과 실측 검증은 완료됐다.
+- AWS Hub EKS/ArgoCD, foundation S3, `factory-a` IoT Thing/Policy/K3s Secret은 검증 후 2026-05-04 전체 destroy로 삭제했다.
 - 전체 MVP는 운영형 Spoke 1개와 테스트베드형 Spoke 2개를 포함한 멀티 공장 관제 구조를 목표로 한다.
 
 ## 현재 완료 범위
@@ -26,6 +27,9 @@
 - AI snapshot 24시간 cleanup
 - 이미지 prepull DaemonSet
 - LAN 제거 및 전원 제거 failover/failback 테스트
+- Hub EKS/VPC/namespace/ArgoCD bootstrap
+- Foundation S3 bucket
+- `factory-a` IoT Thing/certificate/policy 및 K3s Secret
 
 ## MVP 포함 범위
 
