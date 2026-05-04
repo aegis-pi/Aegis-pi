@@ -7,9 +7,13 @@
 현재 운영 스크립트:
 
 Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
+전체 생성 진입점은 `build/README.md`, 전체 삭제 진입점은 `destroy/README.md`를 따른다.
+새 리소스를 추가하거나 기존 리소스 생명주기를 바꾸면 `build/`와 `destroy/`를 함께 업데이트한다.
 
 | 경로 | 내용 |
 | --- | --- |
+| `build/build-all.sh` | foundation, hub, IoT/K3s Secret 생성 순서 실행 |
+| `destroy/destroy-all.sh` | IoT/K3s Secret, hub 삭제 순서 실행. foundation은 명시 플래그 필요 |
 | `hub/run-hub.sh` | MFA OTP 입력 후 `infra/hub` Terraform apply, Ansible bootstrap, ArgoCD port-forward 순서 실행 |
 | `hub/destroy-hub.sh` | MFA OTP 입력 후 `infra/hub` Terraform destroy 실행 |
 | `hub/argocd-initial-password.sh` | MFA 세션 확인 후 Hub ArgoCD 초기 admin 비밀번호 조회 |
