@@ -14,6 +14,7 @@
 | 파일 | 내용 |
 | --- | --- |
 | `register-thing.sh` | IoT Thing, Policy, certificate/key, Root CA, endpoint 생성 |
+| `register-k3s-secret.sh` | 로컬 인증서 파일을 K3s master로 전송한 뒤 Kubernetes Secret 생성/갱신 |
 | `cleanup-thing.sh` | CLI로 만든 IoT Thing, Policy, certificate 정리 |
 
 ## 기본 출력 위치
@@ -71,21 +72,60 @@ public.pem.key
 registration-summary.txt
 ```
 
-## K3s Secret 등록
+## K3s Secret 등록 자동화
+
+기본 대상은 `factory-a` master `10.10.10.10`이다. SSH 비밀번호는 저장하지 않고 `ssh`/`scp`가 직접 입력받는다.
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi
+scripts/iot/register-k3s-secret.sh
+```
+
+기본값:
+
+```text
+FACTORY_ID=factory-a
+SECRET_DIR=secret/iot/factory-a
+REMOTE_USER=vicbear
+REMOTE_HOST=10.10.10.10
+REMOTE_DIR=/tmp/aegis-iot-factory-a
+K8S_NAMESPACE=edge-system
+K8S_SECRET_NAME=factory-a-iot-cert
+```
+
+다른 SSH 사용자로 접속해야 하면:
+
+```bash
+REMOTE_USER=<ssh-user> scripts/iot/register-k3s-secret.sh
+```
+
+스크립트가 수행하는 작업:
+
+```text
+1. local secret 파일 존재 확인
+2. scp로 master /tmp 디렉터리에 임시 복사
+3. edge-system namespace 생성/갱신
+4. factory-a-iot-cert Secret 생성/갱신
+5. master의 임시 인증서 파일 삭제
+6. Secret 존재 확인
+```
+
+## K3s Secret 수동 등록
+
+자동화 스크립트를 쓰지 않을 때만 아래 명령을 사용한다.
 
 ```bash
 SECRET_DIR=/home/vicbear/Aegis/git_clone/Aegis-pi/secret/iot/factory-a
 
-kubectl create namespace edge-system
+kubectl create namespace edge-system --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl -n edge-system create secret generic factory-a-iot-cert \
   --from-file=certificate.pem.crt="${SECRET_DIR}/certificate.pem.crt" \
   --from-file=private.pem.key="${SECRET_DIR}/private.pem.key" \
   --from-file=AmazonRootCA1.pem="${SECRET_DIR}/AmazonRootCA1.pem" \
-  --from-file=endpoint.txt="${SECRET_DIR}/endpoint.txt"
+  --from-file=endpoint.txt="${SECRET_DIR}/endpoint.txt" \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
-
-이미 Secret이 있으면 먼저 삭제하거나 `kubectl create secret ... --dry-run=client -o yaml | kubectl apply -f -` 방식으로 갱신한다.
 
 ## 정리 실행
 
