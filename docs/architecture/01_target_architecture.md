@@ -14,6 +14,7 @@
 ```text
 factory-a 로컬 Safe-Edge 기준선
 M1 Issue 0~3 Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선 검증 후 destroy
+M1 Issue 4 foundation S3 data bucket 생성 완료
 ```
 
 후속 목표:
@@ -138,7 +139,7 @@ risk
 ops-support
 ```
 
-이 namespace 기준선은 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다. Hub EKS 자체는 `infra/hub`, S3/ECR/AMP/IoT Core 같은 영속 리소스는 후속 `infra/foundation` root에서 분리 관리한다.
+이 namespace 기준선은 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다. Hub EKS 자체는 `infra/hub`, S3/ECR/AMP/IoT Core 같은 영속 리소스는 `infra/foundation` root에서 분리 관리한다.
 
 역할:
 

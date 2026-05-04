@@ -20,6 +20,7 @@ ENV/
 # Local environment files
 .env
 .env.*
+secret/
 
 # Terraform
 **/.terraform/
@@ -27,6 +28,8 @@ ENV/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+tfplan
+*.tfplan
 crash.log
 crash.*.log
 override.tf

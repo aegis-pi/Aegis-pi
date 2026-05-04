@@ -1,0 +1,4 @@
+project_name     = "AEGIS"
+environment      = "foundation-mvp"
+aws_region       = "ap-south-1"
+data_bucket_name = "aegis-bucket-data"

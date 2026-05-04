@@ -7,7 +7,7 @@
 | 경로 | 역할 |
 | --- | --- |
 | `hub/` | AWS Hub Processing VPC, subnet, NAT Gateway, EKS, node group Terraform 구성 |
-| `foundation/` | S3, ECR, AMP, IoT Core처럼 EKS destroy와 분리할 영속 리소스 자리 |
+| `foundation/` | S3, ECR, AMP, IoT Core처럼 EKS destroy와 분리할 영속 리소스 Terraform 구성 |
 | `safe-edge/` | `factory-a` Safe-Edge 기준선 복구 관련 인프라 문서 |
 | `mesh-vpn/` | Tailscale 기반 Hub-Spoke 제어망 구성 문서 |
 | `deploy/` | 배포 파이프라인 관련 인프라와 보조 설정 |

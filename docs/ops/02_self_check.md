@@ -12,7 +12,7 @@
 - `factory-a`는 3노드 K3s, ArgoCD, Helm, Longhorn, InfluxDB, Grafana 기준선 구성이 완료됐다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
 - ArgoCD repository 등록과 sync 조작은 UI에서 수행한다.
-- Hub, `factory-b`, `factory-c`, AWS IoT Core, S3, Risk Twin은 후속 단계다.
+- Hub EKS, `factory-b`, `factory-c`, AWS IoT Core, IoT Core -> S3 데이터 플레인, Risk Twin은 후속 단계다. Foundation S3 bucket은 생성 완료 상태다.
 
 ## 범위
 

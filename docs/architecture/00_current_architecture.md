@@ -11,8 +11,9 @@
 
 - 현재 상시 운영 중인 구현 범위는 `factory-a` 단일 운영형 Spoke다.
 - AWS Hub는 M1 Issue 0~3에서 EKS/VPC/namespace/ArgoCD bootstrap 기준선을 검증한 뒤 비용 절감을 위해 destroy한 상태다.
+- M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
-- `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions, Tailscale은 아직 구축 전이다.
+- `factory-b`, `factory-c`, IoT Core, ECR, GitHub Actions, Tailscale은 아직 구축 전이다.
 - 이 문서는 현재 동작 중인 로컬 기준선을 중심으로 설명하고, Hub는 검증 완료/미운영 상태로만 기록한다.
 
 ## 물리 / 클러스터 구조
@@ -88,7 +89,7 @@ safe-edge-ai-apps
 M1 Hub 기준선은 Terraform으로 검증했지만 현재 AWS에는 남겨두지 않는다.
 
 ```text
-AWS actual state: destroyed
+AWS actual state: Hub EKS destroyed, foundation S3 active
 EKS: AEGIS-EKS 검증 후 삭제
 VPC CIDR: 10.0.0.0/16 검증 후 삭제
 AZ: ap-south-1a, ap-south-1c
@@ -99,7 +100,7 @@ Terraform root:
 
 ```text
 infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group
-infra/foundation  S3, ECR, AMP, IoT Core 등 영속 리소스 예정
+infra/foundation  S3 data bucket active, ECR/AMP/IoT Core 등 후속 영속 리소스
 ```
 
 Hub Kubernetes bootstrap:

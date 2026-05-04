@@ -11,8 +11,9 @@
 
 - `factory-a` 로컬 Raspberry Pi 3-node K3s 기준선 구축이 완료됐다.
 - ArgoCD, Longhorn, Grafana, InfluxDB, AI/Audio/BME280 워크로드가 동작한다.
-- AWS Hub는 EKS/VPC/namespace/ArgoCD bootstrap 기준선 검증 후 destroy 완료 상태다.
-- `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions CI, Tailscale은 후속 단계다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선은 검증 후 destroy 완료 상태다.
+- Foundation S3 bucket `aegis-bucket-data`는 생성 완료 상태다.
+- `factory-b`, `factory-c`, IoT Core, ECR, GitHub Actions CI, Tailscale은 후속 단계다.
 - 후속 구현은 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD 기준을 따른다.
 
 ## 현재 운영 주소

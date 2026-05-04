@@ -30,7 +30,7 @@
 | M1 | Issue 1 - Hub/EKS | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 2 - Hub/Kubernetes | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 3 - Hub/ArgoCD | 완료 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 4 - Hub/S3 | 대기 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 4 - Hub/S3 | 부분 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 5 - Hub/IoT Core | 대기 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 6 - 관제/AMP | 대기 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 6A - 관제/Dashboard VPC | 대기 | `docs/issues/M1_hub-cloud.md` |
@@ -53,9 +53,10 @@ M1 Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계
 완료: M1 Issue 1 EKS/VPC Terraform apply 및 kubectl 접근 확인
 완료: M1 Issue 2 Hub Kubernetes 네임스페이스 설계 및 생성
 완료: M1 Issue 3 Hub ArgoCD 설치 및 CLI/UI 검증, Ansible bootstrap 전환
+부분 완료: M1 Issue 4 S3 bucket apply 및 보안 설정 검증 완료, IoT Rule/IRSA 연계 미완료
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 생성: 테스트 후 destroy 완료, 현재 비활성
+AWS 실제 리소스 생성: Hub EKS는 destroy 완료, foundation S3 bucket은 active
 Terraform apply 실행 여부: infra/hub apply 검증 완료 후 destroy 완료
 ```
 
@@ -169,9 +170,10 @@ Capacity: On-Demand
 
 ```text
 AWS 계정 연결: MFA 세션으로 확인 완료
-AWS 리소스 생성: 현재 비활성
+AWS 리소스 생성: foundation S3 bucket active, Hub EKS inactive
 terraform destroy: infra/hub 완료
 terraform state: infra/hub empty
+terraform state: infra/foundation has S3 data bucket resources
 EKS describe-cluster: AEGIS-EKS ResourceNotFoundException
 ```
 
@@ -180,7 +182,7 @@ EKS describe-cluster: AEGIS-EKS ResourceNotFoundException
 - `terraform init`은 provider/module을 로컬에 내려받는 작업이라 AWS 리소스를 만들지 않는다.
 - AWS 리소스가 실제로 만들어지는 시점은 `terraform apply` 실행 시점이다.
 - 테스트가 끝나면 반드시 `terraform destroy`로 EKS, NAT Gateway, node group을 제거한다.
-- 2026-05-04 현재 테스트 리소스는 제거 완료 상태다.
+- 2026-05-04 현재 Hub 테스트 리소스는 제거 완료 상태다. Foundation S3 bucket은 영속 리소스로 유지한다.
 
 마지막 검증 후 제거된 주요 리소스:
 
@@ -270,18 +272,30 @@ ArgoCD UI 접근:
 /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/hub/argocd-port-forward.sh
 ```
 
-### 2. M1 Issue 4 S3 설계 및 Terraform 구성
+### 2. M1 Issue 4 S3 apply 및 연계 검증
 
-다음 공식 이슈는 `M1 Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계`다.
+현재 공식 이슈는 `M1 Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계`다.
 
-작업 내용:
+완료한 내용:
 
-- S3 bucket 이름 결정
-- public access block 적용
-- versioning/encryption/lifecycle 기준 결정
-- 경로 파티셔닝 규칙 확정: `{factory_id}/{source_type}/{yyyy}/{MM}/{dd}/`
-- `infra/foundation`에 S3 Terraform 구성 추가
-- 이후 IoT Core Rule이 적재할 prefix 기준 문서화
+- `infra/foundation`을 독립 Terraform root로 구성
+- S3 bucket 이름 결정: `aegis-bucket-data`
+- public access block enabled 기준 적용
+- versioning enabled 기준 적용
+- SSE-S3 encryption 기준 적용
+- raw/processed/latest prefix 기준 확정
+- lifecycle 기준 확정
+- `terraform apply`: `6 added, 0 changed, 0 destroyed`
+- AWS API 검증:
+  - versioning `Enabled`
+  - public access block 4개 옵션 모두 `true`
+  - SSE-S3 `AES256`
+  - lifecycle rule 4개 적용 확인
+
+남은 내용:
+
+- IoT Rule이 사용할 S3 object key template을 Issue 5에 연결
+- EKS service account 또는 후속 처리 파드용 S3 접근 IAM/IRSA 정책 설계
 
 ### 3. ArgoCD 접근 전략 유지
 

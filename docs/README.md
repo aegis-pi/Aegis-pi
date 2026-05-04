@@ -9,12 +9,12 @@
 
 ## 현재 상태
 
-- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선과 M1 Hub Issue 0~3 기준선 검증이다.
+- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선, M1 Hub Issue 0~3 기준선 검증, M1 Issue 4 S3 bucket 생성이다.
 - `factory-a`는 Raspberry Pi 3-node K3s 기반 운영형 Spoke다.
 - 2026-04-30 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
-- AWS Hub는 EKS/VPC/namespace/ArgoCD bootstrap 기준선을 검증한 뒤 destroy 완료 상태다.
-- `factory-b`, `factory-c`, IoT Core, S3, ECR, GitHub Actions CI, Tailscale은 후속 단계다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선은 검증 후 destroy 완료 상태이며, foundation S3 bucket은 active 상태다.
+- `factory-b`, `factory-c`, IoT Core, ECR, GitHub Actions CI, Tailscale은 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
 - 계획과 실제 구현이 달라진 결정은 `docs/changes/`에서 추적한다.
@@ -111,11 +111,11 @@ safe-edge-ai-apps revision: 8e9ae861d9e374e24edaba5efbe63c785292878a
 ## 현재 Hub 기준
 
 ```text
-AWS actual state: destroyed
+AWS actual state: Hub EKS destroyed, foundation S3 active
 Hub bootstrap roots:
 - infra/hub: VPC/EKS/node group
 - scripts/ansible: namespace/LimitRange/ArgoCD bootstrap
-- infra/foundation: future durable resources
+- infra/foundation: S3 data bucket active and future durable resources
 Next apply order: infra/hub terraform apply -> scripts/ansible hub_argocd_bootstrap
 Next destroy order: infra/hub terraform destroy
 Delivery flow: Terraform -> Ansible -> GitHub Actions CI -> GitHub/ArgoCD CD
