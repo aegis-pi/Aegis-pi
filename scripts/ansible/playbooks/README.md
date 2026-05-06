@@ -16,3 +16,4 @@
 - 물리 LAN 제거, 전원 차단 같은 장애 유발은 수동 절차로 둔다.
 - playbook 결과는 `scripts/ansible/evidence/`에 저장한다.
 - Hub bootstrap playbook은 SSH가 아니라 `localhost`에서 EKS Kubernetes API를 대상으로 실행한다.
+- Hub ArgoCD Helm release가 이미 `deployed` 상태이고 chart version이 같으면 Helm upgrade를 건너뛴다. 강제 재적용은 `-e argocd_force_upgrade=true`로 실행한다.

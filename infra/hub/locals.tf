@@ -8,6 +8,7 @@ locals {
     eks_node_group           = "${local.naming_prefix}-EKS-node"
     eks_node_iam_role        = "${local.naming_prefix}-IAMRole-EKS-node"
     eks_node_launch_template = "${local.naming_prefix}-LT-EKS-node"
+    risk_normalizer_irsa     = "${local.naming_prefix}-IAMRole-IRSA-risk-normalizer"
     vpc                      = "${local.naming_prefix}-VPC"
   }
 
@@ -34,6 +35,8 @@ locals {
   private_subnet_names = [
     for zone in local.zone_names : "${local.naming_prefix}-Subnet-private-${zone}"
   ]
+
+  risk_normalizer_subject = "system:serviceaccount:${var.risk_normalizer_namespace}:${var.risk_normalizer_service_account}"
 
   zone_config = {
     for index, zone in local.zone_names : zone => {

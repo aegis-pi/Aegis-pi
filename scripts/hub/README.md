@@ -66,6 +66,12 @@ scripts/build/build-hub.sh <MFA_OTP>
 9. 필요 시 scripts/ops/argocd-port-forward.sh 실행
 ```
 
+ArgoCD Helm release가 이미 `deployed` 상태이고 chart version이 같으면 bootstrap playbook은 Helm upgrade를 건너뛴다. 강제 재적용은 아래처럼 실행한다.
+
+```bash
+FORCE_ARGOCD_UPGRADE=true scripts/build/build-hub.sh
+```
+
 `scripts/hub/run-hub.sh` wrapper를 사용하면 build 이후 port-forward까지 이어서 foreground로 실행된다. 중지하려면 `Ctrl+C`를 사용한다.
 
 ## `destroy-hub.sh`

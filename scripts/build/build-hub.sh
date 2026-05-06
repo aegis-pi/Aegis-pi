@@ -13,9 +13,13 @@ source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/scripts/lib/terraform.sh"
 aegis_ensure_aws_mfa "${OTP}"
+FORCE_ARGOCD_UPGRADE="${FORCE_ARGOCD_UPGRADE:-false}"
 
 aegis_terraform_apply_root "${REPO_ROOT}/infra/hub"
 
 cd "${REPO_ROOT}/scripts/ansible"
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
+ansible-playbook \
+  -i inventory/hub_eks_dynamic.sh \
+  playbooks/hub_argocd_bootstrap.yml \
+  -e "argocd_force_upgrade=${FORCE_ARGOCD_UPGRADE}"
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml

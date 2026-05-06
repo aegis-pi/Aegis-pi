@@ -27,9 +27,33 @@
       register: argocd_helm_output
       changed_when: false
 
+    - name: Read risk normalizer service account annotation
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ risk_normalizer_service_account_namespace }}
+          get serviceaccount {{ risk_normalizer_service_account_name }}
+          -o json
+      register: risk_normalizer_service_account_json
+      changed_when: false
+
+    - name: Parse risk normalizer service account annotation
+      ansible.builtin.set_fact:
+        risk_normalizer_service_account_role_arn: >-
+          {{
+            (risk_normalizer_service_account_json.stdout | from_json)
+            .metadata.annotations['eks.amazonaws.com/role-arn']
+          }}
+
+    - name: Assert risk normalizer IRSA annotation
+      ansible.builtin.assert:
+        that:
+          - risk_normalizer_service_account_role_arn == risk_normalizer_irsa_role_arn
+        fail_msg: "risk-normalizer service account is not annotated with the expected IRSA role"
+
     - name: Print verification summary
       ansible.builtin.debug:
         msg:
           - "{{ hub_namespaces_output.stdout_lines }}"
           - "{{ argocd_pods_output.stdout_lines }}"
           - "{{ argocd_helm_output.stdout_lines }}"
+          - "risk-normalizer IRSA role: {{ risk_normalizer_service_account_role_arn }}"

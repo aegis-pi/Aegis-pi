@@ -30,6 +30,9 @@ cluster_name="$(jq -r '.cluster_name.value // empty' <<<"${terraform_output}")"
 aws_region="$(jq -r '.aws_region.value // empty' <<<"${terraform_output}")"
 cluster_endpoint="$(jq -r '.cluster_endpoint.value // empty' <<<"${terraform_output}")"
 update_kubeconfig_command="$(jq -r '.update_kubeconfig_command.value // empty' <<<"${terraform_output}")"
+risk_normalizer_irsa_role_arn="$(jq -r '.risk_normalizer_irsa_role_arn.value // empty' <<<"${terraform_output}")"
+risk_normalizer_service_account_namespace="$(jq -r '.risk_normalizer_service_account.value.namespace // empty' <<<"${terraform_output}")"
+risk_normalizer_service_account_name="$(jq -r '.risk_normalizer_service_account.value.name // empty' <<<"${terraform_output}")"
 
 if [[ -z "${cluster_name}" || -z "${aws_region}" ]]; then
   if [[ "${HUB_EKS_ALLOW_DEFAULTS:-false}" == "true" ]]; then
@@ -48,6 +51,9 @@ jq -n \
   --arg aws_region "${aws_region}" \
   --arg cluster_endpoint "${cluster_endpoint}" \
   --arg update_kubeconfig_command "${update_kubeconfig_command}" \
+  --arg risk_normalizer_irsa_role_arn "${risk_normalizer_irsa_role_arn}" \
+  --arg risk_normalizer_service_account_namespace "${risk_normalizer_service_account_namespace}" \
+  --arg risk_normalizer_service_account_name "${risk_normalizer_service_account_name}" \
   '{
     hub_eks: {
       hosts: ["localhost"],
@@ -56,7 +62,10 @@ jq -n \
         eks_cluster_name: $cluster_name,
         aws_region: $aws_region,
         eks_cluster_endpoint: $cluster_endpoint,
-        update_kubeconfig_command: $update_kubeconfig_command
+        update_kubeconfig_command: $update_kubeconfig_command,
+        risk_normalizer_irsa_role_arn: $risk_normalizer_irsa_role_arn,
+        risk_normalizer_service_account_namespace: $risk_normalizer_service_account_namespace,
+        risk_normalizer_service_account_name: $risk_normalizer_service_account_name
       }
     },
     _meta: {

@@ -64,6 +64,12 @@ Hub만:
 scripts/build/build-hub.sh
 ```
 
+Hub ArgoCD Helm release가 이미 `deployed` 상태이고 chart version이 같으면 `build-hub.sh`와 `build-all.sh`는 Helm upgrade를 건너뛴다. values 변경이나 강제 재적용이 필요하면 아래처럼 실행한다.
+
+```bash
+FORCE_ARGOCD_UPGRADE=true scripts/build/build-all.sh
+```
+
 IoT `factory-a`만:
 
 ```bash

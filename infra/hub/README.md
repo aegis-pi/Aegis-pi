@@ -2,7 +2,7 @@
 
 이 디렉터리는 Hub EKS를 실행하기 위한 AWS 네트워크와 클러스터 기준선을 관리한다.
 
-현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. Kubernetes namespace, LimitRange, ArgoCD 같은 클러스터 bootstrap 리소스는 Terraform이 아니라 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다.
+현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. EKS OIDC에 묶인 IRSA IAM Role/Policy는 Terraform으로 관리하고, Kubernetes namespace, LimitRange, ArgoCD, ServiceAccount annotation 같은 클러스터 bootstrap 리소스는 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다.
 
 전체 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 따른다. 이 디렉터리는 Terraform 기반 AWS 인프라만 담당한다.
 
@@ -31,6 +31,7 @@ infra/hub/
 ├── locals.tf
 ├── variables.tf
 ├── main.tf
+├── irsa_risk_normalizer.tf
 ├── outputs.tf
 └── terraform.tfvars.example
 ```
@@ -38,8 +39,8 @@ infra/hub/
 최소 분리 기준:
 
 ```text
-infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group
-scripts/ansible   kubeconfig, Kubernetes namespace, LimitRange, ArgoCD bootstrap
+infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group, EKS-bound IRSA IAM roles
+scripts/ansible   kubeconfig, Kubernetes namespace, LimitRange, ArgoCD bootstrap, ServiceAccount annotation
 infra/foundation  S3, ECR, AMP, IoT Core처럼 EKS destroy와 분리할 영속 리소스
 ```
 
@@ -116,6 +117,7 @@ AEGIS-[resource]-[feature]-[zone]
 | Private route table | `AEGIS-RouteTable-private-Czone` | `ap-south-1c` | NAT Czone route |
 | EKS cluster | `AEGIS-EKS` | - | Kubernetes `1.34` |
 | EKS node group | `AEGIS-EKS-node` | private A/C | `t3.medium`, desired `2` |
+| IRSA role | `AEGIS-IAMRole-IRSA-risk-normalizer` | - | `risk/risk-normalizer` S3 access |
 
 ## Hub Bootstrap 기준
 
@@ -128,6 +130,29 @@ Issue 2~3 기준 Hub namespace와 ArgoCD는 Ansible local bootstrap으로 관리
 | `risk` | Risk Score Engine, 정규화 서비스 | `scripts/ansible/files/hub-bootstrap.yaml` |
 | `ops-support` | `pipeline_status` 집계 보조 기능 | `scripts/ansible/files/hub-bootstrap.yaml` |
 
+`risk/risk-normalizer` ServiceAccount는 Hub bootstrap playbook이 생성하고 Terraform output의 IRSA role ARN으로 annotation한다.
+
+IRSA 권한 범위:
+
+```text
+role: AEGIS-IAMRole-IRSA-risk-normalizer
+service account: risk/risk-normalizer
+raw/factory-a/*: read only
+processed/*: write
+latest/factory-a/*: write
+delete: not allowed
+raw write: not allowed
+```
+
+검증 결과:
+
+```text
+assumed role: arn:aws:sts::611058323802:assumed-role/AEGIS-IAMRole-IRSA-risk-normalizer/botocore-session-1778033798
+raw read: s3://aegis-bucket-data/raw/factory-a/
+latest write: s3://aegis-bucket-data/latest/factory-a/irsa-test.json
+raw write denied: s3://aegis-bucket-data/raw/factory-a/irsa-denied.txt
+```
+
 검증:
 
 ```bash
@@ -137,20 +162,20 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
 
 ## 현재 AWS 상태
 
-2026-05-04 기준 Hub 인프라는 `scripts/build/build-all.sh` 실행으로 생성/검증한 뒤 `DESTROY_FOUNDATION=true scripts/destroy/destroy-all.sh`로 삭제했다. Kubernetes namespace와 ArgoCD는 EKS 내부 리소스라 EKS destroy와 함께 제거됐다.
+2026-05-06 기준 Hub 인프라는 `scripts/build/build-all.sh` 실행으로 생성했고, IRSA Role/Policy와 `risk/risk-normalizer` ServiceAccount annotation까지 검증했다. Kubernetes namespace, ArgoCD, ServiceAccount는 EKS 내부 리소스라 EKS destroy와 함께 제거된다. IRSA IAM Role/Policy는 `infra/hub` Terraform state에 있으므로 `scripts/destroy/destroy-hub.sh` 실행 시 함께 제거된다.
 
 | 항목 | 값 |
 | --- | --- |
-| Terraform destroy result | `infra/hub 56 destroyed` |
-| Terraform state | empty |
-| Cluster | 삭제됨 (`AEGIS-EKS`) |
+| Terraform state | active |
+| Cluster | active (`AEGIS-EKS`) |
 | Kubernetes version | `1.34` |
-| VPC | 삭제됨 (`vpc-0f5ce54353ff2e3ac`) |
-| Public subnets | 삭제됨 |
-| Private subnets | 삭제됨 |
-| Node group | 삭제됨 (`AEGIS-EKS-node`) |
-| Hub namespaces | 삭제됨 |
-| ArgoCD | 삭제됨 |
+| VPC | active (`vpc-072af07bfcd7b4ca0`) |
+| Public subnets | active |
+| Private subnets | active |
+| Node group | active (`AEGIS-EKS-node`) |
+| Hub namespaces | active |
+| ArgoCD | deployed (`argo-cd-9.5.11`) |
+| IRSA role | active (`AEGIS-IAMRole-IRSA-risk-normalizer`) |
 
 검증:
 

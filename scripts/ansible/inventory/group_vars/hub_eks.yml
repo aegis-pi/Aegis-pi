@@ -22,3 +22,4 @@ argocd_server_service_type: ClusterIP
 argocd_local_port: 8080
 argocd_remote_port: 443
 argocd_print_initial_admin_password: false
+argocd_force_upgrade: false

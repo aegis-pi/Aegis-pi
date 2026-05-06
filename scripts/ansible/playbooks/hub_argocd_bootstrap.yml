@@ -36,16 +36,71 @@
       register: hub_bootstrap_apply
       changed_when: "'created' in hub_bootstrap_apply.stdout or 'configured' in hub_bootstrap_apply.stdout"
 
+    - name: Apply risk normalizer IRSA service account
+      ansible.builtin.shell: >-
+        kubectl -n {{ risk_normalizer_service_account_namespace }}
+        create serviceaccount {{ risk_normalizer_service_account_name }}
+        --dry-run=client -o yaml
+        | kubectl apply -f -
+      args:
+        executable: /bin/bash
+      register: risk_normalizer_service_account_apply
+      changed_when: "'created' in risk_normalizer_service_account_apply.stdout or 'configured' in risk_normalizer_service_account_apply.stdout"
+
+    - name: Annotate risk normalizer IRSA service account
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ risk_normalizer_service_account_namespace }}
+          annotate serviceaccount {{ risk_normalizer_service_account_name }}
+          eks.amazonaws.com/role-arn={{ risk_normalizer_irsa_role_arn }}
+          --overwrite
+      register: risk_normalizer_service_account_annotate
+      changed_when: "'annotated' in risk_normalizer_service_account_annotate.stdout"
+
+    - name: Read existing ArgoCD Helm release
+      ansible.builtin.command:
+        cmd: "helm list --namespace {{ argocd_namespace }} --filter '^{{ argocd_release_name }}$' --output json"
+      register: argocd_helm_release_list
+      changed_when: false
+
+    - name: Parse existing ArgoCD Helm release
+      ansible.builtin.set_fact:
+        argocd_helm_releases: "{{ argocd_helm_release_list.stdout | from_json }}"
+
+    - name: Select existing ArgoCD Helm release
+      ansible.builtin.set_fact:
+        argocd_helm_release: "{{ (argocd_helm_releases | first) if (argocd_helm_releases | length > 0) else {} }}"
+
+    - name: Decide whether ArgoCD Helm apply is needed
+      ansible.builtin.set_fact:
+        argocd_helm_apply_required: >-
+          {{
+            argocd_force_upgrade | bool
+            or argocd_helm_release | length == 0
+            or (argocd_helm_release.status | default('')) != 'deployed'
+            or (argocd_helm_release.chart | default('')) != ('argo-cd-' ~ argocd_chart_version)
+          }}
+
+    - name: Show ArgoCD Helm apply decision
+      ansible.builtin.debug:
+        msg: >-
+          ArgoCD Helm apply required={{ argocd_helm_apply_required }};
+          force={{ argocd_force_upgrade | bool }};
+          installed={{ argocd_helm_release.chart | default('none') }};
+          status={{ argocd_helm_release.status | default('none') }}
+
     - name: Add or update ArgoCD Helm repository
       ansible.builtin.command:
         cmd: "helm repo add {{ argocd_helm_repo_name }} {{ argocd_helm_repo_url }} --force-update"
       register: argocd_repo_add
       changed_when: "'has been added' in argocd_repo_add.stdout or 'has been updated' in argocd_repo_add.stdout"
+      when: argocd_helm_apply_required | bool
 
     - name: Update Helm repositories
       ansible.builtin.command:
         cmd: helm repo update
       changed_when: true
+      when: argocd_helm_apply_required | bool
 
     - name: Install or upgrade Hub ArgoCD
       ansible.builtin.command:
@@ -58,6 +113,7 @@
           --timeout 10m
       register: argocd_helm_apply
       changed_when: "'Release' in argocd_helm_apply.stdout"
+      when: argocd_helm_apply_required | bool
 
     - name: Wait for argocd-server deployment
       ansible.builtin.command:

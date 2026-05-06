@@ -85,3 +85,27 @@ variable "node_max_size" {
   type        = number
   default     = 2
 }
+
+variable "data_bucket_name" {
+  description = "S3 bucket name used by Hub workloads."
+  type        = string
+  default     = "aegis-bucket-data"
+}
+
+variable "risk_factory_id" {
+  description = "Factory ID whose raw/latest prefixes are accessible to the risk normalizer."
+  type        = string
+  default     = "factory-a"
+}
+
+variable "risk_normalizer_namespace" {
+  description = "Kubernetes namespace for the risk normalizer service account."
+  type        = string
+  default     = "risk"
+}
+
+variable "risk_normalizer_service_account" {
+  description = "Kubernetes service account name used by the risk normalizer workload."
+  type        = string
+  default     = "risk-normalizer"
+}
