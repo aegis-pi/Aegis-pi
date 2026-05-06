@@ -22,6 +22,8 @@
 | `13_hub_namespace_baseline.md` | Hub EKS namespace 기준 |
 | `14_hub_run_commands.md` | Hub 실행 및 ArgoCD 초기 비밀번호 확인 명령어 |
 | `15_aws_cost_baseline.md` | AWS Hub 시간당 비용 기준과 갱신 규칙 |
+| `18_factory_b_mac_utm_k3s.md` | Mac UTM 기반 `factory-b` 테스트베드 K3s 구성 사전 |
+| `19_factory_c_windows_virtualbox_k3s.md` | Windows VirtualBox 기반 `factory-c` 테스트베드 K3s 구성 사전 |
 
 ## 기준
 
