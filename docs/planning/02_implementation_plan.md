@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-05-04
+기준일: 2026-05-06
 
 ## 목적
 
@@ -11,13 +11,14 @@
 
 - Phase 0 문서 기준선 정리는 완료 상태로 유지 보수 중이다.
 - Phase 1 M0 `factory-a` Safe-Edge 기준선은 구축 및 실측 검증까지 완료됐다.
-- Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace, Hub ArgoCD, foundation S3, `factory-a` IoT Thing/Policy/K3s Secret까지 진행했다.
-- 현재 Hub AWS 리소스와 foundation S3는 2026-05-04 전체 destroy로 삭제된 상태다.
-- 현재 다음 단계는 필요 시 Hub/foundation/IoT를 재생성한 뒤 IoT Rule을 만들어 IoT Core topic을 S3 `raw/` prefix로 적재하는 것이다.
+- Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace, Hub ArgoCD, foundation S3/AMP, `factory-a` IoT Thing/Policy/K3s Secret, IoT Rule -> S3 raw 적재, IRSA S3 권한, AMP remote_write 권한 검증까지 진행했다.
+- 현재 Hub AWS 리소스와 foundation S3/AMP는 2026-05-06 `build-all`로 재생성되어 active 상태다.
+- 현재 다음 단계는 M1 Issue 6A Dashboard VPC 외부 관리자 접근 설계 또는 Issue 7 Hub Prometheus/Agent 설치 및 AMP remote_write 실제 전송 검증이다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
 - AWS 인프라 작업 전 로컬 AWS CLI MFA 및 Terraform 접근 설정은 `docs/planning/08_aws_cli_mfa_terraform_access.md`를 따른다.
+- AWS 리소스 비용 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.
 
 ## 단계 계획
 
@@ -86,14 +87,19 @@
 - Hub namespace/LimitRange 기준선 검증 완료
 - Hub ArgoCD Ansible bootstrap 기준 전환 완료
 - Delivery ownership flow 확정: Terraform은 인프라, Ansible은 bootstrap/설정/소프트웨어, GitHub Actions는 CI, GitHub+ArgoCD는 CD
-- Hub EKS/ArgoCD 검증 후 destroy 완료
+- Hub EKS/ArgoCD 재생성 및 active 상태 검증 후 destroy 완료
 - 최소 책임 분리 완료: `infra/hub`, `scripts/ansible`, `infra/foundation`
 - Dashboard VPC / public authenticated ingress 설계
 - ArgoCD 설치 또는 중앙 ArgoCD 운영 기준 정리
 - S3 버킷 및 경로 파티셔닝 설계
-- IoT Core Thing / 인증서 / Policy / K3s Secret 생성 완료, IoT Rule은 다음 작업
+- IoT Core Thing / 인증서 / Policy / K3s Secret 생성 완료
+- IoT Rule -> S3 raw 적재 검증 완료
+- `risk/risk-normalizer` IRSA S3 read/write 권한 검증 완료
+- AMP Workspace 생성 완료
+- `observability/prometheus-agent` IRSA AMP remote_write 권한 검증 완료
+- AWS Hub 비용 기준 문서화 완료
 - latest status 저장소 후보 결정
-- AMP 또는 Hub 관측 기준
+- AMP Workspace 및 Hub 관측 기준
 - `runtime-config.yaml` 구조 초안
 
 완료 조건:
@@ -265,7 +271,7 @@ Hub 생성 순서:
 | --- | --- | --- |
 | Phase 0 | 완료 | 기준 문서 |
 | Phase 1 (M0) | 완료 | `factory-a` Safe-Edge 기준선 |
-| Phase 2 (M1) | 진행 중, Issue 0~4 완료, Issue 5 부분 완료 | Hub 핵심 서비스 |
+| Phase 2 (M1) | 진행 중, Issue 0~6 완료, Issue 6A/7 대기 | Hub 핵심 서비스 |
 | Phase 3 (M2) | 후속 | Mesh 기반 `factory-a` 연결 |
 | Phase 4 (M3) | 후속 | 배포 파이프라인 |
 | Phase 5 (M4) | 후속 | `factory-a` 중앙 데이터 플레인 |

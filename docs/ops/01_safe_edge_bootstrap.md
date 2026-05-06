@@ -228,4 +228,4 @@ AI snapshot hostPath와 cleanup 정상
 ## 후속 단계
 
 - M0 문서와 체크리스트를 실제 완료 상태로 갱신한다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3 bucket, `factory-a` IoT Thing/Policy/K3s Secret은 M1에서 검증 후 2026-05-04 전체 destroy로 삭제했다. `factory-b`, `factory-c`와 실제 IoT Core -> S3 데이터 플레인은 후속 확장 단계에서 진행한다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret, IRSA S3/AMP 권한은 M1에서 검증했고 2026-05-06 `build-all`로 재생성되어 active 상태다. `factory-b`, `factory-c`와 Hub Prometheus/Agent 실제 AMP remote_write는 후속 확장 단계에서 진행한다.

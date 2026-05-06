@@ -1,7 +1,7 @@
 # IoT Scripts
 
 상태: source of truth
-기준일: 2026-05-04
+기준일: 2026-05-06
 
 ## 목적
 
@@ -152,7 +152,7 @@ SOURCE_TYPE=system scripts/iot/publish-test-message.sh
 
 ## 정리 실행
 
-AWS IoT 리소스만 정리하고 local secret 파일은 보존한다.
+AWS IoT 리소스만 정리하고 local secret 파일은 보존한다. local certificate metadata가 있으면 그것을 우선 사용하고, 없으면 AWS IoT Thing principal과 IoT Policy target을 조회해 certificate를 detach/delete한다.
 
 ```bash
 scripts/iot/cleanup-thing.sh
@@ -174,7 +174,7 @@ DELETE_LOCAL_FILES=true scripts/iot/cleanup-thing.sh
 
 이 스크립트로 만든 IoT Thing, Policy, Certificate는 Terraform state에 없다. 따라서 `terraform destroy`로 삭제되지 않는다.
 
-삭제는 `cleanup-thing.sh`로 수행한다.
+삭제는 `cleanup-thing.sh`로 수행한다. `scripts/destroy/destroy-all.sh`는 foundation Terraform destroy 전에 이 cleanup을 먼저 실행한다.
 
 K3s Secret도 Terraform state에 없다. 필요하면 아래처럼 삭제한다.
 

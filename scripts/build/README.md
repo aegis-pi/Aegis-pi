@@ -1,7 +1,7 @@
 # Build Scripts
 
 상태: source of truth
-기준일: 2026-05-04
+기준일: 2026-05-06
 
 ## 목적
 
@@ -14,7 +14,7 @@
 ```text
 1. foundation
    - infra/foundation Terraform apply
-   - S3 data bucket 같은 영속 리소스
+   - S3 data bucket, AMP Workspace, IoT Rule 같은 영속 리소스
 
 2. hub
    - infra/hub Terraform apply
@@ -89,6 +89,7 @@ BUILD_FOUNDATION=false BUILD_HUB=false scripts/build/build-all.sh
 ## 주의
 
 - `build-all.sh`는 Hub EKS와 NAT Gateway를 생성할 수 있어 비용이 발생한다.
+- 전체 생성 범위에 대응하는 전체 삭제는 `scripts/destroy/destroy-all.sh`로 실행한다.
 - ArgoCD UI port-forward는 장기 실행 프로세스이므로 전체 build에는 포함하지 않는다.
 - UI 접속은 별도로 `scripts/ops/argocd-port-forward.sh`를 실행한다.
 - 인증서/private key 출력은 `secret/`에만 저장되고 Git에는 들어가지 않는다.

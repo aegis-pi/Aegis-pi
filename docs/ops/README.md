@@ -21,8 +21,10 @@
 | `12_iot_core_thing_secret_mount.md` | IoT Core Thing 등록과 K3s Secret mount 절차 |
 | `13_hub_namespace_baseline.md` | Hub EKS namespace 기준 |
 | `14_hub_run_commands.md` | Hub 실행 및 ArgoCD 초기 비밀번호 확인 명령어 |
+| `15_aws_cost_baseline.md` | AWS Hub 시간당 비용 기준과 갱신 규칙 |
 
 ## 기준
 
 - 현재 실제 운영 절차는 이 디렉터리의 문서를 우선한다.
 - 비밀번호, token, private key, certificate 원문은 문서에 기록하지 않는다.
+- AWS 리소스, 상시 실행 컴포넌트, 저장소, 네트워크 경로가 추가되면 `15_aws_cost_baseline.md`의 비용 기준을 함께 갱신한다.

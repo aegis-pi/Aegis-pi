@@ -13,7 +13,7 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | 경로 | 내용 |
 | --- | --- |
 | `build/build-all.sh` | foundation, hub, IoT/K3s Secret 생성 순서 실행 |
-| `destroy/destroy-all.sh` | IoT/K3s Secret, hub 삭제 순서 실행. foundation은 명시 플래그 필요 |
+| `destroy/destroy-all.sh` | IoT/K3s Secret, hub, foundation 전체 삭제 순서 실행 |
 | `hub/run-hub.sh` | `build/build-hub.sh` 실행 후 ArgoCD port-forward까지 연결하는 호환 wrapper |
 | `hub/destroy-hub.sh` | `destroy/destroy-hub.sh`를 호출하는 호환 wrapper |
 | `ops/argocd-initial-password.sh` | MFA 세션 확인 후 Hub ArgoCD 초기 admin 비밀번호 조회 |

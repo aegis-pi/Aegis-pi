@@ -6,10 +6,13 @@ Safe-Edge 반복 점검과 Hub EKS bootstrap 자동화를 관리한다.
 
 Hub EKS의 ArgoCD bootstrap은 SSH를 사용하지 않는다. Ansible은 `localhost`에서 실행되고, `infra/hub` Terraform output을 dynamic inventory로 읽은 뒤 EKS Kubernetes API에 접근한다.
 
+현재 bootstrap은 namespace/LimitRange, ArgoCD Helm release, `risk/risk-normalizer` IRSA ServiceAccount, `observability/prometheus-agent` AMP remote_write IRSA ServiceAccount를 적용한다.
+
 선행 조건:
 
 - AWS MFA 세션이 현재 shell에 설정되어 있음
 - `infra/hub` Terraform apply가 완료되어 output을 조회할 수 있음
+- `infra/foundation` Terraform apply가 완료되어 AMP/S3/IoT Rule output을 조회할 수 있음
 - `aws`, `kubectl`, `helm`, `terraform`, `jq`, `ansible-playbook` 사용 가능
 
 실행:

@@ -7,8 +7,8 @@
 | 파일 | 내용 |
 | --- | --- |
 | `02_start_test.yml` | master에 접속해 K3s, MetalLB, Longhorn, ArgoCD, monitoring, ai-apps 상태를 검증하고 evidence를 생성 |
-| `hub_argocd_bootstrap.yml` | Hub EKS kubeconfig 갱신, namespace/LimitRange 적용, ArgoCD Helm 설치/업그레이드, Ready 검증 |
-| `hub_argocd_verify.yml` | Hub namespace, ArgoCD pod, Helm release 상태 확인 |
+| `hub_argocd_bootstrap.yml` | Hub EKS kubeconfig 갱신, namespace/LimitRange 적용, IRSA ServiceAccount 적용, ArgoCD Helm 설치/업그레이드, Ready 검증 |
+| `hub_argocd_verify.yml` | Hub namespace, ArgoCD pod, Helm release, IRSA ServiceAccount annotation 상태 확인 |
 
 ## 기준
 

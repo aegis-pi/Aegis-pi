@@ -1,7 +1,7 @@
 # 셀프 체크 가이드
 
 상태: source of truth
-기준일: 2026-05-04
+기준일: 2026-05-06
 
 ## 목적
 
@@ -12,7 +12,7 @@
 - `factory-a`는 3노드 K3s, ArgoCD, Helm, Longhorn, InfluxDB, Grafana 기준선 구성이 완료됐다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
 - ArgoCD repository 등록과 sync 조작은 UI에서 수행한다.
-- Hub EKS/ArgoCD, foundation S3, `factory-a` IoT Thing/Policy/K3s Secret은 검증 후 2026-05-04 전체 destroy로 삭제된 상태다. `factory-b`, `factory-c`, IoT Rule -> S3 데이터 플레인, Risk Twin은 후속 단계다.
+- Hub EKS/ArgoCD, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret은 2026-05-06 기준 `build-all`로 재생성되어 active 상태다. `factory-b`, `factory-c`, Hub Prometheus/Agent 실제 remote_write, Risk Twin은 후속 단계다.
 
 ## 범위
 
@@ -111,7 +111,7 @@ Grafana는 `http://10.10.10.202`에서 확인한다.
 
 아래 항목은 아직 현재 완료 범위가 아니다. Hub와 `factory-a` 기준선이 안정적으로 유지된 뒤 진행한다.
 
-- IoT Rule -> S3 raw prefix 적재
+- Hub Prometheus/Agent 실제 AMP remote_write 적재
 - Tailscale 기반 Hub-Spoke 연결
 - GitHub Actions/ECR 이미지 빌드 파이프라인
 - `factory-b`, `factory-c` 테스트베드형 Spoke

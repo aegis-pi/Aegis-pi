@@ -8,12 +8,27 @@
 
 - S3 데이터 버킷: `aegis-bucket-data`
 - IoT Rule -> S3 raw 적재: `AEGIS_IoTRule_factory_a_raw_s3`
+- AMP Workspace: `AEGIS-AMP-hub`
 
 ## 후속 후보 리소스
 
 - ECR 이미지 저장소
-- AMP workspace
 - IoT Core Thing, 인증서
+
+## AMP Workspace 기준
+
+```text
+alias: AEGIS-AMP-hub
+workspace id: ws-6a8853dc-0eb4-43e7-9b97-efade5b75765
+workspace arn: arn:aws:aps:ap-south-1:611058323802:workspace/ws-6a8853dc-0eb4-43e7-9b97-efade5b75765
+prometheus endpoint: https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-6a8853dc-0eb4-43e7-9b97-efade5b75765/
+remote_write endpoint: https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-6a8853dc-0eb4-43e7-9b97-efade5b75765/api/v1/remote_write
+terraform apply: 10 added, 0 changed, 0 destroyed
+```
+
+AMP Workspace는 `infra/foundation`에서 관리한다. Hub EKS를 비용 절감을 위해 destroy/recreate해도 메트릭 저장소의 생명주기를 EKS와 분리하기 위해서다.
+
+Prometheus/Agent가 이 Workspace로 remote_write할 IAM/IRSA Role은 EKS OIDC provider에 묶이므로 `infra/hub`에서 관리한다.
 
 ## S3 데이터 버킷 기준
 
@@ -23,7 +38,8 @@ region: ap-south-1
 versioning: enabled
 encryption: SSE-S3 (AES256)
 public access block: enabled
-terraform apply: 6 added, 0 changed, 0 destroyed
+force destroy: enabled for MVP teardown
+terraform apply: 10 added, 0 changed, 0 destroyed
 ```
 
 Prefix 기준:
@@ -71,6 +87,12 @@ test object: raw/factory-a/sensor/yyyy=2026/mm=05/dd=06/manual-20260506T014423Z-
 
 Public access block은 켠다. 다른 VPC 또는 EKS workload가 접근해야 할 때도 S3를 public으로 열지 않고 IAM Role, S3 VPC Endpoint, bucket policy로 접근시킨다.
 
+## Destroy 기준
+
+MVP 환경에서는 `scripts/destroy/destroy-all.sh`가 비용 누수를 남기지 않도록 `data_bucket_force_destroy=true`를 기본값으로 둔다. 따라서 IoT Rule 테스트 객체와 versioned object가 남아 있어도 foundation destroy 시 버킷 내부 객체와 버전을 함께 삭제한다.
+
+데이터 보존이 필요한 운영 환경으로 전환하면 `data_bucket_force_destroy=false`로 바꾸고, 별도 백업/반출 절차를 만든 뒤 foundation을 삭제한다.
+
 ## 실행
 
 ```bash
@@ -110,4 +132,7 @@ RestrictPublicBuckets true
 
 aws s3api get-bucket-encryption:
 SSEAlgorithm AES256
+
+terraform output amp_workspace_id:
+ws-6a8853dc-0eb4-43e7-9b97-efade5b75765
 ```

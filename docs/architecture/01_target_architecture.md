@@ -139,7 +139,7 @@ risk
 ops-support
 ```
 
-이 namespace 기준선은 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다. Hub EKS 자체는 `infra/hub`, S3/ECR/AMP/IoT Core 같은 영속 리소스는 `infra/foundation` root에서 분리 관리한다.
+이 namespace 기준선은 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다. Hub EKS 자체는 `infra/hub`, S3/AMP/IoT Rule 같은 영속 리소스는 `infra/foundation` root에서 분리 관리한다. ECR은 후속 이미지 파이프라인 단계에서 추가한다.
 
 역할:
 

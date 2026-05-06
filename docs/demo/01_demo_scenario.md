@@ -1,7 +1,7 @@
 # 데모 시나리오
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-05-06
 
 ## 목적
 
@@ -17,7 +17,7 @@ Longhorn storage 확인
 worker2 장애 -> worker1 failover -> worker2 failback 확인
 ```
 
-AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, Foundation S3 bucket, `factory-a` IoT Thing/Policy/K3s Secret은 검증 후 2026-05-04 전체 destroy로 삭제했다. `factory-b`, `factory-c`, IoT Core -> S3 데이터 플레인, Risk Twin 통합 화면은 후속 데모다.
+AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, Foundation S3 bucket, AMP Workspace, IoT Rule -> S3 raw 적재, `factory-a` IoT Thing/Policy/K3s Secret, Hub IRSA S3/AMP 권한은 2026-05-06 기준 `build-all`로 재생성했고 active 상태를 확인했다. `factory-b`, `factory-c`, Hub Prometheus/Agent 실제 remote_write, Risk Twin 통합 화면은 후속 데모다.
 
 ## 데모 순서
 

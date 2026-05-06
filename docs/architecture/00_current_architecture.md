@@ -1,7 +1,7 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-05-04
+기준일: 2026-05-06
 
 ## 목적
 
@@ -10,10 +10,10 @@
 ## 현재 상태
 
 - 현재 운영 중인 구현 범위는 `factory-a` 단일 운영형 Spoke와 M1 Hub EKS/ArgoCD 기준선이다.
-- AWS Hub는 M1 Issue 0~4에서 EKS/VPC/namespace/ArgoCD bootstrap과 foundation S3 기준선을 검증했고 2026-05-04 전체 destroy로 삭제했다.
-- M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록을 완료했다.
+- AWS Hub는 M1 Issue 0~6에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3/AMP 권한을 검증했고 2026-05-06 `build-all`로 재생성해 active 상태를 확인했다.
+- M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록, IoT Rule -> S3 raw 적재 검증을 완료했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
-- `factory-b`, `factory-c`, IoT Rule -> S3 적재, ECR, GitHub Actions, Tailscale은 아직 구축 전이다.
+- `factory-b`, `factory-c`, Hub Prometheus/Agent 실제 remote_write, ECR, GitHub Actions, Dashboard VPC, Tailscale은 아직 구축 전이다.
 - 이 문서는 현재 동작 중인 로컬 기준선과 active Hub 기준선을 함께 기록한다.
 
 ## 물리 / 클러스터 구조
@@ -86,21 +86,21 @@ safe-edge-ai-apps
 
 ## 현재 Hub 상태
 
-M1 Hub 기준선은 Terraform과 Ansible로 생성/검증했으며 2026-05-04 전체 destroy로 AWS에서 삭제했다.
+M1 Hub 기준선은 Terraform과 Ansible로 생성/검증했으며 2026-05-06 `build-all` 실행 후 AWS에서 active 상태다.
 
 ```text
-AWS actual state: Hub EKS deleted, ArgoCD deleted, foundation S3 deleted
-EKS: AEGIS-EKS active
+AWS actual state: Hub EKS active, ArgoCD deployed, foundation S3/AMP/IoT active
+EKS: AEGIS-EKS active after build-all
 VPC CIDR: 10.0.0.0/16 active
 AZ: ap-south-1a, ap-south-1c
-Hub namespaces: argocd, observability, risk, ops-support active
+Hub namespaces: active after Ansible bootstrap
 ```
 
 Terraform root:
 
 ```text
 infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group
-infra/foundation  S3 data bucket active, ECR/AMP/IoT Core 등 후속 영속 리소스
+infra/foundation  S3/AMP/IoT Rule active
 ```
 
 Hub Kubernetes bootstrap:

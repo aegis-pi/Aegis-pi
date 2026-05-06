@@ -41,7 +41,7 @@
 - [x] Issue 3 - [Hub/ArgoCD] ArgoCD 설치 (Spoke 등록 전 단계)
 - [x] Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계
 - [x] Issue 5 - [Hub/IoT Core] Thing / 인증서 / 규칙 구성
-- [ ] Issue 6 - [관제/AMP] AMP(Amazon Managed Prometheus) Workspace 생성 및 접근 권한 준비
+- [x] Issue 6 - [관제/AMP] AMP(Amazon Managed Prometheus) Workspace 생성 및 접근 권한 준비
 - [ ] Issue 6A - [관제/Dashboard VPC] 외부 관리자 접근 VPC 설계
 - [ ] Issue 7 - [관제/Prometheus] Hub Prometheus 설치 및 AMP remote_write 구성
 - [ ] Issue 8 - [관제/Grafana] 내부 관측용 Grafana/AMP 데이터 소스 기준 결정

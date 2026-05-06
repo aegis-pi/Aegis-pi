@@ -1,7 +1,7 @@
 # 프로젝트 개요
 
 상태: source of truth
-기준일: 2026-05-04
+기준일: 2026-05-06
 
 ## 목적
 
@@ -9,12 +9,15 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 
 ## 현재 상태
 
-- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트, M1 Hub Issue 0~4, M1 Issue 5 IoT Thing/certificate/policy 및 K3s Secret 등록이다.
+- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트와 M1 Hub Issue 0~6이다.
 - `factory-a`는 로컬 K3s 3노드, ArgoCD, Helm, Longhorn, InfluxDB, Grafana, AI 앱 failover/failback 기준선을 갖는다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선과 foundation S3 bucket은 검증 후 2026-05-04 전체 destroy로 삭제했다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선과 foundation S3/AMP는 2026-05-06 `build-all`로 재생성되어 active 상태다.
+- M1 Issue 5에서 IoT Rule -> S3 raw 적재와 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다.
+- M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
-- `factory-b`, `factory-c`, IoT Rule -> S3 적재, Edge Agent, Risk Twin은 다음 확장 단계다.
+- 다음 작업은 M1 Issue 6A Dashboard VPC 외부 관리자 접근 설계 또는 Issue 7 Hub Prometheus/Agent 설치 및 AMP remote_write 실제 전송 검증이다.
+- `factory-b`, `factory-c`, Edge Agent, Risk Twin은 후속 확장 단계다.
 
 ## 프로젝트명
 
@@ -74,9 +77,11 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 | 이미지 prepull | 완료 | `safe-edge-image-prepull` DaemonSet |
 | InfluxDB 1일 보존 | 완료 | retention policy 기준 |
 | AI snapshot 1일 보존 | 완료 | `/app/snapshots` cleanup sidecar |
-| AWS Hub | 부분 완료 | M1 Issue 0~4 검증 완료, 현재 destroy 상태 |
-| Foundation S3 | 부분 완료 | `aegis-bucket-data` 검증 후 destroy, 재생성 후 IoT Rule/IRSA 연계 대기 |
-| IoT Core | 부분 완료 | `factory-a` Thing/certificate/policy 생성 및 K3s Secret 등록 완료, IoT Rule/S3 적재 대기 |
+| AWS Hub | 부분 완료 | M1 Issue 0~6 검증 완료, 현재 active 상태 |
+| Foundation S3 | 완료 | `aegis-bucket-data` 검증 후 삭제, IoT Rule raw 적재 검증 완료 |
+| AMP | 완료 | `AEGIS-AMP-hub` 검증 후 삭제, `observability/prometheus-agent` IRSA remote_write 권한 검증 완료 |
+| IoT Core | 완료 | `factory-a` Thing/certificate/policy, K3s Secret, IoT Rule/S3 적재 검증 후 삭제 |
+| AWS 비용 기준 | 완료 | `docs/ops/15_aws_cost_baseline.md`, destroy 이후 `$0.0000/hour` |
 | `factory-b`, `factory-c` | 후속 | 테스트베드형 Spoke |
 | Risk Twin | 후속 | M6 이후 |
 
@@ -95,7 +100,8 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 - Terraform / Ansible / GitHub Actions / ArgoCD 책임 경계 유지
 - Dashboard VPC 기반 관리자 관제 접근
 - GitHub Actions/ECR 이미지 빌드 파이프라인
-- IoT Core/S3 데이터 플레인
+- AMP Workspace 및 Hub Prometheus/Agent remote_write
+- Edge Agent 기반 IoT Core/S3 데이터 플레인 확장
 - `factory-b`, `factory-c` 테스트베드형 Spoke
 - Risk Twin 상태 카드와 공장별 위험도
 - LLM 기반 일일 보고서/후처리

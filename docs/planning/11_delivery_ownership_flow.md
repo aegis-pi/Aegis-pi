@@ -104,4 +104,5 @@ CD:
 - EKS 위에 설치되는 설정/소프트웨어인가? 그러면 Ansible bootstrap 또는 ArgoCD GitOps 대상인지 먼저 나눈다.
 - 빌드/테스트/이미지 push인가? 그러면 GitHub Actions로 구현한다.
 - 실제 배포 상태를 유지해야 하는 애플리케이션인가? 그러면 GitHub repository와 ArgoCD CD로 관리한다.
+- AWS 비용이 발생하는 리소스나 상시 실행 경로가 추가되는가? 그러면 `docs/ops/15_aws_cost_baseline.md`를 함께 갱신한다.
 - 어느 영역인지 애매하면 이 문서를 먼저 업데이트하거나 decision record를 추가한다.
