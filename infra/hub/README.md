@@ -2,7 +2,7 @@
 
 이 디렉터리는 Hub EKS를 실행하기 위한 AWS 네트워크와 클러스터 기준선을 관리한다.
 
-현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. EKS OIDC에 묶인 IRSA IAM Role/Policy는 Terraform으로 관리하고, Kubernetes namespace, LimitRange, ArgoCD, Prometheus Agent, Grafana, ServiceAccount annotation 같은 클러스터 bootstrap 리소스는 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다.
+현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. EKS OIDC에 묶인 IRSA IAM Role/Policy, Route53 Hosted Zone, ACM certificate는 Terraform으로 관리하고, Kubernetes namespace, LimitRange, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, ServiceAccount annotation, Admin Ingress 같은 클러스터 bootstrap 리소스는 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다.
 
 전체 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 따른다. 이 디렉터리는 Terraform 기반 AWS 인프라만 담당한다.
 
@@ -31,6 +31,9 @@ infra/hub/
 ├── locals.tf
 ├── variables.tf
 ├── main.tf
+├── admin_ui_dns.tf
+├── aws_load_balancer_controller_iam_policy.json
+├── irsa_aws_load_balancer_controller.tf
 ├── irsa_grafana_amp_query.tf
 ├── irsa_prometheus_remote_write.tf
 ├── irsa_risk_normalizer.tf
@@ -41,8 +44,8 @@ infra/hub/
 최소 분리 기준:
 
 ```text
-infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group, EKS-bound IRSA IAM roles
-scripts/ansible   kubeconfig, Kubernetes namespace, LimitRange, ArgoCD bootstrap, ServiceAccount annotation
+infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group, Route53/ACM, EKS-bound IRSA IAM roles
+scripts/ansible   kubeconfig, Kubernetes namespace, LimitRange, ArgoCD bootstrap, AWS Load Balancer Controller, Admin Ingress, ServiceAccount annotation
 infra/foundation  S3, ECR, AMP, IoT Core처럼 EKS destroy와 분리할 영속 리소스
 ```
 
@@ -135,10 +138,13 @@ AEGIS-[resource]-[feature]-[zone]
 | IRSA role | `AEGIS-IAMRole-IRSA-risk-normalizer` | - | `risk/risk-normalizer` S3 access |
 | IRSA role | `AEGIS-IAMRole-IRSA-prometheus-remote-write` | - | `observability/prometheus-agent` AMP remote_write |
 | IRSA role | `AEGIS-IAMRole-IRSA-grafana-amp-query` | - | `observability/grafana` AMP query |
+| IRSA role | `AEGIS-IAMRole-IRSA-aws-load-balancer-controller` | - | `kube-system/aws-load-balancer-controller` ALB management |
+| Route53 hosted zone | `minsoo-tech.cloud` | - | Admin UI DNS delegation |
+| ACM certificate | `minsoo-tech.cloud` + Admin UI SANs | `ap-south-1` | ALB HTTPS certificate |
 
 ## Hub Bootstrap 기준
 
-Issue 2~3/7/8 기준 Hub namespace, ArgoCD, Prometheus Agent, Grafana는 Ansible local bootstrap으로 관리한다. Ansible은 EC2 SSH가 아니라 로컬/CI에서 EKS Kubernetes API에 접근한다.
+Issue 2~3/7~10 기준 Hub namespace, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin Ingress는 Ansible local bootstrap으로 관리한다. Ansible은 EC2 SSH가 아니라 로컬/CI에서 EKS Kubernetes API에 접근한다.
 
 | Namespace | 역할 | 관리 위치 |
 | --- | --- | --- |
@@ -147,7 +153,7 @@ Issue 2~3/7/8 기준 Hub namespace, ArgoCD, Prometheus Agent, Grafana는 Ansible
 | `risk` | Risk Score Engine, 정규화 서비스 | `scripts/ansible/files/hub-bootstrap.yaml` |
 | `ops-support` | `pipeline_status` 집계 보조 기능 | `scripts/ansible/files/hub-bootstrap.yaml` |
 
-`risk/risk-normalizer`와 `observability/prometheus-agent` ServiceAccount는 Hub bootstrap playbook이 생성하고 Terraform output의 IRSA role ARN으로 annotation한다.
+`risk/risk-normalizer`, `observability/prometheus-agent`, `observability/grafana`, `kube-system/aws-load-balancer-controller` ServiceAccount는 Hub bootstrap playbook이 생성하거나 확인하고 Terraform output의 IRSA role ARN으로 annotation한다.
 
 IRSA 권한 범위:
 
@@ -195,7 +201,7 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
 
 ## 현재 AWS 상태
 
-2026-05-06 기준 Hub 인프라는 `scripts/build/build-all.sh` 실행으로 생성했고, IRSA Role/Policy와 `risk/risk-normalizer`, `observability/prometheus-agent` ServiceAccount annotation까지 검증했다. Kubernetes namespace, ArgoCD, ServiceAccount는 EKS 내부 리소스라 EKS destroy와 함께 제거된다. IRSA IAM Role/Policy는 `infra/hub` Terraform state에 있으므로 `scripts/destroy/destroy-hub.sh` 실행 시 함께 제거된다.
+2026-05-06 기준 Hub 인프라는 `scripts/build/build-hub.sh` 실행으로 갱신했고, IRSA Role/Policy와 `risk/risk-normalizer`, `observability/prometheus-agent`, `observability/grafana`, `kube-system/aws-load-balancer-controller` ServiceAccount annotation까지 검증했다. Kubernetes namespace, ArgoCD, Grafana, AWS Load Balancer Controller, ServiceAccount는 EKS 내부 리소스라 EKS destroy와 함께 제거된다. IRSA IAM Role/Policy, Route53 Hosted Zone, ACM certificate는 `infra/hub` Terraform state에 있으므로 `scripts/destroy/destroy-hub.sh` 실행 시 함께 제거된다.
 
 | 항목 | 값 |
 | --- | --- |
@@ -210,6 +216,11 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
 | ArgoCD | deployed (`argo-cd-9.5.11`) |
 | IRSA role | active (`AEGIS-IAMRole-IRSA-risk-normalizer`) |
 | Prometheus remote_write IRSA role | active (`AEGIS-IAMRole-IRSA-prometheus-remote-write`) |
+| Grafana AMP query IRSA role | active (`AEGIS-IAMRole-IRSA-grafana-amp-query`) |
+| AWS Load Balancer Controller | deployed (`aws-load-balancer-controller-1.14.0`, app `v2.14.0`, `2/2 Available`) |
+| Admin UI Route53 zone | active (`minsoo-tech.cloud`, `Z03975332EWIGUYGA3VRQ`) |
+| Admin UI ACM certificate | `ISSUED` |
+| Admin UI ALB | active (`aegis-admin-ui-1532265527.ap-south-1.elb.amazonaws.com`) |
 
 검증:
 
@@ -218,6 +229,7 @@ aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS
 kubectl get nodes
 kubectl cluster-info
 kubectl -n argocd get pods
+kubectl -n kube-system get deploy aws-load-balancer-controller
 ```
 
 `kubectl`은 프로젝트 로컬 도구 경로 `/home/vicbear/Aegis/.tools/bin/kubectl`에 `v1.34.7`로 설치했다.

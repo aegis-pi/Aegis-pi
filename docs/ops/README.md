@@ -27,6 +27,7 @@
 | `18_factory_b_mac_utm_k3s.md` | Mac UTM 기반 `factory-b` 테스트베드 K3s 구성 사전 |
 | `19_factory_c_windows_virtualbox_k3s.md` | Windows VirtualBox 기반 `factory-c` 테스트베드 K3s 구성 사전 |
 | `20_tailscale_hub_spoke_runbook.md` | Tailscale 기반 Hub-Spoke 연결 실행 절차 |
+| `21_hub_admin_ui_ingress.md` | ArgoCD/Grafana 관리자 HTTPS Ingress 운영 절차 |
 
 ## 기준
 

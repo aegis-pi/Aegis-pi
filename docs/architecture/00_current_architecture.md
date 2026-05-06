@@ -9,8 +9,8 @@
 
 ## 현재 상태
 
-- 현재 운영 중인 구현 범위는 `factory-a` 단일 운영형 Spoke와 M1 Hub EKS/ArgoCD/Prometheus Agent/Grafana 기준선이다.
-- AWS Hub는 M1 Issue 0~8에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3/AMP 권한, Prometheus Agent remote_write 수신, 내부 Grafana AMP datasource query를 검증했고 2026-05-06 `build-all`로 재생성해 active 상태를 확인했다.
+- 현재 운영 중인 구현 범위는 `factory-a` 단일 운영형 Spoke와 M1 Hub EKS/ArgoCD/Prometheus Agent/Grafana/Admin UI HTTPS 기준선이다.
+- AWS Hub는 M1 Issue 0~10에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3/AMP 권한, Prometheus Agent remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress를 검증했고 2026-05-06 `build-all --admin-ui` 및 `build-hub`로 active 상태를 확인했다.
 - M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록, IoT Rule -> S3 raw 적재 검증을 완료했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - `factory-b`, `factory-c`, ECR, GitHub Actions, Dashboard VPC, Tailscale은 아직 구축 전이다.
@@ -86,29 +86,30 @@ safe-edge-ai-apps
 
 ## 현재 Hub 상태
 
-M1 Hub 기준선은 Terraform과 Ansible로 생성/검증했으며 2026-05-06 `build-all` 실행 후 AWS에서 active 상태다.
+M1 Hub 기준선은 Terraform과 Ansible로 생성/검증했으며 2026-05-06 `build-all --admin-ui`와 `build-hub` 실행 후 AWS에서 active 상태다.
 
 ```text
-AWS actual state: Hub EKS active, ArgoCD, Prometheus Agent, and internal Grafana deployed, foundation S3/AMP/IoT active
+AWS actual state: Hub EKS active, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI ALB, foundation S3/AMP/IoT active
 EKS: AEGIS-EKS active after build-all
 VPC CIDR: 10.0.0.0/16 active
 AZ: ap-south-1a, ap-south-1c
 Hub namespaces: active after Ansible bootstrap
 Prometheus Agent: observability/prometheus-agent remote_writes to AMP
 Grafana: observability/grafana queries AMP through SigV4 + IRSA
+Admin UI: https://argocd.minsoo-tech.cloud and https://grafana.minsoo-tech.cloud through shared Public ALB
 ```
 
 Terraform root:
 
 ```text
-infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group
+infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group, Route53/ACM, IRSA
 infra/foundation  S3/AMP/IoT Rule active
 ```
 
 Hub Kubernetes bootstrap:
 
 ```text
-scripts/ansible  kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, Prometheus Agent remote_write, Grafana AMP datasource
+scripts/ansible  kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, Prometheus Agent remote_write, Grafana AMP datasource, AWS Load Balancer Controller, Admin UI Ingress
 ```
 
 ## 데이터 구조

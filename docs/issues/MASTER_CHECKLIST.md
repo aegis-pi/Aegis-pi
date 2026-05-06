@@ -46,8 +46,8 @@
 - [x] Issue 6 - [관제/AMP] AMP(Amazon Managed Prometheus) Workspace 생성 및 접근 권한 준비
 - [x] Issue 7 - [관제/Prometheus] Hub Prometheus 설치 및 AMP remote_write 구성
 - [x] Issue 8 - [관제/Grafana] 내부 관측용 Grafana/AMP 데이터 소스 기준 결정
-- [ ] Issue 9 - [Hub/Ingress] AWS Load Balancer Controller 준비
-- [ ] Issue 10 - [Hub/Admin UI] ArgoCD/Grafana HTTPS Admin Ingress 구성
+- [x] Issue 9 - [Hub/Ingress] AWS Load Balancer Controller 준비
+- [x] Issue 10 - [Hub/Admin UI] ArgoCD/Grafana HTTPS Admin Ingress 구성
 - [ ] Issue 11 - [Hub/Admin UI] 운영 보안 강화 백로그
 - [ ] Issue 12 - [Risk/Config] `runtime-config.yaml` 파일 구조 초안 작성
 

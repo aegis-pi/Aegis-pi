@@ -35,8 +35,8 @@
 | M1 | Issue 6 - 관제/AMP | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 7 - 관제/Prometheus | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 8 - 관제/Grafana | 완료 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 9 - Hub/Ingress | 대기 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 10 - Hub/Admin UI | 대기 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 9 - Hub/Ingress | 완료 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 10 - Hub/Admin UI | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 11 - Hub/Admin UI 보안 강화 | 보류 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 12 - Risk/Config | 대기 | `docs/issues/M1_hub-cloud.md` |
 | M2 | Issue 1 - Mesh/Tailscale 정책 | 부분 완료: 정책 문서화, Tailnet/Auth Key 실발급 대기 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
@@ -44,7 +44,7 @@
 현재 바로 이어서 할 이슈:
 
 ```text
-M1 Issue 9 - [Hub/Ingress] AWS Load Balancer Controller 준비
+M1 Issue 12 - [Risk/Config] `runtime-config.yaml` 파일 구조 초안 작성
 ```
 
 ## 현재 큰 상태
@@ -61,13 +61,13 @@ M1 Issue 9 - [Hub/Ingress] AWS Load Balancer Controller 준비
 완료: M1 Issue 6 AMP Workspace 생성, Prometheus remote_write IRSA 구성, EKS pod assume-role 검증 완료
 완료: M1 Issue 7 Hub Prometheus Agent 설치, remote_write 오류 로그 부재, AMP Query API `up{cluster="AEGIS-EKS"}` 수신 검증 완료
 완료: M1 Issue 8 내부 Grafana 설치, AMP datasource SigV4/IRSA query 검증 완료
-대기: M1 Issue 9 AWS Load Balancer Controller 준비
-대기: M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress 구성
+완료: M1 Issue 9 AWS Load Balancer Controller 준비
+완료: M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress 구성. Route53/ACM/Ingress/ALB와 HTTPS 검증 완료
 보류: M1 Issue 11 WAF/Cognito/OIDC 운영 보안 강화
 부분 완료: M2 Issue 1 Tailscale Tailnet/Auth Key 정책 문서화 완료, 실제 Tailnet 생성 및 Auth Key 발급 대기
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 상태: 2026-05-06 build-hub 재실행 완료. Hub EKS/ArgoCD/Prometheus Agent/Grafana/foundation S3/AMP/IoT/K3s Secret active 확인
+AWS 실제 리소스 상태: 2026-05-06 build-hub 재실행 완료. Hub EKS/ArgoCD/Prometheus Agent/Grafana/AWS Load Balancer Controller/Admin UI ALB/foundation S3/AMP/IoT/K3s Secret active 확인. Route53 Hosted Zone과 ACM certificate는 active이며 ACM은 `ISSUED`
 Terraform state: infra/hub active, infra/foundation active
 ```
 
@@ -94,8 +94,11 @@ Terraform state: infra/hub active, infra/foundation active
 
 - MVP에서는 관리자 외부 접근 검증을 위해 ArgoCD/Grafana를 Public ALB 1개와 HTTPS host 기반 Ingress로 노출하는 방향으로 재정렬했다.
 - ArgoCD와 Grafana는 계속 EKS 내부 Pod/Service로 실행하고, Kubernetes Service는 `ClusterIP`를 유지한다.
-- 최소 보호선은 HTTPS, 관리자 IP allowlist, ArgoCD/Grafana 자체 로그인이다.
+- 최소 보호선은 HTTPS, MVP 임시 허용 CIDR, ArgoCD/Grafana 자체 로그인이다.
 - WAF, Cognito, 외부 OIDC/SSO는 MVP 필수 범위에서 제외하고 운영 보안 강화 백로그인 M1 Issue 11로 분리했다.
+- 도메인은 `minsoo-tech.cloud` 기준으로 확정했다. Route53 Hosted Zone NS는 `ns-1079.awsdns-06.org`, `ns-1913.awsdns-47.co.uk`, `ns-7.awsdns-00.com`, `ns-872.awsdns-45.net`이다.
+- `scripts/build/build-hub.sh`는 Terraform apply 직후 `scripts/ops/admin-ui-nameservers.sh`를 실행해 `secret/admin-ui-nameservers.txt`를 갱신한다. Gabia에 입력할 NS는 재생성 후 이 파일을 다시 확인한다.
+- 현재 기본값은 `ADMIN_UI_INGRESS_ENABLED=false`지만, `scripts/build/build-all.sh --admin-ui`를 사용하면 기존 MFA/build 흐름 안에서 Admin UI Ingress까지 활성화한다. 2026-05-06에는 `ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh`로 shared ALB Ingress를 생성하고 HTTPS endpoint를 검증했다.
 
 ### AWS CLI MFA 및 Terraform 접근
 
@@ -299,9 +302,9 @@ secret exists, DATA=4
 
 ## 다음에 할 일
 
-### 1. 다음 시작 작업: M1 Issue 9 AWS Load Balancer Controller 준비
+### 1. 다음 시작 작업: M1 Issue 12 runtime-config.yaml 구조 초안
 
-M1 Issue 8 내부 Grafana 설치와 AMP datasource query 검증은 완료됐다. 다음 세션은 M1 Issue 9의 AWS Load Balancer Controller 준비로 이어간다. 이후 M1 Issue 10에서 ArgoCD/Grafana HTTPS Admin Ingress를 구성하고, `runtime-config.yaml` 구조 초안은 M1 Issue 12로 이동했다.
+M1 Issue 9 AWS Load Balancer Controller와 M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress는 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했고, 다음 세션은 M1 Issue 12 `runtime-config.yaml` 구조 초안으로 이어간다.
 
 현재 검증 완료 전제:
 
@@ -329,24 +332,22 @@ M1 Issue 8 내부 Grafana 설치와 AMP datasource query 검증은 완료됐다.
 - Grafana Service `ClusterIP`
 - Grafana datasource `AEGIS-AMP` / `aegis-amp` 검증 완료
 - Grafana API proxy `up{cluster="AEGIS-EKS"}` query 성공
+- AWS Load Balancer Controller `kube-system/aws-load-balancer-controller` 설치/검증 완료
+- ACM certificate `ISSUED`
+- Admin UI ALB `aegis-admin-ui-1532265527.ap-south-1.elb.amazonaws.com` active
+- ArgoCD HTTPS endpoint `https://argocd.minsoo-tech.cloud/` HTTP 200 검증 완료
+- Grafana HTTPS health endpoint `https://grafana.minsoo-tech.cloud/api/health` HTTP 200 검증 완료
 - EKS 내부 AWS CLI pod에서 `raw/factory-a/` read, `latest/factory-a/irsa-test.json` write 검증 완료
 - EKS 내부 AWS CLI pod에서 `raw/factory-a/irsa-denied.txt` write 거부 확인
 
 다음 구현 순서:
 
 ```text
-Issue 9:
-1. AWS Load Balancer Controller용 IAM policy와 IRSA role 구성
-2. controller Helm release 설치/검증
-3. public subnet ALB discovery tag 확인
-4. build-hub/build-all 재생성 흐름에 controller bootstrap/verify 연결
-5. destroy-hub/destroy-all에서 Ingress 생성 AWS 리소스 삭제 순서 확인
-
-Issue 10:
-1. Admin UI 도메인과 ACM certificate 기준 결정
-2. ArgoCD/Grafana host 기반 HTTPS Ingress 작성
-3. Public ALB 1개 공유와 관리자 IP allowlist 적용
-4. build/destroy 및 비용 문서 갱신
+Issue 12:
+1. spoke별/환경별 runtime-config.yaml 필드 초안 작성
+2. factory-a 실제 값과 Hub 연동 값을 기준으로 예시 작성
+3. Secret/private key/MFA/SSH password 같은 민감값 제외 기준 정리
+4. Terraform output, Ansible vars, Kubernetes Secret 사이 책임 경계 정리
 
 Issue 11:
 1. WAF/Cognito/OIDC는 MVP 이후 운영 보안 강화 백로그로 보류
@@ -385,7 +386,26 @@ cd /home/vicbear/Aegis/git_clone/Aegis-pi
 scripts/build/build-all.sh
 ```
 
+Admin UI까지 켜는 전체 생성은 아래 진입점을 사용한다.
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi
+scripts/build/build-all.sh --admin-ui
+```
+
 ArgoCD UI 접근:
+
+```text
+https://argocd.minsoo-tech.cloud
+```
+
+Grafana UI 접근:
+
+```text
+https://grafana.minsoo-tech.cloud
+```
+
+로컬 fallback 포트포워딩:
 
 ```bash
 /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ops/argocd-port-forward.sh
@@ -418,7 +438,7 @@ ArgoCD UI 접근:
   - `latest/factory-a/` write 허용
   - `raw/factory-a/` write 거부
 
-남은 내용: 없음. 다음 작업은 `M1 Issue 6 - [관제/AMP] AMP Workspace 생성 및 접근 권한 준비`다.
+남은 내용: 없음. 이후 M1 Issue 6~10은 완료됐고, 현재 다음 작업은 `M1 Issue 12 - [Risk/Config] runtime-config.yaml 파일 구조 초안 작성`이다.
 
 ### 4. ArgoCD 접근 전략 유지
 
@@ -470,7 +490,7 @@ scripts/destroy/destroy-hub.sh
 
 ## 문서 갱신 상태
 
-M1 Issue 4/5/6/7/8 완료, IoT Rule -> S3 raw 적재, `risk/risk-normalizer` IRSA 검증, AMP Workspace 생성, `observability/prometheus-agent` remote_write 수신 검증, 내부 Grafana AMP datasource query 검증, 현재 active AWS 상태, 다음 M1 Issue 9 작업 기준을 문서에 반영했다.
+M1 Issue 4/5/6/7/8/9/10 완료, IoT Rule -> S3 raw 적재, `risk/risk-normalizer` IRSA 검증, AMP Workspace 생성, `observability/prometheus-agent` remote_write 수신 검증, Grafana AMP datasource query 검증, AWS Load Balancer Controller, Admin UI HTTPS Ingress, 현재 active AWS 상태, 다음 M1 Issue 12 작업 기준을 문서에 반영했다.
 AWS 비용 기준은 `docs/ops/15_aws_cost_baseline.md`에 추가했고, AWS 리소스나 상시 운영 경로가 추가될 때 함께 갱신하는 규칙을 `docs/README.md`, `docs/ops/README.md`, `docs/planning/11_delivery_ownership_flow.md`에 반영했다.
 또한 앞으로의 구현 책임 경계를 Terraform, Ansible, GitHub Actions, GitHub+ArgoCD 흐름으로 고정하고 관련 문서를 최신화했다.
 
@@ -556,7 +576,7 @@ scripts/config/defaults.sh 추가: 환경별 기본값 source
 scripts/lib/aws-mfa.sh, scripts/lib/terraform.sh, scripts/lib/config.sh 추가
 scripts/ops/argocd-port-forward.sh, scripts/ops/argocd-initial-password.sh 추가
 AWS 비용 기준 문서 추가: docs/ops/15_aws_cost_baseline.md
-현재 build-all 이후 Hub active 고정 비용 기준: 0.3180 USD/hour
+현재 build-all --admin-ui 이후 Hub active 고정 비용 기준: 0.3606 USD/hour
 현재 active AEGIS EKS KMS key 1개 있음
 과거 EKS 재생성 key 포함 AEGIS KMS key 6개는 PendingDeletion 상태로 확인
 build/destroy 재점검 완료: destroy-all 기본 foundation 포함, S3 force_destroy enabled, IoT cleanup AWS discovery 보강
@@ -571,8 +591,9 @@ Grafana Service ClusterIP 확인
 Grafana datasource AEGIS-AMP / aegis-amp SigV4 설정 확인
 Grafana API proxy up{cluster="AEGIS-EKS"} query 성공
 scripts/build/build-hub.sh 전체 경로 통과 확인
-M1 Issue 9/10/11 재정렬 완료: AWS Load Balancer Controller, ArgoCD/Grafana HTTPS Admin Ingress, 운영 보안 강화 백로그
-다음 작업: M1 Issue 9 AWS Load Balancer Controller 준비
+M1 Issue 9/10 완료: AWS Load Balancer Controller, ArgoCD/Grafana HTTPS Admin Ingress
+M1 Issue 11 보류: 운영 보안 강화 백로그
+다음 작업: M1 Issue 12 runtime-config.yaml 구조 초안
 주의: scripts/ansible/playbooks/02_start_test.yml -> start_test.yml rename 상태는 별도 변경으로 남아 있음
 ```
 

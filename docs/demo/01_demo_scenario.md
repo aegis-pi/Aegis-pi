@@ -17,7 +17,7 @@ Longhorn storage 확인
 worker2 장애 -> worker1 failover -> worker2 failback 확인
 ```
 
-AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, Hub Prometheus Agent, 내부 Grafana/AMP datasource, Foundation S3 bucket, AMP Workspace, IoT Rule -> S3 raw 적재, `factory-a` IoT Thing/Policy/K3s Secret, Hub IRSA S3/AMP 권한은 2026-05-06 기준 `build-all`로 재생성했고 active 상태를 확인했다. `factory-b`, `factory-c`, Risk Twin 통합 화면은 후속 데모다.
+AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, Hub Prometheus Agent, Grafana/AMP datasource, AWS Load Balancer Controller, Admin UI HTTPS Ingress, Foundation S3 bucket, AMP Workspace, IoT Rule -> S3 raw 적재, `factory-a` IoT Thing/Policy/K3s Secret, Hub IRSA S3/AMP 권한은 2026-05-06 기준 `build-all --admin-ui`와 `build-hub`로 재생성/검증했고 active 상태를 확인했다. `factory-b`, `factory-c`, Risk Twin 통합 화면은 후속 데모다.
 
 ## 데모 순서
 

@@ -9,16 +9,18 @@
 
 ## 현재 상태
 
-- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선과 M1 Hub Issue 0~8이다.
+- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선과 M1 Hub Issue 0~10이다.
 - `factory-a`는 Raspberry Pi 3-node K3s 기반 운영형 Spoke다.
 - 2026-04-30 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
-- 2026-05-06 `build-all` 실행 후 AWS Hub EKS/VPC/NAT/EIP, foundation S3 bucket, AMP Workspace, IoT Rule, `factory-a` IoT/K3s Secret은 active 확인 상태다.
+- 2026-05-06 `build-all --admin-ui` 및 `build-hub` 실행 후 AWS Hub EKS/VPC/NAT/EIP, foundation S3 bucket, AMP Workspace, IoT Rule, Route53/ACM, AWS Load Balancer Controller, Admin UI ALB, `factory-a` IoT/K3s Secret은 active 확인 상태다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다.
 - M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 `up{cluster="AEGIS-EKS"}` 수신을 검증했다.
 - M1 Issue 8에서 내부 Grafana를 설치하고 AMP datasource를 SigV4 + IRSA로 검증했다.
-- 다음 작업은 M1 Issue 9 AWS Load Balancer Controller 준비와 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress 구성이다. `runtime-config.yaml` 구조 초안은 M1 Issue 12로 이동했다.
+- M1 Issue 9에서 AWS Load Balancer Controller를 설치하고 IRSA/subnet discovery 기준을 검증했다.
+- M1 Issue 10에서 `argocd.minsoo-tech.cloud`, `grafana.minsoo-tech.cloud` HTTPS Admin Ingress를 공유 Public ALB로 검증했다.
+- 다음 작업은 M1 Issue 12 `runtime-config.yaml` 구조 초안이다. M1 Issue 11 운영 보안 강화는 MVP 이후로 보류했다.
 - `factory-b`, `factory-c`, ECR, GitHub Actions CI, Tailscale은 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
@@ -52,8 +54,10 @@
 19. `ops/15_aws_cost_baseline.md`
 20. `ops/16_hub_prometheus_amp.md`
 21. `ops/17_hub_grafana_amp.md`
-22. `issues/M0_factory-a_safe-edge-baseline.md`
-23. `issues/M1_hub-cloud.md`
+22. `ops/20_tailscale_hub_spoke_runbook.md`
+23. `ops/21_hub_admin_ui_ingress.md`
+24. `issues/M0_factory-a_safe-edge-baseline.md`
+25. `issues/M1_hub-cloud.md`
 
 ## 문서 구조
 
@@ -85,7 +89,11 @@ docs/
 │   ├── 14_hub_run_commands.md
 │   ├── 15_aws_cost_baseline.md
 │   ├── 16_hub_prometheus_amp.md
-│   └── 17_hub_grafana_amp.md
+│   ├── 17_hub_grafana_amp.md
+│   ├── 18_factory_b_mac_utm_k3s.md
+│   ├── 19_factory_c_windows_virtualbox_k3s.md
+│   ├── 20_tailscale_hub_spoke_runbook.md
+│   └── 21_hub_admin_ui_ingress.md
 ├── architecture/
 ├── planning/
 │   ├── 00_project_overview.md
@@ -123,13 +131,15 @@ safe-edge-ai-apps revision: 8e9ae861d9e374e24edaba5efbe63c785292878a
 ## 현재 Hub 기준
 
 ```text
-AWS actual state: Hub/Foundation/IoT active after `scripts/build/build-all.sh`; historical KMS keys are `PendingDeletion`
+AWS actual state: Hub/Foundation/IoT/Admin UI active after `scripts/build/build-all.sh --admin-ui`; historical KMS keys are `PendingDeletion`
 Hub bootstrap roots:
-- infra/hub: VPC/EKS/node group
-- scripts/ansible: namespace/LimitRange/ArgoCD/Prometheus Agent/Grafana bootstrap
+- infra/hub: VPC/EKS/node group, Route53/ACM, IRSA
+- scripts/ansible: namespace/LimitRange/ArgoCD/Prometheus Agent/Grafana/AWS Load Balancer Controller/Admin UI Ingress bootstrap
 - infra/foundation: S3 data bucket, AMP Workspace, IoT Rule, and future durable resources
 Build entrypoint: scripts/build/build-all.sh
-Hub UI entrypoint: scripts/ops/argocd-port-forward.sh
+Admin UI build entrypoint: scripts/build/build-all.sh --admin-ui
+Hub UI entrypoint: https://argocd.minsoo-tech.cloud and https://grafana.minsoo-tech.cloud
+Local fallback UI entrypoint: scripts/ops/argocd-port-forward.sh, scripts/ops/grafana-port-forward.sh
 Hub destroy entrypoint: scripts/destroy/destroy-hub.sh
 Cost baseline: docs/ops/15_aws_cost_baseline.md
 Delivery flow: Terraform -> Ansible -> GitHub Actions CI -> GitHub/ArgoCD CD

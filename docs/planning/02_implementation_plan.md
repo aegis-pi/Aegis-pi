@@ -11,9 +11,9 @@
 
 - Phase 0 문서 기준선 정리는 완료 상태로 유지 보수 중이다.
 - Phase 1 M0 `factory-a` Safe-Edge 기준선은 구축 및 실측 검증까지 완료됐다.
-- Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace, Hub ArgoCD, foundation S3/AMP, `factory-a` IoT Thing/Policy/K3s Secret, IoT Rule -> S3 raw 적재, IRSA S3 권한, Hub Prometheus Agent 설치, AMP remote_write 수신, 내부 Grafana AMP datasource query 검증까지 진행했다.
-- 현재 Hub AWS 리소스와 foundation S3/AMP는 2026-05-06 `build-all`로 재생성되어 active 상태다.
-- 현재 다음 단계는 M1 Issue 9 `runtime-config.yaml` 파일 구조 초안 작성이다.
+- Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace, Hub ArgoCD, foundation S3/AMP, `factory-a` IoT Thing/Policy/K3s Secret, IoT Rule -> S3 raw 적재, IRSA S3 권한, Hub Prometheus Agent 설치, AMP remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Admin UI HTTPS Ingress 검증까지 진행했다.
+- 현재 Hub AWS 리소스와 foundation S3/AMP/Admin UI는 2026-05-06 `build-all --admin-ui`와 `build-hub`로 재생성/검증되어 active 상태다.
+- 현재 다음 단계는 M1 Issue 12 `runtime-config.yaml` 파일 구조 초안 작성이다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
@@ -273,7 +273,7 @@ Hub 생성 순서:
 | --- | --- | --- |
 | Phase 0 | 완료 | 기준 문서 |
 | Phase 1 (M0) | 완료 | `factory-a` Safe-Edge 기준선 |
-| Phase 2 (M1) | 진행 중, Issue 0~8 완료, Issue 9 대기 | Hub 핵심 서비스 |
+| Phase 2 (M1) | 진행 중, Issue 0~10 완료, Issue 11 보류, Issue 12 대기 | Hub 핵심 서비스 |
 | Phase 3 (M2) | 후속 | Mesh 기반 `factory-a` 연결 |
 | Phase 4 (M3) | 후속 | 배포 파이프라인 |
 | Phase 5 (M4) | 후속 | `factory-a` 중앙 데이터 플레인 |

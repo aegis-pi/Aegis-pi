@@ -4,7 +4,7 @@
 기준일: 2026-05-06
 
 > **마일스톤 목표**: Aegis-Pi 전체 구현의 출발점인 `factory-a` Raspberry Pi 3-node K3s Safe-Edge 기준선을 구축하고 검증한다.
-> 현재 M0의 핵심 기준선은 구축 및 장애 테스트까지 완료됐다. AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, `factory-a` IoT/K3s Secret은 M1에서 재생성/검증했고 2026-05-06 `build-all` 이후 active 상태이며, `factory-b`, `factory-c` 확장은 후속 단계다.
+> 현재 M0의 핵심 기준선은 구축 및 장애 테스트까지 완료됐다. AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a` IoT/K3s Secret은 M1에서 재생성/검증했고 2026-05-06 `build-all --admin-ui`와 `build-hub` 이후 active 상태이며, `factory-b`, `factory-c` 확장은 후속 단계다.
 
 ## 수정 이력
 

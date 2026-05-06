@@ -52,7 +52,7 @@ ops-support     Active
 
 각 namespace에 `default-limits` LimitRange가 생성되어 있다.
 
-2026-05-06 기준 Hub EKS는 `build-all`로 재생성되어 active 상태다. rebuild 시 `risk/risk-normalizer`와 `observability/prometheus-agent` ServiceAccount는 각각 S3 처리와 AMP remote_write용 IRSA role로 annotation된다.
+2026-05-06 기준 Hub EKS는 `build-all --admin-ui`와 `build-hub`로 재생성/검증되어 active 상태다. rebuild 시 `risk/risk-normalizer`와 `observability/prometheus-agent` ServiceAccount는 각각 S3 처리와 AMP remote_write용 IRSA role로 annotation된다.
 
 나중에 Hub EKS를 destroy/recreate하면 `scripts/build/build-hub.sh` 실행 시 Ansible bootstrap playbook이 `argocd`, `observability`, `risk`, `ops-support` namespace, `default-limits` LimitRange, IRSA ServiceAccount, Hub ArgoCD Helm release를 다시 생성한다.
 
@@ -64,7 +64,7 @@ Namespace: argocd
 Chart: argo-cd-9.5.11
 App version: v3.3.9
 Service type: ClusterIP
-UI access: kubectl -n argocd port-forward service/argocd-server 8080:443
+UI access: https://argocd.minsoo-tech.cloud, or kubectl port-forward for local fallback
 CLI path: /home/vicbear/Aegis/.tools/bin/argocd
 ```
 
@@ -77,11 +77,17 @@ kubectl -n argocd get secret argocd-initial-admin-secret
 kubectl -n argocd port-forward service/argocd-server 8080:443
 ```
 
-`https://127.0.0.1:8080`에서 HTTP 200 응답을 확인했다. 초기 admin 비밀번호 값은 문서에 기록하지 않는다.
+`https://argocd.minsoo-tech.cloud`와 `https://127.0.0.1:8080`에서 HTTP 200 응답을 확인했다. 초기 admin 비밀번호 값은 문서에 기록하지 않는다.
 
 ## ArgoCD 접근 전략
 
-현재 단계에서는 사용자 로컬 PC에 EKS kubeconfig를 설정하고 `kubectl port-forward`로 ArgoCD UI에 접근한다.
+현재 MVP 관리자 접근은 Admin UI HTTPS Ingress를 기본 경로로 사용한다.
+
+```text
+https://argocd.minsoo-tech.cloud
+```
+
+로컬 fallback이 필요하면 사용자 PC에 EKS kubeconfig를 설정하고 `kubectl port-forward`로 ArgoCD UI에 접근한다.
 
 ```bash
 aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS
@@ -98,7 +104,8 @@ https://127.0.0.1:8080
 
 - `argocd-server`는 `ClusterIP`로 유지한다.
 - public `LoadBalancer`는 만들지 않는다.
-- M2에서 Tailscale을 구성할 때 ArgoCD 접근 경로를 private access로 전환한다.
+- MVP 관리자 외부 접근은 shared Public ALB와 HTTPS Ingress로 제공한다.
+- 운영 보안 강화가 필요하면 M1 Issue 11에서 WAF/Cognito/OIDC 또는 IP 제한을 적용한다.
 - Tailscale 적용 후 EKS API endpoint public CIDR `0.0.0.0/0`를 축소한다.
 - ArgoCD 설정은 UI 클릭보다 Git/YAML/ApplicationSet으로 코드화한다.
 
