@@ -20,7 +20,8 @@
 - M1 Issue 8에서 내부 Grafana를 설치하고 AMP datasource를 SigV4 + IRSA로 검증했다.
 - M1 Issue 9에서 AWS Load Balancer Controller를 설치하고 IRSA/subnet discovery 기준을 검증했다.
 - M1 Issue 10에서 `argocd.minsoo-tech.cloud`, `grafana.minsoo-tech.cloud` HTTPS Admin Ingress를 공유 Public ALB로 검증했다.
-- 다음 작업은 M1 Issue 12 `runtime-config.yaml` 구조 초안이다. M1 Issue 11 운영 보안 강화는 MVP 이후로 보류했다.
+- M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
+- 다음 작업은 M2 Issue 1 Tailnet 생성 및 Spoke별 Auth Key 실발급이다. M1 Issue 11 운영 보안 강화는 MVP 이후로 보류했다.
 - `factory-b`, `factory-c`, ECR, GitHub Actions CI, Tailscale은 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.

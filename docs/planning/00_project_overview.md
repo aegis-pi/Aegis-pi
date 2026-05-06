@@ -20,7 +20,8 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - M1 Issue 9에서 AWS Load Balancer Controller를 설치하고 IRSA/subnet discovery 기준을 검증했다.
 - M1 Issue 10에서 ArgoCD/Grafana HTTPS Admin Ingress를 공유 Public ALB로 검증했다.
 - 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
-- 다음 작업은 M1 Issue 12 `runtime-config.yaml` 구조 초안이다. M1 Issue 11 운영 보안 강화는 MVP 이후로 보류했다.
+- M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
+- 다음 작업은 M2 Issue 1 Tailnet 생성 및 Spoke별 Auth Key 실발급이다. M1 Issue 11 운영 보안 강화는 MVP 이후로 보류했다.
 - `factory-b`, `factory-c`, Edge Agent, Risk Twin은 후속 확장 단계다.
 
 ## 프로젝트명
@@ -81,7 +82,7 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 | 이미지 prepull | 완료 | `safe-edge-image-prepull` DaemonSet |
 | InfluxDB 1일 보존 | 완료 | retention policy 기준 |
 | AI snapshot 1일 보존 | 완료 | `/app/snapshots` cleanup sidecar |
-| AWS Hub | 진행 중 | M1 Issue 0~10 검증 완료, 현재 active 상태, Issue 12 대기 |
+| AWS Hub | 진행 중 | M1 Issue 0~10/12 검증 완료, 현재 active 상태, Issue 11 보류 |
 | Foundation S3 | 완료 | `aegis-bucket-data` active, IoT Rule raw 적재 검증 완료 |
 | AMP/Grafana | 완료 | `AEGIS-AMP-hub` active, `observability/prometheus-agent` remote_write 수신, Grafana datasource query와 HTTPS Admin UI 검증 완료 |
 | IoT Core | 완료 | `factory-a` Thing/certificate/policy, K3s Secret, IoT Rule/S3 적재 검증 완료, 현재 active |

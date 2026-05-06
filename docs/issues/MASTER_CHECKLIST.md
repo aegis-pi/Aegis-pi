@@ -49,7 +49,7 @@
 - [x] Issue 9 - [Hub/Ingress] AWS Load Balancer Controller 준비
 - [x] Issue 10 - [Hub/Admin UI] ArgoCD/Grafana HTTPS Admin Ingress 구성
 - [ ] Issue 11 - [Hub/Admin UI] 운영 보안 강화 백로그
-- [ ] Issue 12 - [Risk/Config] `runtime-config.yaml` 파일 구조 초안 작성
+- [x] Issue 12 - [Risk/Config] `runtime-config.yaml` 파일 구조 초안 작성
 
 ## M2. Mesh VPN + Hub-Spoke 연결
 

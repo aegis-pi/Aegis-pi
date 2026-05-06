@@ -1,0 +1,229 @@
+metadata:
+  schema_version: 0.1.0
+  owner: aegis-pi
+  status: draft
+  updated_at: "2026-05-06"
+  description: Runtime field, risk weight, and factory dummy-data profile baseline.
+
+global:
+  risk_score:
+    max_total_weight: 100
+    note: Field weights with risk_enabled=true must sum to 100 or less.
+  fields:
+    temperature:
+      display: true
+      risk_enabled: true
+      weight: 15
+      unit: celsius
+    humidity:
+      display: true
+      risk_enabled: true
+      weight: 10
+      unit: percent
+    node_status:
+      display: true
+      risk_enabled: true
+      weight: 20
+      unit: status
+    pod_health:
+      display: true
+      risk_enabled: true
+      weight: 15
+      unit: status
+    data_freshness:
+      display: true
+      risk_enabled: true
+      weight: 15
+      unit: seconds
+    ai_event_rate:
+      display: true
+      risk_enabled: true
+      weight: 10
+      unit: events_per_hour
+    storage_pressure:
+      display: true
+      risk_enabled: true
+      weight: 10
+      unit: percent
+    network_reachability:
+      display: true
+      risk_enabled: true
+      weight: 5
+      unit: status
+    camera_snapshot:
+      display: true
+      risk_enabled: false
+      weight: 0
+      unit: image_reference
+    audio_level:
+      display: true
+      risk_enabled: false
+      weight: 0
+      unit: db
+
+  telemetry:
+    cloud_region: ap-south-1
+    s3_bucket: aegis-bucket-data
+    s3_prefixes:
+      raw: raw
+      processed: processed
+      latest: latest
+    iot_topic_root: aegis
+    amp_workspace_alias: AEGIS-AMP-hub
+    prometheus_cluster_label: AEGIS-EKS
+
+  dummy_data_defaults:
+    sample_interval_seconds: 10
+    publish_jitter_seconds: 2
+    missing_sample_probability: 0.01
+    pod_restart_probability: 0.01
+    network_loss_probability: 0.01
+    storage_pressure_percent:
+      baseline: 35
+      jitter: 10
+      warning_threshold: 75
+      critical_threshold: 90
+
+factories:
+  factory-a:
+    display_name: Factory A
+    status: active
+    spoke_type: production-edge
+    environment_type: raspberry-pi
+    input_module_type: real
+    cluster:
+      platform: k3s
+      topology: three-node
+      nodes:
+        - name: master
+          role: control-plane
+          address_hint: 10.10.10.10
+        - name: worker1
+          role: failover-standby
+          address_hint: 10.10.10.11
+        - name: worker2
+          role: sensor-ai-audio-preferred
+          address_hint: 10.10.10.12
+    workload_placement:
+      preferred_node: worker2
+      failover_node: worker1
+    telemetry:
+      iot_thing_name: AEGIS-IoTThing-factory-a
+      iot_topic_prefix: aegis/factory-a
+      s3_partition_prefix: factory-a
+      amp_cluster_label: AEGIS-EKS
+    fields: {}
+    dummy_data:
+      enabled: false
+
+  factory-b:
+    display_name: Factory B
+    status: planned
+    spoke_type: testbed
+    environment_type: vm-mac
+    input_module_type: dummy
+    cluster:
+      platform: k3s
+      topology: single-node
+      vm:
+        host: mac-mini
+        tool: UTM
+        guest_os: ubuntu-server-lts
+        cpu: 2
+        memory_gib: 4
+        disk_gib: 40
+        network_mode: shared-or-bridged
+      nodes:
+        - name: factory-b
+          role: single-node
+          labels:
+            aegis.factory-id: factory-b
+            aegis.environment-type: vm-mac
+            aegis.input-module-type: dummy
+            aegis.spoke-type: testbed
+    workload_placement:
+      preferred_node: factory-b
+      failover_node: null
+    telemetry:
+      iot_thing_name: AEGIS-IoTThing-factory-b
+      iot_topic_prefix: aegis/factory-b
+      s3_partition_prefix: factory-b
+      amp_cluster_label: factory-b
+    fields: {}
+    dummy_data:
+      enabled: true
+      profile: stable-lab
+      sample_interval_seconds: 10
+      temperature_celsius:
+        baseline: 24.5
+        jitter: 3.0
+        warning_threshold: 32.0
+        critical_threshold: 38.0
+      humidity_percent:
+        baseline: 45.0
+        jitter: 8.0
+        warning_threshold: 70.0
+        critical_threshold: 85.0
+      ai_event_rate_per_hour:
+        baseline: 2
+        anomaly_probability: 0.03
+      network_loss_probability: 0.01
+      pod_restart_probability: 0.01
+
+  factory-c:
+    display_name: Factory C
+    status: planned
+    spoke_type: testbed
+    environment_type: vm-windows
+    input_module_type: dummy
+    cluster:
+      platform: k3s
+      topology: single-node
+      vm:
+        host: windows
+        tool: VirtualBox
+        guest_os: ubuntu-server-lts
+        cpu: 2
+        memory_gib: 4
+        disk_gib: 40
+        network_mode: nat-or-bridged
+      nodes:
+        - name: factory-c
+          role: single-node
+          labels:
+            aegis.factory-id: factory-c
+            aegis.environment-type: vm-windows
+            aegis.input-module-type: dummy
+            aegis.spoke-type: testbed
+    workload_placement:
+      preferred_node: factory-c
+      failover_node: null
+    telemetry:
+      iot_thing_name: AEGIS-IoTThing-factory-c
+      iot_topic_prefix: aegis/factory-c
+      s3_partition_prefix: factory-c
+      amp_cluster_label: factory-c
+    fields:
+      network_reachability:
+        weight: 10
+      storage_pressure:
+        weight: 5
+    dummy_data:
+      enabled: true
+      profile: noisy-vm
+      sample_interval_seconds: 10
+      temperature_celsius:
+        baseline: 27.0
+        jitter: 4.0
+        warning_threshold: 33.0
+        critical_threshold: 39.0
+      humidity_percent:
+        baseline: 52.0
+        jitter: 10.0
+        warning_threshold: 72.0
+        critical_threshold: 88.0
+      ai_event_rate_per_hour:
+        baseline: 4
+        anomaly_probability: 0.06
+      network_loss_probability: 0.03
+      pod_restart_probability: 0.02

@@ -38,13 +38,13 @@
 | M1 | Issue 9 - Hub/Ingress | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 10 - Hub/Admin UI | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 11 - Hub/Admin UI 보안 강화 | 보류 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 12 - Risk/Config | 대기 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 12 - Risk/Config | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M2 | Issue 1 - Mesh/Tailscale 정책 | 부분 완료: 정책 문서화, Tailnet/Auth Key 실발급 대기 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
 
 현재 바로 이어서 할 이슈:
 
 ```text
-M1 Issue 12 - [Risk/Config] `runtime-config.yaml` 파일 구조 초안 작성
+M2 Issue 1 - [Mesh/Tailscale] Tailnet 생성 및 Spoke별 Auth Key 실발급
 ```
 
 ## 현재 큰 상태
@@ -64,6 +64,7 @@ M1 Issue 12 - [Risk/Config] `runtime-config.yaml` 파일 구조 초안 작성
 완료: M1 Issue 9 AWS Load Balancer Controller 준비
 완료: M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress 구성. Route53/ACM/Ingress/ALB와 HTTPS 검증 완료
 보류: M1 Issue 11 WAF/Cognito/OIDC 운영 보안 강화
+완료: M1 Issue 12 runtime-config.yaml 구조 초안과 VM dummy data 추천값 작성
 부분 완료: M2 Issue 1 Tailscale Tailnet/Auth Key 정책 문서화 완료, 실제 Tailnet 생성 및 Auth Key 발급 대기
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
@@ -302,9 +303,9 @@ secret exists, DATA=4
 
 ## 다음에 할 일
 
-### 1. 다음 시작 작업: M1 Issue 12 runtime-config.yaml 구조 초안
+### 1. 다음 시작 작업: M2 Issue 1 Tailnet 생성 및 Spoke별 Auth Key 실발급
 
-M1 Issue 9 AWS Load Balancer Controller와 M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress는 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했고, 다음 세션은 M1 Issue 12 `runtime-config.yaml` 구조 초안으로 이어간다.
+M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했고, 다음 세션은 M2 Issue 1의 실제 Tailnet 생성 및 Spoke별 Auth Key 발급으로 이어간다.
 
 현재 검증 완료 전제:
 
@@ -337,17 +338,20 @@ M1 Issue 9 AWS Load Balancer Controller와 M1 Issue 10 ArgoCD/Grafana HTTPS Admi
 - Admin UI ALB `aegis-admin-ui-1532265527.ap-south-1.elb.amazonaws.com` active
 - ArgoCD HTTPS endpoint `https://argocd.minsoo-tech.cloud/` HTTP 200 검증 완료
 - Grafana HTTPS health endpoint `https://grafana.minsoo-tech.cloud/api/health` HTTP 200 검증 완료
+- Runtime config `configs/runtime/runtime-config.yaml` 작성 완료
+- `factory-a` real input, `factory-b` Mac UTM dummy, `factory-c` Windows VirtualBox dummy profile 작성 완료
+- 전역 risk weight 합계 `100`
 - EKS 내부 AWS CLI pod에서 `raw/factory-a/` read, `latest/factory-a/irsa-test.json` write 검증 완료
 - EKS 내부 AWS CLI pod에서 `raw/factory-a/irsa-denied.txt` write 거부 확인
 
 다음 구현 순서:
 
 ```text
-Issue 12:
-1. spoke별/환경별 runtime-config.yaml 필드 초안 작성
-2. factory-a 실제 값과 Hub 연동 값을 기준으로 예시 작성
-3. Secret/private key/MFA/SSH password 같은 민감값 제외 기준 정리
-4. Terraform output, Ansible vars, Kubernetes Secret 사이 책임 경계 정리
+M2 Issue 1:
+1. Tailscale Admin Console에서 Aegis-Pi 전용 Tailnet 생성
+2. `factory-a`, `factory-b`, `factory-c`, `aegis-hub` 기준 Auth Key 발급
+3. secret 값은 Git/문서에 기록하지 않고 로컬 또는 Kubernetes Secret 후보 경로로만 관리
+4. `docs/ops/20_tailscale_hub_spoke_runbook.md` 기준으로 실제 연결 순서 진행
 
 Issue 11:
 1. WAF/Cognito/OIDC는 MVP 이후 운영 보안 강화 백로그로 보류
@@ -438,7 +442,7 @@ https://grafana.minsoo-tech.cloud
   - `latest/factory-a/` write 허용
   - `raw/factory-a/` write 거부
 
-남은 내용: 없음. 이후 M1 Issue 6~10은 완료됐고, 현재 다음 작업은 `M1 Issue 12 - [Risk/Config] runtime-config.yaml 파일 구조 초안 작성`이다.
+남은 내용: 없음. 이후 M1 Issue 6~10/12는 완료됐고, 현재 다음 작업은 `M2 Issue 1 - [Mesh/Tailscale] Tailnet 생성 및 Spoke별 Auth Key 실발급`이다.
 
 ### 4. ArgoCD 접근 전략 유지
 
@@ -490,7 +494,7 @@ scripts/destroy/destroy-hub.sh
 
 ## 문서 갱신 상태
 
-M1 Issue 4/5/6/7/8/9/10 완료, IoT Rule -> S3 raw 적재, `risk/risk-normalizer` IRSA 검증, AMP Workspace 생성, `observability/prometheus-agent` remote_write 수신 검증, Grafana AMP datasource query 검증, AWS Load Balancer Controller, Admin UI HTTPS Ingress, 현재 active AWS 상태, 다음 M1 Issue 12 작업 기준을 문서에 반영했다.
+M1 Issue 4/5/6/7/8/9/10/12 완료, IoT Rule -> S3 raw 적재, `risk/risk-normalizer` IRSA 검증, AMP Workspace 생성, `observability/prometheus-agent` remote_write 수신 검증, Grafana AMP datasource query 검증, AWS Load Balancer Controller, Admin UI HTTPS Ingress, runtime-config.yaml과 VM dummy data 추천값, 현재 active AWS 상태, 다음 M2 Issue 1 작업 기준을 문서에 반영했다.
 AWS 비용 기준은 `docs/ops/15_aws_cost_baseline.md`에 추가했고, AWS 리소스나 상시 운영 경로가 추가될 때 함께 갱신하는 규칙을 `docs/README.md`, `docs/ops/README.md`, `docs/planning/11_delivery_ownership_flow.md`에 반영했다.
 또한 앞으로의 구현 책임 경계를 Terraform, Ansible, GitHub Actions, GitHub+ArgoCD 흐름으로 고정하고 관련 문서를 최신화했다.
 
@@ -593,7 +597,8 @@ Grafana API proxy up{cluster="AEGIS-EKS"} query 성공
 scripts/build/build-hub.sh 전체 경로 통과 확인
 M1 Issue 9/10 완료: AWS Load Balancer Controller, ArgoCD/Grafana HTTPS Admin Ingress
 M1 Issue 11 보류: 운영 보안 강화 백로그
-다음 작업: M1 Issue 12 runtime-config.yaml 구조 초안
+M1 Issue 12 완료: runtime-config.yaml 구조 초안과 VM dummy data 추천값
+다음 작업: M2 Issue 1 Tailnet 생성 및 Spoke별 Auth Key 실발급
 주의: scripts/ansible/playbooks/02_start_test.yml -> start_test.yml rename 상태는 별도 변경으로 남아 있음
 ```
 
