@@ -30,8 +30,8 @@
 | M1 | Issue 1 - Hub/EKS | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 2 - Hub/Kubernetes | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 3 - Hub/ArgoCD | 완료 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 4 - Hub/S3 | 부분 완료 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 5 - Hub/IoT Core | 부분 완료 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 4 - Hub/S3 | 완료 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 5 - Hub/IoT Core | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 6 - 관제/AMP | 대기 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 6A - 관제/Dashboard VPC | 대기 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 7 - 관제/Prometheus | 대기 | `docs/issues/M1_hub-cloud.md` |
@@ -41,7 +41,7 @@
 현재 바로 이어서 할 이슈:
 
 ```text
-M1 Issue 5 - [Hub/IoT Core] IoT Rule -> S3 적재 연결
+M1 Issue 6 - [관제/AMP] AMP Workspace 생성 및 접근 권한 준비
 ```
 
 ## 현재 큰 상태
@@ -53,12 +53,12 @@ M1 Issue 5 - [Hub/IoT Core] IoT Rule -> S3 적재 연결
 완료: M1 Issue 1 EKS/VPC Terraform apply 및 kubectl 접근 확인
 완료: M1 Issue 2 Hub Kubernetes 네임스페이스 설계 및 생성
 완료: M1 Issue 3 Hub ArgoCD 설치 및 CLI/UI 검증, Ansible bootstrap 전환
-부분 완료: M1 Issue 4 S3 bucket apply 및 보안 설정 검증 완료, IoT Rule/IRSA 연계 미완료
-부분 완료: M1 Issue 5 IoT Thing, certificate, policy 생성 및 K3s Secret 등록 완료, IoT Rule/S3 적재 미완료
+완료: M1 Issue 4 S3 bucket apply, 보안 설정, IoT Rule 적재 검증, risk-normalizer IRSA S3 read/write 검증 완료
+완료: M1 Issue 5 IoT Thing, certificate, policy, IoT Rule, 테스트 메시지 S3 적재 검증 완료
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 상태: 2026-05-04 전체 destroy 완료. Hub EKS/ArgoCD/foundation S3/IoT/K3s Secret 삭제됨
-Terraform state: infra/hub empty, infra/foundation empty
+AWS 실제 리소스 상태: 2026-05-06 build-all 재실행 및 IoT Rule -> S3 raw 적재 검증 완료. Hub EKS/ArgoCD/foundation S3/IoT/K3s Secret active
+Terraform state: infra/hub active, infra/foundation active
 ```
 
 ## 지금까지 완료한 일
@@ -171,15 +171,18 @@ Capacity: On-Demand
 
 ```text
 AWS 계정 연결: MFA 세션으로 확인 완료
-AWS 리소스 상태: 전체 destroy 완료
-destroy command: DESTROY_FOUNDATION=true scripts/destroy/destroy-all.sh
-IoT/K3s: ai-apps/aws-iot-factory-a-cert 삭제, AEGIS-IoTThing-factory-a 관련 AWS IoT 리소스 삭제
-Hub destroy: infra/hub 56 destroyed
-Foundation destroy: infra/foundation 6 destroyed
-terraform state: infra/hub empty
-terraform state: infra/foundation empty
-EKS cluster: AEGIS-EKS deleted
-S3 bucket: aegis-bucket-data deleted
+AWS 리소스 상태: 2026-05-06 build-all 재실행 후 active
+Hub EKS: AEGIS-EKS active
+ArgoCD: argocd Helm release deployed, chart argo-cd-9.5.11, app v3.3.9
+Foundation S3 bucket: aegis-bucket-data active
+IoT Thing: AEGIS-IoTThing-factory-a active
+IoT Policy: AEGIS-IoTPolicy-factory-a active
+IoT Rule: AEGIS_IoTRule_factory_a_raw_s3 active
+IRSA Role: AEGIS-IAMRole-IRSA-risk-normalizer active
+IRSA ServiceAccount: risk/risk-normalizer annotated
+K3s Secret: ai-apps/aws-iot-factory-a-cert configured
+terraform state: infra/hub active
+terraform state: infra/foundation active
 ```
 
 주의:
@@ -187,7 +190,7 @@ S3 bucket: aegis-bucket-data deleted
 - `terraform init`은 provider/module을 로컬에 내려받는 작업이라 AWS 리소스를 만들지 않는다.
 - AWS 리소스가 실제로 만들어지는 시점은 `terraform apply` 실행 시점이다.
 - 테스트가 끝나면 반드시 `scripts/destroy/destroy-hub.sh` 또는 `terraform destroy`로 EKS, NAT Gateway, node group을 제거한다.
-- 2026-05-04에는 foundation까지 포함한 전체 destroy를 완료했다.
+- 2026-05-06에는 foundation, Hub, IoT 전제를 재생성하고 IoT Rule -> S3 적재를 검증했다.
 
 삭제 전 검증했던 주요 리소스:
 
@@ -254,34 +257,34 @@ secret exists, DATA=4
 
 ## 다음에 할 일
 
-### 1. 다음 시작 작업: M1 Issue 5 IoT Rule -> S3 적재 연결
+### 1. 다음 시작 작업: M1 Issue 6 AMP Workspace 생성 및 접근 권한 준비
 
-다음 세션은 필요한 리소스를 다시 생성한 뒤 시작한다. 바로 이어서 할 작업은 IoT Core Rule을 만들고 S3 raw prefix로 테스트 메시지를 적재하는 것이다.
+다음 세션은 현재 active 상태의 foundation/Hub 리소스를 기준으로 AMP Workspace를 생성하고 Hub Prometheus 또는 Agent가 remote_write할 IRSA 권한 전제를 준비하는 것이다.
 
-검증 완료 후 현재는 삭제된 전제:
+현재 검증 완료 전제:
 
-- Foundation S3 bucket `aegis-bucket-data` 생성 검증 완료, 현재 deleted
-- Hub EKS `AEGIS-EKS` 생성 검증 완료, 현재 deleted
-- ArgoCD Helm release `argocd` 설치 검증 완료, 현재 deleted
-- IoT Thing `AEGIS-IoTThing-factory-a` 생성 검증 완료, 현재 deleted
-- IoT certificate active/Thing attach 검증 완료, 현재 deleted
-- IoT Policy `AEGIS-IoTPolicy-factory-a` 생성 검증 완료, 현재 deleted
-- K3s Secret `ai-apps/aws-iot-factory-a-cert` 생성 검증 완료, 현재 deleted
+- Foundation S3 bucket `aegis-bucket-data` active
+- Hub EKS `AEGIS-EKS` active
+- ArgoCD Helm release `argocd` deployed
+- IoT Thing `AEGIS-IoTThing-factory-a` active
+- IoT certificate active/Thing attach 완료
+- IoT Policy `AEGIS-IoTPolicy-factory-a` active
+- IoT Rule `AEGIS_IoTRule_factory_a_raw_s3` active
+- K3s Secret `ai-apps/aws-iot-factory-a-cert` configured
+- Test object `raw/factory-a/sensor/yyyy=2026/mm=05/dd=06/manual-20260506T014423Z-31668.json` 적재 확인
+- IRSA Role `AEGIS-IAMRole-IRSA-risk-normalizer` active
+- ServiceAccount `risk/risk-normalizer` annotation 검증 완료
+- EKS 내부 AWS CLI pod에서 `raw/factory-a/` read, `latest/factory-a/irsa-test.json` write 검증 완료
+- EKS 내부 AWS CLI pod에서 `raw/factory-a/irsa-denied.txt` write 거부 확인
 
 다음 구현 순서:
 
 ```text
-1. `scripts/build/build-all.sh`로 foundation, Hub, IoT 전제를 재생성
-2. infra/foundation 또는 새 Terraform 파일에 IoT Rule용 IAM Role/Policy 추가
-3. IoT Rule 생성
-   - topic: aegis/factory-a/*
-   - target bucket: aegis-bucket-data
-   - key prefix: raw/factory-a/{source_type}/yyyy=.../mm=.../dd=.../{message_id}.json
-4. 테스트 publish 방법 결정
-   - local MQTT client 또는 AWS IoT test client
-   - Edge Agent 구현 전이면 CLI/임시 테스트 payload 사용
-5. S3 raw prefix에 object 생성 확인
-6. Issue 4 S3 acceptance와 Issue 5 IoT Rule acceptance를 함께 갱신
+1. AMP Workspace를 infra/foundation 또는 infra/hub 중 어디에 둘지 책임 경계 확정
+2. Prometheus/Agent용 namespace/service account 후보 결정
+3. AMP remote_write 권한 IAM/IRSA 정책 설계
+4. Terraform apply 및 output 기록
+5. Hub Prometheus/Agent 설치 전 remote_write endpoint/ARN 문서화
 ```
 
 바로 확인할 명령:
@@ -438,25 +441,34 @@ f8ed233 Document dashboard VPC and AWS MFA setup
 현재 세션 정리 내용:
 
 ```text
-2026-05-04 세션 저장 기준
+2026-05-06 세션 저장 기준
 M1 Issue 1 EKS/VPC Terraform apply 재실행 완료
 M1 Issue 2 namespace/LimitRange Ansible bootstrap 완료
 M1 Issue 3 Hub ArgoCD Helm 설치 및 verify 완료
-Hub EKS AEGIS-EKS 검증 후 deleted
-infra/hub apply 결과 56 added, destroy 결과 56 destroyed
-EKS worker node 2대 Ready 확인
+Hub EKS AEGIS-EKS active
+infra/hub active
+EKS worker node Ready 확인
 ArgoCD Pod 전체 Running 확인
 ArgoCD 초기 비밀번호 조회 스크립트 동작 확인
-Foundation S3 bucket aegis-bucket-data 검증 후 deleted, destroy 결과 6 destroyed
-IoT Thing AEGIS-IoTThing-factory-a 확인 후 deleted
-IoT certificate ACTIVE 확인 후 deleted
-IoT Policy AEGIS-IoTPolicy-factory-a 확인 후 deleted
-K3s Secret ai-apps/aws-iot-factory-a-cert 등록 및 DATA=4 확인 후 deleted
+Foundation S3 bucket aegis-bucket-data active
+IoT Rule AEGIS_IoTRule_factory_a_raw_s3 apply 완료
+IoT Rule test publish 완료: manual-20260506T014423Z-31668
+S3 test object 확인: raw/factory-a/sensor/yyyy=2026/mm=05/dd=06/manual-20260506T014423Z-31668.json
+IRSA Role AEGIS-IAMRole-IRSA-risk-normalizer apply 완료
+risk/risk-normalizer ServiceAccount annotation 검증 완료
+EKS 내부 s3-irsa-test pod에서 IRSA assume-role 확인
+EKS 내부 s3-irsa-test pod에서 raw/factory-a read 확인
+EKS 내부 s3-irsa-test pod에서 latest/factory-a/irsa-test.json write 확인
+EKS 내부 s3-irsa-test pod에서 raw/factory-a write AccessDenied 확인
+IoT Thing AEGIS-IoTThing-factory-a active
+IoT certificate ACTIVE 확인 및 Thing attach 완료
+IoT Policy AEGIS-IoTPolicy-factory-a active
+K3s Secret ai-apps/aws-iot-factory-a-cert 등록 및 DATA=4 확인
 1차/2차/3차 scripts 구조 정리 진행
 scripts/config/defaults.sh 추가: 환경별 기본값 source
 scripts/lib/aws-mfa.sh, scripts/lib/terraform.sh, scripts/lib/config.sh 추가
 scripts/ops/argocd-port-forward.sh, scripts/ops/argocd-initial-password.sh 추가
-다음 작업: M1 Issue 5 IoT Rule -> S3 raw prefix 적재 연결
+다음 작업: M1 Issue 6 AMP Workspace 생성 및 접근 권한 준비
 주의: scripts/ansible/playbooks/02_start_test.yml -> start_test.yml rename 상태는 별도 변경으로 남아 있음
 ```
 
