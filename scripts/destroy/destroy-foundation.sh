@@ -7,7 +7,7 @@ OTP="${1:-}"
 
 if [[ "${DESTROY_FOUNDATION:-false}" != "true" ]]; then
   echo "Refusing to destroy foundation resources by default." >&2
-  echo "Set DESTROY_FOUNDATION=true to destroy S3/ECR/AMP/IoT durable resources." >&2
+  echo "Set DESTROY_FOUNDATION=true to destroy S3/AMP/IoT Rule durable resources." >&2
   exit 1
 fi
 

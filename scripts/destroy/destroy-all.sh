@@ -11,7 +11,8 @@ aegis_load_config "${REPO_ROOT}"
 
 DESTROY_IOT="${DESTROY_IOT:-true}"
 DESTROY_HUB="${DESTROY_HUB:-true}"
-DESTROY_FOUNDATION="${DESTROY_FOUNDATION:-false}"
+DESTROY_FOUNDATION="${DESTROY_FOUNDATION:-true}"
+FOUNDATION_STATE="${REPO_ROOT}/infra/foundation/terraform.tfstate"
 export DESTROY_FOUNDATION
 
 cd "${REPO_ROOT}"
@@ -22,11 +23,19 @@ if [[ "${DESTROY_IOT}" == "true" || "${DESTROY_HUB}" == "true" || "${DESTROY_FOU
   aegis_ensure_aws_mfa "${OTP}"
 fi
 
+echo "Destroy scope: iot=${DESTROY_IOT}, hub=${DESTROY_HUB}, foundation=${DESTROY_FOUNDATION}"
+
 if [[ "${DESTROY_IOT}" == "true" ]]; then
   scripts/destroy/destroy-iot-factory-a.sh "${OTP}"
 fi
 
 if [[ "${DESTROY_HUB}" == "true" ]]; then
+  if [[ ! -f "${FOUNDATION_STATE}" ]]; then
+    echo "Hub destroy requires ${FOUNDATION_STATE} because infra/hub reads foundation outputs for AMP/IRSA wiring." >&2
+    echo "Restore the foundation state file, or set DESTROY_HUB=false if hub resources are already gone." >&2
+    exit 1
+  fi
+
   scripts/destroy/destroy-hub.sh "${OTP}"
 fi
 
