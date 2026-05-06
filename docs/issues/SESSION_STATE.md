@@ -33,15 +33,18 @@
 | M1 | Issue 4 - Hub/S3 | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 5 - Hub/IoT Core | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M1 | Issue 6 - 관제/AMP | 완료 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 6A - 관제/Dashboard VPC | 대기 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 7 - 관제/Prometheus | 대기 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 8 - 관제/Grafana | 대기 | `docs/issues/M1_hub-cloud.md` |
-| M1 | Issue 9 - Risk/Config | 대기 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 7 - 관제/Prometheus | 완료 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 8 - 관제/Grafana | 완료 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 9 - Hub/Ingress | 대기 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 10 - Hub/Admin UI | 대기 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 11 - Hub/Admin UI 보안 강화 | 보류 | `docs/issues/M1_hub-cloud.md` |
+| M1 | Issue 12 - Risk/Config | 대기 | `docs/issues/M1_hub-cloud.md` |
+| M2 | Issue 1 - Mesh/Tailscale 정책 | 부분 완료: 정책 문서화, Tailnet/Auth Key 실발급 대기 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
 
 현재 바로 이어서 할 이슈:
 
 ```text
-M1 Issue 6A - [관제/Dashboard VPC] 외부 관리자 접근 VPC 설계
+M1 Issue 9 - [Hub/Ingress] AWS Load Balancer Controller 준비
 ```
 
 ## 현재 큰 상태
@@ -56,9 +59,15 @@ M1 Issue 6A - [관제/Dashboard VPC] 외부 관리자 접근 VPC 설계
 완료: M1 Issue 4 S3 bucket apply, 보안 설정, IoT Rule 적재 검증, risk-normalizer IRSA S3 read/write 검증 완료
 완료: M1 Issue 5 IoT Thing, certificate, policy, IoT Rule, 테스트 메시지 S3 적재 검증 완료
 완료: M1 Issue 6 AMP Workspace 생성, Prometheus remote_write IRSA 구성, EKS pod assume-role 검증 완료
+완료: M1 Issue 7 Hub Prometheus Agent 설치, remote_write 오류 로그 부재, AMP Query API `up{cluster="AEGIS-EKS"}` 수신 검증 완료
+완료: M1 Issue 8 내부 Grafana 설치, AMP datasource SigV4/IRSA query 검증 완료
+대기: M1 Issue 9 AWS Load Balancer Controller 준비
+대기: M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress 구성
+보류: M1 Issue 11 WAF/Cognito/OIDC 운영 보안 강화
+부분 완료: M2 Issue 1 Tailscale Tailnet/Auth Key 정책 문서화 완료, 실제 Tailnet 생성 및 Auth Key 발급 대기
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 상태: 2026-05-06 build-all 재실행 완료. Hub EKS/ArgoCD/foundation S3/AMP/IoT/K3s Secret active 확인
+AWS 실제 리소스 상태: 2026-05-06 build-hub 재실행 완료. Hub EKS/ArgoCD/Prometheus Agent/Grafana/foundation S3/AMP/IoT/K3s Secret active 확인
 Terraform state: infra/hub active, infra/foundation active
 ```
 
@@ -80,6 +89,13 @@ Terraform state: infra/hub active, infra/foundation active
 - Dashboard VPC는 Processing VPC와 VPC Peering/TGW 없이 S3/latest status store를 read-only IAM으로 조회하는 방향 확정
 - Edge Agent가 센서/시스템/장치/워크로드/pipeline heartbeat 상태를 함께 보내야 한다는 기준 반영
 - 관련 문서: `docs/planning/07_dashboard_vpc_extension_plan.md`
+
+### Admin UI HTTPS Ingress 방향
+
+- MVP에서는 관리자 외부 접근 검증을 위해 ArgoCD/Grafana를 Public ALB 1개와 HTTPS host 기반 Ingress로 노출하는 방향으로 재정렬했다.
+- ArgoCD와 Grafana는 계속 EKS 내부 Pod/Service로 실행하고, Kubernetes Service는 `ClusterIP`를 유지한다.
+- 최소 보호선은 HTTPS, 관리자 IP allowlist, ArgoCD/Grafana 자체 로그인이다.
+- WAF, Cognito, 외부 OIDC/SSO는 MVP 필수 범위에서 제외하고 운영 보안 강화 백로그인 M1 Issue 11로 분리했다.
 
 ### AWS CLI MFA 및 Terraform 접근
 
@@ -283,9 +299,9 @@ secret exists, DATA=4
 
 ## 다음에 할 일
 
-### 1. 다음 시작 작업: M1 Issue 6A Dashboard VPC 설계 또는 M1 Issue 7 Prometheus 설치
+### 1. 다음 시작 작업: M1 Issue 9 AWS Load Balancer Controller 준비
 
-다음 세션은 공식 순서상 M1 Issue 6A의 Dashboard VPC 외부 관리자 접근 설계를 먼저 진행할 수 있다. 구현 흐름을 우선한다면 M1 Issue 7의 Hub Prometheus/Agent 설치와 AMP remote_write 실제 전송 검증으로 바로 이어갈 수도 있다.
+M1 Issue 8 내부 Grafana 설치와 AMP datasource query 검증은 완료됐다. 다음 세션은 M1 Issue 9의 AWS Load Balancer Controller 준비로 이어간다. 이후 M1 Issue 10에서 ArgoCD/Grafana HTTPS Admin Ingress를 구성하고, `runtime-config.yaml` 구조 초안은 M1 Issue 12로 이동했다.
 
 현재 검증 완료 전제:
 
@@ -306,22 +322,34 @@ secret exists, DATA=4
 - IRSA Role `AEGIS-IAMRole-IRSA-prometheus-remote-write` active
 - ServiceAccount `observability/prometheus-agent` annotation 검증 완료
 - EKS 내부 AWS CLI pod에서 `AEGIS-IAMRole-IRSA-prometheus-remote-write` assume-role 확인
+- Hub Prometheus Agent pod `Running`, `1/1 Ready`
+- AMP Query API `up{cluster="AEGIS-EKS"}` 수신 확인
+- IRSA Role `AEGIS-IAMRole-IRSA-grafana-amp-query` active
+- ServiceAccount `observability/grafana` annotation 검증 완료
+- Grafana Service `ClusterIP`
+- Grafana datasource `AEGIS-AMP` / `aegis-amp` 검증 완료
+- Grafana API proxy `up{cluster="AEGIS-EKS"}` query 성공
 - EKS 내부 AWS CLI pod에서 `raw/factory-a/` read, `latest/factory-a/irsa-test.json` write 검증 완료
 - EKS 내부 AWS CLI pod에서 `raw/factory-a/irsa-denied.txt` write 거부 확인
 
 다음 구현 순서:
 
 ```text
-Issue 6A:
-1. Dashboard VPC CIDR, subnet, route table 기준 결정
-2. Route53, ALB, WAF/Auth, Dashboard API 배치 방식 결정
-3. processed/latest read-only IAM 범위와 raw/EKS/ArgoCD 접근 금지 기준 문서화
+Issue 9:
+1. AWS Load Balancer Controller용 IAM policy와 IRSA role 구성
+2. controller Helm release 설치/검증
+3. public subnet ALB discovery tag 확인
+4. build-hub/build-all 재생성 흐름에 controller bootstrap/verify 연결
+5. destroy-hub/destroy-all에서 Ingress 생성 AWS 리소스 삭제 순서 확인
 
-Issue 7:
-1. observability namespace에 Prometheus 또는 Prometheus Agent 설치 방식 결정
-2. ServiceAccount observability/prometheus-agent 사용
-3. AMP remote_write endpoint 적용
-4. metrics 수신 여부 검증
+Issue 10:
+1. Admin UI 도메인과 ACM certificate 기준 결정
+2. ArgoCD/Grafana host 기반 HTTPS Ingress 작성
+3. Public ALB 1개 공유와 관리자 IP allowlist 적용
+4. build/destroy 및 비용 문서 갱신
+
+Issue 11:
+1. WAF/Cognito/OIDC는 MVP 이후 운영 보안 강화 백로그로 보류
 ```
 
 바로 확인할 명령:
@@ -442,7 +470,7 @@ scripts/destroy/destroy-hub.sh
 
 ## 문서 갱신 상태
 
-M1 Issue 4/5/6 완료, IoT Rule -> S3 raw 적재, `risk/risk-normalizer` IRSA 검증, AMP Workspace 생성, `observability/prometheus-agent` remote_write IRSA 검증, 현재 active AWS 상태, 다음 M1 Issue 6A/7 작업 기준을 문서에 반영했다.
+M1 Issue 4/5/6/7/8 완료, IoT Rule -> S3 raw 적재, `risk/risk-normalizer` IRSA 검증, AMP Workspace 생성, `observability/prometheus-agent` remote_write 수신 검증, 내부 Grafana AMP datasource query 검증, 현재 active AWS 상태, 다음 M1 Issue 9 작업 기준을 문서에 반영했다.
 AWS 비용 기준은 `docs/ops/15_aws_cost_baseline.md`에 추가했고, AWS 리소스나 상시 운영 경로가 추가될 때 함께 갱신하는 규칙을 `docs/README.md`, `docs/ops/README.md`, `docs/planning/11_delivery_ownership_flow.md`에 반영했다.
 또한 앞으로의 구현 책임 경계를 Terraform, Ansible, GitHub Actions, GitHub+ArgoCD 흐름으로 고정하고 관련 문서를 최신화했다.
 
@@ -456,6 +484,8 @@ AWS 비용 기준은 `docs/ops/15_aws_cost_baseline.md`에 추가했고, AWS 리
 - `docs/ops/13_hub_namespace_baseline.md`
 - `docs/ops/14_hub_run_commands.md`
 - `docs/ops/15_aws_cost_baseline.md`
+- `docs/ops/16_hub_prometheus_amp.md`
+- `docs/ops/17_hub_grafana_amp.md`
 - `docs/planning/09_m1_eks_vpc_decision_record.md`
 - `docs/planning/00_project_overview.md`
 - `docs/planning/02_implementation_plan.md`
@@ -532,7 +562,17 @@ AWS 비용 기준 문서 추가: docs/ops/15_aws_cost_baseline.md
 build/destroy 재점검 완료: destroy-all 기본 foundation 포함, S3 force_destroy enabled, IoT cleanup AWS discovery 보강
 build-all 실행 완료: K3s Secret configured, IoT Thing/Policy/certificate active, Hub Terraform 60 added, Foundation Terraform 10 added
 AWS 검증: EKS ACTIVE, nodegroup ACTIVE, AMP ACTIVE, S3 versioning enabled, IoT active, K3s Secret DATA=4
-다음 작업: M1 Issue 6A Dashboard VPC 설계 또는 M1 Issue 7 Prometheus/Agent 설치 및 AMP remote_write 실제 전송 검증
+Prometheus Agent bootstrap/verify build-all 연동 완료
+AMP Query API up{cluster="AEGIS-EKS"} 수신 확인
+Grafana AMP query IRSA Role AEGIS-IAMRole-IRSA-grafana-amp-query apply 완료
+observability/grafana ServiceAccount annotation 검증 완료
+Grafana Helm chart grafana/grafana 10.5.15, app 12.3.1 설치 완료
+Grafana Service ClusterIP 확인
+Grafana datasource AEGIS-AMP / aegis-amp SigV4 설정 확인
+Grafana API proxy up{cluster="AEGIS-EKS"} query 성공
+scripts/build/build-hub.sh 전체 경로 통과 확인
+M1 Issue 9/10/11 재정렬 완료: AWS Load Balancer Controller, ArgoCD/Grafana HTTPS Admin Ingress, 운영 보안 강화 백로그
+다음 작업: M1 Issue 9 AWS Load Balancer Controller 준비
 주의: scripts/ansible/playbooks/02_start_test.yml -> start_test.yml rename 상태는 별도 변경으로 남아 있음
 ```
 

@@ -10,6 +10,8 @@
 - 상세 완료 조건과 Acceptance Criteria는 각 원본 이슈 문서를 기준으로 본다.
 - 실제로 끝난 항목만 체크한다.
 - 마일스톤 완료 판단은 하위 Issue 전부 완료된 뒤 원본 문서의 완료 기준으로 다시 확인한다.
+- 각 issue를 진행하거나 완료하면 원본 issue 섹션의 `GitHub Issue Comment Draft`를 최신 상태로 갱신한다.
+- GitHub issue comment는 해당 draft를 기준으로 작성하되, 민감 정보는 포함하지 않는다.
 
 ---
 
@@ -42,16 +44,18 @@
 - [x] Issue 4 - [Hub/S3] 버킷 생성 및 경로 파티셔닝 설계
 - [x] Issue 5 - [Hub/IoT Core] Thing / 인증서 / 규칙 구성
 - [x] Issue 6 - [관제/AMP] AMP(Amazon Managed Prometheus) Workspace 생성 및 접근 권한 준비
-- [ ] Issue 6A - [관제/Dashboard VPC] 외부 관리자 접근 VPC 설계
-- [ ] Issue 7 - [관제/Prometheus] Hub Prometheus 설치 및 AMP remote_write 구성
-- [ ] Issue 8 - [관제/Grafana] 내부 관측용 Grafana/AMP 데이터 소스 기준 결정
-- [ ] Issue 9 - [Risk/Config] `runtime-config.yaml` 파일 구조 초안 작성
+- [x] Issue 7 - [관제/Prometheus] Hub Prometheus 설치 및 AMP remote_write 구성
+- [x] Issue 8 - [관제/Grafana] 내부 관측용 Grafana/AMP 데이터 소스 기준 결정
+- [ ] Issue 9 - [Hub/Ingress] AWS Load Balancer Controller 준비
+- [ ] Issue 10 - [Hub/Admin UI] ArgoCD/Grafana HTTPS Admin Ingress 구성
+- [ ] Issue 11 - [Hub/Admin UI] 운영 보안 강화 백로그
+- [ ] Issue 12 - [Risk/Config] `runtime-config.yaml` 파일 구조 초안 작성
 
 ## M2. Mesh VPN + Hub-Spoke 연결
 
 원본: `docs/issues/M2_mesh-vpn-hub-spoke.md`
 
-- [ ] Issue 1 - [Mesh/Tailscale] 계정 및 Spoke별 키 발급 정책 수립
+- [ ] Issue 1 - [Mesh/Tailscale] 계정 및 Spoke별 키 발급 정책 수립 (정책 문서화 완료, Tailnet/Auth Key 실발급 대기)
 - [ ] Issue 2 - [Mesh/Tailscale] `factory-a` Master Tailscale 참여 및 확인
 - [ ] Issue 3 - [Mesh/Tailscale] EKS Hub Tailscale 참여 및 확인
 - [ ] Issue 4 - [Mesh/Tailscale] kubeconfig Tailscale IP 기반 구성

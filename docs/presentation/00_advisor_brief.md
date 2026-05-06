@@ -33,7 +33,7 @@ LAN 제거 InfluxDB 공백: 10초 bucket 기준 AI/audio 80초, BME 70초
 
 - M0는 핵심 기준선 완료로 볼 수 있다.
 - NFS Cold Storage와 Ansible tiering은 보류했다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret, IRSA S3/AMP 권한은 2026-05-06 기준 `build-all`로 재생성되어 active 상태다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, Hub Prometheus Agent, 내부 Grafana/AMP datasource, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret, IRSA S3/AMP 권한은 2026-05-06 기준 `build-all`로 재생성되어 active 상태다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 
 ## 다음 검토 주제
@@ -41,5 +41,5 @@ LAN 제거 InfluxDB 공백: 10초 bucket 기준 AI/audio 80초, BME 70초
 1. failover 데이터 공백 허용 범위
 2. failback 중복 write 처리 필요성
 3. active writer guard 필요 여부
-4. Hub Prometheus/Agent 실제 AMP remote_write 적재
+4. `runtime-config.yaml`과 Risk 가중치 기준
 5. Dashboard VPC와 Risk Twin dashboard 범위

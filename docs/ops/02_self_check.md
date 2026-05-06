@@ -12,7 +12,7 @@
 - `factory-a`는 3노드 K3s, ArgoCD, Helm, Longhorn, InfluxDB, Grafana 기준선 구성이 완료됐다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
 - ArgoCD repository 등록과 sync 조작은 UI에서 수행한다.
-- Hub EKS/ArgoCD, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret은 2026-05-06 기준 `build-all`로 재생성되어 active 상태다. `factory-b`, `factory-c`, Hub Prometheus/Agent 실제 remote_write, Risk Twin은 후속 단계다.
+- Hub EKS/ArgoCD, Hub Prometheus Agent, 내부 Grafana, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret은 2026-05-06 기준 `build-all`로 재생성되어 active 상태다. `factory-b`, `factory-c`, Risk Twin은 후속 단계다.
 
 ## 범위
 
@@ -109,9 +109,12 @@ Grafana는 `http://10.10.10.202`에서 확인한다.
 
 ## 후속 Hub 확장 전 체크
 
-아래 항목은 아직 현재 완료 범위가 아니다. Hub와 `factory-a` 기준선이 안정적으로 유지된 뒤 진행한다.
+Hub와 `factory-a` 기준선이 안정적으로 유지되는지 확인한 뒤 후속 작업을 진행한다.
 
-- Hub Prometheus/Agent 실제 AMP remote_write 적재
+- Hub Prometheus Agent verify: `scripts/ansible/playbooks/hub_prometheus_agent_verify.yml`
+- AMP 수신 기준: `up{cluster="AEGIS-EKS"}`에서 Agent, API server, EKS node, annotated pod 대상이 `1`
+- 내부 Grafana verify: `scripts/ansible/playbooks/hub_grafana_verify.yml`
+- Grafana 기준: Service `ClusterIP`, AMP datasource `AEGIS-AMP`, Grafana API proxy query `up{cluster="AEGIS-EKS"}` 성공
 - Tailscale 기반 Hub-Spoke 연결
 - GitHub Actions/ECR 이미지 빌드 파이프라인
 - `factory-b`, `factory-c` 테스트베드형 Spoke
