@@ -1463,3 +1463,92 @@ safe-edge-preflight-repair.sh --repair
 --repair는 OS 설정을 바꾸지 않는다.
 worker2 MetalLB speaker, worker2 Longhorn CSI, stale safe-edge-integrated-ai Pod처럼 Kubernetes에서 재생성 가능한 항목만 정리한다.
 ```
+
+## 37. `safe-edge-integrated-ai`가 카메라는 잡지만 `ai_detection`을 쓰지 못하는 경우
+
+날짜: 2026-05-06
+
+증상:
+
+```text
+worker2에서 rpicam-hello --list-cameras는 ov5647 카메라를 인식한다.
+safe-edge-integrated-ai Pod는 worker2에서 2/2 Running 상태다.
+앱 로그는 InfluxDB 연결, YOLO 모델 로딩, Picamera2 설정 완료까지 출력된다.
+하지만 InfluxDB에는 ai_detection measurement가 없거나 최신 write가 없다.
+Grafana의 AI/YOLO 결과 패널이 갱신되지 않는다.
+```
+
+관찰된 로그:
+
+```text
+[INFO] InfluxDB (safe_edge_db) 연결 성공!
+[INFO] YOLO 화재 및 Pose 모델 로딩 중...
+[INFO] Picamera2 연결 시도 중...
+[INFO] ✅ 카메라 연결 및 설정 완료!
+Camera frontend has timed out!
+Please check that your camera sensor connector is attached securely.
+```
+
+판단:
+
+```text
+카메라 장치 인식과 실제 프레임 캡처 성공은 다르다.
+이 증상은 YOLO 모델이나 InfluxDB 연결 문제가 아니라 Picamera2/libcamera 프레임 캡처 단계에서 멈춘 상태다.
+앱 코드상 ai_detection write는 picam2.capture_array(), YOLO 추론 이후에 실행된다.
+따라서 capture_array()가 막히면 Pod는 Running이어도 ai_detection이 기록되지 않는다.
+```
+
+확인:
+
+```bash
+kubectl -n ai-apps get pods -o wide
+kubectl -n ai-apps logs deploy/safe-edge-integrated-ai -c ai-processor --tail=200
+
+kubectl -n ai-apps exec deploy/safe-edge-integrated-ai -c ai-processor -- \
+  sh -lc 'ls -l /dev/video* /dev/media* /dev/dma_heap /run/udev 2>/dev/null || true'
+
+kubectl -n monitoring exec deploy/influxdb -- \
+  influx -database safe_edge_db -execute 'SHOW MEASUREMENTS'
+
+kubectl -n monitoring exec deploy/influxdb -- \
+  influx -database safe_edge_db -execute 'SELECT * FROM ai_detection ORDER BY time DESC LIMIT 5'
+```
+
+worker2 호스트에서 카메라 캡처를 직접 확인할 때는 먼저 AI Pod가 카메라를 점유하고 있는지 확인한다.
+AI Pod가 떠 있는 상태에서 호스트의 `rpicam-still`은 아래처럼 실패할 수 있다.
+
+```text
+Pipeline handler in use by another process
+failed to acquire camera
+```
+
+복구:
+
+```bash
+kubectl -n ai-apps scale deploy/safe-edge-integrated-ai --replicas=0
+kubectl -n ai-apps rollout status deploy/safe-edge-integrated-ai --timeout=60s
+
+kubectl -n ai-apps scale deploy/safe-edge-integrated-ai --replicas=1
+kubectl -n ai-apps rollout status deploy/safe-edge-integrated-ai --timeout=180s
+
+kubectl -n ai-apps logs deploy/safe-edge-integrated-ai -c ai-processor --tail=120
+
+kubectl -n monitoring exec deploy/influxdb -- \
+  influx -database safe_edge_db -execute 'SELECT * FROM ai_detection ORDER BY time DESC LIMIT 5'
+```
+
+복구 성공 기준:
+
+```text
+safe-edge-integrated-ai: worker2 Running, 2/2
+ai-processor 로그에서 [AI STATUS] 출력이 반복된다.
+InfluxDB SHOW MEASUREMENTS에 ai_detection이 나타난다.
+ai_detection.fire_detected / fallen_detected / bending_detected 최신 값이 기록된다.
+```
+
+재발 방지 후보:
+
+```text
+현재 앱은 프레임 캡처 예외에는 재시도하지만, capture_array() 호출 자체가 장시간 막히면 Kubernetes가 비정상으로 판단하기 어렵다.
+후속으로 capture loop heartbeat, livenessProbe, 또는 일정 시간 ai_detection write가 없을 때 프로세스를 종료하는 watchdog을 추가한다.
+```
