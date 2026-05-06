@@ -152,12 +152,15 @@ module "eks" {
     hub = {
       name            = local.resource_names.eks_node_group
       use_name_prefix = false
+      tags            = local.tags
 
       iam_role_name            = local.resource_names.eks_node_iam_role
       iam_role_use_name_prefix = false
 
       launch_template_name            = local.resource_names.eks_node_launch_template
       launch_template_use_name_prefix = false
+      launch_template_tags            = local.tags
+      tag_specifications              = ["instance", "volume", "network-interface"]
 
       subnet_ids = [for zone in local.zone_names : aws_subnet.private[zone].id]
 
