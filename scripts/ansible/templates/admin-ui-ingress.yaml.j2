@@ -1,0 +1,74 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ admin_ui_argocd_ingress_name }}
+  namespace: {{ argocd_namespace }}
+  labels:
+    app.kubernetes.io/name: argocd-admin
+    app.kubernetes.io/part-of: aegis-hub
+  annotations:
+    alb.ingress.kubernetes.io/group.name: {{ admin_ui_group_name }}
+    alb.ingress.kubernetes.io/group.order: "10"
+    alb.ingress.kubernetes.io/load-balancer-name: {{ admin_ui_load_balancer_name }}
+    alb.ingress.kubernetes.io/scheme: {{ admin_ui_scheme }}
+    alb.ingress.kubernetes.io/target-type: {{ admin_ui_target_type }}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: {{ admin_ui_certificate_arn }}
+    alb.ingress.kubernetes.io/backend-protocol: HTTPS
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    alb.ingress.kubernetes.io/success-codes: "200-399"
+    alb.ingress.kubernetes.io/inbound-cidrs: {{ admin_ui_allowed_cidrs | join(',') }}
+    alb.ingress.kubernetes.io/tags: {{ admin_ui_tags }}
+spec:
+  ingressClassName: alb
+  rules:
+    - host: {{ admin_ui_argocd_host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ admin_ui_argocd_service_name }}
+                port:
+                  number: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ admin_ui_grafana_ingress_name }}
+  namespace: {{ grafana_namespace }}
+  labels:
+    app.kubernetes.io/name: grafana-admin
+    app.kubernetes.io/part-of: aegis-hub
+  annotations:
+    alb.ingress.kubernetes.io/group.name: {{ admin_ui_group_name }}
+    alb.ingress.kubernetes.io/group.order: "20"
+    alb.ingress.kubernetes.io/load-balancer-name: {{ admin_ui_load_balancer_name }}
+    alb.ingress.kubernetes.io/scheme: {{ admin_ui_scheme }}
+    alb.ingress.kubernetes.io/target-type: {{ admin_ui_target_type }}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: {{ admin_ui_certificate_arn }}
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: /api/health
+    alb.ingress.kubernetes.io/success-codes: "200-399"
+    alb.ingress.kubernetes.io/inbound-cidrs: {{ admin_ui_allowed_cidrs | join(',') }}
+    alb.ingress.kubernetes.io/tags: {{ admin_ui_tags }}
+spec:
+  ingressClassName: alb
+  rules:
+    - host: {{ admin_ui_grafana_host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ admin_ui_grafana_service_name }}
+                port:
+                  number: 80

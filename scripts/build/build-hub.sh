@@ -15,8 +15,10 @@ source "${REPO_ROOT}/scripts/lib/terraform.sh"
 aegis_ensure_aws_mfa "${OTP}"
 FORCE_ARGOCD_UPGRADE="${FORCE_ARGOCD_UPGRADE:-false}"
 FORCE_GRAFANA_UPGRADE="${FORCE_GRAFANA_UPGRADE:-false}"
+FORCE_AWS_LB_CONTROLLER_UPGRADE="${FORCE_AWS_LB_CONTROLLER_UPGRADE:-false}"
 
 aegis_terraform_apply_root "${REPO_ROOT}/infra/hub"
+"${REPO_ROOT}/scripts/ops/admin-ui-nameservers.sh"
 
 cd "${REPO_ROOT}/scripts/ansible"
 ansible-playbook \
@@ -31,3 +33,10 @@ ansible-playbook \
   playbooks/hub_grafana_bootstrap.yml \
   -e "grafana_force_upgrade=${FORCE_GRAFANA_UPGRADE}"
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_grafana_verify.yml
+ansible-playbook \
+  -i inventory/hub_eks_dynamic.sh \
+  playbooks/hub_aws_load_balancer_controller_bootstrap.yml \
+  -e "aws_lb_controller_force_upgrade=${FORCE_AWS_LB_CONTROLLER_UPGRADE}"
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aws_load_balancer_controller_verify.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_bootstrap.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_verify.yml

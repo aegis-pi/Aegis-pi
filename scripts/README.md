@@ -12,7 +12,7 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 
 | 경로 | 내용 |
 | --- | --- |
-| `build/build-all.sh` | foundation, hub, IoT/K3s Secret 생성 순서 실행 |
+| `build/build-all.sh` | foundation, hub, IoT/K3s Secret 생성 순서 실행. `--admin-ui` 옵션으로 Admin UI HTTPS Ingress까지 활성화 |
 | `destroy/destroy-all.sh` | IoT/K3s Secret, hub, foundation 전체 삭제 순서 실행 |
 | `hub/run-hub.sh` | `build/build-hub.sh` 실행 후 ArgoCD port-forward까지 연결하는 호환 wrapper |
 | `hub/destroy-hub.sh` | `destroy/destroy-hub.sh`를 호출하는 호환 wrapper |
@@ -20,6 +20,7 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | `ops/argocd-port-forward.sh` | Hub ArgoCD UI 로컬 접근용 kubeconfig 갱신 및 port-forward 실행 |
 | `ops/grafana-admin-password.sh` | MFA 세션 확인 후 Hub 내부 Grafana admin 비밀번호 조회 |
 | `ops/grafana-port-forward.sh` | Hub 내부 Grafana UI 로컬 접근용 kubeconfig 갱신 및 port-forward 실행 |
+| `ops/admin-ui-nameservers.sh` | Terraform output 기준 Gabia 위임용 Route53 NS 파일 생성 |
 | `lib/aws-mfa.sh` | AWS MFA session 공통 함수 |
 | `lib/terraform.sh` | Terraform apply/destroy 공통 함수 |
 | `config/defaults.sh` | scripts 기본값 source |
@@ -33,6 +34,11 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | `ansible/playbooks/hub_prometheus_agent_verify.yml` | Hub Prometheus Agent와 AMP remote_write 상태 확인 |
 | `ansible/playbooks/hub_grafana_bootstrap.yml` | Hub 내부 Grafana와 AMP datasource 설정 |
 | `ansible/playbooks/hub_grafana_verify.yml` | Hub 내부 Grafana와 AMP datasource query 상태 확인 |
+| `ansible/playbooks/hub_aws_load_balancer_controller_bootstrap.yml` | AWS Load Balancer Controller 설치 |
+| `ansible/playbooks/hub_aws_load_balancer_controller_verify.yml` | AWS Load Balancer Controller와 IRSA 검증 |
+| `ansible/playbooks/hub_admin_ingress_bootstrap.yml` | Admin UI HTTPS Ingress 선택 적용 |
+| `ansible/playbooks/hub_admin_ingress_verify.yml` | Admin UI HTTPS Ingress 검증 |
+| `ansible/playbooks/hub_admin_ingress_cleanup.yml` | Hub destroy 전 Admin Ingress/ALB 정리 |
 
 반복 점검 자동화는 `ansible/` 아래에 둔다.
 

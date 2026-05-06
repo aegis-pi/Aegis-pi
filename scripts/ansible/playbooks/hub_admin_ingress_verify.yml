@@ -1,0 +1,124 @@
+---
+- name: Verify Hub Admin UI HTTPS Ingress
+  hosts: hub_eks
+  gather_facts: false
+
+  tasks:
+    - name: Check required local commands
+      ansible.builtin.shell: "command -v {{ item }}"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      loop:
+        - aws
+        - kubectl
+        - curl
+        - getent
+
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command }}"
+      changed_when: true
+
+    - name: Skip Admin UI Ingress verification when disabled
+      ansible.builtin.debug:
+        msg: "Admin UI Ingress verification skipped because ADMIN_UI_INGRESS_ENABLED is not true."
+      when: not (admin_ui_ingress_enabled | bool)
+
+    - name: Stop when Admin UI Ingress is disabled
+      ansible.builtin.meta: end_play
+      when: not (admin_ui_ingress_enabled | bool)
+
+    - name: Read ArgoCD Admin Ingress hostname
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ argocd_namespace }} get ingress {{ admin_ui_argocd_ingress_name }} -o jsonpath={.status.loadBalancer.ingress[0].hostname}"
+      register: admin_ui_argocd_alb_hostname
+      changed_when: false
+
+    - name: Read Grafana Admin Ingress hostname
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ grafana_namespace }} get ingress {{ admin_ui_grafana_ingress_name }} -o jsonpath={.status.loadBalancer.ingress[0].hostname}"
+      register: admin_ui_grafana_alb_hostname
+      changed_when: false
+
+    - name: Assert Admin Ingresses share one ALB
+      ansible.builtin.assert:
+        that:
+          - admin_ui_argocd_alb_hostname.stdout | length > 0
+          - admin_ui_argocd_alb_hostname.stdout == admin_ui_grafana_alb_hostname.stdout
+        fail_msg: "Admin UI Ingresses are not sharing one ALB"
+
+    - name: Read ArgoCD service type
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ argocd_namespace }} get svc {{ admin_ui_argocd_service_name }} -o jsonpath={.spec.type}"
+      register: admin_ui_argocd_service_type
+      changed_when: false
+
+    - name: Read Grafana service type
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ grafana_namespace }} get svc {{ admin_ui_grafana_service_name }} -o jsonpath={.spec.type}"
+      register: admin_ui_grafana_service_type
+      changed_when: false
+
+    - name: Assert backend services remain ClusterIP
+      ansible.builtin.assert:
+        that:
+          - admin_ui_argocd_service_type.stdout == "ClusterIP"
+          - admin_ui_grafana_service_type.stdout == "ClusterIP"
+        fail_msg: "ArgoCD/Grafana backend services must stay ClusterIP"
+
+    - name: Wait for Admin UI DNS records
+      ansible.builtin.shell: >-
+        set -euo pipefail;
+        for host in {{ admin_ui_argocd_host }} {{ admin_ui_grafana_host }}; do
+          resolved=false;
+          for _ in $(seq 1 30); do
+            if getent hosts "${host}" >/dev/null 2>&1; then
+              resolved=true;
+              break;
+            fi;
+            sleep 10;
+          done;
+          if [[ "${resolved}" != "true" ]]; then
+            echo "DNS resolution timed out for ${host}" >&2;
+            exit 1;
+          fi;
+        done
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Verify ArgoCD HTTPS endpoint
+      ansible.builtin.shell: >-
+        set -euo pipefail;
+        for _ in $(seq 1 12); do
+          if curl --silent --show-error --fail --location --max-time 20 https://{{ admin_ui_argocd_host }}/ >/dev/null; then
+            exit 0;
+          fi;
+          sleep 10;
+        done;
+        exit 1
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Verify Grafana HTTPS endpoint
+      ansible.builtin.shell: >-
+        set -euo pipefail;
+        for _ in $(seq 1 12); do
+          if curl --silent --show-error --fail --location --max-time 20 https://{{ admin_ui_grafana_host }}/api/health >/dev/null; then
+            exit 0;
+          fi;
+          sleep 10;
+        done;
+        exit 1
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Print Admin UI verification summary
+      ansible.builtin.debug:
+        msg:
+          - "Shared ALB: {{ admin_ui_argocd_alb_hostname.stdout }}"
+          - "ArgoCD: https://{{ admin_ui_argocd_host }}"
+          - "Grafana: https://{{ admin_ui_grafana_host }}"

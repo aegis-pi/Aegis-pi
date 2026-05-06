@@ -1,0 +1,121 @@
+---
+- name: Bootstrap AWS Load Balancer Controller on Hub EKS
+  hosts: hub_eks
+  gather_facts: false
+
+  vars:
+    aws_lb_controller_values_file: /tmp/aegis-aws-load-balancer-controller-values.yaml
+    aws_lb_controller_crds_url: https://raw.githubusercontent.com/aws/eks-charts/master/stable/aws-load-balancer-controller/crds/crds.yaml
+
+  tasks:
+    - name: Check required local commands
+      ansible.builtin.shell: "command -v {{ item }}"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      loop:
+        - aws
+        - kubectl
+        - helm
+
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command }}"
+      changed_when: true
+
+    - name: Apply AWS Load Balancer Controller service account
+      ansible.builtin.shell: >-
+        kubectl -n {{ aws_lb_controller_namespace }}
+        create serviceaccount {{ aws_lb_controller_service_account_name }}
+        --dry-run=client -o yaml
+        | kubectl apply -f -
+      args:
+        executable: /bin/bash
+      register: aws_lb_controller_service_account_apply
+      changed_when: "'created' in aws_lb_controller_service_account_apply.stdout or 'configured' in aws_lb_controller_service_account_apply.stdout"
+
+    - name: Annotate AWS Load Balancer Controller service account
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ aws_lb_controller_namespace }}
+          annotate serviceaccount {{ aws_lb_controller_service_account_name }}
+          eks.amazonaws.com/role-arn={{ aws_lb_controller_irsa_role_arn }}
+          --overwrite
+      register: aws_lb_controller_service_account_annotate
+      changed_when: "'annotated' in aws_lb_controller_service_account_annotate.stdout"
+
+    - name: Apply AWS Load Balancer Controller CRDs
+      ansible.builtin.command:
+        cmd: "kubectl apply -f {{ aws_lb_controller_crds_url }}"
+      register: aws_lb_controller_crds_apply
+      changed_when: "'created' in aws_lb_controller_crds_apply.stdout or 'configured' in aws_lb_controller_crds_apply.stdout"
+      when: aws_lb_controller_apply_crds | bool
+
+    - name: Render AWS Load Balancer Controller Helm values
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/aws-load-balancer-controller-values.yaml.j2"
+        dest: "{{ aws_lb_controller_values_file }}"
+        mode: "0600"
+
+    - name: Read existing AWS Load Balancer Controller Helm release
+      ansible.builtin.command:
+        cmd: "helm list --namespace {{ aws_lb_controller_namespace }} --filter '^{{ aws_lb_controller_release_name }}$' --output json"
+      register: aws_lb_controller_helm_release_list
+      changed_when: false
+
+    - name: Parse existing AWS Load Balancer Controller Helm release
+      ansible.builtin.set_fact:
+        aws_lb_controller_helm_releases: "{{ aws_lb_controller_helm_release_list.stdout | from_json }}"
+
+    - name: Select existing AWS Load Balancer Controller Helm release
+      ansible.builtin.set_fact:
+        aws_lb_controller_helm_release: "{{ (aws_lb_controller_helm_releases | first) if (aws_lb_controller_helm_releases | length > 0) else {} }}"
+
+    - name: Decide whether AWS Load Balancer Controller Helm apply is needed
+      ansible.builtin.set_fact:
+        aws_lb_controller_helm_apply_required: >-
+          {{
+            aws_lb_controller_force_upgrade | bool
+            or aws_lb_controller_helm_release | length == 0
+            or (aws_lb_controller_helm_release.status | default('')) != 'deployed'
+            or (aws_lb_controller_helm_release.chart | default('')) != ('aws-load-balancer-controller-' ~ aws_lb_controller_chart_version)
+          }}
+
+    - name: Show AWS Load Balancer Controller Helm apply decision
+      ansible.builtin.debug:
+        msg: >-
+          AWS Load Balancer Controller apply required={{ aws_lb_controller_helm_apply_required }};
+          force={{ aws_lb_controller_force_upgrade | bool }};
+          installed={{ aws_lb_controller_helm_release.chart | default('none') }};
+          status={{ aws_lb_controller_helm_release.status | default('none') }}
+
+    - name: Add or update EKS Helm repository
+      ansible.builtin.command:
+        cmd: "helm repo add {{ aws_lb_controller_helm_repo_name }} {{ aws_lb_controller_helm_repo_url }} --force-update"
+      register: aws_lb_controller_repo_add
+      changed_when: "'has been added' in aws_lb_controller_repo_add.stdout or 'has been updated' in aws_lb_controller_repo_add.stdout"
+      when: aws_lb_controller_helm_apply_required | bool
+
+    - name: Update EKS Helm repository
+      ansible.builtin.command:
+        cmd: "helm repo update {{ aws_lb_controller_helm_repo_name }}"
+      changed_when: true
+      when: aws_lb_controller_helm_apply_required | bool
+
+    - name: Install or upgrade AWS Load Balancer Controller
+      ansible.builtin.command:
+        cmd: >-
+          helm upgrade --install {{ aws_lb_controller_release_name }} {{ aws_lb_controller_chart_ref }}
+          --namespace {{ aws_lb_controller_namespace }}
+          --version {{ aws_lb_controller_chart_version }}
+          --values {{ aws_lb_controller_values_file }}
+          --wait
+          --timeout 10m
+      register: aws_lb_controller_helm_apply
+      changed_when: "'Release' in aws_lb_controller_helm_apply.stdout"
+      when: aws_lb_controller_helm_apply_required | bool
+
+    - name: Wait for AWS Load Balancer Controller deployment
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ aws_lb_controller_namespace }} wait --for=condition=available --timeout=180s deployment/{{ aws_lb_controller_release_name }}"
+      changed_when: false

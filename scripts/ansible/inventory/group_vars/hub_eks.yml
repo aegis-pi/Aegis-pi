@@ -24,6 +24,17 @@ argocd_remote_port: 443
 argocd_print_initial_admin_password: false
 argocd_force_upgrade: false
 
+aws_lb_controller_namespace: kube-system
+aws_lb_controller_helm_repo_name: eks
+aws_lb_controller_helm_repo_url: https://aws.github.io/eks-charts
+aws_lb_controller_chart_ref: eks/aws-load-balancer-controller
+aws_lb_controller_chart_version: 1.14.0
+aws_lb_controller_app_version: v2.14.0
+aws_lb_controller_release_name: aws-load-balancer-controller
+aws_lb_controller_service_account_name: aws-load-balancer-controller
+aws_lb_controller_apply_crds: true
+aws_lb_controller_force_upgrade: false
+
 grafana_namespace: observability
 grafana_helm_repo_name: grafana
 grafana_helm_repo_url: https://grafana.github.io/helm-charts
@@ -40,3 +51,16 @@ grafana_amp_datasource_name: AEGIS-AMP
 grafana_amp_datasource_uid: aegis-amp
 grafana_apply_on_each_build: true
 grafana_force_upgrade: false
+
+admin_ui_ingress_enabled: "{{ lookup('env', 'ADMIN_UI_INGRESS_ENABLED') | default('false', true) | bool }}"
+admin_ui_group_name: aegis-admin
+admin_ui_load_balancer_name: aegis-admin-ui
+admin_ui_scheme: internet-facing
+admin_ui_target_type: ip
+admin_ui_allowed_cidrs:
+  - 0.0.0.0/0
+admin_ui_tags: "Project=AEGIS,Environment=hub-mvp,Component=hub,ManagedBy=aws-load-balancer-controller"
+admin_ui_argocd_ingress_name: argocd-admin
+admin_ui_grafana_ingress_name: grafana-admin
+admin_ui_argocd_service_name: argocd-server
+admin_ui_grafana_service_name: grafana

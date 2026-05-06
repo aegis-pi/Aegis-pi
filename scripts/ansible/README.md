@@ -6,7 +6,7 @@ Safe-Edge 반복 점검과 Hub EKS bootstrap 자동화를 관리한다.
 
 Hub EKS의 ArgoCD bootstrap은 SSH를 사용하지 않는다. Ansible은 `localhost`에서 실행되고, `infra/hub` Terraform output을 dynamic inventory로 읽은 뒤 EKS Kubernetes API에 접근한다.
 
-현재 bootstrap은 namespace/LimitRange, ArgoCD Helm release, `risk/risk-normalizer` IRSA ServiceAccount, `observability/prometheus-agent` AMP remote_write IRSA ServiceAccount, Prometheus Agent remote_write 구성, 내부 Grafana AMP datasource 구성을 적용한다.
+현재 bootstrap은 namespace/LimitRange, ArgoCD Helm release, `risk/risk-normalizer` IRSA ServiceAccount, `observability/prometheus-agent` AMP remote_write IRSA ServiceAccount, Prometheus Agent remote_write 구성, 내부 Grafana AMP datasource, AWS Load Balancer Controller, 선택적 Admin UI HTTPS Ingress 구성을 적용한다.
 
 선행 조건:
 
@@ -22,6 +22,8 @@ cd scripts/ansible
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_bootstrap.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_grafana_bootstrap.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aws_load_balancer_controller_bootstrap.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_bootstrap.yml
 ```
 
 검증:
@@ -30,7 +32,11 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_grafana_bootstrap
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_verify.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_grafana_verify.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aws_load_balancer_controller_verify.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_verify.yml
 ```
+
+Admin UI Ingress는 기본값에서 비활성화된다. Gabia에서 `minsoo-tech.cloud`를 Route53 NS로 위임하고 ACM certificate가 `ISSUED`가 된 뒤 전체 build에서는 `scripts/build/build-all.sh --admin-ui`, Hub 단독 적용에서는 `ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh`로 활성화한다.
 
 초기 admin 비밀번호를 명시적으로 출력해야 할 때만 아래처럼 실행한다. 비밀번호 값은 문서에 기록하지 않는다.
 
@@ -43,6 +49,13 @@ UI 접근:
 
 ```bash
 ../hub/argocd-port-forward.sh
+```
+
+Admin UI HTTPS Ingress가 활성화된 현재 상태에서는 아래 주소도 사용할 수 있다.
+
+```text
+https://argocd.minsoo-tech.cloud
+https://grafana.minsoo-tech.cloud
 ```
 
 ## start_test 실행

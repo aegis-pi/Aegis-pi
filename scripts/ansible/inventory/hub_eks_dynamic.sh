@@ -30,15 +30,24 @@ cluster_name="$(jq -r '.cluster_name.value // empty' <<<"${terraform_output}")"
 aws_region="$(jq -r '.aws_region.value // empty' <<<"${terraform_output}")"
 cluster_endpoint="$(jq -r '.cluster_endpoint.value // empty' <<<"${terraform_output}")"
 update_kubeconfig_command="$(jq -r '.update_kubeconfig_command.value // empty' <<<"${terraform_output}")"
+vpc_id="$(jq -r '.vpc_id.value // empty' <<<"${terraform_output}")"
 risk_normalizer_irsa_role_arn="$(jq -r '.risk_normalizer_irsa_role_arn.value // empty' <<<"${terraform_output}")"
 risk_normalizer_service_account_namespace="$(jq -r '.risk_normalizer_service_account.value.namespace // empty' <<<"${terraform_output}")"
 risk_normalizer_service_account_name="$(jq -r '.risk_normalizer_service_account.value.name // empty' <<<"${terraform_output}")"
+aws_lb_controller_irsa_role_arn="$(jq -r '.aws_lb_controller_irsa_role_arn.value // empty' <<<"${terraform_output}")"
+aws_lb_controller_service_account_namespace="$(jq -r '.aws_lb_controller_service_account.value.namespace // empty' <<<"${terraform_output}")"
+aws_lb_controller_service_account_name="$(jq -r '.aws_lb_controller_service_account.value.name // empty' <<<"${terraform_output}")"
 prometheus_remote_write_irsa_role_arn="$(jq -r '.prometheus_remote_write_irsa_role_arn.value // empty' <<<"${terraform_output}")"
 prometheus_remote_write_service_account_namespace="$(jq -r '.prometheus_remote_write_service_account.value.namespace // empty' <<<"${terraform_output}")"
 prometheus_remote_write_service_account_name="$(jq -r '.prometheus_remote_write_service_account.value.name // empty' <<<"${terraform_output}")"
 grafana_amp_query_irsa_role_arn="$(jq -r '.grafana_amp_query_irsa_role_arn.value // empty' <<<"${terraform_output}")"
 grafana_service_account_namespace="$(jq -r '.grafana_service_account.value.namespace // empty' <<<"${terraform_output}")"
 grafana_service_account_name="$(jq -r '.grafana_service_account.value.name // empty' <<<"${terraform_output}")"
+admin_ui_domain_name="$(jq -r '.admin_ui_domain_name.value // empty' <<<"${terraform_output}")"
+admin_ui_argocd_host="$(jq -r '.admin_ui_argocd_host.value // empty' <<<"${terraform_output}")"
+admin_ui_grafana_host="$(jq -r '.admin_ui_grafana_host.value // empty' <<<"${terraform_output}")"
+admin_ui_route53_zone_id="$(jq -r '.admin_ui_route53_zone_id.value // empty' <<<"${terraform_output}")"
+admin_ui_certificate_arn="$(jq -r '.admin_ui_certificate_arn.value // empty' <<<"${terraform_output}")"
 amp_prometheus_endpoint="$(jq -r '.amp_prometheus_endpoint.value // empty' <<<"${terraform_output}")"
 amp_remote_write_endpoint="$(jq -r '.amp_remote_write_endpoint.value // empty' <<<"${terraform_output}")"
 
@@ -59,15 +68,24 @@ jq -n \
   --arg aws_region "${aws_region}" \
   --arg cluster_endpoint "${cluster_endpoint}" \
   --arg update_kubeconfig_command "${update_kubeconfig_command}" \
+  --arg vpc_id "${vpc_id}" \
   --arg risk_normalizer_irsa_role_arn "${risk_normalizer_irsa_role_arn}" \
   --arg risk_normalizer_service_account_namespace "${risk_normalizer_service_account_namespace}" \
   --arg risk_normalizer_service_account_name "${risk_normalizer_service_account_name}" \
+  --arg aws_lb_controller_irsa_role_arn "${aws_lb_controller_irsa_role_arn}" \
+  --arg aws_lb_controller_service_account_namespace "${aws_lb_controller_service_account_namespace}" \
+  --arg aws_lb_controller_service_account_name "${aws_lb_controller_service_account_name}" \
   --arg prometheus_remote_write_irsa_role_arn "${prometheus_remote_write_irsa_role_arn}" \
   --arg prometheus_remote_write_service_account_namespace "${prometheus_remote_write_service_account_namespace}" \
   --arg prometheus_remote_write_service_account_name "${prometheus_remote_write_service_account_name}" \
   --arg grafana_amp_query_irsa_role_arn "${grafana_amp_query_irsa_role_arn}" \
   --arg grafana_service_account_namespace "${grafana_service_account_namespace}" \
   --arg grafana_service_account_name "${grafana_service_account_name}" \
+  --arg admin_ui_domain_name "${admin_ui_domain_name}" \
+  --arg admin_ui_argocd_host "${admin_ui_argocd_host}" \
+  --arg admin_ui_grafana_host "${admin_ui_grafana_host}" \
+  --arg admin_ui_route53_zone_id "${admin_ui_route53_zone_id}" \
+  --arg admin_ui_certificate_arn "${admin_ui_certificate_arn}" \
   --arg amp_prometheus_endpoint "${amp_prometheus_endpoint}" \
   --arg amp_remote_write_endpoint "${amp_remote_write_endpoint}" \
   '{
@@ -79,15 +97,24 @@ jq -n \
         aws_region: $aws_region,
         eks_cluster_endpoint: $cluster_endpoint,
         update_kubeconfig_command: $update_kubeconfig_command,
+        vpc_id: $vpc_id,
         risk_normalizer_irsa_role_arn: $risk_normalizer_irsa_role_arn,
         risk_normalizer_service_account_namespace: $risk_normalizer_service_account_namespace,
         risk_normalizer_service_account_name: $risk_normalizer_service_account_name,
+        aws_lb_controller_irsa_role_arn: $aws_lb_controller_irsa_role_arn,
+        aws_lb_controller_service_account_namespace: $aws_lb_controller_service_account_namespace,
+        aws_lb_controller_service_account_name: $aws_lb_controller_service_account_name,
         prometheus_remote_write_irsa_role_arn: $prometheus_remote_write_irsa_role_arn,
         prometheus_remote_write_service_account_namespace: $prometheus_remote_write_service_account_namespace,
         prometheus_remote_write_service_account_name: $prometheus_remote_write_service_account_name,
         grafana_amp_query_irsa_role_arn: $grafana_amp_query_irsa_role_arn,
         grafana_service_account_namespace: $grafana_service_account_namespace,
         grafana_service_account_name: $grafana_service_account_name,
+        admin_ui_domain_name: $admin_ui_domain_name,
+        admin_ui_argocd_host: $admin_ui_argocd_host,
+        admin_ui_grafana_host: $admin_ui_grafana_host,
+        admin_ui_route53_zone_id: $admin_ui_route53_zone_id,
+        admin_ui_certificate_arn: $admin_ui_certificate_arn,
         amp_prometheus_endpoint: $amp_prometheus_endpoint,
         amp_remote_write_endpoint: $amp_remote_write_endpoint
       }

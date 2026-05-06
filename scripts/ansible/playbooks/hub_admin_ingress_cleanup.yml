@@ -1,0 +1,71 @@
+---
+- name: Cleanup Hub Admin UI Ingress resources
+  hosts: hub_eks
+  gather_facts: false
+
+  tasks:
+    - name: Check required local commands
+      ansible.builtin.shell: "command -v {{ item }}"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      loop:
+        - aws
+        - kubectl
+        - jq
+
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command }}"
+      changed_when: true
+      failed_when: false
+
+    - name: Delete Admin UI Route53 CNAME records when present
+      ansible.builtin.shell: >-
+        set -euo pipefail;
+        records_json="$(aws route53 list-resource-record-sets
+        --hosted-zone-id {{ admin_ui_route53_zone_id }}
+        --query 'ResourceRecordSets[?Type==`CNAME` && (Name==`{{ admin_ui_argocd_host }}.` || Name==`{{ admin_ui_grafana_host }}.`)]'
+        --output json)";
+        if [[ "$(jq 'length' <<<"${records_json}")" == "0" ]]; then
+          exit 0;
+        fi;
+        change_batch="$(jq -n --argjson records "${records_json}" '{Changes: ($records | map({Action: "DELETE", ResourceRecordSet: .}))}')";
+        aws route53 change-resource-record-sets
+        --hosted-zone-id {{ admin_ui_route53_zone_id }}
+        --change-batch "${change_batch}"
+      args:
+        executable: /bin/bash
+      register: admin_ui_dns_cleanup
+      changed_when: admin_ui_dns_cleanup.stdout | length > 0
+      failed_when: false
+
+    - name: Delete Admin UI Ingresses
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ item.namespace }} delete ingress {{ item.name }} --ignore-not-found"
+      register: admin_ui_ingress_delete
+      changed_when: "'deleted' in admin_ui_ingress_delete.stdout"
+      failed_when: false
+      loop:
+        - namespace: "{{ argocd_namespace }}"
+          name: "{{ admin_ui_argocd_ingress_name }}"
+        - namespace: "{{ grafana_namespace }}"
+          name: "{{ admin_ui_grafana_ingress_name }}"
+
+    - name: Wait for Admin UI ALB deletion when it existed
+      ansible.builtin.shell: >-
+        set -euo pipefail;
+        for _ in $(seq 1 60); do
+          if ! aws elbv2 describe-load-balancers
+          --region {{ aws_region }}
+          --names {{ admin_ui_load_balancer_name }}
+          >/dev/null 2>&1; then
+            exit 0;
+          fi;
+          sleep 10;
+        done;
+        exit 1
+      args:
+        executable: /bin/bash
+      changed_when: false
+      failed_when: false

@@ -1,0 +1,131 @@
+---
+- name: Bootstrap Hub Admin UI HTTPS Ingress
+  hosts: hub_eks
+  gather_facts: false
+
+  vars:
+    admin_ui_ingress_file: /tmp/aegis-admin-ui-ingress.yaml
+
+  tasks:
+    - name: Check required local commands
+      ansible.builtin.shell: "command -v {{ item }}"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      loop:
+        - aws
+        - kubectl
+        - jq
+
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command }}"
+      changed_when: true
+
+    - name: Read Admin UI ACM certificate status
+      ansible.builtin.command:
+        cmd: >-
+          aws acm describe-certificate
+          --region {{ aws_region }}
+          --certificate-arn {{ admin_ui_certificate_arn }}
+          --query Certificate.Status
+          --output text
+      register: admin_ui_certificate_status
+      changed_when: false
+
+    - name: Print disabled Admin UI Ingress status
+      ansible.builtin.debug:
+        msg:
+          - "Admin UI Ingress is disabled. Set ADMIN_UI_INGRESS_ENABLED=true after Gabia delegates {{ admin_ui_domain_name }} to Route53."
+          - "ACM certificate status: {{ admin_ui_certificate_status.stdout }}"
+          - "ArgoCD host: {{ admin_ui_argocd_host }}"
+          - "Grafana host: {{ admin_ui_grafana_host }}"
+      when: not (admin_ui_ingress_enabled | bool)
+
+    - name: Stop when Admin UI Ingress is disabled
+      ansible.builtin.meta: end_play
+      when: not (admin_ui_ingress_enabled | bool)
+
+    - name: Assert Admin UI ACM certificate is issued
+      ansible.builtin.assert:
+        that:
+          - admin_ui_certificate_status.stdout == "ISSUED"
+        fail_msg: >-
+          Admin UI ACM certificate is {{ admin_ui_certificate_status.stdout }}.
+          Configure Gabia NS delegation for {{ admin_ui_domain_name }} using the Route53 name servers from terraform output,
+          wait until the certificate is ISSUED, then rerun with ADMIN_UI_INGRESS_ENABLED=true.
+
+    - name: Render Admin UI Ingress manifest
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/admin-ui-ingress.yaml.j2"
+        dest: "{{ admin_ui_ingress_file }}"
+        mode: "0600"
+
+    - name: Apply Admin UI Ingress manifest
+      ansible.builtin.command:
+        cmd: "kubectl apply -f {{ admin_ui_ingress_file }}"
+      register: admin_ui_ingress_apply
+      changed_when: "'created' in admin_ui_ingress_apply.stdout or 'configured' in admin_ui_ingress_apply.stdout"
+
+    - name: Wait for Admin UI ALB hostname
+      ansible.builtin.shell: >-
+        set -euo pipefail;
+        for _ in $(seq 1 60); do
+          argocd_host="$(kubectl -n {{ argocd_namespace }} get ingress {{ admin_ui_argocd_ingress_name }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)";
+          grafana_host="$(kubectl -n {{ grafana_namespace }} get ingress {{ admin_ui_grafana_ingress_name }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)";
+          if [[ -n "${argocd_host}" && "${argocd_host}" == "${grafana_host}" ]]; then
+            echo "${argocd_host}";
+            exit 0;
+          fi;
+          sleep 10;
+        done;
+        exit 1
+      args:
+        executable: /bin/bash
+      register: admin_ui_alb_hostname
+      changed_when: false
+
+    - name: Upsert Admin UI Route53 CNAME records
+      ansible.builtin.shell: >-
+        set -euo pipefail;
+        change_batch="$(jq -n
+        --arg argocd "{{ admin_ui_argocd_host }}"
+        --arg grafana "{{ admin_ui_grafana_host }}"
+        --arg alb "{{ admin_ui_alb_hostname.stdout }}"
+        '{
+          Changes: [
+            {
+              Action: "UPSERT",
+              ResourceRecordSet: {
+                Name: $argocd,
+                Type: "CNAME",
+                TTL: 60,
+                ResourceRecords: [{Value: $alb}]
+              }
+            },
+            {
+              Action: "UPSERT",
+              ResourceRecordSet: {
+                Name: $grafana,
+                Type: "CNAME",
+                TTL: 60,
+                ResourceRecords: [{Value: $alb}]
+              }
+            }
+          ]
+        }')";
+        aws route53 change-resource-record-sets
+        --hosted-zone-id {{ admin_ui_route53_zone_id }}
+        --change-batch "${change_batch}"
+      args:
+        executable: /bin/bash
+      register: admin_ui_dns_change
+      changed_when: true
+
+    - name: Print Admin UI Ingress summary
+      ansible.builtin.debug:
+        msg:
+          - "Admin UI ALB: {{ admin_ui_alb_hostname.stdout }}"
+          - "ArgoCD: https://{{ admin_ui_argocd_host }}"
+          - "Grafana: https://{{ admin_ui_grafana_host }}"
+          - "Route53 change: {{ admin_ui_dns_change.stdout }}"

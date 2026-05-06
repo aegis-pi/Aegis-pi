@@ -1,0 +1,22 @@
+clusterName: {{ eks_cluster_name }}
+region: {{ aws_region }}
+vpcId: {{ vpc_id }}
+
+serviceAccount:
+  create: false
+  name: {{ aws_lb_controller_service_account_name }}
+
+replicaCount: 2
+
+enableServiceMutatorWebhook: false
+
+podLabels:
+  app.kubernetes.io/part-of: aegis-hub
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

@@ -1,0 +1,90 @@
+---
+- name: Verify AWS Load Balancer Controller on Hub EKS
+  hosts: hub_eks
+  gather_facts: false
+
+  tasks:
+    - name: Check required local commands
+      ansible.builtin.shell: "command -v {{ item }}"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      loop:
+        - aws
+        - kubectl
+        - jq
+
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command }}"
+      changed_when: true
+
+    - name: Read AWS Load Balancer Controller deployment
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ aws_lb_controller_namespace }} get deployment {{ aws_lb_controller_release_name }} -o json"
+      register: aws_lb_controller_deployment_json
+      changed_when: false
+
+    - name: Parse AWS Load Balancer Controller deployment
+      ansible.builtin.set_fact:
+        aws_lb_controller_deployment: "{{ aws_lb_controller_deployment_json.stdout | from_json }}"
+
+    - name: Assert AWS Load Balancer Controller is available
+      ansible.builtin.assert:
+        that:
+          - aws_lb_controller_deployment.status.availableReplicas | default(0) | int >= 1
+        fail_msg: "AWS Load Balancer Controller deployment does not have an available replica"
+
+    - name: Read AWS Load Balancer Controller service account
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ aws_lb_controller_namespace }} get serviceaccount {{ aws_lb_controller_service_account_name }} -o json"
+      register: aws_lb_controller_service_account_json
+      changed_when: false
+
+    - name: Parse AWS Load Balancer Controller service account annotation
+      ansible.builtin.set_fact:
+        aws_lb_controller_service_account_role_arn: >-
+          {{
+            (aws_lb_controller_service_account_json.stdout | from_json)
+            .metadata.annotations['eks.amazonaws.com/role-arn']
+          }}
+
+    - name: Assert AWS Load Balancer Controller IRSA annotation
+      ansible.builtin.assert:
+        that:
+          - aws_lb_controller_service_account_role_arn == aws_lb_controller_irsa_role_arn
+        fail_msg: "AWS Load Balancer Controller service account is not annotated with the expected IRSA role"
+
+    - name: Verify public subnet discovery tags
+      ansible.builtin.shell: >-
+        set -euo pipefail;
+        aws ec2 describe-subnets
+        --region {{ aws_region }}
+        --filters
+        Name=vpc-id,Values={{ vpc_id }}
+        Name=tag:kubernetes.io/role/elb,Values=1
+        --query 'Subnets[].SubnetId'
+        --output json
+        | jq -e 'length >= 2' >/dev/null
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Check recent AWS Load Balancer Controller logs
+      ansible.builtin.shell: >-
+        set -euo pipefail;
+        kubectl -n {{ aws_lb_controller_namespace }}
+        logs deployment/{{ aws_lb_controller_release_name }}
+        --tail=200
+        | grep -E 'AccessDenied|NoCredential|failed to discover|unable to discover|WebIdentityErr' && exit 1 || exit 0
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Print AWS Load Balancer Controller verification summary
+      ansible.builtin.debug:
+        msg:
+          - "AWS Load Balancer Controller: available"
+          - "ServiceAccount: {{ aws_lb_controller_namespace }}/{{ aws_lb_controller_service_account_name }}"
+          - "IRSA role: {{ aws_lb_controller_service_account_role_arn }}"
+          - "VPC: {{ vpc_id }}"

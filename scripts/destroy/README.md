@@ -19,9 +19,11 @@
    - IoT Thing 삭제
 
 2. hub
+   - Admin UI Ingress가 켜져 있었다면 Route53 CNAME, Ingress, ALB/TargetGroup/SecurityGroup 선삭제
    - infra/hub Terraform destroy
    - EKS, VPC, node group, NAT Gateway 삭제
-   - AMP remote write용 IRSA IAM role/policy 삭제
+   - AMP remote write, Grafana AMP query, AWS Load Balancer Controller용 IRSA IAM role/policy 삭제
+   - Route53 Hosted Zone과 ACM certificate 삭제
    - infra/hub가 AMP/IRSA 배선을 위해 foundation output을 읽으므로 foundation tfstate 필요
 
 3. foundation
@@ -60,7 +62,7 @@ DESTROY_HUB=true
 DESTROY_FOUNDATION=true
 ```
 
-즉, 기본 `destroy-all.sh`는 `build-all.sh`의 전체 생성 범위에 대응해 IoT factory-a, Hub EKS/VPC/NAT Gateway/node group, foundation S3/IoT Rule/AMP Workspace를 순서대로 삭제한다.
+즉, 기본 `destroy-all.sh`는 `build-all.sh`의 전체 생성 범위에 대응해 IoT factory-a, Hub EKS/VPC/NAT Gateway/node group, Admin UI Route53/ACM/ALB 관련 리소스, foundation S3/IoT Rule/AMP Workspace를 순서대로 삭제한다.
 
 ## Foundation 보존 삭제
 
@@ -109,6 +111,7 @@ Hub destroy는 `infra/hub`가 foundation output을 읽는 구조라 `infra/found
 ## 주의
 
 - `destroy-all.sh`는 Hub EKS와 NAT Gateway를 삭제한다.
+- `destroy-hub.sh`는 Terraform destroy 전에 Admin UI Ingress cleanup playbook을 먼저 실행한다. Ingress가 비활성화된 상태면 cleanup은 no-op에 가깝게 지나간다.
 - `destroy-foundation.sh`는 S3/AMP/IoT Rule 같은 영속 리소스를 삭제하는 자리다.
 - `scripts/destroy/destroy-all.sh`가 `scripts/build/build-all.sh`에 대응하는 전체 삭제 실행이다.
 - Foundation만 직접 삭제할 때는 안전장치로 `DESTROY_FOUNDATION=true scripts/destroy/destroy-foundation.sh`가 필요하다.
