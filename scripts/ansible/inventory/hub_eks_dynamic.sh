@@ -33,6 +33,10 @@ update_kubeconfig_command="$(jq -r '.update_kubeconfig_command.value // empty' <
 risk_normalizer_irsa_role_arn="$(jq -r '.risk_normalizer_irsa_role_arn.value // empty' <<<"${terraform_output}")"
 risk_normalizer_service_account_namespace="$(jq -r '.risk_normalizer_service_account.value.namespace // empty' <<<"${terraform_output}")"
 risk_normalizer_service_account_name="$(jq -r '.risk_normalizer_service_account.value.name // empty' <<<"${terraform_output}")"
+prometheus_remote_write_irsa_role_arn="$(jq -r '.prometheus_remote_write_irsa_role_arn.value // empty' <<<"${terraform_output}")"
+prometheus_remote_write_service_account_namespace="$(jq -r '.prometheus_remote_write_service_account.value.namespace // empty' <<<"${terraform_output}")"
+prometheus_remote_write_service_account_name="$(jq -r '.prometheus_remote_write_service_account.value.name // empty' <<<"${terraform_output}")"
+amp_remote_write_endpoint="$(jq -r '.amp_remote_write_endpoint.value // empty' <<<"${terraform_output}")"
 
 if [[ -z "${cluster_name}" || -z "${aws_region}" ]]; then
   if [[ "${HUB_EKS_ALLOW_DEFAULTS:-false}" == "true" ]]; then
@@ -54,6 +58,10 @@ jq -n \
   --arg risk_normalizer_irsa_role_arn "${risk_normalizer_irsa_role_arn}" \
   --arg risk_normalizer_service_account_namespace "${risk_normalizer_service_account_namespace}" \
   --arg risk_normalizer_service_account_name "${risk_normalizer_service_account_name}" \
+  --arg prometheus_remote_write_irsa_role_arn "${prometheus_remote_write_irsa_role_arn}" \
+  --arg prometheus_remote_write_service_account_namespace "${prometheus_remote_write_service_account_namespace}" \
+  --arg prometheus_remote_write_service_account_name "${prometheus_remote_write_service_account_name}" \
+  --arg amp_remote_write_endpoint "${amp_remote_write_endpoint}" \
   '{
     hub_eks: {
       hosts: ["localhost"],
@@ -65,7 +73,11 @@ jq -n \
         update_kubeconfig_command: $update_kubeconfig_command,
         risk_normalizer_irsa_role_arn: $risk_normalizer_irsa_role_arn,
         risk_normalizer_service_account_namespace: $risk_normalizer_service_account_namespace,
-        risk_normalizer_service_account_name: $risk_normalizer_service_account_name
+        risk_normalizer_service_account_name: $risk_normalizer_service_account_name,
+        prometheus_remote_write_irsa_role_arn: $prometheus_remote_write_irsa_role_arn,
+        prometheus_remote_write_service_account_namespace: $prometheus_remote_write_service_account_namespace,
+        prometheus_remote_write_service_account_name: $prometheus_remote_write_service_account_name,
+        amp_remote_write_endpoint: $amp_remote_write_endpoint
       }
     },
     _meta: {

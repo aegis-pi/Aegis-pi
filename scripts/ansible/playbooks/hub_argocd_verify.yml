@@ -50,6 +50,29 @@
           - risk_normalizer_service_account_role_arn == risk_normalizer_irsa_role_arn
         fail_msg: "risk-normalizer service account is not annotated with the expected IRSA role"
 
+    - name: Read Prometheus remote_write service account annotation
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ prometheus_remote_write_service_account_namespace }}
+          get serviceaccount {{ prometheus_remote_write_service_account_name }}
+          -o json
+      register: prometheus_remote_write_service_account_json
+      changed_when: false
+
+    - name: Parse Prometheus remote_write service account annotation
+      ansible.builtin.set_fact:
+        prometheus_remote_write_service_account_role_arn: >-
+          {{
+            (prometheus_remote_write_service_account_json.stdout | from_json)
+            .metadata.annotations['eks.amazonaws.com/role-arn']
+          }}
+
+    - name: Assert Prometheus remote_write IRSA annotation
+      ansible.builtin.assert:
+        that:
+          - prometheus_remote_write_service_account_role_arn == prometheus_remote_write_irsa_role_arn
+        fail_msg: "Prometheus remote_write service account is not annotated with the expected IRSA role"
+
     - name: Print verification summary
       ansible.builtin.debug:
         msg:
@@ -57,3 +80,5 @@
           - "{{ argocd_pods_output.stdout_lines }}"
           - "{{ argocd_helm_output.stdout_lines }}"
           - "risk-normalizer IRSA role: {{ risk_normalizer_service_account_role_arn }}"
+          - "prometheus remote_write IRSA role: {{ prometheus_remote_write_service_account_role_arn }}"
+          - "AMP remote_write endpoint: {{ amp_remote_write_endpoint }}"

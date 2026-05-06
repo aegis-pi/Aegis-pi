@@ -109,3 +109,21 @@ variable "risk_normalizer_service_account" {
   type        = string
   default     = "risk-normalizer"
 }
+
+variable "foundation_state_path" {
+  description = "Local Terraform state path for infra/foundation outputs consumed by Hub IAM policies."
+  type        = string
+  default     = "../foundation/terraform.tfstate"
+}
+
+variable "prometheus_remote_write_namespace" {
+  description = "Kubernetes namespace for the Prometheus remote_write service account."
+  type        = string
+  default     = "observability"
+}
+
+variable "prometheus_remote_write_service_account" {
+  description = "Kubernetes service account name used by Prometheus or Prometheus Agent for AMP remote_write."
+  type        = string
+  default     = "prometheus-agent"
+}

@@ -57,6 +57,27 @@
       register: risk_normalizer_service_account_annotate
       changed_when: "'annotated' in risk_normalizer_service_account_annotate.stdout"
 
+    - name: Apply Prometheus remote_write IRSA service account
+      ansible.builtin.shell: >-
+        kubectl -n {{ prometheus_remote_write_service_account_namespace }}
+        create serviceaccount {{ prometheus_remote_write_service_account_name }}
+        --dry-run=client -o yaml
+        | kubectl apply -f -
+      args:
+        executable: /bin/bash
+      register: prometheus_remote_write_service_account_apply
+      changed_when: "'created' in prometheus_remote_write_service_account_apply.stdout or 'configured' in prometheus_remote_write_service_account_apply.stdout"
+
+    - name: Annotate Prometheus remote_write IRSA service account
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ prometheus_remote_write_service_account_namespace }}
+          annotate serviceaccount {{ prometheus_remote_write_service_account_name }}
+          eks.amazonaws.com/role-arn={{ prometheus_remote_write_irsa_role_arn }}
+          --overwrite
+      register: prometheus_remote_write_service_account_annotate
+      changed_when: "'annotated' in prometheus_remote_write_service_account_annotate.stdout"
+
     - name: Read existing ArgoCD Helm release
       ansible.builtin.command:
         cmd: "helm list --namespace {{ argocd_namespace }} --filter '^{{ argocd_release_name }}$' --output json"
