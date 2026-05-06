@@ -11,6 +11,8 @@
 | 날짜 | 버전 | 내용 |
 | --- | --- | --- |
 | 2026-05-04 | rev-20260504-01 | Issue 3에 ArgoCD UI Tailscale private access 전환과 EKS API endpoint CIDR 축소 기준을 추가 |
+| 2026-05-06 | rev-20260506-01 | Issue 1 Tailscale Tailnet/Auth Key 정책, 키 보관 방식, 장애 대응 원칙을 문서화 |
+| 2026-05-06 | rev-20260506-02 | Tailscale Hub-Spoke 실제 진행 절차 runbook 참조를 추가 |
 
 ---
 
@@ -25,20 +27,97 @@ Tailscale 네트워크의 인증/키 관리 정책을 먼저 수립한다.
 ### ✅ 완료 조건 (Definition of Done)
 
 - [ ] Tailscale 계정 생성 및 Tailnet 구성
-- [ ] Spoke별 Auth Key 발급 방식 결정
+- [x] Spoke별 Auth Key 발급 방식 결정
   - `factory-a`, `factory-b`, `factory-c`, EKS Hub 각각 별도 키
-- [ ] Reusable Key vs One-time Key 정책 결정 및 기록
-- [ ] 키 보관 방법 결정 (Secret, 환경변수 등)
-- [ ] Tailscale 장애 시 대응 원칙 기록
+- [x] Reusable Key vs One-time Key 정책 결정 및 기록
+- [x] 키 보관 방법 결정 (Secret, 환경변수 등)
+- [x] Tailscale 장애 시 대응 원칙 기록
   - 운영형(`factory-a`): 배포 중단, 보수 판단
   - 테스트베드형(`factory-b`, `factory-c`): 검증 중단, 재시도
-- [ ] 접근 정책을 Mesh VPN 관련 문서에 반영
+- [x] 접근 정책을 Mesh VPN 관련 문서에 반영
 
 ### 🔍 Acceptance Criteria
 
 - Tailscale Admin 콘솔에서 Tailnet 생성 확인
 - 각 환경별 Auth Key 생성 확인
 - 키 관리 정책 문서화 완료
+
+### 진행 상태
+
+- 상태: 정책 수립 완료, Tailnet 생성 및 실제 Auth Key 발급 대기
+- 정책 문서: `infra/mesh-vpn/README.md`
+- 실행 절차: `docs/ops/20_tailscale_hub_spoke_runbook.md`
+- 실제 키 값, Tailnet 이름, 계정 이메일, Secret 값은 issue/document에 기록하지 않는다.
+- Tailnet 생성과 Auth Key 발급은 Tailscale Admin 콘솔에서 수행한 뒤 이 섹션과 `MASTER_CHECKLIST.md`를 갱신한다.
+
+### 실행 절차 문서
+
+Tailscale Admin Console 설정, OAuth client 생성, Spoke별 Auth Key 생성, Hub EKS Tailscale Operator 설치, Spoke Tailnet 참여, Tailscale IP 기반 kubeconfig 생성, ArgoCD cluster 등록 순서는 `docs/ops/20_tailscale_hub_spoke_runbook.md`를 따른다.
+
+이 issue 본문에는 정책과 완료 상태만 남기고, 실제 실행 명령과 순서는 runbook에서 관리한다. secret 값은 runbook, issue, evidence, Git 어디에도 기록하지 않는다.
+
+### 정책 결정
+
+#### Tailnet 기준
+
+- Aegis-Pi 전용 Tailnet을 사용한다.
+- Tailscale은 Hub가 Spoke K3s API에 접근하고 ArgoCD가 배포를 제어하기 위한 운영/제어망이다.
+- 관리자 대시보드 접근망은 Tailscale이 아니라 Dashboard VPC로 분리한다.
+- Tailnet device 이름은 공장/역할을 바로 식별할 수 있게 아래 기준으로 둔다.
+  - `factory-a-master`
+  - `factory-b`
+  - `factory-c`
+  - `aegis-hub`
+
+#### Auth Key 발급 단위
+
+환경별로 Auth Key를 분리한다. 한 키를 여러 공장 또는 Hub에 재사용하지 않는다.
+
+| 대상 | 용도 | 기본 키 유형 | 태그/식별 기준 | 비고 |
+| --- | --- | --- | --- | --- |
+| `factory-a` | 운영형 Raspberry Pi master | One-off, pre-approved, tagged | `tag:aegis-spoke-prod`, `tag:factory-a` | 초기 M2에서는 master만 참여한다. Worker 노드는 제외한다. |
+| `factory-b` | Mac VM 테스트베드 | One-off 우선, VM 재생성 반복 시 short-lived reusable 허용 | `tag:aegis-spoke-testbed`, `tag:factory-b` | reusable 사용 시 7일 이하 만료 후 즉시 revoke한다. |
+| `factory-c` | Windows VM 테스트베드 | One-off 우선, VM 재생성 반복 시 short-lived reusable 허용 | `tag:aegis-spoke-testbed`, `tag:factory-c` | reusable 사용 시 7일 이하 만료 후 즉시 revoke한다. |
+| EKS Hub | ArgoCD/운영 제어망 | Issue 3 운영 방식 결정 후 발급 | `tag:aegis-hub` | Operator/DaemonSet/Subnet Router 방식 결정 전 실제 발급하지 않는다. |
+
+#### One-off vs Reusable 원칙
+
+- 기본값은 One-off Auth Key다.
+- 운영형 `factory-a`에는 reusable key를 사용하지 않는다.
+- 테스트베드형 `factory-b`, `factory-c`는 VM 삭제/재생성이 반복되는 동안에만 short-lived reusable key를 허용한다.
+- reusable key는 7일 이하 만료로 만들고, VM bootstrap이 끝나면 즉시 revoke한다.
+- EKS Hub는 Issue 3에서 운영 방식을 먼저 결정한다. 장기 실행 Subnet Router라면 one-off key를 쓰고, Kubernetes workload로 반복 생성되는 구조라면 Tailscale OAuth client 또는 짧은 수명의 key 발급 자동화를 검토한다.
+
+#### 키 보관 원칙
+
+- Auth Key, OAuth client secret, kubeconfig credential은 Git에 커밋하지 않는다.
+- issue, README, evidence, screenshot, command output에 secret 값을 남기지 않는다.
+- 로컬 임시 보관이 필요하면 repository 밖의 사용자 전용 경로에 둔다.
+  - 예: `~/.aegis/secrets/tailscale/`
+- Hub Kubernetes에서 사용할 값은 수동 생성 Kubernetes Secret 또는 후속 External Secrets/SOPS/SealedSecrets 후보로 관리한다.
+- `.env`, `*.key`, `*tailscale*secret*`, `factory-*.kubeconfig`는 커밋 금지 대상으로 유지한다.
+
+#### 접근 정책 초안
+
+- Hub/ArgoCD 계층은 Spoke K3s API `tcp/6443`에 접근할 수 있어야 한다.
+- 운영자 로컬 장비는 필요 시 Spoke SSH `tcp/22`와 K3s API `tcp/6443`에 접근한다.
+- Spoke 간 직접 접근은 기본적으로 허용하지 않는다.
+- Spoke에서 Hub/EKS/ArgoCD admin API로 직접 접근하는 흐름은 만들지 않는다.
+- Dashboard VPC, Dashboard Web/API는 Tailscale, EKS API, ArgoCD API, Spoke K3s API에 접근하지 않는다.
+
+#### 장애 대응 원칙
+
+- `factory-a` 운영형: Tailscale 장애 시 ArgoCD 배포와 원격 운영을 중단한다. 로컬 Safe-Edge workload는 계속 운영하고, 복구 전까지 수동 배포/변경을 보류한다.
+- `factory-b`, `factory-c` 테스트베드형: Tailscale 장애 시 해당 테스트를 중단하고 VM/Tailscale 재참여 후 재시도한다. 테스트 데이터 누락은 실패 evidence로 기록한다.
+- Hub Tailscale 장애: 신규 Sync/검증은 중단한다. 이미 배포된 Spoke workload는 유지되며, 복구 후 ArgoCD cluster connection과 test Application sync를 다시 확인한다.
+
+### GitHub Issue Comment Draft
+
+- 상태: 부분 완료
+- 진행 요약: Tailnet/Auth Key 발급 정책, one-off/reusable 사용 기준, secret 보관 방식, 운영형/테스트베드형 장애 대응 원칙을 문서화했다.
+- 변경/확인: `docs/issues/M2_mesh-vpn-hub-spoke.md`, `infra/mesh-vpn/README.md`
+- 검증: 정책 문서화는 완료했지만 Tailscale Admin 콘솔에서 Tailnet 생성과 실제 Auth Key 발급은 아직 수행하지 않았다.
+- 후속: Tailscale Admin 콘솔에서 Aegis-Pi 전용 Tailnet을 만들고 `factory-a`, `factory-b`, `factory-c`, EKS Hub용 키를 정책에 맞게 발급한다. 실제 키 값은 문서와 Git에 기록하지 않는다.
 
 ---
 
