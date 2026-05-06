@@ -1,0 +1,100 @@
+---
+- name: Verify Hub internal Grafana AMP datasource
+  hosts: hub_eks
+  gather_facts: false
+
+  tasks:
+    - name: Check required local commands
+      ansible.builtin.shell: "command -v {{ item }}"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      loop:
+        - aws
+        - kubectl
+        - curl
+        - jq
+
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command }}"
+      changed_when: true
+
+    - name: Read Grafana deployment
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ grafana_namespace }} get deployment {{ grafana_release_name }} -o json"
+      register: grafana_deployment_json
+      changed_when: false
+
+    - name: Parse Grafana deployment status
+      ansible.builtin.set_fact:
+        grafana_deployment: "{{ grafana_deployment_json.stdout | from_json }}"
+
+    - name: Assert Grafana is available
+      ansible.builtin.assert:
+        that:
+          - grafana_deployment.status.availableReplicas | default(0) | int >= 1
+        fail_msg: "Grafana deployment does not have an available replica"
+
+    - name: Read Grafana service account annotation
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ grafana_namespace }} get serviceaccount {{ grafana_service_account_name }} -o json"
+      register: grafana_service_account_json
+      changed_when: false
+
+    - name: Parse Grafana service account annotation
+      ansible.builtin.set_fact:
+        grafana_service_account_role_arn: >-
+          {{
+            (grafana_service_account_json.stdout | from_json)
+            .metadata.annotations['eks.amazonaws.com/role-arn']
+          }}
+
+    - name: Assert Grafana AMP query IRSA annotation
+      ansible.builtin.assert:
+        that:
+          - grafana_service_account_role_arn == grafana_amp_query_irsa_role_arn
+        fail_msg: "Grafana service account is not annotated with the expected AMP query IRSA role"
+
+    - name: Read Grafana service type
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ grafana_namespace }} get svc {{ grafana_service_name }} -o jsonpath={.spec.type}"
+      register: grafana_service_type_result
+      changed_when: false
+
+    - name: Assert Grafana service remains private
+      ansible.builtin.assert:
+        that:
+          - grafana_service_type_result.stdout == grafana_service_type
+        fail_msg: "Grafana service type is {{ grafana_service_type_result.stdout }}, expected {{ grafana_service_type }}"
+
+    - name: Verify Grafana AMP datasource through Grafana API
+      ansible.builtin.shell: >-
+        set -euo pipefail;
+        admin_password="$(kubectl -n {{ grafana_namespace }} get secret {{ grafana_admin_secret_name }} -o jsonpath='{.data.admin-password}' | base64 -d)";
+        kubectl -n {{ grafana_namespace }} port-forward service/{{ grafana_service_name }} {{ grafana_local_port }}:{{ grafana_remote_port }} >/tmp/aegis-grafana-port-forward.log 2>&1 &
+        pf_pid="$!";
+        trap 'kill "${pf_pid}" >/dev/null 2>&1 || true' EXIT;
+        for _ in $(seq 1 30); do
+          if curl --silent --fail --user "admin:${admin_password}" "http://127.0.0.1:{{ grafana_local_port }}/api/health" >/dev/null; then
+            break;
+          fi;
+          sleep 1;
+        done;
+        datasource_json="$(curl --silent --fail --user "admin:${admin_password}" "http://127.0.0.1:{{ grafana_local_port }}/api/datasources/uid/{{ grafana_amp_datasource_uid }}")";
+        echo "${datasource_json}" | jq -e '.type == "prometheus" and .jsonData.sigV4Auth == true and .jsonData.sigV4Region == "{{ aws_region }}"' >/dev/null;
+        query_result="$(curl --silent --fail --get --user "admin:${admin_password}" --data-urlencode 'query=up{cluster="{{ eks_cluster_name }}"}' "http://127.0.0.1:{{ grafana_local_port }}/api/datasources/proxy/uid/{{ grafana_amp_datasource_uid }}/api/v1/query")";
+        echo "${query_result}" | jq -e '.status == "success" and (.data.result | length) > 0' >/dev/null;
+        echo "${query_result}" | jq -r '.data.result[] | "\(.metric.job)=\(.value[1])"' | sort
+      args:
+        executable: /bin/bash
+      register: grafana_amp_query_result
+      changed_when: false
+
+    - name: Print Grafana verification summary
+      ansible.builtin.debug:
+        msg:
+          - "Grafana service type: {{ grafana_service_type_result.stdout }}"
+          - "Grafana AMP query IRSA role: {{ grafana_service_account_role_arn }}"
+          - "Grafana AMP datasource: {{ grafana_amp_datasource_name }} / {{ grafana_amp_datasource_uid }}"
+          - "{{ grafana_amp_query_result.stdout_lines }}"

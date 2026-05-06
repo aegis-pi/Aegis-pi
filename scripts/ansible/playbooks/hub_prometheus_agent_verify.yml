@@ -1,0 +1,79 @@
+- name: Verify Hub Prometheus Agent remote_write
+  hosts: hub_eks
+  gather_facts: false
+
+  tasks:
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command }}"
+      changed_when: true
+
+    - name: Read Prometheus Agent deployment
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ prometheus_remote_write_service_account_namespace }}
+          get deployment prometheus-agent -o json
+      register: prometheus_agent_deployment_json
+      changed_when: false
+
+    - name: Parse Prometheus Agent deployment status
+      ansible.builtin.set_fact:
+        prometheus_agent_deployment: "{{ prometheus_agent_deployment_json.stdout | from_json }}"
+
+    - name: Assert Prometheus Agent is available
+      ansible.builtin.assert:
+        that:
+          - prometheus_agent_deployment.status.availableReplicas | default(0) | int >= 1
+        fail_msg: "prometheus-agent deployment does not have an available replica"
+
+    - name: Read Prometheus remote_write service account annotation
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ prometheus_remote_write_service_account_namespace }}
+          get serviceaccount {{ prometheus_remote_write_service_account_name }}
+          -o json
+      register: prometheus_remote_write_service_account_json
+      changed_when: false
+
+    - name: Parse Prometheus remote_write service account annotation
+      ansible.builtin.set_fact:
+        prometheus_remote_write_service_account_role_arn: >-
+          {{
+            (prometheus_remote_write_service_account_json.stdout | from_json)
+            .metadata.annotations['eks.amazonaws.com/role-arn']
+          }}
+
+    - name: Assert Prometheus remote_write IRSA annotation
+      ansible.builtin.assert:
+        that:
+          - prometheus_remote_write_service_account_role_arn == prometheus_remote_write_irsa_role_arn
+        fail_msg: "Prometheus remote_write service account is not annotated with the expected IRSA role"
+
+    - name: Read Prometheus Agent pods
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ prometheus_remote_write_service_account_namespace }}
+          get pods -l app.kubernetes.io/name=prometheus-agent -o wide
+      register: prometheus_agent_pods
+      changed_when: false
+
+    - name: Read Prometheus Agent recent logs
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ prometheus_remote_write_service_account_namespace }}
+          logs deployment/prometheus-agent --since=10m --tail=200
+      register: prometheus_agent_logs
+      changed_when: false
+
+    - name: Assert Prometheus Agent logs do not show remote_write errors
+      ansible.builtin.assert:
+        that:
+          - prometheus_agent_logs.stdout is not regex('(?i)(non-recoverable|server returned HTTP status|remote write.*(error|failed)|failed to send|AccessDenied|InvalidSignature)')
+        fail_msg: "Prometheus Agent logs contain remote_write errors"
+
+    - name: Print verification summary
+      ansible.builtin.debug:
+        msg:
+          - "{{ prometheus_agent_pods.stdout_lines }}"
+          - "prometheus remote_write IRSA role: {{ prometheus_remote_write_service_account_role_arn }}"
+          - "AMP remote_write endpoint: {{ amp_remote_write_endpoint }}"

@@ -18,6 +18,8 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | `hub/destroy-hub.sh` | `destroy/destroy-hub.sh`를 호출하는 호환 wrapper |
 | `ops/argocd-initial-password.sh` | MFA 세션 확인 후 Hub ArgoCD 초기 admin 비밀번호 조회 |
 | `ops/argocd-port-forward.sh` | Hub ArgoCD UI 로컬 접근용 kubeconfig 갱신 및 port-forward 실행 |
+| `ops/grafana-admin-password.sh` | MFA 세션 확인 후 Hub 내부 Grafana admin 비밀번호 조회 |
+| `ops/grafana-port-forward.sh` | Hub 내부 Grafana UI 로컬 접근용 kubeconfig 갱신 및 port-forward 실행 |
 | `lib/aws-mfa.sh` | AWS MFA session 공통 함수 |
 | `lib/terraform.sh` | Terraform apply/destroy 공통 함수 |
 | `config/defaults.sh` | scripts 기본값 source |
@@ -27,6 +29,10 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | `ansible/inventory/hub_eks_dynamic.sh` | `infra/hub` Terraform output 기반 Hub EKS dynamic inventory |
 | `ansible/playbooks/hub_argocd_bootstrap.yml` | Hub namespace, LimitRange, ArgoCD Helm 설치 및 검증 |
 | `ansible/playbooks/hub_argocd_verify.yml` | Hub ArgoCD bootstrap 상태 확인 |
+| `ansible/playbooks/hub_prometheus_agent_bootstrap.yml` | Hub Prometheus Agent와 AMP remote_write 설정 |
+| `ansible/playbooks/hub_prometheus_agent_verify.yml` | Hub Prometheus Agent와 AMP remote_write 상태 확인 |
+| `ansible/playbooks/hub_grafana_bootstrap.yml` | Hub 내부 Grafana와 AMP datasource 설정 |
+| `ansible/playbooks/hub_grafana_verify.yml` | Hub 내부 Grafana와 AMP datasource query 상태 확인 |
 
 반복 점검 자동화는 `ansible/` 아래에 둔다.
 

@@ -2,7 +2,7 @@
 
 이 디렉터리는 Hub EKS를 실행하기 위한 AWS 네트워크와 클러스터 기준선을 관리한다.
 
-현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. EKS OIDC에 묶인 IRSA IAM Role/Policy는 Terraform으로 관리하고, Kubernetes namespace, LimitRange, ArgoCD, ServiceAccount annotation 같은 클러스터 bootstrap 리소스는 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다.
+현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. EKS OIDC에 묶인 IRSA IAM Role/Policy는 Terraform으로 관리하고, Kubernetes namespace, LimitRange, ArgoCD, Prometheus Agent, Grafana, ServiceAccount annotation 같은 클러스터 bootstrap 리소스는 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다.
 
 전체 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 따른다. 이 디렉터리는 Terraform 기반 AWS 인프라만 담당한다.
 
@@ -31,6 +31,8 @@ infra/hub/
 ├── locals.tf
 ├── variables.tf
 ├── main.tf
+├── irsa_grafana_amp_query.tf
+├── irsa_prometheus_remote_write.tf
 ├── irsa_risk_normalizer.tf
 ├── outputs.tf
 └── terraform.tfvars.example
@@ -132,10 +134,11 @@ AEGIS-[resource]-[feature]-[zone]
 | EKS node group | `AEGIS-EKS-node` | private A/C | `t3.medium`, desired `2` |
 | IRSA role | `AEGIS-IAMRole-IRSA-risk-normalizer` | - | `risk/risk-normalizer` S3 access |
 | IRSA role | `AEGIS-IAMRole-IRSA-prometheus-remote-write` | - | `observability/prometheus-agent` AMP remote_write |
+| IRSA role | `AEGIS-IAMRole-IRSA-grafana-amp-query` | - | `observability/grafana` AMP query |
 
 ## Hub Bootstrap 기준
 
-Issue 2~3 기준 Hub namespace와 ArgoCD는 Ansible local bootstrap으로 관리한다. Ansible은 EC2 SSH가 아니라 로컬/CI에서 EKS Kubernetes API에 접근한다.
+Issue 2~3/7/8 기준 Hub namespace, ArgoCD, Prometheus Agent, Grafana는 Ansible local bootstrap으로 관리한다. Ansible은 EC2 SSH가 아니라 로컬/CI에서 EKS Kubernetes API에 접근한다.
 
 | Namespace | 역할 | 관리 위치 |
 | --- | --- | --- |

@@ -8,6 +8,7 @@ locals {
     eks_node_group               = "${local.naming_prefix}-EKS-node"
     eks_node_iam_role            = "${local.naming_prefix}-IAMRole-EKS-node"
     eks_node_launch_template     = "${local.naming_prefix}-LT-EKS-node"
+    grafana_amp_query_irsa       = "${local.naming_prefix}-IAMRole-IRSA-grafana-amp-query"
     prometheus_remote_write_irsa = "${local.naming_prefix}-IAMRole-IRSA-prometheus-remote-write"
     risk_normalizer_irsa         = "${local.naming_prefix}-IAMRole-IRSA-risk-normalizer"
     vpc                          = "${local.naming_prefix}-VPC"
@@ -38,6 +39,7 @@ locals {
   ]
 
   risk_normalizer_subject         = "system:serviceaccount:${var.risk_normalizer_namespace}:${var.risk_normalizer_service_account}"
+  grafana_amp_query_subject       = "system:serviceaccount:${var.grafana_namespace}:${var.grafana_service_account}"
   prometheus_remote_write_subject = "system:serviceaccount:${var.prometheus_remote_write_namespace}:${var.prometheus_remote_write_service_account}"
 
   zone_config = {

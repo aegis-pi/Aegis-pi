@@ -1,0 +1,131 @@
+---
+- name: Bootstrap Hub internal Grafana with AMP datasource
+  hosts: hub_eks
+  gather_facts: false
+
+  vars:
+    grafana_values_file: /tmp/aegis-grafana-values.yaml
+
+  tasks:
+    - name: Check required local commands
+      ansible.builtin.shell: "command -v {{ item }}"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      loop:
+        - aws
+        - kubectl
+        - helm
+        - openssl
+
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command }}"
+      changed_when: true
+
+    - name: Apply Hub namespace baseline
+      ansible.builtin.command:
+        cmd: "kubectl apply -f {{ playbook_dir }}/../files/hub-bootstrap.yaml"
+      register: hub_bootstrap_apply
+      changed_when: "'created' in hub_bootstrap_apply.stdout or 'configured' in hub_bootstrap_apply.stdout"
+
+    - name: Create Grafana admin secret when missing
+      ansible.builtin.shell: >-
+        set -euo pipefail;
+        if ! kubectl -n {{ grafana_namespace }} get secret {{ grafana_admin_secret_name }} >/dev/null 2>&1; then
+          kubectl -n {{ grafana_namespace }}
+          create secret generic {{ grafana_admin_secret_name }}
+          --from-literal=admin-user=admin
+          --from-literal=admin-password="$(openssl rand -base64 24)";
+        fi
+      args:
+        executable: /bin/bash
+      register: grafana_admin_secret_create
+      changed_when: "grafana_admin_secret_create.stdout is search('secret/' ~ grafana_admin_secret_name ~ ' created')"
+
+    - name: Render Grafana Helm values
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/grafana-values.yaml.j2"
+        dest: "{{ grafana_values_file }}"
+        mode: "0600"
+
+    - name: Read existing Grafana Helm release
+      ansible.builtin.command:
+        cmd: "helm list --namespace {{ grafana_namespace }} --filter '^{{ grafana_release_name }}$' --output json"
+      register: grafana_helm_release_list
+      changed_when: false
+
+    - name: Parse existing Grafana Helm release
+      ansible.builtin.set_fact:
+        grafana_helm_releases: "{{ grafana_helm_release_list.stdout | from_json }}"
+
+    - name: Select existing Grafana Helm release
+      ansible.builtin.set_fact:
+        grafana_helm_release: "{{ (grafana_helm_releases | first) if (grafana_helm_releases | length > 0) else {} }}"
+
+    - name: Decide whether Grafana Helm apply is needed
+      ansible.builtin.set_fact:
+        grafana_helm_apply_required: >-
+          {{
+            grafana_force_upgrade | bool
+            or grafana_apply_on_each_build | bool
+            or grafana_helm_release | length == 0
+            or (grafana_helm_release.status | default('')) != 'deployed'
+            or (grafana_helm_release.chart | default('')) != ('grafana-' ~ grafana_chart_version)
+          }}
+
+    - name: Show Grafana Helm apply decision
+      ansible.builtin.debug:
+        msg: >-
+          Grafana Helm apply required={{ grafana_helm_apply_required }};
+          force={{ grafana_force_upgrade | bool }};
+          apply_on_each_build={{ grafana_apply_on_each_build | bool }};
+          installed={{ grafana_helm_release.chart | default('none') }};
+          status={{ grafana_helm_release.status | default('none') }}
+
+    - name: Add or update Grafana Helm repository
+      ansible.builtin.command:
+        cmd: "helm repo add {{ grafana_helm_repo_name }} {{ grafana_helm_repo_url }} --force-update"
+      register: grafana_repo_add
+      changed_when: "'has been added' in grafana_repo_add.stdout or 'has been updated' in grafana_repo_add.stdout"
+      when: grafana_helm_apply_required | bool
+
+    - name: Update Helm repositories
+      ansible.builtin.command:
+        cmd: helm repo update
+      changed_when: true
+      when: grafana_helm_apply_required | bool
+
+    - name: Install or upgrade Hub Grafana
+      ansible.builtin.command:
+        cmd: >-
+          helm upgrade --install {{ grafana_release_name }} {{ grafana_chart_ref }}
+          --namespace {{ grafana_namespace }}
+          --version {{ grafana_chart_version }}
+          --values {{ grafana_values_file }}
+          --wait
+          --timeout 10m
+      register: grafana_helm_apply
+      changed_when: "'Release' in grafana_helm_apply.stdout"
+      when: grafana_helm_apply_required | bool
+
+    - name: Wait for Grafana deployment
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ grafana_namespace }} wait --for=condition=available --timeout=180s deployment/{{ grafana_release_name }}"
+      changed_when: false
+
+    - name: Verify Grafana service remains private
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ grafana_namespace }} get svc {{ grafana_service_name }} -o jsonpath={.spec.type}"
+      register: grafana_service_type_result
+      changed_when: false
+
+    - name: Assert Grafana service type
+      ansible.builtin.assert:
+        that:
+          - grafana_service_type_result.stdout == grafana_service_type
+        fail_msg: "Grafana service type is {{ grafana_service_type_result.stdout }}, expected {{ grafana_service_type }}"
+
+    - name: Show Grafana UI access command
+      ansible.builtin.debug:
+        msg: "Run scripts/ops/grafana-port-forward.sh, then open http://127.0.0.1:{{ grafana_local_port }}"

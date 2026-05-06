@@ -36,6 +36,10 @@ risk_normalizer_service_account_name="$(jq -r '.risk_normalizer_service_account.
 prometheus_remote_write_irsa_role_arn="$(jq -r '.prometheus_remote_write_irsa_role_arn.value // empty' <<<"${terraform_output}")"
 prometheus_remote_write_service_account_namespace="$(jq -r '.prometheus_remote_write_service_account.value.namespace // empty' <<<"${terraform_output}")"
 prometheus_remote_write_service_account_name="$(jq -r '.prometheus_remote_write_service_account.value.name // empty' <<<"${terraform_output}")"
+grafana_amp_query_irsa_role_arn="$(jq -r '.grafana_amp_query_irsa_role_arn.value // empty' <<<"${terraform_output}")"
+grafana_service_account_namespace="$(jq -r '.grafana_service_account.value.namespace // empty' <<<"${terraform_output}")"
+grafana_service_account_name="$(jq -r '.grafana_service_account.value.name // empty' <<<"${terraform_output}")"
+amp_prometheus_endpoint="$(jq -r '.amp_prometheus_endpoint.value // empty' <<<"${terraform_output}")"
 amp_remote_write_endpoint="$(jq -r '.amp_remote_write_endpoint.value // empty' <<<"${terraform_output}")"
 
 if [[ -z "${cluster_name}" || -z "${aws_region}" ]]; then
@@ -61,6 +65,10 @@ jq -n \
   --arg prometheus_remote_write_irsa_role_arn "${prometheus_remote_write_irsa_role_arn}" \
   --arg prometheus_remote_write_service_account_namespace "${prometheus_remote_write_service_account_namespace}" \
   --arg prometheus_remote_write_service_account_name "${prometheus_remote_write_service_account_name}" \
+  --arg grafana_amp_query_irsa_role_arn "${grafana_amp_query_irsa_role_arn}" \
+  --arg grafana_service_account_namespace "${grafana_service_account_namespace}" \
+  --arg grafana_service_account_name "${grafana_service_account_name}" \
+  --arg amp_prometheus_endpoint "${amp_prometheus_endpoint}" \
   --arg amp_remote_write_endpoint "${amp_remote_write_endpoint}" \
   '{
     hub_eks: {
@@ -77,6 +85,10 @@ jq -n \
         prometheus_remote_write_irsa_role_arn: $prometheus_remote_write_irsa_role_arn,
         prometheus_remote_write_service_account_namespace: $prometheus_remote_write_service_account_namespace,
         prometheus_remote_write_service_account_name: $prometheus_remote_write_service_account_name,
+        grafana_amp_query_irsa_role_arn: $grafana_amp_query_irsa_role_arn,
+        grafana_service_account_namespace: $grafana_service_account_namespace,
+        grafana_service_account_name: $grafana_service_account_name,
+        amp_prometheus_endpoint: $amp_prometheus_endpoint,
         amp_remote_write_endpoint: $amp_remote_write_endpoint
       }
     },

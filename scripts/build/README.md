@@ -21,6 +21,8 @@
    - EKS, VPC, node group
    - Ansible Hub bootstrap
    - ArgoCD install/verify
+   - Prometheus Agent install/verify and AMP remote_write
+   - internal Grafana install/verify and AMP datasource query
 
 3. iot factory-a
    - IoT Thing / Policy / certificate 등록

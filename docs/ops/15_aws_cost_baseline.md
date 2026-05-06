@@ -25,7 +25,8 @@
 | S3 | `aegis-bucket-data` | 1 bucket | versioning and lifecycle enabled |
 | IoT Core | `AEGIS_IoTRule_factory_a_raw_s3` | 1 | routes `aegis/factory-a/+` to S3 |
 | IoT Core | `AEGIS-IoTThing-factory-a` / `AEGIS-IoTPolicy-factory-a` / certificate | 1 set | certificate `ACTIVE`, K3s Secret registered |
-| AMP | `AEGIS-AMP-hub` | 1 workspace | `ACTIVE` |
+| AMP | `AEGIS-AMP-hub` | 1 workspace | `ACTIVE`, Prometheus Agent remote_write 수신 중 |
+| EKS workload | `observability/grafana` | 1 pod | internal Grafana, `ClusterIP`, no Load Balancer |
 | KMS | AEGIS EKS customer managed key | 1 active + historical pending deletion keys | active key for EKS encryption; old keys scheduled for deletion |
 | CloudWatch Logs | `/aws/eks/AEGIS-EKS/cluster` | 1 log group | active |
 
@@ -49,7 +50,7 @@
 | EBS gp3 storage | 40 GiB | `$0.0912 / GB-month` | `40 * 0.0912 / 730` | `$0.0050` |
 | KMS customer managed key | 1 | `$1.00 / month` | `1 / 730` | `$0.0014` |
 | S3 Standard storage | 366 bytes | `$0.025 / GB-month` | negligible | `~$0.0000` |
-| AMP workspace | 1 | usage-based | no metrics ingested/query yet | `~$0.0000` |
+| AMP workspace | 1 | usage-based | ingest/storage/query 사용량 기준. 고정 시간 비용에는 미포함 | `usage-based` |
 
 현재 고정 시간 비용:
 
@@ -65,7 +66,7 @@
 | 24시간 | `~$7.63` |
 | 730시간 | `~$232.14` |
 
-위 계산은 세금, 크레딧, Free Tier, Savings Plans, Reserved Instances, 환율을 반영하지 않은 온디맨드 기준이다.
+위 계산은 세금, 크레딧, Free Tier, Savings Plans, Reserved Instances, 환율을 반영하지 않은 온디맨드 기준이다. AMP ingest/storage/query 비용은 사용량 기반이라 위 고정 시간 비용 합계에는 포함하지 않는다.
 
 ## 사용량 기반 추가 비용
 
@@ -78,7 +79,9 @@
 | t3 unlimited CPU credit | surplus credit 사용 시 과금 | 2026-05-06 확인 결과 `CPUSurplusCreditsCharged = 0` |
 | S3 request/transfer | request 수와 data transfer 기준 | 현재 객체 2개, 366 bytes라 무시 가능 |
 | IoT Core messaging/rules | 메시지와 rule action 사용량 기준 | 현재 테스트 메시지 수준 |
-| AMP ingest/storage/query | ingested samples, stored metrics, query samples 기준 | Workspace만 생성됨. 아직 remote_write 전송 전이라 고정 시간 비용 없음 |
+| AMP ingest/storage/query | ingested samples, stored metrics, query samples 기준 | Hub Prometheus Agent remote_write가 시작되어 사용량 기반 비용이 발생할 수 있음. 현재 수집 대상은 Agent/API server/node/annotated pod 기본 메트릭으로 제한 |
+| Grafana AMP query | AMP query samples 기준 | 내부 Grafana dashboard/Explore 사용량에 따라 AMP query 비용 증가 가능 |
+| Grafana image/chart pull | NAT Gateway data processing 기준 | build/upgrade 시 container image와 chart pull 트래픽이 발생할 수 있음 |
 | KMS API requests | request 수 기준, 월 20,000 request free tier 이후 과금 | active EKS key 1개. historical AEGIS keys는 scheduled deletion 상태 |
 | CloudWatch Logs ingest/storage | ingest bytes와 저장량 기준 | EKS cluster log group은 active이며 초기 저장량은 작음 |
 
@@ -145,6 +148,8 @@ scripts/destroy/destroy-hub.sh
 - NAT Gateway 수, node instance type, node desired size, EBS 크기, EKS Kubernetes support tier가 바뀜
 - Dashboard VPC, ALB, WAF, Cognito, CloudFront, Route53 같은 외부 접근 경로가 추가됨
 - Prometheus/AMP/Grafana/CloudWatch Logs처럼 관측 계층의 수집량 또는 저장량 기준이 바뀜
+- Prometheus Agent scrape job, scrape interval, annotated pod 수집 대상이 늘어남
+- Grafana dashboard 수, refresh interval, Explore 사용량, datasource 수가 늘어남
 
 비용 갱신 시 기록할 내용:
 

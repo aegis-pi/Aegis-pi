@@ -1,0 +1,70 @@
+- name: Bootstrap Hub Prometheus Agent remote_write
+  hosts: hub_eks
+  gather_facts: false
+  vars:
+    prometheus_agent_manifest_path: /tmp/aegis-prometheus-agent.yaml
+
+  tasks:
+    - name: Check required local commands
+      ansible.builtin.shell: "command -v {{ item }}"
+      loop:
+        - aws
+        - kubectl
+      changed_when: false
+
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command }}"
+      changed_when: true
+
+    - name: Apply Hub namespace baseline
+      ansible.builtin.command:
+        cmd: "kubectl apply -f {{ playbook_dir }}/../files/hub-bootstrap.yaml"
+      register: hub_bootstrap_apply
+      changed_when: "'created' in hub_bootstrap_apply.stdout or 'configured' in hub_bootstrap_apply.stdout"
+
+    - name: Apply Prometheus remote_write IRSA service account
+      ansible.builtin.shell: >-
+        kubectl -n {{ prometheus_remote_write_service_account_namespace }}
+        create serviceaccount {{ prometheus_remote_write_service_account_name }}
+        --dry-run=client -o yaml
+        | kubectl apply -f -
+      args:
+        executable: /bin/bash
+      register: prometheus_remote_write_service_account_apply
+      changed_when: "'created' in prometheus_remote_write_service_account_apply.stdout or 'configured' in prometheus_remote_write_service_account_apply.stdout"
+
+    - name: Annotate Prometheus remote_write IRSA service account
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ prometheus_remote_write_service_account_namespace }}
+          annotate serviceaccount {{ prometheus_remote_write_service_account_name }}
+          eks.amazonaws.com/role-arn={{ prometheus_remote_write_irsa_role_arn }}
+          --overwrite
+      register: prometheus_remote_write_service_account_annotate
+      changed_when: "'annotated' in prometheus_remote_write_service_account_annotate.stdout"
+
+    - name: Render Prometheus Agent manifest
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/prometheus-agent.yaml.j2"
+        dest: "{{ prometheus_agent_manifest_path }}"
+        mode: "0600"
+
+    - name: Apply Prometheus Agent manifest
+      ansible.builtin.command:
+        cmd: "kubectl apply -f {{ prometheus_agent_manifest_path }}"
+      register: prometheus_agent_apply
+      changed_when: "'created' in prometheus_agent_apply.stdout or 'configured' in prometheus_agent_apply.stdout"
+
+    - name: Wait for Prometheus Agent deployment
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ prometheus_remote_write_service_account_namespace }}
+          rollout status deployment/prometheus-agent --timeout=300s
+      changed_when: false
+
+    - name: Show Prometheus Agent access hint
+      ansible.builtin.debug:
+        msg: >-
+          Prometheus Agent is running in {{ prometheus_remote_write_service_account_namespace }}
+          and remote_writes to {{ amp_remote_write_endpoint }}.

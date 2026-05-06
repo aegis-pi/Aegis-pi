@@ -57,6 +57,20 @@ output "prometheus_remote_write_irsa_role_arn" {
   value       = aws_iam_role.prometheus_remote_write_irsa.arn
 }
 
+output "grafana_amp_query_irsa_role_arn" {
+  description = "IAM role ARN assumed by the internal Grafana Kubernetes service account for AMP query access."
+  value       = aws_iam_role.grafana_amp_query_irsa.arn
+}
+
+output "grafana_service_account" {
+  description = "Kubernetes service account identity for internal Grafana AMP query access."
+  value = {
+    namespace = var.grafana_namespace
+    name      = var.grafana_service_account
+    subject   = local.grafana_amp_query_subject
+  }
+}
+
 output "prometheus_remote_write_service_account" {
   description = "Kubernetes service account identity for AMP remote_write."
   value = {
@@ -69,6 +83,11 @@ output "prometheus_remote_write_service_account" {
 output "amp_workspace_arn" {
   description = "AMP workspace ARN consumed from infra/foundation."
   value       = data.terraform_remote_state.foundation.outputs.amp_workspace_arn
+}
+
+output "amp_prometheus_endpoint" {
+  description = "AMP Prometheus-compatible query endpoint consumed from infra/foundation."
+  value       = data.terraform_remote_state.foundation.outputs.amp_prometheus_endpoint
 }
 
 output "amp_remote_write_endpoint" {

@@ -17,5 +17,5 @@
 - Terraform state, tfvars, provider cache는 Git에 커밋하지 않는다.
 - AWS 리소스를 생성하기 전 `docs/planning/08_aws_cli_mfa_terraform_access.md`의 MFA 세션 기준을 따른다.
 - 인프라는 Terraform으로만 관리한다. 클러스터 위 설정/소프트웨어는 Ansible, 배포 CI/CD는 GitHub Actions와 ArgoCD 기준을 따른다.
-- Hub 재생성은 `infra/hub` Terraform apply 후 `scripts/ansible/playbooks/hub_argocd_bootstrap.yml` 순서로 진행한다.
+- Hub 재생성은 `infra/hub` Terraform apply 후 `scripts/ansible/playbooks/hub_argocd_bootstrap.yml`, `hub_prometheus_agent_bootstrap.yml`, `hub_grafana_bootstrap.yml` 순서로 진행한다.
 - 삭제는 EKS 내부 bootstrap 리소스를 별도 destroy하지 않고 `infra/hub` Terraform destroy로 클러스터와 함께 제거한다.

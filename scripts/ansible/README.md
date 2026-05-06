@@ -6,7 +6,7 @@ Safe-Edge 반복 점검과 Hub EKS bootstrap 자동화를 관리한다.
 
 Hub EKS의 ArgoCD bootstrap은 SSH를 사용하지 않는다. Ansible은 `localhost`에서 실행되고, `infra/hub` Terraform output을 dynamic inventory로 읽은 뒤 EKS Kubernetes API에 접근한다.
 
-현재 bootstrap은 namespace/LimitRange, ArgoCD Helm release, `risk/risk-normalizer` IRSA ServiceAccount, `observability/prometheus-agent` AMP remote_write IRSA ServiceAccount를 적용한다.
+현재 bootstrap은 namespace/LimitRange, ArgoCD Helm release, `risk/risk-normalizer` IRSA ServiceAccount, `observability/prometheus-agent` AMP remote_write IRSA ServiceAccount, Prometheus Agent remote_write 구성, 내부 Grafana AMP datasource 구성을 적용한다.
 
 선행 조건:
 
@@ -20,12 +20,16 @@ Hub EKS의 ArgoCD bootstrap은 SSH를 사용하지 않는다. Ansible은 `localh
 ```bash
 cd scripts/ansible
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_bootstrap.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_grafana_bootstrap.yml
 ```
 
 검증:
 
 ```bash
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_verify.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_grafana_verify.yml
 ```
 
 초기 admin 비밀번호를 명시적으로 출력해야 할 때만 아래처럼 실행한다. 비밀번호 값은 문서에 기록하지 않는다.

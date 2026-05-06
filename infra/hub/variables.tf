@@ -116,6 +116,18 @@ variable "foundation_state_path" {
   default     = "../foundation/terraform.tfstate"
 }
 
+variable "grafana_namespace" {
+  description = "Kubernetes namespace for the internal Grafana service account."
+  type        = string
+  default     = "observability"
+}
+
+variable "grafana_service_account" {
+  description = "Kubernetes service account name used by internal Grafana for AMP query access."
+  type        = string
+  default     = "grafana"
+}
+
 variable "prometheus_remote_write_namespace" {
   description = "Kubernetes namespace for the Prometheus remote_write service account."
   type        = string

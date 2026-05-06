@@ -1,0 +1,266 @@
+replicas: 1
+
+serviceAccount:
+  create: true
+  name: {{ grafana_service_account_name }}
+  annotations:
+    eks.amazonaws.com/role-arn: {{ grafana_amp_query_irsa_role_arn }}
+
+service:
+  enabled: true
+  type: {{ grafana_service_type }}
+  port: {{ grafana_remote_port }}
+
+admin:
+  existingSecret: {{ grafana_admin_secret_name }}
+  userKey: admin-user
+  passwordKey: admin-password
+
+env:
+  AWS_REGION: {{ aws_region }}
+  AWS_DEFAULT_REGION: {{ aws_region }}
+
+grafana.ini:
+  auth:
+    sigv4_auth_enabled: true
+
+persistence:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: {{ grafana_amp_datasource_name }}
+        uid: {{ grafana_amp_datasource_uid }}
+        type: prometheus
+        access: proxy
+        url: {{ amp_prometheus_endpoint }}
+        isDefault: true
+        editable: true
+        jsonData:
+          httpMethod: POST
+          sigV4Auth: true
+          sigV4AuthType: default
+          sigV4Region: {{ aws_region }}
+          timeInterval: 30s
+
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: AEGIS Hub
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+dashboards:
+  default:
+    aegis-hub-amp-overview:
+      json: |
+        {
+          "annotations": {
+            "list": []
+          },
+          "editable": true,
+          "fiscalYearStartMonth": 0,
+          "graphTooltip": 0,
+          "links": [],
+          "panels": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "{{ grafana_amp_datasource_uid }}"
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "mappings": [],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "red",
+                        "value": null
+                      },
+                      {
+                        "color": "green",
+                        "value": 1
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 0,
+                "y": 0
+              },
+              "id": 1,
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              },
+              "pluginVersion": "{{ grafana_app_version }}",
+              "targets": [
+                {
+                  "datasource": {
+                    "type": "prometheus",
+                    "uid": "{{ grafana_amp_datasource_uid }}"
+                  },
+                  "editorMode": "code",
+                  "expr": "count(up{cluster=\"{{ eks_cluster_name }}\"} == 1)",
+                  "instant": true,
+                  "legendFormat": "up targets",
+                  "range": false,
+                  "refId": "A"
+                }
+              ],
+              "title": "AMP Up Targets",
+              "type": "stat"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "{{ grafana_amp_datasource_uid }}"
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 8,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "mappings": [],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": null
+                      }
+                    ]
+                  },
+                  "unit": "percentunit"
+                },
+                "overrides": []
+              },
+              "gridPos": {
+                "h": 8,
+                "w": 16,
+                "x": 8,
+                "y": 0
+              },
+              "id": 2,
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "pluginVersion": "{{ grafana_app_version }}",
+              "targets": [
+                {
+                  "datasource": {
+                    "type": "prometheus",
+                    "uid": "{{ grafana_amp_datasource_uid }}"
+                  },
+                  "editorMode": "code",
+                  "expr": "up{cluster=\"{{ eks_cluster_name }}\"}",
+                  "legendFormat": "{% raw %}{{ job }} / {{ instance }}{% endraw %}",
+                  "range": true,
+                  "refId": "A"
+                }
+              ],
+              "title": "AMP Up Series",
+              "type": "timeseries"
+            }
+          ],
+          "preload": false,
+          "refresh": "30s",
+          "schemaVersion": 42,
+          "tags": [
+            "aegis",
+            "hub",
+            "amp"
+          ],
+          "templating": {
+            "list": []
+          },
+          "time": {
+            "from": "now-30m",
+            "to": "now"
+          },
+          "timepicker": {},
+          "timezone": "browser",
+          "title": "AEGIS Hub AMP Overview",
+          "uid": "aegis-hub-amp-overview",
+          "version": 1
+        }
