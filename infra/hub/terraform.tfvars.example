@@ -17,3 +17,9 @@ node_instance_types = ["t3.medium"]
 node_min_size       = 2
 node_desired_size   = 2
 node_max_size       = 2
+
+# Admin UI DNS/ACM baseline. The actual Kubernetes Ingress is applied by Ansible only when
+# ADMIN_UI_INGRESS_ENABLED=true after the domain is delegated and ACM is ISSUED.
+admin_ui_domain_name = "minsoo-tech.cloud"
+# admin_ui_argocd_host  = "argocd.minsoo-tech.cloud"
+# admin_ui_grafana_host = "grafana.minsoo-tech.cloud"

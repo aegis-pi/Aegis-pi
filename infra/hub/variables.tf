@@ -116,6 +116,36 @@ variable "foundation_state_path" {
   default     = "../foundation/terraform.tfstate"
 }
 
+variable "aws_lb_controller_namespace" {
+  description = "Kubernetes namespace for the AWS Load Balancer Controller service account."
+  type        = string
+  default     = "kube-system"
+}
+
+variable "aws_lb_controller_service_account" {
+  description = "Kubernetes service account name used by AWS Load Balancer Controller."
+  type        = string
+  default     = "aws-load-balancer-controller"
+}
+
+variable "admin_ui_domain_name" {
+  description = "Base domain name delegated to Route53 for Admin UI."
+  type        = string
+  default     = "minsoo-tech.cloud"
+}
+
+variable "admin_ui_argocd_host" {
+  description = "FQDN for the ArgoCD Admin UI. Defaults to argocd.<admin_ui_domain_name>."
+  type        = string
+  default     = null
+}
+
+variable "admin_ui_grafana_host" {
+  description = "FQDN for the Grafana Admin UI. Defaults to grafana.<admin_ui_domain_name>."
+  type        = string
+  default     = null
+}
+
 variable "grafana_namespace" {
   description = "Kubernetes namespace for the internal Grafana service account."
   type        = string

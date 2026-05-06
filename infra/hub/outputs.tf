@@ -43,6 +43,20 @@ output "risk_normalizer_irsa_role_arn" {
   value       = aws_iam_role.risk_normalizer_irsa.arn
 }
 
+output "aws_lb_controller_irsa_role_arn" {
+  description = "IAM role ARN assumed by the AWS Load Balancer Controller service account."
+  value       = aws_iam_role.aws_lb_controller_irsa.arn
+}
+
+output "aws_lb_controller_service_account" {
+  description = "Kubernetes service account identity for AWS Load Balancer Controller."
+  value = {
+    namespace = var.aws_lb_controller_namespace
+    name      = var.aws_lb_controller_service_account
+    subject   = local.aws_lb_controller_subject
+  }
+}
+
 output "risk_normalizer_service_account" {
   description = "Kubernetes service account identity for the risk normalizer IRSA role."
   value = {
@@ -93,4 +107,45 @@ output "amp_prometheus_endpoint" {
 output "amp_remote_write_endpoint" {
   description = "AMP remote_write endpoint consumed from infra/foundation."
   value       = data.terraform_remote_state.foundation.outputs.amp_remote_write_endpoint
+}
+
+output "admin_ui_domain_name" {
+  description = "Base Route53 hosted zone domain for Admin UI."
+  value       = var.admin_ui_domain_name
+}
+
+output "admin_ui_argocd_host" {
+  description = "ArgoCD Admin UI hostname."
+  value       = local.admin_ui_argocd_host
+}
+
+output "admin_ui_grafana_host" {
+  description = "Grafana Admin UI hostname."
+  value       = local.admin_ui_grafana_host
+}
+
+output "admin_ui_route53_zone_id" {
+  description = "Route53 hosted zone ID for Admin UI."
+  value       = aws_route53_zone.admin_ui.zone_id
+}
+
+output "admin_ui_route53_name_servers" {
+  description = "Route53 name servers to configure at the domain registrar."
+  value       = aws_route53_zone.admin_ui.name_servers
+}
+
+output "admin_ui_certificate_arn" {
+  description = "ACM certificate ARN for Admin UI hostnames."
+  value       = aws_acm_certificate.admin_ui.arn
+}
+
+output "admin_ui_certificate_validation_records" {
+  description = "DNS validation records created in the Admin UI hosted zone."
+  value = {
+    for domain, record in aws_route53_record.admin_ui_certificate_validation : domain => {
+      name    = record.name
+      type    = record.type
+      records = record.records
+    }
+  }
 }
