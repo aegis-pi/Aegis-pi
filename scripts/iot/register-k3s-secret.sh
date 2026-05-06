@@ -47,7 +47,7 @@ scp \
 ssh "${REMOTE_USER}@${REMOTE_HOST}" "
 set -euo pipefail
 
-kubectl create namespace '${K8S_NAMESPACE}' --dry-run=client -o yaml | kubectl apply -f -
+kubectl get namespace '${K8S_NAMESPACE}' >/dev/null 2>&1 || kubectl create namespace '${K8S_NAMESPACE}'
 
 kubectl -n '${K8S_NAMESPACE}' create secret generic '${K8S_SECRET_NAME}' \
   --from-file=certificate.pem.crt='${REMOTE_DIR}/certificate.pem.crt' \

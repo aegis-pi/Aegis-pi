@@ -6,13 +6,14 @@
 
 ## 현재 관리 리소스
 
-- S3 데이터 버킷: `aegis-bucket-data` 생성/검증 후 2026-05-04 전체 destroy로 삭제 완료
+- S3 데이터 버킷: `aegis-bucket-data`
+- IoT Rule -> S3 raw 적재: `AEGIS_IoTRule_factory_a_raw_s3`
 
 ## 후속 후보 리소스
 
 - ECR 이미지 저장소
 - AMP workspace
-- IoT Core Thing, 인증서, Rule
+- IoT Core Thing, 인증서
 
 ## S3 데이터 버킷 기준
 
@@ -32,6 +33,25 @@ raw/{factory_id}/{source_type}/yyyy={YYYY}/mm={MM}/dd={DD}/{message_id}.json
 processed/{dataset}/{factory_id}/yyyy={YYYY}/mm={MM}/dd={DD}/{message_id}.json
 latest/{factory_id}/status.json
 latest/{factory_id}/risk-score.json
+```
+
+## IoT Rule -> S3 raw 적재 기준
+
+```text
+rule: AEGIS_IoTRule_factory_a_raw_s3
+topic filter: aegis/factory-a/+
+target bucket: aegis-bucket-data
+target key: raw/factory-a/${topic(3)}/yyyy=${parse_time("yyyy", timestamp(), "UTC")}/mm=${parse_time("MM", timestamp(), "UTC")}/dd=${parse_time("dd", timestamp(), "UTC")}/${get_or_default(message_id, newuuid())}.json
+role: AEGIS-IAMRole-IoTRule-S3
+policy scope: s3:PutObject to arn:aws:s3:::aegis-bucket-data/raw/factory-a/*
+```
+
+검증 결과:
+
+```text
+test topic: aegis/factory-a/sensor
+test message_id: manual-20260506T014423Z-31668
+test object: raw/factory-a/sensor/yyyy=2026/mm=05/dd=06/manual-20260506T014423Z-31668.json
 ```
 
 공장별 prefix를 분리한다. 이후 `factory-b`, `factory-c`가 추가되어도 권한, lifecycle, Athena/Glue partition, 장애 분석 기준을 독립적으로 다루기 쉽기 때문이다.

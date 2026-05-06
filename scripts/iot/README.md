@@ -15,6 +15,7 @@
 | --- | --- |
 | `register-thing.sh` | IoT Thing, Policy, certificate/key, Root CA, endpoint 생성 |
 | `register-k3s-secret.sh` | 로컬 인증서 파일을 K3s master로 전송한 뒤 Kubernetes Secret 생성/갱신 |
+| `publish-test-message.sh` | IoT Rule -> S3 적재 검증용 테스트 메시지 publish |
 | `cleanup-thing.sh` | CLI로 만든 IoT Thing, Policy, certificate 정리 |
 
 ## 기본 출력 위치
@@ -117,7 +118,7 @@ REMOTE_USER=<ssh-user> scripts/iot/register-k3s-secret.sh
 ```bash
 SECRET_DIR=/home/vicbear/Aegis/git_clone/Aegis-pi/secret/iot/factory-a
 
-kubectl create namespace ai-apps --dry-run=client -o yaml | kubectl apply -f -
+kubectl get namespace ai-apps >/dev/null 2>&1 || kubectl create namespace ai-apps
 
 kubectl -n ai-apps create secret generic aws-iot-factory-a-cert \
   --from-file=certificate.pem.crt="${SECRET_DIR}/certificate.pem.crt" \
@@ -125,6 +126,28 @@ kubectl -n ai-apps create secret generic aws-iot-factory-a-cert \
   --from-file=AmazonRootCA1.pem="${SECRET_DIR}/AmazonRootCA1.pem" \
   --from-file=endpoint.txt="${SECRET_DIR}/endpoint.txt" \
   --dry-run=client -o yaml | kubectl apply -f -
+```
+
+## 테스트 메시지 발행
+
+IoT Rule이 생성된 뒤 S3 적재를 검증할 때 사용한다.
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi
+scripts/iot/publish-test-message.sh
+```
+
+기본 publish 대상:
+
+```text
+topic: aegis/factory-a/sensor
+expected S3 prefix: s3://aegis-bucket-data/raw/factory-a/sensor/
+```
+
+다른 source type으로 보낼 때:
+
+```bash
+SOURCE_TYPE=system scripts/iot/publish-test-message.sh
 ```
 
 ## 정리 실행

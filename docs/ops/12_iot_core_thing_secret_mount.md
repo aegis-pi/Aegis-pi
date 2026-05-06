@@ -249,7 +249,7 @@ master에서 Secret을 생성한다.
 ```bash
 ssh minsoo@10.10.10.10
 
-kubectl create namespace ai-apps --dry-run=client -o yaml | kubectl apply -f -
+kubectl get namespace ai-apps >/dev/null 2>&1 || kubectl create namespace ai-apps
 
 kubectl -n ai-apps create secret generic aws-iot-factory-a-cert \
   --from-file=certificate.pem.crt=/tmp/aegis-iot/certificate.pem.crt \

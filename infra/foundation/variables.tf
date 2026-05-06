@@ -22,6 +22,24 @@ variable "data_bucket_name" {
   default     = "aegis-bucket-data"
 }
 
+variable "iot_factory_id" {
+  description = "Factory ID used by the factory-a IoT Core topic rule."
+  type        = string
+  default     = "factory-a"
+}
+
+variable "iot_topic_root" {
+  description = "Root MQTT topic prefix for Aegis IoT messages."
+  type        = string
+  default     = "aegis"
+}
+
+variable "iot_rule_enabled" {
+  description = "Whether the factory-a IoT Core to S3 topic rule is enabled."
+  type        = bool
+  default     = true
+}
+
 variable "raw_archive_transition_days" {
   description = "Days before raw objects transition from Standard to Glacier Instant Retrieval."
   type        = number
