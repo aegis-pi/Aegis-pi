@@ -2,3 +2,7 @@ project_name     = "AEGIS"
 environment      = "foundation-mvp"
 aws_region       = "ap-south-1"
 data_bucket_name = "aegis-bucket-data"
+
+# Keep true for ephemeral MVP environments so destroy-all can remove the bucket
+# even after IoT/S3 test objects and object versions are written.
+data_bucket_force_destroy = true

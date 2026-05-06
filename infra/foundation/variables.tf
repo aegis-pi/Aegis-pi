@@ -22,6 +22,12 @@ variable "data_bucket_name" {
   default     = "aegis-bucket-data"
 }
 
+variable "data_bucket_force_destroy" {
+  description = "Whether Terraform destroy should delete all objects and versions in the data bucket before deleting the bucket."
+  type        = bool
+  default     = true
+}
+
 variable "iot_factory_id" {
   description = "Factory ID used by the factory-a IoT Core topic rule."
   type        = string
@@ -38,6 +44,12 @@ variable "iot_rule_enabled" {
   description = "Whether the factory-a IoT Core to S3 topic rule is enabled."
   type        = bool
   default     = true
+}
+
+variable "amp_workspace_alias" {
+  description = "Alias for the Amazon Managed Service for Prometheus workspace."
+  type        = string
+  default     = "AEGIS-AMP-hub"
 }
 
 variable "raw_archive_transition_days" {

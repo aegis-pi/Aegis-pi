@@ -42,3 +42,28 @@ output "processed_object_key_template" {
   description = "Recommended processed object key template for normalized datasets."
   value       = "processed/{dataset}/{factory_id}/yyyy={YYYY}/mm={MM}/dd={DD}/{message_id}.json"
 }
+
+output "amp_workspace_alias" {
+  description = "Alias of the Hub Amazon Managed Service for Prometheus workspace."
+  value       = aws_prometheus_workspace.hub.alias
+}
+
+output "amp_workspace_id" {
+  description = "Identifier of the Hub Amazon Managed Service for Prometheus workspace."
+  value       = aws_prometheus_workspace.hub.id
+}
+
+output "amp_workspace_arn" {
+  description = "ARN of the Hub Amazon Managed Service for Prometheus workspace."
+  value       = aws_prometheus_workspace.hub.arn
+}
+
+output "amp_prometheus_endpoint" {
+  description = "Prometheus endpoint for the Hub AMP workspace."
+  value       = aws_prometheus_workspace.hub.prometheus_endpoint
+}
+
+output "amp_remote_write_endpoint" {
+  description = "Remote write endpoint for Prometheus Agent or Prometheus remote_write."
+  value       = "${aws_prometheus_workspace.hub.prometheus_endpoint}api/v1/remote_write"
+}
