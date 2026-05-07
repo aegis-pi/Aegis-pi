@@ -38,6 +38,7 @@
 | 파일 | 내용 |
 | --- | --- |
 | `build-all.sh` | 전체 생성 순서 실행 |
+| `build-admin-ui-after-ns.sh` | Gabia NS 위임 후 ACM 발급을 기다리고 Admin UI HTTPS Ingress 활성화 |
 | `build-foundation.sh` | `infra/foundation` Terraform apply |
 | `build-hub.sh` | `infra/hub` Terraform apply 후 Ansible bootstrap |
 | `build-iot-factory-a.sh` | `factory-a` IoT Thing/certificate 생성 및 K3s Secret 등록 |
@@ -93,9 +94,72 @@ AWS Load Balancer Controller도 이미 `deployed` 상태이고 chart version이 
 FORCE_AWS_LB_CONTROLLER_UPGRADE=true scripts/build/build-hub.sh
 ```
 
-Admin UI HTTPS Ingress는 기본값에서 비활성화된다. `minsoo-tech.cloud`를 Gabia에서 Route53 Hosted Zone NS로 위임하고 ACM certificate가 `ISSUED`가 된 뒤에만 `build-all.sh --admin-ui` 또는 아래처럼 환경 변수 방식으로 활성화한다.
+## Admin UI NS 위임 포함 재생성 순서
+
+Admin UI HTTPS Ingress는 기본값에서 비활성화된다. `minsoo-tech.cloud`를 Gabia에서 Route53 Hosted Zone NS로 위임하고 ACM certificate가 `ISSUED`가 된 뒤에만 Admin UI Ingress를 활성화한다.
 
 Hub build는 Terraform apply 직후 `secret/admin-ui-nameservers.txt`를 갱신한다. Gabia에 입력할 NS는 문서에 적힌 값보다 이 파일을 우선한다.
+
+### 1. 전체 리소스 1차 생성
+
+Admin UI NS 위임 전에는 `--admin-ui`를 붙이지 않는다. 이 단계에서 foundation, Hub EKS, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, IoT `factory-a` 리소스를 생성하고, Admin UI용 Route53 Hosted Zone NS를 출력한다.
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi
+scripts/build/build-all.sh
+```
+
+MFA OTP를 함께 넘기려면:
+
+```bash
+scripts/build/build-all.sh <MFA_OTP>
+```
+
+실행 중 아래 형식으로 Gabia에 입력할 NS가 출력된다.
+
+```text
+Set these name servers in Gabia for minsoo-tech.cloud:
+
+ns-...
+ns-...
+ns-...
+ns-...
+```
+
+같은 내용은 아래 파일에도 저장된다.
+
+```text
+secret/admin-ui-nameservers.txt
+```
+
+### 2. Gabia NS 입력
+
+Gabia 관리 콘솔에서 `minsoo-tech.cloud`의 네임서버를 1단계에서 출력된 NS 4개로 변경한다.
+
+Hosted Zone을 destroy/recreate하면 NS 값이 바뀔 수 있다. 재생성할 때마다 기존 문서나 기억한 값을 쓰지 말고, 반드시 방금 출력된 값 또는 `secret/admin-ui-nameservers.txt`를 다시 확인한다.
+
+### 3. Admin UI HTTPS Ingress 활성화
+
+Gabia에 NS를 저장한 뒤 아래 스크립트를 실행한다. 이 스크립트는 ACM certificate가 `ISSUED`가 될 때까지 기다린 다음 Admin UI Ingress bootstrap/verify만 실행한다.
+
+```bash
+scripts/build/build-admin-ui-after-ns.sh
+```
+
+MFA OTP를 함께 넘기려면:
+
+```bash
+scripts/build/build-admin-ui-after-ns.sh <MFA_OTP>
+```
+
+성공하면 아래 HTTPS endpoint가 출력된다.
+
+```text
+https://argocd.minsoo-tech.cloud
+https://grafana.minsoo-tech.cloud
+```
+
+이미 NS 위임과 ACM 발급이 끝난 상태에서 Hub 전체를 다시 적용해야 한다면 아래처럼 직접 Admin UI Ingress를 활성화할 수도 있다.
 
 ```bash
 ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh

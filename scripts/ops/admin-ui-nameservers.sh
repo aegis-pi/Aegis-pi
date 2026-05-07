@@ -52,3 +52,11 @@ mkdir -p "$(dirname "${OUTPUT_FILE}")"
 
 chmod 600 "${OUTPUT_FILE}"
 echo "Admin UI Route53 name servers written to ${OUTPUT_FILE}"
+echo
+echo "Set these name servers in Gabia for ${domain}:"
+echo
+printf '%s\n' "${name_servers[@]}"
+echo
+echo "After Gabia NS delegation is saved, run:"
+echo
+echo "  scripts/build/build-admin-ui-after-ns.sh"

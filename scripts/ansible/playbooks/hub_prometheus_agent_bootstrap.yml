@@ -24,11 +24,8 @@
       changed_when: "'created' in hub_bootstrap_apply.stdout or 'configured' in hub_bootstrap_apply.stdout"
 
     - name: Apply Prometheus remote_write IRSA service account
-      ansible.builtin.shell: >-
-        kubectl -n {{ prometheus_remote_write_service_account_namespace }}
-        create serviceaccount {{ prometheus_remote_write_service_account_name }}
-        --dry-run=client -o yaml
-        | kubectl apply -f -
+      ansible.builtin.shell: |
+        kubectl -n {{ prometheus_remote_write_service_account_namespace }} create serviceaccount {{ prometheus_remote_write_service_account_name }} --dry-run=client -o yaml | kubectl apply -f -
       args:
         executable: /bin/bash
       register: prometheus_remote_write_service_account_apply

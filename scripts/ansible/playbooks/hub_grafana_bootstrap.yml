@@ -30,13 +30,10 @@
       changed_when: "'created' in hub_bootstrap_apply.stdout or 'configured' in hub_bootstrap_apply.stdout"
 
     - name: Create Grafana admin secret when missing
-      ansible.builtin.shell: >-
-        set -euo pipefail;
+      ansible.builtin.shell: |
+        set -euo pipefail
         if ! kubectl -n {{ grafana_namespace }} get secret {{ grafana_admin_secret_name }} >/dev/null 2>&1; then
-          kubectl -n {{ grafana_namespace }}
-          create secret generic {{ grafana_admin_secret_name }}
-          --from-literal=admin-user=admin
-          --from-literal=admin-password="$(openssl rand -base64 24)";
+          kubectl -n {{ grafana_namespace }} create secret generic {{ grafana_admin_secret_name }} --from-literal=admin-user=admin --from-literal=admin-password="$(openssl rand -base64 24)"
         fi
       args:
         executable: /bin/bash
