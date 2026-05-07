@@ -1,7 +1,7 @@
 # 프로젝트 개요
 
 상태: source of truth
-기준일: 2026-05-06
+기준일: 2026-05-07
 
 ## 목적
 
@@ -9,7 +9,7 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 
 ## 현재 상태
 
-- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트와 M1 Hub Issue 0~10이다.
+- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트, M1 Hub Issue 0~10/12, M2 Issue 1~2다.
 - `factory-a`는 로컬 K3s 3노드, ArgoCD, Helm, Longhorn, InfluxDB, Grafana, AI 앱 failover/failback 기준선을 갖는다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
 - AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/AMP, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 2026-05-06 `build-all --admin-ui` 및 `build-hub`로 active 상태를 확인했다.
@@ -21,7 +21,9 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - M1 Issue 10에서 ArgoCD/Grafana HTTPS Admin Ingress를 공유 Public ALB로 검증했다.
 - 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
-- 다음 작업은 M2 Issue 1 Tailnet 생성 및 Spoke별 Auth Key 실발급이다. M1 Issue 11 운영 보안 강화는 MVP 이후로 보류했다.
+- M2 Issue 1에서 Tailnet/tag/Auth Key 정책 수립과 Tailnet 확인을 완료했다.
+- M2 Issue 2에서 `factory-a-master` Tailscale 참여, ACL tag 적용, Windows 운영자 PC의 ping/SSH 접근을 검증했다.
+- 다음 작업은 M2 Issue 3 EKS Hub Tailscale 참여 및 `factory-a-master` Tailscale IP reachability 검증이다. M1 Issue 11 운영 보안 강화는 MVP 이후로 보류했다.
 - `factory-b`, `factory-c`, Edge Agent, Risk Twin은 후속 확장 단계다.
 
 ## 프로젝트명

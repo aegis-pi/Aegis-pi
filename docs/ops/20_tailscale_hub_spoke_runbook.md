@@ -1,6 +1,6 @@
 # Tailscale Hub-Spoke Runbook
 
-상태: draft  
+상태: source of truth
 기준 issue: `docs/issues/M2_mesh-vpn-hub-spoke.md`  
 정책 기준: `infra/mesh-vpn/README.md`
 
@@ -28,14 +28,30 @@ Tailscale은 관리자 대시보드 접근망이 아니다. Dashboard Web/API는
 - `kubectl get nodes`로 Hub EKS 접근 가능
 - ArgoCD는 Hub EKS 안에서 ClusterIP/port-forward 방식으로 동작
 
-아직 하지 않은 것:
+완료된 것:
 
 - Tailnet 생성 확인
-- Tailnet policy/tag 반영
+- Tailnet policy/tag owner 반영
+- `factory-a-master` Tailscale 설치 및 Tailnet 참여
+- `factory-a-master` ACL tag 적용
+- Windows 운영자 PC Tailnet 참여
+- Windows 운영자 PC에서 `factory-a-master` Tailscale IP ping 및 SSH 접근 확인
+
+아직 하지 않은 것:
+
 - Tailscale OAuth client 생성
-- `factory-a`, `factory-b`, `factory-c` Auth Key 발급
 - Hub EKS Tailscale operator 설치
-- Spoke 노드 Tailnet 참여
+- EKS 내부에서 `factory-a-master` Tailscale IP reachability 확인
+- Tailscale IP 기반 `factory-a` kubeconfig 생성
+- ArgoCD `factory-a` cluster 등록
+- `factory-b`, `factory-c` Auth Key 발급 및 VM Spoke Tailnet 참여
+
+현재 확인된 Tailnet device:
+
+| 대상 | Device name | Tailscale IPv4 | 상태 |
+| --- | --- | --- | --- |
+| `factory-a` Raspberry Pi master | `factory-a-master` | `100.117.40.125` | Connected, tagged |
+| Windows 운영자 PC | `minsoog14` | `100.67.181.8` | Connected |
 
 ## 방식 결정
 
@@ -70,19 +86,19 @@ tag:factory-b
 tag:factory-c
 ```
 
-초안:
+현재 적용 기준:
 
 ```json
 {
   "tagOwners": {
-    "tag:k8s-operator": [],
+    "tag:k8s-operator": ["autogroup:admin"],
     "tag:k8s": ["tag:k8s-operator"],
     "tag:aegis-hub": ["tag:k8s-operator"],
-    "tag:aegis-spoke-prod": [],
-    "tag:aegis-spoke-testbed": [],
-    "tag:factory-a": [],
-    "tag:factory-b": [],
-    "tag:factory-c": []
+    "tag:aegis-spoke-prod": ["autogroup:admin"],
+    "tag:aegis-spoke-testbed": ["autogroup:admin"],
+    "tag:factory-a": ["autogroup:admin"],
+    "tag:factory-b": ["autogroup:admin"],
+    "tag:factory-c": ["autogroup:admin"]
   }
 }
 ```
@@ -104,6 +120,8 @@ Tailnet policy는 콘솔 validation을 통과한 뒤 저장한다. policy 원문
 ## 2. OAuth Client 생성
 
 Tailscale Admin Console에서 EKS operator용 OAuth client를 만든다.
+
+상태: 다음 작업
 
 설정:
 
@@ -160,9 +178,18 @@ Tailscale Admin Console에서 Spoke별 Auth Key를 만든다. 실제 key 값은 
 TAILSCALE_AUTH_KEY="REDACTED"
 ```
 
+현재 상태:
+
+- `factory-a`용 one-off tagged Auth Key는 생성했지만 secret 노출을 피하기 위해 실제 등록에는 사용하지 않았다.
+- `factory-a-master`는 interactive login 후 Admin Console에서 ACL tag를 수동 적용했다.
+- 미사용 `factory-a-master` Auth Key는 revoke한다.
+- `factory-b`, `factory-c` Auth Key는 각 VM K3s 기준선 준비 시점에 별도 생성한다.
+
 ## 4. Hub EKS에 Tailscale Operator 설치
 
 로컬 shell에서 Hub kubeconfig가 EKS를 가리키는지 먼저 확인한다.
+
+상태: 다음 작업
 
 ```bash
 kubectl config current-context
@@ -225,7 +252,36 @@ EKS에서 Tailnet egress가 별도 Connector를 요구하는 경우, Tailscale O
 
 ## 6. `factory-a` Master Tailnet 참여
 
-`factory-a` master에서 진행한다.
+상태: 완료
+
+완료 기록:
+
+```text
+device: factory-a-master
+tailscale_ipv4: 100.117.40.125
+tailscale_fqdn: factory-a-master.tailf83767.ts.net
+tags: tag:aegis-spoke-prod, tag:factory-a
+tailscale_version: 1.96.4
+operator_windows_device: minsoog14
+operator_windows_tailscale_ipv4: 100.67.181.8
+verification: Windows PC -> 100.117.40.125 ping and SSH success
+```
+
+실제 설치는 `factory-a` master에서 공식 install script로 진행했다.
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+```
+
+설치 후 interactive login 방식으로 등록했다.
+
+```bash
+sudo tailscale up --hostname=factory-a-master
+```
+
+등록 후 Admin Console에서 `factory-a-master`에 ACL tag를 수동 적용했다.
+
+수동 재진행이 필요하면 아래 기준을 따른다.
 
 ```bash
 sudo apt-get update
@@ -261,6 +317,7 @@ Tailscale Admin Console에서 확인:
 device: factory-a-master
 tags: tag:aegis-spoke-prod, tag:factory-a
 status: connected
+tailscale_ipv4: 100.117.40.125
 ```
 
 초기 M2에서는 worker node를 Tailnet에 참여시키지 않는다.
@@ -393,16 +450,17 @@ factory-b/c Tailscale 장애:
 
 M2 Issue 1 완료 처리:
 
-- Tailnet 생성 확인
-- 각 환경별 Auth Key 생성 확인
-- 정책 문서화 완료
-- 실제 key 값이 문서/Git에 없는지 확인
+- 완료: Tailnet 생성 확인
+- 완료: Tailnet policy/tag owner 반영
+- 완료: `factory-a` one-off tagged Auth Key 생성 정책 확인
+- 완료: 정책 문서화 완료
+- 완료: 실제 key 값이 문서/Git에 없는지 확인
 
 M2 Issue 2 완료 처리:
 
-- `factory-a-master` Tailnet 참여
-- Tailscale IP 기록은 secret 없이 운영 노트에 남김
-- SSH 접근 확인
+- 완료: `factory-a-master` Tailnet 참여
+- 완료: Tailscale IP 기록은 secret 없이 운영 노트에 남김
+- 완료: Windows 운영자 PC에서 ping 및 SSH 접근 확인
 
 M2 Issue 3 완료 처리:
 

@@ -13,6 +13,7 @@
 | 2026-05-04 | rev-20260504-01 | Issue 3에 ArgoCD UI Tailscale private access 전환과 EKS API endpoint CIDR 축소 기준을 추가 |
 | 2026-05-06 | rev-20260506-01 | Issue 1 Tailscale Tailnet/Auth Key 정책, 키 보관 방식, 장애 대응 원칙을 문서화 |
 | 2026-05-06 | rev-20260506-02 | Tailscale Hub-Spoke 실제 진행 절차 runbook 참조를 추가 |
+| 2026-05-07 | rev-20260507-01 | Tailnet tag 정책 적용, `factory-a-master` 및 Windows 운영자 PC Tailnet 참여 검증 결과를 반영 |
 
 ---
 
@@ -26,7 +27,7 @@ Tailscale 네트워크의 인증/키 관리 정책을 먼저 수립한다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] Tailscale 계정 생성 및 Tailnet 구성
+- [x] Tailscale 계정 생성 및 Tailnet 구성
 - [x] Spoke별 Auth Key 발급 방식 결정
   - `factory-a`, `factory-b`, `factory-c`, EKS Hub 각각 별도 키
 - [x] Reusable Key vs One-time Key 정책 결정 및 기록
@@ -44,11 +45,12 @@ Tailscale 네트워크의 인증/키 관리 정책을 먼저 수립한다.
 
 ### 진행 상태
 
-- 상태: 정책 수립 완료, Tailnet 생성 및 실제 Auth Key 발급 대기
+- 상태: 완료
 - 정책 문서: `infra/mesh-vpn/README.md`
 - 실행 절차: `docs/ops/20_tailscale_hub_spoke_runbook.md`
 - 실제 키 값, Tailnet 이름, 계정 이메일, Secret 값은 issue/document에 기록하지 않는다.
-- Tailnet 생성과 Auth Key 발급은 Tailscale Admin 콘솔에서 수행한 뒤 이 섹션과 `MASTER_CHECKLIST.md`를 갱신한다.
+- Tailscale Admin Console에서 Aegis-Pi 전용 Tailnet을 확인하고, tag owner 정책을 적용했다.
+- `factory-a`용 one-off tagged Auth Key는 생성했지만, secret 노출을 피하기 위해 실제 `factory-a-master` 등록은 interactive login 후 ACL tag 수동 적용 방식으로 완료했다. 생성했던 미사용 Auth Key는 revoke 대상이다.
 
 ### 실행 절차 문서
 
@@ -113,11 +115,11 @@ Tailscale Admin Console 설정, OAuth client 생성, Spoke별 Auth Key 생성, H
 
 ### GitHub Issue Comment Draft
 
-- 상태: 부분 완료
-- 진행 요약: Tailnet/Auth Key 발급 정책, one-off/reusable 사용 기준, secret 보관 방식, 운영형/테스트베드형 장애 대응 원칙을 문서화했다.
-- 변경/확인: `docs/issues/M2_mesh-vpn-hub-spoke.md`, `infra/mesh-vpn/README.md`
-- 검증: 정책 문서화는 완료했지만 Tailscale Admin 콘솔에서 Tailnet 생성과 실제 Auth Key 발급은 아직 수행하지 않았다.
-- 후속: Tailscale Admin 콘솔에서 Aegis-Pi 전용 Tailnet을 만들고 `factory-a`, `factory-b`, `factory-c`, EKS Hub용 키를 정책에 맞게 발급한다. 실제 키 값은 문서와 Git에 기록하지 않는다.
+- 상태: 완료
+- 진행 요약: Tailnet tag owner 정책을 적용했고, `factory-a`용 one-off tagged Auth Key 생성 정책과 secret 비기록 원칙을 확인했다. 실제 `factory-a-master` 등록은 secret 노출을 피하기 위해 interactive login 후 ACL tag를 수동 적용하는 방식으로 완료했다.
+- 변경/확인: `docs/issues/M2_mesh-vpn-hub-spoke.md`, `infra/mesh-vpn/README.md`, `docs/ops/20_tailscale_hub_spoke_runbook.md`
+- 검증: Tailscale Admin Console에서 `factory-a-master`와 Windows 운영자 PC가 connected 상태로 표시되고, `factory-a-master`에는 `tag:aegis-spoke-prod`, `tag:factory-a`를 적용했다.
+- 후속: 미사용 `factory-a-master` Auth Key는 revoke한다. EKS Hub는 M2 Issue 3에서 Tailscale Kubernetes Operator/OAuth client 방식으로 진행한다.
 
 ---
 
@@ -130,17 +132,37 @@ Worker 노드는 초기 Mesh 참여 대상에서 제외하고, Master 중심 접
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] Master 노드에 Tailscale 설치
-- [ ] Auth Key로 Tailscale 네트워크 참여 (`tailscale up --authkey=...`)
-- [ ] Tailscale IP 확인 및 기록 (`tailscale ip`)
-- [ ] Tailscale Admin 콘솔에서 `factory-a` Master 노드 확인
-- [ ] Tailscale IP로 Master SSH 접근 가능 확인
+- [x] Master 노드에 Tailscale 설치
+- [x] Tailscale 네트워크 참여
+- [x] Tailscale IP 확인 및 기록 (`tailscale ip`)
+- [x] Tailscale Admin 콘솔에서 `factory-a` Master 노드 확인
+- [x] Tailscale IP로 Master SSH 접근 가능 확인
 
 ### 🔍 Acceptance Criteria
 
 - Tailscale Admin 콘솔에서 `factory-a` Master 노드 `Connected` 상태
 - 외부 환경(Host PC 또는 로컬)에서 Tailscale IP로 `ping` 응답
 - Tailscale IP로 SSH 접근 성공
+
+### 완료 기록
+
+- 완료일: 2026-05-07
+- Device: `factory-a-master`
+- Tailscale IPv4: `100.117.40.125`
+- Tailscale FQDN: `factory-a-master.tailf83767.ts.net`
+- 적용 tag: `tag:aegis-spoke-prod`, `tag:factory-a`
+- 운영자 Windows PC device: `minsoog14`, Tailscale IPv4 `100.67.181.8`
+- 설치 버전: Tailscale `1.96.4`
+- 검증: `factory-a-master`에서 `tailscale status --self`, `tailscale ip -4` 정상 확인. Windows PC에서 `100.117.40.125` ping 및 SSH 접근 성공 확인.
+- 비고: 초기 등록은 secret 노출 방지를 위해 Auth Key CLI 입력 대신 interactive login 후 ACL tag 수동 적용 방식으로 수행했다. Worker 노드는 초기 M2 Tailnet 참여 대상에서 제외한다.
+
+### GitHub Issue Comment Draft
+
+- 상태: 완료
+- 진행 요약: `factory-a-master`에 Tailscale `1.96.4`를 설치하고 Tailnet에 참여시켰다. Admin Console에서 `tag:aegis-spoke-prod`, `tag:factory-a`를 적용했으며 Windows 운영자 PC도 Tailnet에 참여시켰다.
+- 변경/확인: `factory-a-master` Tailscale IPv4 `100.117.40.125`, Windows 운영자 PC `minsoog14` Tailscale IPv4 `100.67.181.8`
+- 검증: Windows PC에서 `100.117.40.125` ping 및 SSH 접근 성공을 확인했다.
+- 후속: M2 Issue 3에서 EKS Hub Tailscale Kubernetes Operator/OAuth client 구성을 진행하고, Hub 내부에서 `factory-a-master` Tailscale IP reachability를 검증한다.
 
 ---
 

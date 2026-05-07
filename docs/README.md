@@ -1,7 +1,7 @@
 # Aegis-Pi Docs
 
 상태: source of truth
-기준일: 2026-05-06
+기준일: 2026-05-07
 
 ## 목적
 
@@ -9,7 +9,7 @@
 
 ## 현재 상태
 
-- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선과 M1 Hub Issue 0~10이다.
+- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선, M1 Hub Issue 0~10/12, M2 Issue 1~2다.
 - `factory-a`는 Raspberry Pi 3-node K3s 기반 운영형 Spoke다.
 - 2026-04-30 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
@@ -21,8 +21,10 @@
 - M1 Issue 9에서 AWS Load Balancer Controller를 설치하고 IRSA/subnet discovery 기준을 검증했다.
 - M1 Issue 10에서 `argocd.minsoo-tech.cloud`, `grafana.minsoo-tech.cloud` HTTPS Admin Ingress를 공유 Public ALB로 검증했다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
-- 다음 작업은 M2 Issue 1 Tailnet 생성 및 Spoke별 Auth Key 실발급이다. M1 Issue 11 운영 보안 강화는 MVP 이후로 보류했다.
-- `factory-b`, `factory-c`, ECR, GitHub Actions CI, Tailscale은 후속 단계다.
+- M2 Issue 1에서 Tailnet/tag/Auth Key 정책을 수립하고 Tailnet을 확인했다.
+- M2 Issue 2에서 `factory-a-master` Tailscale 참여, tag 적용, Windows 운영자 PC의 ping/SSH 접근을 검증했다.
+- 다음 작업은 M2 Issue 3 EKS Hub Tailscale 참여 및 `factory-a-master` Tailscale IP reachability 검증이다. M1 Issue 11 운영 보안 강화는 MVP 이후로 보류했다.
+- `factory-b`, `factory-c`, ECR, GitHub Actions CI는 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
 - 계획과 실제 구현이 달라진 결정은 `docs/changes/`에서 추적한다.
@@ -127,6 +129,8 @@ Longhorn UI: 10.10.10.201
 Grafana UI: 10.10.10.202
 GitOps repo: https://github.com/aegis-pi/safe-edge-config-main.git
 safe-edge-ai-apps revision: 8e9ae861d9e374e24edaba5efbe63c785292878a
+factory-a-master Tailscale IPv4: 100.117.40.125
+Windows operator PC Tailscale IPv4: 100.67.181.8
 ```
 
 ## 현재 Hub 기준

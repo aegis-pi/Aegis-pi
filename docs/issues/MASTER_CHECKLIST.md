@@ -55,8 +55,8 @@
 
 원본: `docs/issues/M2_mesh-vpn-hub-spoke.md`
 
-- [ ] Issue 1 - [Mesh/Tailscale] 계정 및 Spoke별 키 발급 정책 수립 (정책 문서화 완료, Tailnet/Auth Key 실발급 대기)
-- [ ] Issue 2 - [Mesh/Tailscale] `factory-a` Master Tailscale 참여 및 확인
+- [x] Issue 1 - [Mesh/Tailscale] 계정 및 Spoke별 키 발급 정책 수립
+- [x] Issue 2 - [Mesh/Tailscale] `factory-a` Master Tailscale 참여 및 확인
 - [ ] Issue 3 - [Mesh/Tailscale] EKS Hub Tailscale 참여 및 확인
 - [ ] Issue 4 - [Mesh/Tailscale] kubeconfig Tailscale IP 기반 구성
 - [ ] Issue 5 - [배포/ArgoCD] `factory-a` Spoke 클러스터 등록

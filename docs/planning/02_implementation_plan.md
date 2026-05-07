@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-05-06
+기준일: 2026-05-07
 
 ## 목적
 
@@ -14,7 +14,9 @@
 - Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace, Hub ArgoCD, foundation S3/AMP, `factory-a` IoT Thing/Policy/K3s Secret, IoT Rule -> S3 raw 적재, IRSA S3 권한, Hub Prometheus Agent 설치, AMP remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Admin UI HTTPS Ingress 검증까지 진행했다.
 - 현재 Hub AWS 리소스와 foundation S3/AMP/Admin UI는 2026-05-06 `build-all --admin-ui`와 `build-hub`로 재생성/검증되어 active 상태다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
-- 현재 다음 단계는 M2 Issue 1 Tailnet 생성 및 Spoke별 Auth Key 실발급이다.
+- M2 Issue 1에서 Tailnet/tag/Auth Key 정책 수립과 Tailnet 확인을 완료했다.
+- M2 Issue 2에서 `factory-a-master` Tailscale 참여, ACL tag 적용, Windows 운영자 PC의 ping/SSH 접근을 검증했다.
+- 현재 다음 단계는 M2 Issue 3 EKS Hub Tailscale 참여 및 `factory-a-master` Tailscale IP reachability 검증이다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
@@ -146,9 +148,9 @@ Hub 생성 순서:
 
 주요 작업:
 
-- Tailscale 계정 및 Spoke별 키 정책
-- `factory-a` master Tailscale 참여
-- EKS Hub Tailscale 참여
+- Tailscale 계정 및 Spoke별 키 정책: 완료
+- `factory-a` master Tailscale 참여: 완료
+- EKS Hub Tailscale 참여: 다음 작업
 - ArgoCD UI 접근 경로를 Tailscale 기반 private access로 전환
 - EKS API endpoint public CIDR 축소
 - kubeconfig Tailscale IP 기반 구성
@@ -275,7 +277,7 @@ Hub 생성 순서:
 | Phase 0 | 완료 | 기준 문서 |
 | Phase 1 (M0) | 완료 | `factory-a` Safe-Edge 기준선 |
 | Phase 2 (M1) | 진행 중, Issue 0~10/12 완료, Issue 11 보류 | Hub 핵심 서비스 |
-| Phase 3 (M2) | 후속 | Mesh 기반 `factory-a` 연결 |
+| Phase 3 (M2) | 진행 중, Issue 1~2 완료 | Mesh 기반 `factory-a` 연결 |
 | Phase 4 (M3) | 후속 | 배포 파이프라인 |
 | Phase 5 (M4) | 후속 | `factory-a` 중앙 데이터 플레인 |
 | Phase 6 (M5) | 후속 | VM Spoke 확장 |
