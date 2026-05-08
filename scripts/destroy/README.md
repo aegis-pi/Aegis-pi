@@ -1,7 +1,7 @@
 # Destroy Scripts
 
 상태: source of truth
-기준일: 2026-05-07
+기준일: 2026-05-08
 
 ## 목적
 
@@ -12,8 +12,11 @@
 ## 삭제 순서
 
 ```text
+0. K3s factory-a IoT Secret 사전 삭제
+   - DESTROY_IOT=true일 때 AWS MFA 전에 SSH로 K3s Secret 삭제
+   - 이후 IoT destroy 단계에서는 같은 Secret 삭제를 건너뜀
+
 1. iot factory-a
-   - K3s Secret 삭제
    - IoT certificate detach/delete
    - IoT Policy 삭제
    - IoT Thing 삭제
@@ -36,8 +39,8 @@
 
 | 파일 | 내용 |
 | --- | --- |
-| `destroy-all.sh` | IoT, hub, foundation 순서 전체 삭제 |
-| `destroy-iot-factory-a.sh` | `factory-a` K3s Secret과 IoT 리소스 삭제 |
+| `destroy-all.sh` | K3s IoT Secret 사전 삭제 후 IoT, hub, foundation 순서 전체 삭제 |
+| `destroy-iot-factory-a.sh` | 직접 실행 시 `factory-a` K3s Secret과 IoT 리소스 삭제. `destroy-all.sh`에서 호출될 때는 Secret 삭제를 건너뜀 |
 | `destroy-k3s-iot-secret.sh` | K3s Secret만 삭제 |
 | `destroy-hub.sh` | Hub EKS/VPC와 hub-bound IAM 리소스 삭제 |
 | `destroy-foundation.sh` | Foundation 영속 리소스 삭제. `DESTROY_FOUNDATION=true` 필요 |
@@ -63,7 +66,9 @@ DESTROY_HUB=true
 DESTROY_FOUNDATION=true
 ```
 
-즉, 기본 `destroy-all.sh`는 `build-all.sh`의 전체 생성 범위에 대응해 IoT factory-a, Hub EKS/VPC/NAT Gateway/node group, Admin UI Route53/ACM/ALB 관련 리소스, foundation S3/IoT Rule/AMP Workspace를 순서대로 삭제한다. EKS 내부 Tailscale Operator와 proxy 리소스는 EKS 삭제와 함께 사라지므로 별도 cleanup하지 않는다.
+즉, 기본 `destroy-all.sh`는 `build-all.sh`의 전체 생성 범위에 대응해 K3s IoT Secret, IoT factory-a, Hub EKS/VPC/NAT Gateway/node group, Admin UI Route53/ACM/ALB 관련 리소스, foundation S3/IoT Rule/AMP Workspace를 순서대로 삭제한다. EKS 내부 Tailscale Operator와 proxy 리소스는 EKS 삭제와 함께 사라지므로 별도 cleanup하지 않는다.
+
+`DESTROY_IOT=true`일 때는 AWS MFA 입력 전에 먼저 `scripts/destroy/destroy-k3s-iot-secret.sh`를 실행한다. 이 단계에서 OpenSSH가 `minsoo@10.10.10.10` 비밀번호를 물을 수 있다. Secret 삭제가 끝나면 `SKIP_K3S_IOT_SECRET_DESTROY=true`를 설정해 뒤의 `destroy-iot-factory-a.sh`가 같은 SSH 작업을 반복하지 않게 한다.
 
 ## Foundation 보존 삭제
 
@@ -122,3 +127,4 @@ Hub destroy는 `infra/hub`가 foundation output을 읽는 구조라 `infra/found
 - Foundation을 보존하는 부분 삭제가 필요하면 `DESTROY_FOUNDATION=false scripts/destroy/destroy-all.sh` 또는 `scripts/destroy/destroy-hub.sh`를 사용한다.
 - CLI로 만든 IoT 리소스는 Terraform state에 없으므로 `scripts/iot/cleanup-thing.sh` 또는 이 디렉터리의 destroy 스크립트로 정리한다.
 - K3s Secret은 Terraform state에 없으므로 SSH 기반 `kubectl delete secret`로 정리한다.
+- SSH 비밀번호는 스크립트가 저장하지 않는다. 반복 입력을 피하려면 운영 PC와 `factory-a-master` 사이에 SSH key 인증을 구성한다.

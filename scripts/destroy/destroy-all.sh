@@ -17,6 +17,12 @@ export DESTROY_FOUNDATION
 
 cd "${REPO_ROOT}"
 
+if [[ "${DESTROY_IOT}" == "true" ]]; then
+  echo "Deleting K3s IoT Secret before AWS cleanup. Enter the SSH password if prompted."
+  scripts/destroy/destroy-k3s-iot-secret.sh
+  export SKIP_K3S_IOT_SECRET_DESTROY=true
+fi
+
 if [[ "${DESTROY_IOT}" == "true" || "${DESTROY_HUB}" == "true" || "${DESTROY_FOUNDATION}" == "true" ]]; then
   # shellcheck disable=SC1091
   source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"

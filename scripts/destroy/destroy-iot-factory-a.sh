@@ -7,5 +7,7 @@ OTP="${1:-}"
 
 cd "${REPO_ROOT}"
 
-scripts/destroy/destroy-k3s-iot-secret.sh
+if [[ "${SKIP_K3S_IOT_SECRET_DESTROY:-false}" != "true" ]]; then
+  scripts/destroy/destroy-k3s-iot-secret.sh
+fi
 scripts/iot/cleanup-thing.sh "${OTP}"
