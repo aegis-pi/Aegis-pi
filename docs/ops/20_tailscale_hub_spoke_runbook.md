@@ -23,9 +23,9 @@ Tailscale은 관리자 대시보드 접근망이 아니다. Dashboard Web/API는
 필수 선행:
 
 - M0 `factory-a` Safe-Edge 기준선 완료
-- M1 Hub EKS active
-- Hub kubeconfig 로컬 설정 완료
-- `kubectl get nodes`로 Hub EKS 접근 가능
+- M1 Hub EKS 기준선 검증 완료
+- Hub rebuild 후 kubeconfig 로컬 설정 완료
+- Hub rebuild 후 `kubectl get nodes`로 Hub EKS 접근 가능
 - ArgoCD는 Hub EKS 안에서 ClusterIP/port-forward 방식으로 동작
 
 완료된 것:
@@ -36,13 +36,16 @@ Tailscale은 관리자 대시보드 접근망이 아니다. Dashboard Web/API는
 - `factory-a-master` ACL tag 적용
 - Windows 운영자 PC Tailnet 참여
 - Windows 운영자 PC에서 `factory-a-master` Tailscale IP ping 및 SSH 접근 확인
+- Tailscale OAuth client 생성
+- Hub EKS Tailscale operator 설치/검증
+- EKS 내부에서 `factory-a-master` Tailscale IP reachability 확인
+- Tailscale IP 기반 `factory-a` kubeconfig 생성
+- ArgoCD `factory-a` cluster 등록과 smoke app Sync/Healthy 검증
+- 2026-05-08 Hub destroy와 함께 EKS 내부 Tailscale operator/proxy 리소스 삭제
 
 아직 하지 않은 것:
 
-- Tailscale OAuth client 생성
-- Hub EKS Tailscale operator 설치
-- EKS 내부에서 `factory-a-master` Tailscale IP reachability 확인
-- Tailscale IP 기반 `factory-a` kubeconfig 생성
+- Hub rebuild 후 Tailscale operator/proxy 재검증
 - ArgoCD `factory-a` cluster 등록
 - `factory-b`, `factory-c` Auth Key 발급 및 VM Spoke Tailnet 참여
 

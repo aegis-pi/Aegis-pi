@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-05-07
+기준일: 2026-05-08
 
 ## 목적
 
@@ -12,11 +12,11 @@
 - Phase 0 문서 기준선 정리는 완료 상태로 유지 보수 중이다.
 - Phase 1 M0 `factory-a` Safe-Edge 기준선은 구축 및 실측 검증까지 완료됐다.
 - Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace, Hub ArgoCD, foundation S3/AMP, `factory-a` IoT Thing/Policy/K3s Secret, IoT Rule -> S3 raw 적재, IRSA S3 권한, Hub Prometheus Agent 설치, AMP remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Admin UI HTTPS Ingress 검증까지 진행했다.
-- 현재 Hub AWS 리소스와 foundation S3/AMP/Admin UI는 2026-05-06 `build-all --admin-ui`와 `build-hub`로 재생성/검증되어 active 상태다.
+- Hub AWS 리소스와 foundation S3/AMP/Admin UI는 2026-05-06~2026-05-07 `build-all --admin-ui`와 `build-hub`로 재생성/검증했고, 2026-05-08 비용 정리를 위해 `destroy-all.sh`로 삭제했다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1에서 Tailnet/tag/Auth Key 정책 수립과 Tailnet 확인을 완료했다.
 - M2 Issue 2에서 `factory-a-master` Tailscale 참여, ACL tag 적용, Windows 운영자 PC의 ping/SSH 접근을 검증했다.
-- 현재 다음 단계는 M2 Issue 3 EKS Hub Tailscale 참여 및 `factory-a-master` Tailscale IP reachability 검증이다.
+- 현재 다음 단계는 M3 Issue 1 배포 파이프라인 GitHub 저장소 구조 설계다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.

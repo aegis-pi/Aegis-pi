@@ -32,6 +32,7 @@
 | 2026-05-06 | rev-20260506-08 | Hub 재생성 시 Gabia 위임용 Route53 NS 파일 자동 갱신 기준을 반영 |
 | 2026-05-06 | rev-20260506-09 | Issue 10 Admin UI HTTPS Ingress 활성화와 ArgoCD/Grafana HTTPS 검증 완료 결과를 반영 |
 | 2026-05-06 | rev-20260506-10 | Issue 12 runtime-config.yaml 구조와 VM dummy data 추천값을 반영 |
+| 2026-05-08 | rev-20260508-01 | 전체 destroy 후 Hub/Foundation/IoT/K3s Secret 삭제 상태를 현재 기준으로 반영 |
 
 ---
 
@@ -136,7 +137,7 @@ ArgoCD, Grafana, Risk Score Engine 등 모든 Hub 컴포넌트가 EKS 위에서 
 - `kubectl cluster-info` 확인: control plane 및 CoreDNS endpoint 응답 정상
 - 최소 분리 구조: `infra/hub`는 VPC/EKS, `scripts/ansible`은 namespace/LimitRange/ArgoCD bootstrap, `infra/foundation`은 S3/AMP/IoT Rule 같은 영속 리소스
 - 이후 모든 신규 작업은 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD 기준으로 분류한다.
-- 현재 `infra/hub` state는 active이며, Hub EKS와 ArgoCD가 올라와 있다.
+- 2026-05-08 현재 `infra/hub`는 destroy 완료 상태이며, Hub EKS와 ArgoCD는 삭제됐다. rebuild 시 같은 Terraform/Ansible 기준으로 재생성한다.
 
 ### GitHub Issue Comment Draft
 
@@ -180,7 +181,7 @@ Risk Score Engine 독립 운영이 가능하다.
 - `kubectl get namespaces argocd observability risk ops-support` 확인: 4개 namespace 모두 `Active`
 - `kubectl get limitrange` 확인: 각 namespace에 `default-limits` 생성 완료
 - namespace 관리는 Terraform이 아니라 Ansible bootstrap으로 전환했다.
-- 현재 AWS에서는 2026-05-06 `build-all` 실행으로 Hub EKS와 namespace가 active 상태다. recreate 시에는 `scripts/build/build-hub.sh`가 Terraform apply와 Ansible bootstrap을 순서대로 수행한다.
+- 현재 AWS에서는 2026-05-06~2026-05-07 `build-all` 실행으로 Hub EKS와 namespace를 검증했고, 2026-05-08 `destroy-all.sh`로 삭제했다. recreate 시에는 `scripts/build/build-hub.sh`가 Terraform apply와 Ansible bootstrap을 순서대로 수행한다.
 
 ### GitHub Issue Comment Draft
 
@@ -263,16 +264,16 @@ Ansible inventory는 EC2 node SSH 대상이 아니라 `localhost` 대상이다. 
 
 ### 현재 실행 상태
 
-2026-05-06 `build-all` 재실행으로 Hub EKS와 ArgoCD를 검증했고, 현재 active 상태다.
+2026-05-06 `build-all` 재실행으로 Hub EKS와 ArgoCD를 검증했고, 2026-05-08 `destroy-all.sh`로 삭제했다.
 
 결과:
 
-- `infra/hub`: active, Terraform state present
-- Hub EKS/VPC/node group/NAT Gateway: active
-- ArgoCD/Hub namespace: active
+- `infra/hub`: destroy complete
+- Hub EKS/VPC/node group/NAT Gateway: deleted
+- ArgoCD/Hub namespace: deleted with EKS
 - ArgoCD Helm release: `argocd`, chart `argo-cd-9.5.11`, app `v3.3.9`
-- `infra/foundation`: active, Terraform state present
-- S3 bucket `aegis-bucket-data`: active
+- `infra/foundation`: destroy complete
+- S3 bucket `aegis-bucket-data`: deleted
 
 destroy 후 다시 올릴 때는 아래 단일 진입점을 사용하면 Terraform apply와 Ansible bootstrap이 순서대로 실행된다.
 

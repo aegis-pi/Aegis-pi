@@ -228,4 +228,4 @@ AI snapshot hostPath와 cleanup 정상
 ## 후속 단계
 
 - M0 문서와 체크리스트를 실제 완료 상태로 갱신한다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, Hub Prometheus Agent, Grafana/AMP datasource, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret, IRSA S3/AMP 권한은 M1에서 검증했고 2026-05-06 `build-all --admin-ui`와 `build-hub`로 재생성/검증되어 active 상태다. `factory-b`, `factory-c`는 후속 확장 단계에서 진행한다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, Hub Prometheus Agent, Grafana/AMP datasource, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret, IRSA S3/AMP 권한은 M1에서 검증했고 2026-05-08 비용 정리를 위해 destroy 완료 상태다. `factory-b`, `factory-c`는 후속 확장 단계에서 진행한다.

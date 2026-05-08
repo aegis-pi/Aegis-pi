@@ -1,7 +1,7 @@
 # Hub Run Commands
 
 상태: source of truth
-기준일: 2026-05-06
+기준일: 2026-05-08
 
 ## 기본 실행
 
@@ -57,6 +57,14 @@ scripts/destroy/destroy-hub.sh
 
 ```bash
 scripts/destroy/destroy-all.sh
+```
+
+`DESTROY_IOT=true` 기본값에서는 AWS MFA 전에 `factory-a` K3s IoT Secret을 먼저 삭제하므로 OpenSSH 비밀번호 프롬프트가 먼저 나올 수 있다. Secret 삭제는 `--ignore-not-found=true`라 이미 삭제된 상태에서도 계속 진행된다.
+
+Terraform destroy 확인 프롬프트까지 자동 승인하려면 아래처럼 실행한다.
+
+```bash
+TF_CLI_ARGS_destroy=-auto-approve scripts/destroy/destroy-all.sh
 ```
 
 foundation을 보존하고 Hub 비용만 줄이려면 `scripts/destroy/destroy-hub.sh`를 사용한다. 자세한 삭제 범위와 순서는 `scripts/destroy/README.md`를 따른다.

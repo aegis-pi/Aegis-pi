@@ -1,7 +1,7 @@
 # Hub Scripts
 
 상태: source of truth
-기준일: 2026-05-07
+기준일: 2026-05-08
 
 ## 목적
 
@@ -106,6 +106,8 @@ scripts/destroy/destroy-hub.sh <MFA_OTP>
 ```
 
 `destroy-hub.sh`는 EKS, node group, NAT Gateway 등 `infra/hub` Terraform state가 관리하는 리소스를 제거한다. ArgoCD, namespace, Tailscale Operator/proxy Service는 EKS 내부 리소스이므로 EKS destroy와 함께 제거된다. `factory-a-master` Tailscale device와 OAuth client는 삭제하지 않는다.
+
+IoT와 foundation까지 포함한 전체 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. 이 스크립트는 AWS MFA 전에 K3s IoT Secret을 먼저 삭제하고, 이후 IoT, Hub, foundation 순서로 정리한다.
 
 ## `argocd-port-forward.sh`
 

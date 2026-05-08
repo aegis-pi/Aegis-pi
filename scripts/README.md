@@ -14,7 +14,7 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | --- | --- |
 | `build/build-all.sh` | foundation, hub, IoT/K3s Secret 생성 순서 실행. Hub 단계에서 Tailscale 복구까지 기본 실행. `--admin-ui` 옵션으로 Admin UI HTTPS Ingress까지 활성화 |
 | `build/build-admin-ui-after-ns.sh` | Gabia NS 입력 후 ACM 발급 대기와 Admin UI HTTPS Ingress 활성화 |
-| `destroy/destroy-all.sh` | IoT/K3s Secret, hub, foundation 전체 삭제 순서 실행 |
+| `destroy/destroy-all.sh` | K3s IoT Secret을 SSH로 먼저 삭제한 뒤 IoT, hub, foundation 전체 삭제 순서 실행 |
 | `hub/run-hub.sh` | `build/build-hub.sh` 실행 후 ArgoCD port-forward까지 연결하는 호환 wrapper |
 | `hub/destroy-hub.sh` | `destroy/destroy-hub.sh`를 호출하는 호환 wrapper |
 | `ops/argocd-initial-password.sh` | MFA 세션 확인 후 Hub ArgoCD 초기 admin 비밀번호 조회 |

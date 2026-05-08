@@ -1,7 +1,7 @@
 # Build Scripts
 
 상태: source of truth
-기준일: 2026-05-07
+기준일: 2026-05-08
 
 ## 목적
 

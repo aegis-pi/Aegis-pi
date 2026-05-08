@@ -201,28 +201,28 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
 
 ## 현재 AWS 상태
 
-2026-05-06 기준 Hub 인프라는 `scripts/build/build-hub.sh` 실행으로 갱신했고, IRSA Role/Policy와 `risk/risk-normalizer`, `observability/prometheus-agent`, `observability/grafana`, `kube-system/aws-load-balancer-controller` ServiceAccount annotation까지 검증했다. Kubernetes namespace, ArgoCD, Grafana, AWS Load Balancer Controller, ServiceAccount는 EKS 내부 리소스라 EKS destroy와 함께 제거된다. IRSA IAM Role/Policy, Route53 Hosted Zone, ACM certificate는 `infra/hub` Terraform state에 있으므로 `scripts/destroy/destroy-hub.sh` 실행 시 함께 제거된다.
+2026-05-08 기준 Hub 인프라는 검증 후 비용 정리를 위해 `scripts/destroy/destroy-all.sh`로 삭제했다. `AEGIS-EKS`, `AEGIS-VPC`, node group, NAT Gateway, Admin UI ALB, Route53 Hosted Zone, ACM certificate, Hub IRSA IAM Role/Policy는 삭제 확인했다. EKS encryption용 AEGIS KMS key는 AWS KMS 삭제 대기 정책에 따라 `PendingDeletion` 상태로 남는다.
 
 | 항목 | 값 |
 | --- | --- |
-| Terraform state | active |
-| Cluster | active (`AEGIS-EKS`) |
+| Terraform state | destroy 완료 |
+| Cluster | deleted (`AEGIS-EKS`) |
 | Kubernetes version | `1.34` |
-| VPC | active (`vpc-09c894826697d728f`) |
-| Public subnets | active |
-| Private subnets | active |
-| Node group | active (`AEGIS-EKS-node`) |
-| Hub namespaces | active |
-| ArgoCD | deployed (`argo-cd-9.5.11`) |
-| IRSA role | active (`AEGIS-IAMRole-IRSA-risk-normalizer`) |
-| Prometheus remote_write IRSA role | active (`AEGIS-IAMRole-IRSA-prometheus-remote-write`) |
-| Grafana AMP query IRSA role | active (`AEGIS-IAMRole-IRSA-grafana-amp-query`) |
-| AWS Load Balancer Controller | deployed (`aws-load-balancer-controller-1.14.0`, app `v2.14.0`, `2/2 Available`) |
-| Admin UI Route53 zone | active (`minsoo-tech.cloud`, `Z03975332EWIGUYGA3VRQ`) |
-| Admin UI ACM certificate | `ISSUED` |
-| Admin UI ALB | active (`aegis-admin-ui-1532265527.ap-south-1.elb.amazonaws.com`) |
+| VPC | deleted |
+| Public subnets | deleted |
+| Private subnets | deleted |
+| Node group | deleted (`AEGIS-EKS-node`) |
+| Hub namespaces | deleted with EKS |
+| ArgoCD | deleted with EKS |
+| IRSA role | deleted (`AEGIS-IAMRole-IRSA-risk-normalizer`) |
+| Prometheus remote_write IRSA role | deleted (`AEGIS-IAMRole-IRSA-prometheus-remote-write`) |
+| Grafana AMP query IRSA role | deleted (`AEGIS-IAMRole-IRSA-grafana-amp-query`) |
+| AWS Load Balancer Controller | deleted with EKS |
+| Admin UI Route53 zone | deleted (`minsoo-tech.cloud`) |
+| Admin UI ACM certificate | deleted |
+| Admin UI ALB | deleted |
 
-검증:
+재생성 후 검증:
 
 ```bash
 aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS

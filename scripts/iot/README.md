@@ -1,7 +1,7 @@
 # IoT Scripts
 
 상태: source of truth
-기준일: 2026-05-06
+기준일: 2026-05-08
 
 ## 목적
 
@@ -25,6 +25,8 @@ secret/iot/factory-a/
 ```
 
 이 경로는 `.gitignore`의 `secret/` 규칙으로 Git에서 제외된다.
+
+2026-05-08 기준 AWS IoT `factory-a` Thing/Policy/certificate와 K3s Secret은 `scripts/destroy/destroy-all.sh`로 삭제했다. 로컬 `secret/iot/factory-a/` 파일은 기본 cleanup 대상이 아니라 남아 있을 수 있으며, AWS certificate가 없으면 다음 `register-thing.sh` 실행 시 stale local material을 archive하고 새 인증서를 발급한다.
 
 ## 등록 실행
 

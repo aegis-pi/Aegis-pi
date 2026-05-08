@@ -1,7 +1,7 @@
 # Hub Namespace Baseline
 
-상태: Ansible bootstrap 기준 전환 완료, 현재 Hub EKS active
-기준일: 2026-05-06
+상태: Ansible bootstrap 기준 전환 완료, 현재 Hub EKS deleted
+기준일: 2026-05-08
 
 ## 목적
 
@@ -52,11 +52,11 @@ ops-support     Active
 
 각 namespace에 `default-limits` LimitRange가 생성되어 있다.
 
-2026-05-06 기준 Hub EKS는 `build-all --admin-ui`와 `build-hub`로 재생성/검증되어 active 상태다. rebuild 시 `risk/risk-normalizer`와 `observability/prometheus-agent` ServiceAccount는 각각 S3 처리와 AMP remote_write용 IRSA role로 annotation된다.
+2026-05-06 기준 Hub EKS는 `build-all --admin-ui`와 `build-hub`로 재생성/검증했고, 2026-05-08 비용 정리를 위해 destroy 완료 상태다. rebuild 시 `risk/risk-normalizer`와 `observability/prometheus-agent` ServiceAccount는 각각 S3 처리와 AMP remote_write용 IRSA role로 annotation된다.
 
 나중에 Hub EKS를 destroy/recreate하면 `scripts/build/build-hub.sh` 실행 시 Ansible bootstrap playbook이 `argocd`, `observability`, `risk`, `ops-support` namespace, `default-limits` LimitRange, IRSA ServiceAccount, Hub ArgoCD Helm release를 다시 생성한다.
 
-## 현재 ArgoCD 기준
+## Rebuild 후 ArgoCD 기준
 
 ```text
 Helm release: argocd
@@ -77,7 +77,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret
 kubectl -n argocd port-forward service/argocd-server 8080:443
 ```
 
-`https://argocd.minsoo-tech.cloud`와 `https://127.0.0.1:8080`에서 HTTP 200 응답을 확인했다. 초기 admin 비밀번호 값은 문서에 기록하지 않는다.
+2026-05-06 검증에서는 `https://argocd.minsoo-tech.cloud`와 `https://127.0.0.1:8080`에서 HTTP 200 응답을 확인했다. 현재 Hub는 삭제된 상태이므로 rebuild 후 다시 확인한다. 초기 admin 비밀번호 값은 문서에 기록하지 않는다.
 
 ## ArgoCD 접근 전략
 
@@ -151,7 +151,7 @@ cd /home/vicbear/Aegis/git_clone/Aegis-pi
 scripts/destroy/destroy-hub.sh
 ```
 
-현재 active 확인:
+2026-05-06 검증 당시 active 확인:
 
 ```text
 kubectl get nodes: 2 Ready

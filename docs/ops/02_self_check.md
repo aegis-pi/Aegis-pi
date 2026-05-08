@@ -1,7 +1,7 @@
 # 셀프 체크 가이드
 
 상태: source of truth
-기준일: 2026-05-06
+기준일: 2026-05-08
 
 ## 목적
 
@@ -12,7 +12,7 @@
 - `factory-a`는 3노드 K3s, ArgoCD, Helm, Longhorn, InfluxDB, Grafana 기준선 구성이 완료됐다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
 - ArgoCD repository 등록과 sync 조작은 UI에서 수행한다.
-- Hub EKS/ArgoCD, Hub Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret은 2026-05-06 기준 `build-all --admin-ui`와 `build-hub`로 재생성/검증되어 active 상태다. `factory-b`, `factory-c`, Risk Twin은 후속 단계다.
+- Hub EKS/ArgoCD, Hub Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret은 2026-05-06~2026-05-07에 `build-all --admin-ui`와 `build-hub`로 재생성/검증했고, 2026-05-08 비용 정리를 위해 `destroy-all.sh`로 삭제했다. `factory-b`, `factory-c`, Risk Twin은 후속 단계다.
 
 ## 범위
 
@@ -109,7 +109,7 @@ Grafana는 `http://10.10.10.202`에서 확인한다.
 
 ## 후속 Hub 확장 전 체크
 
-Hub와 `factory-a` 기준선이 안정적으로 유지되는지 확인한 뒤 후속 작업을 진행한다.
+AWS Hub를 rebuild한 뒤 Hub와 `factory-a` 기준선이 안정적으로 유지되는지 확인하고 후속 작업을 진행한다.
 
 - Hub Prometheus Agent verify: `scripts/ansible/playbooks/hub_prometheus_agent_verify.yml`
 - AMP 수신 기준: `up{cluster="AEGIS-EKS"}`에서 Agent, API server, EKS node, annotated pod 대상이 `1`

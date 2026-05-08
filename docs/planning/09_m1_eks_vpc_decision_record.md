@@ -184,7 +184,8 @@ terraform destroy
 
 ```text
 infra/hub apply: 56 added, 0 changed, 0 destroyed.
-current state: active.
+current state at 2026-04-30 validation: active.
+current state at 2026-05-08: destroyed by scripts/destroy/destroy-all.sh.
 ```
 
 현재 주요 리소스:
@@ -202,8 +203,8 @@ current state: active.
 | Node instance type | `t3.medium` |
 | Node count | desired/min/max `2` |
 | Hub namespaces | `argocd`, `observability`, `risk`, `ops-support` |
-| Current AWS status | active |
-| Current Terraform state | active |
+| Current AWS status | destroyed on 2026-05-08 |
+| Current Terraform state | destroyed on 2026-05-08 |
 | Hub apply result | `56 added, 0 changed, 0 destroyed` |
 
 검증:

@@ -1,7 +1,7 @@
 # 프로젝트 개요
 
 상태: source of truth
-기준일: 2026-05-07
+기준일: 2026-05-08
 
 ## 목적
 
@@ -9,10 +9,10 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 
 ## 현재 상태
 
-- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트, M1 Hub Issue 0~10/12, M2 Issue 1~2다.
+- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트, M1 Hub Issue 0~10/12, M2 Issue 1~6이다.
 - `factory-a`는 로컬 K3s 3노드, ArgoCD, Helm, Longhorn, InfluxDB, Grafana, AI 앱 failover/failback 기준선을 갖는다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/AMP, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 2026-05-06 `build-all --admin-ui` 및 `build-hub`로 active 상태를 확인했다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/AMP, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 2026-05-06~2026-05-07 `build-all --admin-ui` 및 `build-hub`로 검증했고, 2026-05-08 비용 정리를 위해 `destroy-all.sh`로 삭제했다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다.
 - M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 기본 메트릭 수신을 검증했다.
@@ -23,7 +23,7 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1에서 Tailnet/tag/Auth Key 정책 수립과 Tailnet 확인을 완료했다.
 - M2 Issue 2에서 `factory-a-master` Tailscale 참여, ACL tag 적용, Windows 운영자 PC의 ping/SSH 접근을 검증했다.
-- 다음 작업은 M2 Issue 3 EKS Hub Tailscale 참여 및 `factory-a-master` Tailscale IP reachability 검증이다. M1 Issue 11 운영 보안 강화는 MVP 이후로 보류했다.
+- 다음 작업은 M3 Issue 1 배포 파이프라인 GitHub 저장소 구조 설계다. M1 Issue 11 운영 보안 강화와 EKS API endpoint CIDR 축소는 MVP 설계 마무리 후 재검토한다.
 - `factory-b`, `factory-c`, Edge Agent, Risk Twin은 후속 확장 단계다.
 
 ## 프로젝트명
@@ -84,10 +84,10 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 | 이미지 prepull | 완료 | `safe-edge-image-prepull` DaemonSet |
 | InfluxDB 1일 보존 | 완료 | retention policy 기준 |
 | AI snapshot 1일 보존 | 완료 | `/app/snapshots` cleanup sidecar |
-| AWS Hub | 진행 중 | M1 Issue 0~10/12 검증 완료, 현재 active 상태, Issue 11 보류 |
-| Foundation S3 | 완료 | `aegis-bucket-data` active, IoT Rule raw 적재 검증 완료 |
-| AMP/Grafana | 완료 | `AEGIS-AMP-hub` active, `observability/prometheus-agent` remote_write 수신, Grafana datasource query와 HTTPS Admin UI 검증 완료 |
-| IoT Core | 완료 | `factory-a` Thing/certificate/policy, K3s Secret, IoT Rule/S3 적재 검증 완료, 현재 active |
+| AWS Hub | 완료/현재 삭제 | M1 Issue 0~10/12와 M2 Issue 3~6 검증 완료, 2026-05-08 비용 정리를 위해 destroy 완료, Issue 11 보류 |
+| Foundation S3 | 완료/현재 삭제 | `aegis-bucket-data`와 IoT Rule raw 적재 검증 완료 후 destroy 완료 |
+| AMP/Grafana | 완료/현재 삭제 | `AEGIS-AMP-hub`, `observability/prometheus-agent` remote_write 수신, Grafana datasource query와 HTTPS Admin UI 검증 완료 후 destroy 완료 |
+| IoT Core | 완료/현재 삭제 | `factory-a` Thing/certificate/policy, K3s Secret, IoT Rule/S3 적재 검증 완료 후 destroy 완료 |
 | AWS 비용 기준 | 완료 | `docs/ops/15_aws_cost_baseline.md`, destroy 이후 `$0.0000/hour` |
 | `factory-b`, `factory-c` | 후속 | 테스트베드형 Spoke |
 | Risk Twin | 후속 | M6 이후 |

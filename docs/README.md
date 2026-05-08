@@ -1,7 +1,7 @@
 # Aegis-Pi Docs
 
 상태: source of truth
-기준일: 2026-05-07
+기준일: 2026-05-08
 
 ## 목적
 
@@ -14,6 +14,7 @@
 - 2026-04-30 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
 - 2026-05-07 `build-hub`는 AWS Hub EKS/VPC/NAT/EIP, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI, Hub Tailscale Operator/egress/UI/cluster Secret 복구를 자동화한다.
+- 2026-05-08 `destroy-all.sh`로 K3s IoT Secret, IoT, Hub, foundation을 삭제했고, 현재 active AEGIS AWS fixed-cost resource는 0개다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다.
 - M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 `up{cluster="AEGIS-EKS"}` 수신을 검증했다.
@@ -139,16 +140,17 @@ Windows operator PC Tailscale IPv4: 100.67.181.8
 ## 현재 Hub 기준
 
 ```text
-AWS actual state: Hub/Foundation/IoT/Admin UI active after `scripts/build/build-all.sh --admin-ui`; historical KMS keys are `PendingDeletion`
+AWS actual state: Hub/Foundation/IoT/Admin UI deleted after `scripts/destroy/destroy-all.sh`; AEGIS EKS KMS keys are `PendingDeletion`
 Hub bootstrap roots:
 - infra/hub: VPC/EKS/node group, Route53/ACM, IRSA
 - scripts/ansible: namespace/LimitRange/ArgoCD/Prometheus Agent/Grafana/AWS Load Balancer Controller/Admin UI Ingress bootstrap
 - infra/foundation: S3 data bucket, AMP Workspace, IoT Rule, and future durable resources
 Build entrypoint: scripts/build/build-all.sh
 Admin UI build entrypoint: scripts/build/build-all.sh --admin-ui
-Hub UI entrypoint: https://argocd.minsoo-tech.cloud and https://grafana.minsoo-tech.cloud
+Hub UI entrypoint after rebuild: https://argocd.minsoo-tech.cloud and https://grafana.minsoo-tech.cloud
 Local fallback UI entrypoint: scripts/ops/argocd-port-forward.sh, scripts/ops/grafana-port-forward.sh
 Hub destroy entrypoint: scripts/destroy/destroy-hub.sh
+Full destroy entrypoint: scripts/destroy/destroy-all.sh
 Cost baseline: docs/ops/15_aws_cost_baseline.md
 Delivery flow: Terraform -> Ansible -> GitHub Actions CI -> GitHub/ArgoCD CD
 ```

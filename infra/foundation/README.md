@@ -10,6 +10,8 @@
 - IoT Rule -> S3 raw 적재: `AEGIS_IoTRule_factory_a_raw_s3`
 - AMP Workspace: `AEGIS-AMP-hub`
 
+2026-05-08 기준 위 리소스는 검증 후 비용 정리를 위해 `scripts/destroy/destroy-all.sh`로 삭제했다. 이 디렉터리는 다음 rebuild 때 같은 기준으로 foundation 리소스를 다시 생성하는 Terraform source of truth다.
+
 ## 후속 후보 리소스
 
 - ECR 이미지 저장소
@@ -19,10 +21,8 @@
 
 ```text
 alias: AEGIS-AMP-hub
-workspace id: ws-6a8853dc-0eb4-43e7-9b97-efade5b75765
-workspace arn: arn:aws:aps:ap-south-1:611058323802:workspace/ws-6a8853dc-0eb4-43e7-9b97-efade5b75765
-prometheus endpoint: https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-6a8853dc-0eb4-43e7-9b97-efade5b75765/
-remote_write endpoint: https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-6a8853dc-0eb4-43e7-9b97-efade5b75765/api/v1/remote_write
+last verified workspace id before destroy: ws-762fb9c1-ad1f-433d-991b-20f768186759
+current state: deleted
 terraform apply: 10 added, 0 changed, 0 destroyed
 ```
 
@@ -103,7 +103,7 @@ terraform plan
 terraform apply
 ```
 
-삭제는 신중하게 수행한다. 이 root는 데이터와 영속 리소스를 관리하므로 `infra/hub`처럼 실험 종료 시 매번 destroy하지 않는다.
+삭제는 신중하게 수행한다. 이 root는 데이터와 영속 리소스를 관리하므로 일반적으로 `infra/hub`처럼 실험 종료 시 매번 destroy하지 않는다. 비용을 완전히 0으로 맞추는 전체 정리 시에는 `scripts/destroy/destroy-all.sh`가 이 root까지 삭제한다.
 
 ## 검증 결과
 

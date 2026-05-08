@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-05-07
+기준일: 2026-05-08
 
 ## 목적
 
@@ -79,8 +79,8 @@ M3 Issue 1 - [배포/Helm] GitHub 저장소 구조 설계
 보류: EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 상태: 2026-05-07 build-hub Tailscale 자동화 추가/검증 완료. Hub EKS/ArgoCD/Prometheus Agent/Grafana/AWS Load Balancer Controller/Admin UI ALB/Hub Tailscale Operator/factory-a egress/foundation S3/AMP/IoT/K3s Secret active 확인. Route53 Hosted Zone과 ACM certificate는 active이며 ACM은 `ISSUED`
-Terraform state: infra/hub active, infra/foundation active
+AWS 실제 리소스 상태: 2026-05-08 `destroy-all.sh` 기준 전체 삭제 완료. Hub EKS/VPC/NAT/EIP/ALB, Route53/ACM, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/certificate, K3s IoT Secret 삭제 확인. AEGIS EKS KMS keys는 `PendingDeletion`
+Terraform state: infra/hub destroy 완료, infra/foundation destroy 완료
 ```
 
 ## 지금까지 완료한 일
@@ -111,7 +111,7 @@ Terraform state: infra/hub active, infra/foundation active
 - WAF, Cognito, 외부 OIDC/SSO는 MVP 필수 범위에서 제외하고 운영 보안 강화 백로그인 M1 Issue 11로 분리했다.
 - 도메인은 `minsoo-tech.cloud` 기준으로 확정했다. Route53 Hosted Zone NS는 `ns-1079.awsdns-06.org`, `ns-1913.awsdns-47.co.uk`, `ns-7.awsdns-00.com`, `ns-872.awsdns-45.net`이다.
 - `scripts/build/build-hub.sh`는 Terraform apply 직후 `scripts/ops/admin-ui-nameservers.sh`를 실행해 `secret/admin-ui-nameservers.txt`를 갱신한다. Gabia에 입력할 NS는 재생성 후 이 파일을 다시 확인한다.
-- 현재 기본값은 `ADMIN_UI_INGRESS_ENABLED=false`지만, `scripts/build/build-all.sh --admin-ui`를 사용하면 기존 MFA/build 흐름 안에서 Admin UI Ingress까지 활성화한다. 2026-05-06에는 `ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh`로 shared ALB Ingress를 생성하고 HTTPS endpoint를 검증했다.
+- 현재 기본값은 `ADMIN_UI_INGRESS_ENABLED=false`지만, `scripts/build/build-all.sh --admin-ui`를 사용하면 기존 MFA/build 흐름 안에서 Admin UI Ingress까지 활성화한다. 2026-05-06에는 `ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh`로 shared ALB Ingress를 생성하고 HTTPS endpoint를 검증했고, 2026-05-08에는 Hub destroy로 ALB/Route53/ACM을 삭제했다.
 - 현재 기본값은 `BUILD_TAILSCALE=true`이므로 `scripts/build/build-hub.sh`와 `scripts/build/build-all.sh`는 Hub bootstrap 이후 Tailscale Operator, factory-a egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD `factory-a` cluster Secret을 자동 복구/검증한다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 실패한다.
 
 ### AWS CLI MFA 및 Terraform 접근
@@ -184,7 +184,7 @@ Capacity: On-Demand
 ### M1 Issue 3 Hub ArgoCD
 
 - 2026-05-06에 `scripts/build/build-all.sh` 기준으로 Hub EKS, ArgoCD, foundation S3, IoT Rule, IRSA 구성을 재생성하고 검증했다.
-- `infra/hub` Terraform state는 active이며, 최신 `terraform plan -detailed-exitcode` 결과 추가 변경 없음.
+- 2026-05-08에 `scripts/destroy/destroy-all.sh` 기준으로 Hub/Foundation/IoT/K3s Secret을 삭제했다.
 - `aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS` 완료.
 - `kubectl get nodes -o wide`에서 EKS worker node 2대 `Ready` 확인.
 - Hub namespace/LimitRange는 처음 Terraform으로 검증했고, 최종 기준은 Ansible bootstrap으로 전환했다.
@@ -206,32 +206,30 @@ Capacity: On-Demand
 
 ```text
 AWS 계정 연결: MFA 세션으로 확인 완료
-AWS 리소스 상태: 2026-05-06 build-all 재실행 후 active
-Hub EKS: AEGIS-EKS active
-ArgoCD: argocd Helm release deployed, chart argo-cd-9.5.11, app v3.3.9
-Foundation S3 bucket: aegis-bucket-data active
-AMP Workspace: AEGIS-AMP-hub active
-AMP Workspace ID: ws-6a8853dc-0eb4-43e7-9b97-efade5b75765
-IoT Thing: AEGIS-IoTThing-factory-a active
-IoT Policy: AEGIS-IoTPolicy-factory-a active
-IoT Rule: AEGIS_IoTRule_factory_a_raw_s3 active
-IRSA Role: AEGIS-IAMRole-IRSA-risk-normalizer active
-IRSA ServiceAccount: risk/risk-normalizer annotated
-IRSA Role: AEGIS-IAMRole-IRSA-prometheus-remote-write active
-IRSA ServiceAccount: observability/prometheus-agent annotated
-K3s Secret: ai-apps/aws-iot-factory-a-cert configured
-terraform state: infra/hub active
-terraform state: infra/foundation active
+AWS 리소스 상태: 2026-05-08 destroy-all 실행 후 deleted
+Hub EKS: AEGIS-EKS deleted
+ArgoCD: deleted with EKS
+Foundation S3 bucket: aegis-bucket-data deleted
+AMP Workspace: AEGIS-AMP-hub deleted
+Last verified AMP Workspace ID before destroy: ws-762fb9c1-ad1f-433d-991b-20f768186759
+IoT Thing: AEGIS-IoTThing-factory-a deleted
+IoT Policy: AEGIS-IoTPolicy-factory-a deleted
+IoT Rule: AEGIS_IoTRule_factory_a_raw_s3 deleted
+IRSA Roles/ServiceAccounts: deleted with Hub
+K3s Secret: ai-apps/aws-iot-factory-a-cert deleted
+terraform state: infra/hub destroy complete
+terraform state: infra/foundation destroy complete
 ```
 
 주의:
 
 - `terraform init`은 provider/module을 로컬에 내려받는 작업이라 AWS 리소스를 만들지 않는다.
 - AWS 리소스가 실제로 만들어지는 시점은 `terraform apply` 실행 시점이다.
-- 테스트가 끝나면 반드시 `scripts/destroy/destroy-hub.sh` 또는 `terraform destroy`로 EKS, NAT Gateway, node group을 제거한다.
+- 테스트가 끝나면 반드시 `scripts/destroy/destroy-hub.sh` 또는 `scripts/destroy/destroy-all.sh`로 EKS, NAT Gateway, node group을 제거한다.
 - 2026-05-06에는 foundation, Hub, IoT 전제를 재생성하고 IoT Rule -> S3 적재, AMP Workspace, Prometheus remote_write IRSA를 검증했다.
+- 2026-05-08에는 `destroy-all.sh`로 K3s IoT Secret, IoT, Hub, foundation을 삭제했고 active AEGIS AWS fixed-cost resource 0개 상태를 확인했다.
 
-현재 active 주요 리소스:
+최근 검증 후 삭제된 주요 리소스:
 
 ```text
 Cluster: AEGIS-EKS
@@ -241,14 +239,14 @@ VPC: vpc-09c894826697d728f
 Private subnets: subnet-002dae5b51fec10e3, subnet-0fbe009eec8a23f95
 Public subnets: subnet-017c1e07df8bd8e1f, subnet-0ab9faef9ef8e6086
 Node group: AEGIS-EKS-node
-Node status: 2 Ready
+Node status before destroy: 2 Ready
 Hub namespaces: argocd, observability, risk, ops-support
-Terraform state: infra/hub active, infra/foundation active
+Terraform state: infra/hub destroyed, infra/foundation destroyed
 Ansible bootstrap: namespace, LimitRange, ArgoCD Helm release 재생성 기준 추가
 ArgoCD Helm release: argocd / argo-cd-9.5.11 / app v3.3.9
 S3 bucket: aegis-bucket-data
-AMP Workspace: AEGIS-AMP-hub / ws-6a8853dc-0eb4-43e7-9b97-efade5b75765
-AMP remote_write endpoint: https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-6a8853dc-0eb4-43e7-9b97-efade5b75765/api/v1/remote_write
+AMP Workspace: AEGIS-AMP-hub / ws-762fb9c1-ad1f-433d-991b-20f768186759
+AMP remote_write endpoint: https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-762fb9c1-ad1f-433d-991b-20f768186759/api/v1/remote_write
 IoT Rule: AEGIS_IoTRule_factory_a_raw_s3
 IRSA Role: AEGIS-IAMRole-IRSA-risk-normalizer
 IRSA ServiceAccount: risk/risk-normalizer
@@ -320,35 +318,35 @@ secret exists, DATA=4
 
 M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M3 Issue 1 배포 파이프라인 GitHub 저장소 구조 설계로 이어간다.
 
-현재 검증 완료 전제:
+최근 검증 완료 전제:
 
-- Foundation S3 bucket `aegis-bucket-data` active
-- Hub EKS `AEGIS-EKS` active after build-all
-- ArgoCD Helm release `argocd` deployed
-- IoT Thing `AEGIS-IoTThing-factory-a` active
-- IoT certificate active/Thing attach 완료
-- IoT Policy `AEGIS-IoTPolicy-factory-a` active
-- IoT Rule `AEGIS_IoTRule_factory_a_raw_s3` active
-- K3s Secret `ai-apps/aws-iot-factory-a-cert` configured
+- Foundation S3 bucket `aegis-bucket-data` 검증 완료 후 destroy 완료
+- Hub EKS `AEGIS-EKS` build-all 검증 완료 후 destroy 완료
+- ArgoCD Helm release `argocd` 검증 완료 후 EKS destroy와 함께 삭제
+- IoT Thing `AEGIS-IoTThing-factory-a` 검증 완료 후 삭제
+- IoT certificate active/Thing attach 검증 완료 후 삭제
+- IoT Policy `AEGIS-IoTPolicy-factory-a` 검증 완료 후 삭제
+- IoT Rule `AEGIS_IoTRule_factory_a_raw_s3` 검증 완료 후 삭제
+- K3s Secret `ai-apps/aws-iot-factory-a-cert` 검증 완료 후 삭제
 - Test object `raw/factory-a/sensor/yyyy=2026/mm=05/dd=06/manual-20260506T014423Z-31668.json` 적재 확인
-- IRSA Role `AEGIS-IAMRole-IRSA-risk-normalizer` active
+- IRSA Role `AEGIS-IAMRole-IRSA-risk-normalizer` 검증 완료 후 삭제
 - ServiceAccount `risk/risk-normalizer` annotation 검증 완료
-- AMP Workspace `AEGIS-AMP-hub` active
-- AMP Workspace ID `ws-6a8853dc-0eb4-43e7-9b97-efade5b75765`
-- AMP remote_write endpoint `https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-6a8853dc-0eb4-43e7-9b97-efade5b75765/api/v1/remote_write`
-- IRSA Role `AEGIS-IAMRole-IRSA-prometheus-remote-write` active
+- AMP Workspace `AEGIS-AMP-hub` 검증 완료 후 삭제
+- Last verified AMP Workspace ID before destroy `ws-762fb9c1-ad1f-433d-991b-20f768186759`
+- AMP remote_write endpoint before destroy `https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-762fb9c1-ad1f-433d-991b-20f768186759/api/v1/remote_write`
+- IRSA Role `AEGIS-IAMRole-IRSA-prometheus-remote-write` 검증 완료 후 삭제
 - ServiceAccount `observability/prometheus-agent` annotation 검증 완료
 - EKS 내부 AWS CLI pod에서 `AEGIS-IAMRole-IRSA-prometheus-remote-write` assume-role 확인
 - Hub Prometheus Agent pod `Running`, `1/1 Ready`
 - AMP Query API `up{cluster="AEGIS-EKS"}` 수신 확인
-- IRSA Role `AEGIS-IAMRole-IRSA-grafana-amp-query` active
+- IRSA Role `AEGIS-IAMRole-IRSA-grafana-amp-query` 검증 완료 후 삭제
 - ServiceAccount `observability/grafana` annotation 검증 완료
 - Grafana Service `ClusterIP`
 - Grafana datasource `AEGIS-AMP` / `aegis-amp` 검증 완료
 - Grafana API proxy `up{cluster="AEGIS-EKS"}` query 성공
 - AWS Load Balancer Controller `kube-system/aws-load-balancer-controller` 설치/검증 완료
 - ACM certificate `ISSUED`
-- Admin UI ALB `aegis-admin-ui-1532265527.ap-south-1.elb.amazonaws.com` active
+- Admin UI ALB `aegis-admin-ui-1532265527.ap-south-1.elb.amazonaws.com` 검증 완료 후 삭제
 - ArgoCD HTTPS endpoint `https://argocd.minsoo-tech.cloud/` HTTP 200 검증 완료
 - Grafana HTTPS health endpoint `https://grafana.minsoo-tech.cloud/api/health` HTTP 200 검증 완료
 - Runtime config `configs/runtime/runtime-config.yaml` 작성 완료
@@ -396,16 +394,14 @@ Issue 11:
 1. WAF/Cognito/OIDC는 MVP 이후 운영 보안 강화 백로그로 보류
 ```
 
-바로 확인할 명령:
+로컬/재생성 후 확인할 명령:
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
 kubectl get nodes
-kubectl -n argocd get pods
-ssh minsoo@10.10.10.10 'kubectl -n ai-apps get secret aws-iot-factory-a-cert'
 ssh minsoo@10.10.10.10 'tailscale status --self; tailscale ip -4'
-aws iot describe-thing --thing-name AEGIS-IoTThing-factory-a
-aws s3 ls s3://aegis-bucket-data/raw/
+scripts/build/build-all.sh --admin-ui
+aws eks describe-cluster --region ap-south-1 --name AEGIS-EKS
 ```
 
 주의:
@@ -530,11 +526,18 @@ cd /home/vicbear/Aegis/git_clone/Aegis-pi
 scripts/destroy/destroy-hub.sh
 ```
 
-장시간 사용하지 않을 리소스를 남기지 않는다. EKS control plane, NAT Gateway, managed node group은 켜져 있는 동안 비용이 발생한다.
+전체 비용 제거가 필요하면 아래 진입점을 사용한다.
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi
+scripts/destroy/destroy-all.sh
+```
+
+장시간 사용하지 않을 리소스를 남기지 않는다. EKS control plane, NAT Gateway, managed node group은 켜져 있는 동안 비용이 발생한다. 2026-05-08에는 `destroy-all.sh`로 K3s IoT Secret, IoT, Hub, foundation을 삭제했고 active AEGIS AWS fixed-cost resource 0개 상태를 확인했다.
 
 ## 문서 갱신 상태
 
-M1 Issue 4/5/6/7/8/9/10/12 완료, IoT Rule -> S3 raw 적재, `risk/risk-normalizer` IRSA 검증, AMP Workspace 생성, `observability/prometheus-agent` remote_write 수신 검증, Grafana AMP datasource query 검증, AWS Load Balancer Controller, Admin UI HTTPS Ingress, runtime-config.yaml과 VM dummy data 추천값, 현재 active AWS 상태, M2 Issue 1/2 완료 상태와 M2 Issue 3 Operator/egress 검증 결과를 문서에 반영했다.
+M1 Issue 4/5/6/7/8/9/10/12 완료, IoT Rule -> S3 raw 적재, `risk/risk-normalizer` IRSA 검증, AMP Workspace 생성, `observability/prometheus-agent` remote_write 수신 검증, Grafana AMP datasource query 검증, AWS Load Balancer Controller, Admin UI HTTPS Ingress, runtime-config.yaml과 VM dummy data 추천값, M2 Issue 1~6 완료 상태, 2026-05-08 전체 destroy 후 현재 AWS 삭제 상태를 문서에 반영했다.
 AWS 비용 기준은 `docs/ops/15_aws_cost_baseline.md`에 추가했고, AWS 리소스나 상시 운영 경로가 추가될 때 함께 갱신하는 규칙을 `docs/README.md`, `docs/ops/README.md`, `docs/planning/11_delivery_ownership_flow.md`에 반영했다.
 또한 앞으로의 구현 책임 경계를 Terraform, Ansible, GitHub Actions, GitHub+ArgoCD 흐름으로 고정하고 관련 문서를 최신화했다.
 
@@ -586,55 +589,31 @@ cc743b7 Update hub automation and destroy docs
 현재 세션 정리 내용:
 
 ```text
-2026-05-06 세션 저장 기준
-M1 Issue 1 EKS/VPC Terraform apply 재실행 완료
-M1 Issue 2 namespace/LimitRange Ansible bootstrap 완료
-M1 Issue 3 Hub ArgoCD Helm 설치 및 verify 완료
-Hub EKS AEGIS-EKS active after build-all
-infra/hub active
-EKS worker node Ready 확인
-ArgoCD Pod 전체 Running 확인
-ArgoCD 초기 비밀번호 조회 스크립트 동작 확인
-Foundation S3 bucket aegis-bucket-data active
-IoT Rule AEGIS_IoTRule_factory_a_raw_s3 apply 완료
-IoT Rule test publish 완료: manual-20260506T014423Z-31668
-S3 test object 확인: raw/factory-a/sensor/yyyy=2026/mm=05/dd=06/manual-20260506T014423Z-31668.json
-IRSA Role AEGIS-IAMRole-IRSA-risk-normalizer apply 완료
-risk/risk-normalizer ServiceAccount annotation 검증 완료
-EKS 내부 s3-irsa-test pod에서 IRSA assume-role 확인
-EKS 내부 s3-irsa-test pod에서 raw/factory-a read 확인
-EKS 내부 s3-irsa-test pod에서 latest/factory-a/irsa-test.json write 확인
-EKS 내부 s3-irsa-test pod에서 raw/factory-a write AccessDenied 확인
-IoT Thing AEGIS-IoTThing-factory-a active
-IoT certificate ACTIVE 확인 및 Thing attach 완료
-IoT Policy AEGIS-IoTPolicy-factory-a active
-K3s Secret ai-apps/aws-iot-factory-a-cert 등록 및 DATA=4 확인
-AMP Workspace AEGIS-AMP-hub apply 완료
-AMP Workspace ID ws-6a8853dc-0eb4-43e7-9b97-efade5b75765
-AMP remote_write endpoint 기록 완료
-IRSA Role AEGIS-IAMRole-IRSA-prometheus-remote-write apply 완료
-observability/prometheus-agent ServiceAccount annotation 검증 완료
-EKS 내부 amp-irsa-test pod에서 IRSA assume-role 확인
-1차/2차/3차 scripts 구조 정리 진행
-scripts/config/defaults.sh 추가: 환경별 기본값 source
-scripts/lib/aws-mfa.sh, scripts/lib/terraform.sh, scripts/lib/config.sh 추가
-scripts/ops/argocd-port-forward.sh, scripts/ops/argocd-initial-password.sh 추가
-AWS 비용 기준 문서 추가: docs/ops/15_aws_cost_baseline.md
-현재 build-all --admin-ui 이후 Hub active 고정 비용 기준: 0.3606 USD/hour
-현재 active AEGIS EKS KMS key 1개 있음
-과거 EKS 재생성 key 포함 AEGIS KMS key 6개는 PendingDeletion 상태로 확인
-build/destroy 재점검 완료: destroy-all 기본 foundation 포함, S3 force_destroy enabled, IoT cleanup AWS discovery 보강
-build-all 실행 완료: K3s Secret configured, IoT Thing/Policy/certificate active, Hub Terraform 60 added, Foundation Terraform 10 added
-AWS 검증: EKS ACTIVE, nodegroup ACTIVE, AMP ACTIVE, S3 versioning enabled, IoT active, K3s Secret DATA=4
-Prometheus Agent bootstrap/verify build-all 연동 완료
-AMP Query API up{cluster="AEGIS-EKS"} 수신 확인
-Grafana AMP query IRSA Role AEGIS-IAMRole-IRSA-grafana-amp-query apply 완료
-observability/grafana ServiceAccount annotation 검증 완료
-Grafana Helm chart grafana/grafana 10.5.15, app 12.3.1 설치 완료
-Grafana Service ClusterIP 확인
-Grafana datasource AEGIS-AMP / aegis-amp SigV4 설정 확인
-Grafana API proxy up{cluster="AEGIS-EKS"} query 성공
-scripts/build/build-hub.sh 전체 경로 통과 확인
+2026-05-08 세션 저장 기준
+M1 Issue 1~12와 M2 Issue 1~6 검증 완료
+scripts/build/build-all.sh --admin-ui 기준 Hub/Foundation/IoT/Admin UI 재생성 검증 완료
+scripts/destroy/destroy-all.sh 기준 K3s IoT Secret, IoT, Hub, foundation 전체 삭제 완료
+Hub EKS AEGIS-EKS deleted
+infra/hub destroy complete
+infra/foundation destroy complete
+Foundation S3 bucket aegis-bucket-data deleted
+AMP Workspace AEGIS-AMP-hub deleted
+Last verified AMP Workspace ID before destroy ws-762fb9c1-ad1f-433d-991b-20f768186759
+IoT Thing AEGIS-IoTThing-factory-a deleted
+IoT certificate deleted
+IoT Policy AEGIS-IoTPolicy-factory-a deleted
+IoT Rule AEGIS_IoTRule_factory_a_raw_s3 deleted
+K3s Secret ai-apps/aws-iot-factory-a-cert deleted
+Admin UI Route53 Hosted Zone minsoo-tech.cloud deleted
+Admin UI ACM certificate deleted
+Admin UI ALB deleted
+AEGIS IAM roles/policies for Hub/IRSA not found after destroy
+Latest EKS KMS key 775cd837-1961-4660-893f-f220d9f250be PendingDeletion, deletion date 2026-06-07
+Older AEGIS EKS KMS keys also PendingDeletion
+Current fixed AEGIS AWS cost baseline 0.0000 USD/hour
+destroy-all 로직 변경: DESTROY_IOT=true일 때 AWS MFA 전에 K3s IoT Secret을 먼저 삭제하고, 이후 IoT cleanup 단계에서는 Secret 삭제를 건너뜀
+SSH 비밀번호는 스크립트가 저장하지 않으며, 반복 프롬프트 회피는 SSH key 인증 구성으로 처리
+문서 최신화: 현재 AWS active 문구를 destroy 완료/rebuild 기준으로 갱신
 M1 Issue 9/10 완료: AWS Load Balancer Controller, ArgoCD/Grafana HTTPS Admin Ingress
 M1 Issue 11 보류: 운영 보안 강화 백로그
 M1 Issue 12 완료: runtime-config.yaml 구조 초안과 VM dummy data 추천값
