@@ -42,7 +42,47 @@ factory_a_workloads:
   audio_app: safe-edge-audio
   prepull_app: safe-edge-image-prepull
 
+factory_a_tailscale:
+  master_hostname: factory-a-master
+  master_ipv4: 100.117.40.125
+  master_fqdn: factory-a-master.tailf83767.ts.net
+
+factory_a_network:
+  cluster_interface: eth0
+  internet_interface: wlan0
+  cluster_cidr_prefix: 24
+  cluster_route_metric: 500
+  internet_route_metric: 100
+  configure_network_manager: true
+  enforce_tailscale_no_accept_routes: true
+
+factory_a_master_ssh_host: "{{ lookup('env', 'AEGIS_FACTORY_A_MASTER_SSH_HOST') | default(factory_a_nodes.master.ip, true) }}"
+factory_a_worker1_ssh_host: "{{ lookup('env', 'AEGIS_FACTORY_A_WORKER1_SSH_HOST') | default(factory_a_nodes.worker1.ip, true) }}"
+factory_a_worker2_ssh_host: "{{ lookup('env', 'AEGIS_FACTORY_A_WORKER2_SSH_HOST') | default(factory_a_nodes.worker2.ip, true) }}"
+
+factory_a_ssh_hosts:
+  master: "{{ factory_a_master_ssh_host }}"
+  worker1: "{{ factory_a_worker1_ssh_host }}"
+  worker2: "{{ factory_a_worker2_ssh_host }}"
+
+factory_a_os_baseline_packages:
+  - curl
+  - wget
+  - vim
+  - git
+  - jq
+  - bash
+  - grep
+  - gawk
+  - util-linux
+  - open-iscsi
+  - nfs-common
+  - cryptsetup
+  - dmsetup
+  - i2c-tools
+  - alsa-utils
+
 ansible_user: "{{ factory_a_ssh_user }}"
-ansible_host: "{{ factory_a_nodes[inventory_hostname].ip }}"
+ansible_host: "{{ factory_a_ssh_hosts[inventory_hostname] | default(factory_a_nodes[inventory_hostname].ip) }}"
 ansible_password: "{{ lookup('vars', factory_a_nodes[inventory_hostname].password_var) }}"
 ansible_become_password: "{{ lookup('vars', factory_a_nodes[inventory_hostname].password_var) }}"

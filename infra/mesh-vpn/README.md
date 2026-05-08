@@ -19,6 +19,8 @@ Tailscale Admin 콘솔에서 Tailnet과 tag owner 정책을 확인했고, `facto
 | 대상 | Device name | Tailscale IPv4 | 상태 |
 | --- | --- | --- | --- |
 | `factory-a` Raspberry Pi master | `factory-a-master` | `100.117.40.125` | Connected, tagged |
+| EKS operator | `tailscale-operator` | `100.92.186.18` | Connected, tagged |
+| ArgoCD -> factory-a egress proxy | `argocd-factory-a-master-tailnet` | `100.104.73.68` | Connected, tagged |
 | Windows 운영자 PC | `minsoog14` | `100.67.181.8` | Connected |
 
 `factory-a-master` 적용 tag:
@@ -74,7 +76,7 @@ Tailnet device 이름은 공장/역할을 바로 식별할 수 있게 둔다.
 
 기본값은 One-off Auth Key다. reusable key는 도난 시 영향 범위가 크므로 테스트베드 VM bootstrap 반복처럼 명확한 임시 목적이 있을 때만 사용한다. reusable key를 사용한 경우 VM bootstrap 완료 직후 revoke한다.
 
-EKS Hub 연결 방식은 M2 Issue 3에서 결정한다. 장기 실행 Subnet Router 방식이면 one-off key가 기준이고, Kubernetes workload가 반복 생성되는 방식이면 Tailscale OAuth client 또는 짧은 수명의 key 발급 자동화를 검토한다.
+EKS Hub 연결 방식은 M2 Issue 3에서 Tailscale Kubernetes Operator로 결정했다. Hub operator는 Tailscale OAuth client로 설치하고, Spoke K3s API 접근은 ExternalName Service egress proxy로 시작한다.
 
 ## Secret 보관
 
@@ -132,13 +134,33 @@ Hub Tailscale:
 
 Hub 연결 지점 장애가 발생하면 신규 Sync와 검증을 중단한다. 이미 배포된 Spoke workload는 유지되며, 복구 후 ArgoCD cluster connection과 test Application sync를 다시 확인한다.
 
+2026-05-07 장애/복구 검증:
+
+```text
+failure injection:
+  argocd/factory-a-master-tailnet Service 삭제
+  EKS 내부 DNS 해석 실패
+  argocd app sync factory-a-podinfo-smoke --timeout 60 실패
+
+recovery:
+  argocd/factory-a-master-tailnet Service 재생성
+  Tailscale proxy pod 재생성
+  factory-a-master-tailnet:6443 TCP open
+  argocd app sync factory-a-podinfo-smoke --timeout 180 성공
+  Application Synced / Healthy
+```
+
 ## 다음 실행 체크
 
 - [x] Tailscale Admin 콘솔에서 Aegis-Pi 전용 Tailnet 생성 확인
 - [x] `factory-a` one-off tagged auth key 생성 정책 확인
 - [ ] `factory-b` one-off 또는 short-lived reusable tagged auth key 생성
 - [ ] `factory-c` one-off 또는 short-lived reusable tagged auth key 생성
-- [ ] M2 Issue 3 운영 방식 결정 후 EKS Hub용 key 또는 OAuth client 준비
+- [x] M2 Issue 3 운영 방식 결정 후 EKS Hub용 OAuth client 준비
+- [x] EKS Hub Tailscale Kubernetes Operator 설치
+- [x] EKS 내부에서 `factory-a-master` K3s API TCP `6443` reachability 확인
+- [x] ArgoCD/Grafana Tailscale IP UI 접근 확인
+- [x] Tailscale egress 차단 시 ArgoCD sync failure 및 복구 확인
 - [x] Tailnet tag owner 정책 반영
 - [x] 실제 key 값 없이 `docs/issues/M2_mesh-vpn-hub-spoke.md` 완료 기록 갱신
 

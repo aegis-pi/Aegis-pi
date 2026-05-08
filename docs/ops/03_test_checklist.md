@@ -1,7 +1,7 @@
 # 테스트 체크리스트
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-05-08
 
 ## 목적
 
@@ -88,6 +88,8 @@ start_test 절차를 사람이 매번 손으로 재구성하지 않고,
 [x] master 기준 kubectl 실행 가능 여부 확인
 [x] 테스트 결과 저장 디렉터리 생성
 [x] 테스트 시작 전 node/pod/pvc/application 상태 수집
+[x] master wlan0 IPv4/default route와 Tailscale control plane DNS/HTTPS 확인
+[x] master Tailscale daemon/self/IP 확인
 [ ] InfluxDB 최신 timestamp 수집
 [x] start_test 실행 또는 동등한 테스트 시작 명령 표준화
 [ ] 테스트 중 10초 간격 node/pod 상태 수집
@@ -103,10 +105,10 @@ start_test 절차를 사람이 매번 손으로 재구성하지 않고,
 현재 구현:
 
 ```text
-scripts/ansible/playbooks/02_start_test.yml
+scripts/ansible/playbooks/start_test.yml
 ```
 
-새 세션의 시작 점검은 이 playbook을 먼저 실행하고, 생성된 `scripts/ansible/evidence/` Markdown 결과를 기준으로 확인한다.
+새 세션의 시작 점검은 이 playbook을 먼저 실행하고, 생성된 `scripts/ansible/evidence/` Markdown 결과를 기준으로 확인한다. control host가 `10.10.10.0/24` 내부망에 붙어 있으면 기본 inventory의 master `10.10.10.10`으로 실행하고, master Tailscale IP는 SSH 실행 경로로 사용하지 않는다.
 
 초기에는 수동으로 남길 항목:
 

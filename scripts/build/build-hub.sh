@@ -16,6 +16,8 @@ aegis_ensure_aws_mfa "${OTP}"
 FORCE_ARGOCD_UPGRADE="${FORCE_ARGOCD_UPGRADE:-false}"
 FORCE_GRAFANA_UPGRADE="${FORCE_GRAFANA_UPGRADE:-false}"
 FORCE_AWS_LB_CONTROLLER_UPGRADE="${FORCE_AWS_LB_CONTROLLER_UPGRADE:-false}"
+FORCE_TAILSCALE_OPERATOR_UPGRADE="${FORCE_TAILSCALE_OPERATOR_UPGRADE:-false}"
+BUILD_TAILSCALE="${BUILD_TAILSCALE:-true}"
 
 aegis_terraform_apply_root "${REPO_ROOT}/infra/hub"
 "${REPO_ROOT}/scripts/ops/admin-ui-nameservers.sh"
@@ -40,3 +42,12 @@ ansible-playbook \
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aws_load_balancer_controller_verify.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_bootstrap.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_verify.yml
+if [[ "${BUILD_TAILSCALE}" == "true" ]]; then
+  ansible-playbook \
+    -i inventory/hub_eks_dynamic.sh \
+    playbooks/hub_tailscale_bootstrap.yml \
+    -e "tailscale_operator_force_upgrade=${FORCE_TAILSCALE_OPERATOR_UPGRADE}"
+  ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_verify.yml
+else
+  echo "Skipped Hub Tailscale bootstrap/verify. Set BUILD_TAILSCALE=true to enable it."
+fi

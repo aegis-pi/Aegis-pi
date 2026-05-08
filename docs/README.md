@@ -9,11 +9,11 @@
 
 ## 현재 상태
 
-- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선, M1 Hub Issue 0~10/12, M2 Issue 1~2다.
+- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선, M1 Hub Issue 0~10/12, M2 Issue 1~6이다.
 - `factory-a`는 Raspberry Pi 3-node K3s 기반 운영형 Spoke다.
 - 2026-04-30 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
-- 2026-05-06 `build-all --admin-ui` 및 `build-hub` 실행 후 AWS Hub EKS/VPC/NAT/EIP, foundation S3 bucket, AMP Workspace, IoT Rule, Route53/ACM, AWS Load Balancer Controller, Admin UI ALB, `factory-a` IoT/K3s Secret은 active 확인 상태다.
+- 2026-05-07 `build-hub`는 AWS Hub EKS/VPC/NAT/EIP, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI, Hub Tailscale Operator/egress/UI/cluster Secret 복구를 자동화한다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다.
 - M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 `up{cluster="AEGIS-EKS"}` 수신을 검증했다.
@@ -23,7 +23,10 @@
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1에서 Tailnet/tag/Auth Key 정책을 수립하고 Tailnet을 확인했다.
 - M2 Issue 2에서 `factory-a-master` Tailscale 참여, tag 적용, Windows 운영자 PC의 ping/SSH 접근을 검증했다.
-- 다음 작업은 M2 Issue 3 EKS Hub Tailscale 참여 및 `factory-a-master` Tailscale IP reachability 검증이다. M1 Issue 11 운영 보안 강화는 MVP 이후로 보류했다.
+- M2 Issue 3에서 EKS Hub Tailscale Operator 설치, egress Service 생성, EKS 내부 `factory-a-master` K3s API TCP `6443` reachability, ArgoCD/Grafana Tailscale IP UI 접근 검증까지 완료했다.
+- M2 Issue 4/5에서 `tls-server-name: 10.10.10.10` 기반 `factory-a` kubeconfig와 ArgoCD cluster 등록을 완료했고, cluster status `Successful`을 확인했다.
+- M2 Issue 6에서 `factory-a-podinfo-smoke` Application을 `factory-a`에 Sync해 `Synced` + `Healthy`, Pod 2개 `Running`을 확인했고, Tailscale egress Service 삭제 시 sync failure 및 재생성 후 복구를 검증했다.
+- 다음 작업은 M3 Issue 1 배포 파이프라인 저장소 구조 설계다. EKS API endpoint CIDR 축소와 M1 Issue 11 운영 보안 강화는 MVP 이후/설계 마무리 후 재검토로 보류했다.
 - `factory-b`, `factory-c`, ECR, GitHub Actions CI는 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.

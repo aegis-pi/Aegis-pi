@@ -1,0 +1,282 @@
+---
+- name: Prepare factory-a Raspberry Pi OS baseline
+  hosts: factory_a
+  gather_facts: true
+  serial: 1
+  become: true
+
+  vars_prompt:
+    - name: factory_a_master_password
+      prompt: "master SSH/sudo password"
+      private: true
+    - name: factory_a_worker1_password
+      prompt: "worker1 SSH/sudo password"
+      private: true
+    - name: factory_a_worker2_password
+      prompt: "worker2 SSH/sudo password"
+      private: true
+
+  pre_tasks:
+    - name: Validate inventory host mapping
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname in factory_a_nodes
+          - factory_a_nodes[inventory_hostname].name == inventory_hostname
+          - factory_a_nodes[inventory_hostname].ip is defined
+        fail_msg: "inventory_hostname must match a key in factory_a_nodes"
+
+    - name: Set host-specific facts
+      ansible.builtin.set_fact:
+        factory_a_node_name: "{{ factory_a_nodes[inventory_hostname].name }}"
+        factory_a_node_ip: "{{ factory_a_nodes[inventory_hostname].ip }}"
+        factory_a_cluster_interface: "{{ factory_a_network.cluster_interface }}"
+        factory_a_internet_interface: "{{ factory_a_network.internet_interface }}"
+
+  tasks:
+    - name: Set hostname
+      ansible.builtin.hostname:
+        name: "{{ factory_a_node_name }}"
+
+    - name: Ensure /etc/hosts has local hostname entry
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: "^127\\.0\\.1\\.1\\s+"
+        line: "127.0.1.1 {{ factory_a_node_name }}"
+        create: true
+        mode: "0644"
+
+    - name: Install baseline packages
+      ansible.builtin.apt:
+        name: "{{ factory_a_os_baseline_packages }}"
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Enable iscsid for Longhorn
+      ansible.builtin.systemd:
+        name: iscsid
+        enabled: true
+        state: started
+
+    - name: Load Longhorn-related kernel modules now
+      ansible.builtin.command: "modprobe {{ item }}"
+      changed_when: false
+      loop:
+        - iscsi_tcp
+        - dm_crypt
+
+    - name: Persist Longhorn-related kernel modules
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/safe-edge-longhorn.conf
+        mode: "0644"
+        content: |
+          iscsi_tcp
+          dm_crypt
+
+    - name: Disable dphys-swapfile when present
+      ansible.builtin.systemd:
+        name: dphys-swapfile
+        enabled: false
+        state: stopped
+      failed_when: false
+
+    - name: Disable active swap
+      ansible.builtin.command: swapoff -a
+      changed_when: false
+
+    - name: Comment swap entries in /etc/fstab
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: "^([^#].*\\sswap\\s.*)$"
+        replace: "# \\1"
+
+    - name: Enable time sync
+      ansible.builtin.command: timedatectl set-ntp true
+      changed_when: false
+
+    - name: Enable systemd-timesyncd when present
+      ansible.builtin.systemd:
+        name: systemd-timesyncd
+        enabled: true
+        state: started
+      failed_when: false
+
+    - name: Check nmcli availability
+      ansible.builtin.shell: command -v nmcli
+      args:
+        executable: /bin/bash
+      register: nmcli_check
+      changed_when: false
+      failed_when: false
+
+    - name: Read cluster interface NetworkManager connection
+      ansible.builtin.command: "nmcli -g GENERAL.CONNECTION device show {{ factory_a_cluster_interface }}"
+      register: cluster_connection
+      changed_when: false
+      failed_when: false
+      when:
+        - factory_a_network.configure_network_manager | bool
+        - nmcli_check.rc == 0
+
+    - name: Configure cluster interface as static no-default route
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - connection
+          - modify
+          - "{{ cluster_connection.stdout }}"
+          - ipv4.method
+          - manual
+          - ipv4.addresses
+          - "{{ factory_a_node_ip }}/{{ factory_a_network.cluster_cidr_prefix }}"
+          - ipv4.never-default
+          - "yes"
+          - ipv4.route-metric
+          - "{{ factory_a_network.cluster_route_metric | string }}"
+          - ipv6.method
+          - ignore
+      when:
+        - factory_a_network.configure_network_manager | bool
+        - nmcli_check.rc == 0
+        - cluster_connection.stdout | length > 0
+        - cluster_connection.stdout != "--"
+
+    - name: Read internet interface NetworkManager connection
+      ansible.builtin.command: "nmcli -g GENERAL.CONNECTION device show {{ factory_a_internet_interface }}"
+      register: internet_connection
+      changed_when: false
+      failed_when: false
+      when:
+        - factory_a_network.configure_network_manager | bool
+        - nmcli_check.rc == 0
+
+    - name: Keep internet interface as default route owner
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - connection
+          - modify
+          - "{{ internet_connection.stdout }}"
+          - ipv4.never-default
+          - "no"
+          - ipv4.route-metric
+          - "{{ factory_a_network.internet_route_metric | string }}"
+      when:
+        - factory_a_network.configure_network_manager | bool
+        - nmcli_check.rc == 0
+        - internet_connection.stdout | length > 0
+        - internet_connection.stdout != "--"
+
+    - name: Reapply NetworkManager connections
+      ansible.builtin.shell: |
+        set -euo pipefail
+        nmcli connection up "{{ cluster_connection.stdout }}"
+        {% if internet_connection.stdout is defined and (internet_connection.stdout | length > 0) and internet_connection.stdout != "--" %}
+        nmcli connection up "{{ internet_connection.stdout }}"
+        {% endif %}
+      args:
+        executable: /bin/bash
+      when:
+        - factory_a_network.configure_network_manager | bool
+        - nmcli_check.rc == 0
+        - cluster_connection.stdout | length > 0
+        - cluster_connection.stdout != "--"
+
+    - name: Warn when NetworkManager is unavailable
+      ansible.builtin.debug:
+        msg: "nmcli not found. Network roles were not changed; configure {{ factory_a_cluster_interface }} static/no-default and {{ factory_a_internet_interface }} default manually."
+      when:
+        - factory_a_network.configure_network_manager | bool
+        - nmcli_check.rc != 0
+
+    - name: Ensure K3s config directory exists
+      ansible.builtin.file:
+        path: /etc/rancher/k3s
+        state: directory
+        mode: "0755"
+
+    - name: Stage K3s server config on master
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/config.yaml
+        mode: "0644"
+        content: |
+          node-name: {{ factory_a_node_name }}
+          node-ip: {{ factory_a_node_ip }}
+          advertise-address: {{ factory_a_node_ip }}
+          flannel-iface: {{ factory_a_cluster_interface }}
+          write-kubeconfig-mode: "0644"
+          disable:
+            - servicelb
+      when: inventory_hostname in groups["factory_a_master"]
+
+    - name: Stage K3s agent config on workers
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/config.yaml
+        mode: "0644"
+        content: |
+          node-name: {{ factory_a_node_name }}
+          node-ip: {{ factory_a_node_ip }}
+          flannel-iface: {{ factory_a_cluster_interface }}
+      when: inventory_hostname in groups["factory_a_workers"]
+
+    - name: Check tailscale availability
+      ansible.builtin.shell: command -v tailscale
+      args:
+        executable: /bin/bash
+      register: tailscale_check
+      changed_when: false
+      failed_when: false
+
+    - name: Prevent Tailscale from accepting remote routes when already configured
+      ansible.builtin.command: tailscale set --accept-routes=false
+      register: tailscale_set_result
+      changed_when: "'Success' in (tailscale_set_result.stdout + tailscale_set_result.stderr)"
+      failed_when: false
+      when:
+        - factory_a_network.enforce_tailscale_no_accept_routes | bool
+        - tailscale_check.rc == 0
+
+    - name: Show routing summary
+      ansible.builtin.shell: |
+        set -euo pipefail
+        ip -br addr
+        ip route
+      args:
+        executable: /bin/bash
+      register: routing_summary
+      changed_when: false
+
+    - name: Print routing summary
+      ansible.builtin.debug:
+        var: routing_summary.stdout_lines
+
+  post_tasks:
+    - name: Refresh network facts after baseline changes
+      ansible.builtin.setup:
+        gather_subset:
+          - network
+
+    - name: Verify cluster interface has expected IP
+      ansible.builtin.assert:
+        that:
+          - ansible_facts[factory_a_cluster_interface].ipv4.address is defined
+          - ansible_facts[factory_a_cluster_interface].ipv4.address == factory_a_node_ip
+        fail_msg: "{{ factory_a_cluster_interface }} does not have expected IP {{ factory_a_node_ip }}. Re-run after reconnecting or inspect NetworkManager state."
+      when: ansible_facts[factory_a_cluster_interface] is defined
+
+    - name: Check default routes
+      ansible.builtin.command: ip route show default
+      register: default_routes
+      changed_when: false
+
+    - name: Validate default route is not on cluster interface
+      ansible.builtin.assert:
+        that:
+          - default_routes.stdout is not search('dev ' ~ factory_a_cluster_interface ~ '(\\s|$)')
+        fail_msg: "Default route must not use {{ factory_a_cluster_interface }}; it should remain on {{ factory_a_internet_interface }}."
+
+    - name: Print next K3s install command hint
+      ansible.builtin.debug:
+        msg: >-
+          OS baseline complete for {{ inventory_hostname }}. K3s config is staged at
+          /etc/rancher/k3s/config.yaml; install K3s server/agent with token in the next step.

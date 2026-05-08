@@ -1,7 +1,7 @@
 # Hub Scripts
 
 상태: source of truth
-기준일: 2026-05-04
+기준일: 2026-05-07
 
 ## 목적
 
@@ -11,7 +11,7 @@
 
 ```text
 Terraform: AWS 인프라 생성/삭제
-Ansible: EKS 위 namespace, LimitRange, ArgoCD 설치 및 검증
+Ansible: EKS 위 namespace, LimitRange, ArgoCD/Grafana/Tailscale 설치 및 검증
 scripts/build: 생성 진입점
 scripts/ops: 운영 진입점
 scripts/destroy: 삭제 진입점
@@ -61,8 +61,8 @@ scripts/build/build-hub.sh <MFA_OTP>
 4. infra/hub terraform validate
 5. infra/hub terraform plan -out=tfplan
 6. infra/hub terraform apply tfplan
-7. scripts/ansible hub_argocd_bootstrap.yml 실행
-8. scripts/ansible hub_argocd_verify.yml 실행
+7. scripts/ansible Hub bootstrap/verify 실행
+8. Tailscale Operator, factory-a egress, ArgoCD/Grafana Tailscale UI, ArgoCD factory-a cluster Secret 복구
 9. 필요 시 scripts/ops/argocd-port-forward.sh 실행
 ```
 
@@ -70,6 +70,12 @@ ArgoCD Helm release가 이미 `deployed` 상태이고 chart version이 같으면
 
 ```bash
 FORCE_ARGOCD_UPGRADE=true scripts/build/build-hub.sh
+```
+
+Tailscale Hub bootstrap은 기본 실행된다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 실패한다. 임시로 건너뛰려면 아래처럼 실행한다.
+
+```bash
+BUILD_TAILSCALE=false scripts/build/build-hub.sh
 ```
 
 `scripts/hub/run-hub.sh` wrapper를 사용하면 build 이후 port-forward까지 이어서 foreground로 실행된다. 중지하려면 `Ctrl+C`를 사용한다.
@@ -99,7 +105,7 @@ scripts/destroy/destroy-hub.sh <MFA_OTP>
 5. infra/hub terraform destroy
 ```
 
-`destroy-hub.sh`는 EKS, node group, NAT Gateway 등 `infra/hub` Terraform state가 관리하는 리소스를 제거한다. ArgoCD와 namespace는 EKS 내부 리소스이므로 EKS destroy와 함께 제거된다.
+`destroy-hub.sh`는 EKS, node group, NAT Gateway 등 `infra/hub` Terraform state가 관리하는 리소스를 제거한다. ArgoCD, namespace, Tailscale Operator/proxy Service는 EKS 내부 리소스이므로 EKS destroy와 함께 제거된다. `factory-a-master` Tailscale device와 OAuth client는 삭제하지 않는다.
 
 ## `argocd-port-forward.sh`
 

@@ -1,0 +1,159 @@
+---
+- name: Verify Hub Tailscale integration
+  hosts: hub_eks
+  gather_facts: false
+
+  tasks:
+    - name: Check required local commands
+      ansible.builtin.shell: "command -v {{ item }}"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      loop:
+        - aws
+        - kubectl
+        - helm
+        - jq
+        - curl
+
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command }}"
+      changed_when: true
+
+    - name: Verify Tailscale operator deployment
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ tailscale_namespace }} wait --for=condition=available --timeout=180s deployment/operator"
+      changed_when: false
+
+    - name: Read Tailscale Helm release
+      ansible.builtin.command:
+        cmd: "helm list --namespace {{ tailscale_namespace }} --filter '^{{ tailscale_release_name }}$' --output json"
+      register: tailscale_helm_release_list
+      changed_when: false
+
+    - name: Assert Tailscale Helm release is deployed
+      ansible.builtin.assert:
+        that:
+          - (tailscale_helm_release_list.stdout | from_json | length) == 1
+          - ((tailscale_helm_release_list.stdout | from_json | first).status | default('')) == 'deployed'
+        fail_msg: "Tailscale Helm release {{ tailscale_release_name }} is not deployed in {{ tailscale_namespace }}"
+
+    - name: Read factory-a egress Service status
+      ansible.builtin.shell: |
+        set -euo pipefail
+        jq -cn \
+          --arg externalName "$(kubectl -n {{ argocd_namespace }} get svc {{ tailscale_factory_a_egress_service_name }} -o jsonpath='{.spec.externalName}')" \
+          --arg ready "$(kubectl -n {{ argocd_namespace }} get svc {{ tailscale_factory_a_egress_service_name }} -o jsonpath='{.status.conditions[?(@.type=="TailscaleProxyReady")].status}')" \
+          '{externalName: $externalName, ready: $ready}'
+      args:
+        executable: /bin/bash
+      register: tailscale_egress_status
+      changed_when: false
+
+    - name: Parse factory-a egress Service status
+      ansible.builtin.set_fact:
+        tailscale_egress_status_json: "{{ tailscale_egress_status.stdout | from_json }}"
+
+    - name: Assert factory-a egress Service is ready
+      ansible.builtin.assert:
+        that:
+          - tailscale_egress_status_json.ready == "True"
+          - tailscale_egress_status_json.externalName is search('tailscale.svc.cluster.local')
+        fail_msg: "factory-a Tailscale egress Service is not ready"
+
+    - name: Verify factory-a K3s API TCP through Tailscale egress
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ argocd_namespace }} run ts-verify-check-{{ lookup('pipe', 'date +%s') }}
+          --rm -i --restart=Never --image=busybox:1.36
+          -- nc -vz {{ tailscale_factory_a_egress_service_name }} 6443
+      changed_when: false
+
+    - name: Read Tailscale UI Service status
+      ansible.builtin.shell: |
+        set -euo pipefail
+        namespace="{{ item.namespace }}"
+        name="{{ item.name }}"
+        jq -cn \
+          --arg ready "$(kubectl -n "${namespace}" get svc "${name}" -o jsonpath='{.status.conditions[?(@.type=="TailscaleProxyReady")].status}')" \
+          --arg ip "$(kubectl -n "${namespace}" get svc "${name}" -o jsonpath='{.status.loadBalancer.ingress[*].ip}')" \
+          --arg hostname "$(kubectl -n "${namespace}" get svc "${name}" -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')" \
+          '{ready: $ready, ip: $ip, hostname: $hostname}'
+      args:
+        executable: /bin/bash
+      register: tailscale_ui_service_status
+      changed_when: false
+      loop:
+        - namespace: "{{ argocd_namespace }}"
+          name: "{{ tailscale_argocd_ui_service_name }}"
+          kind: argocd
+        - namespace: "{{ grafana_namespace }}"
+          name: "{{ tailscale_grafana_ui_service_name }}"
+          kind: grafana
+      loop_control:
+        label: "{{ item.namespace }}/{{ item.name }}"
+
+    - name: Assert Tailscale UI Services are ready
+      ansible.builtin.assert:
+        that:
+          - (item.stdout | from_json).ready == "True"
+          - (item.stdout | from_json).ip | length > 0
+          - (item.stdout | from_json).hostname | length > 0
+        fail_msg: "Tailscale UI Service {{ item.item.namespace }}/{{ item.item.name }} is not ready"
+      loop: "{{ tailscale_ui_service_status.results }}"
+      loop_control:
+        label: "{{ item.item.namespace }}/{{ item.item.name }}"
+
+    - name: Set Tailscale UI endpoint facts
+      ansible.builtin.set_fact:
+        tailscale_argocd_ui_status: "{{ tailscale_ui_service_status.results[0].stdout | from_json }}"
+        tailscale_grafana_ui_status: "{{ tailscale_ui_service_status.results[1].stdout | from_json }}"
+
+    - name: Verify ArgoCD Tailscale UI HTTP response
+      ansible.builtin.command:
+        cmd: "curl -k -fsS -o /dev/null --max-time 10 https://{{ tailscale_argocd_ui_status.ip }}/"
+      changed_when: false
+
+    - name: Verify Grafana Tailscale health response
+      ansible.builtin.command:
+        cmd: "curl -fsS -o /dev/null --max-time 10 http://{{ tailscale_grafana_ui_status.ip }}/api/health"
+      changed_when: false
+
+    - name: Read ArgoCD factory-a cluster Secret safe fields
+      ansible.builtin.shell: |
+        set -euo pipefail
+        config="$(kubectl -n {{ argocd_namespace }} get secret {{ tailscale_factory_a_argocd_cluster_secret_name }} -o jsonpath='{.data.config}' | base64 -d)"
+        jq -cn \
+          --arg name "$(kubectl -n {{ argocd_namespace }} get secret {{ tailscale_factory_a_argocd_cluster_secret_name }} -o jsonpath='{.data.name}' | base64 -d)" \
+          --arg server "$(kubectl -n {{ argocd_namespace }} get secret {{ tailscale_factory_a_argocd_cluster_secret_name }} -o jsonpath='{.data.server}' | base64 -d)" \
+          --arg secretType "$(kubectl -n {{ argocd_namespace }} get secret {{ tailscale_factory_a_argocd_cluster_secret_name }} -o jsonpath='{.metadata.labels.argocd\.argoproj\.io/secret-type}')" \
+          --arg serverName "$(jq -r '.tlsClientConfig.serverName // empty' <<<"${config}")" \
+          '{name: $name, server: $server, secretType: $secretType, serverName: $serverName}'
+      args:
+        executable: /bin/bash
+      register: tailscale_argocd_cluster_secret
+      changed_when: false
+      no_log: true
+
+    - name: Parse ArgoCD factory-a cluster Secret safe fields
+      ansible.builtin.set_fact:
+        tailscale_argocd_cluster_secret_json: "{{ tailscale_argocd_cluster_secret.stdout | from_json }}"
+      no_log: true
+
+    - name: Assert ArgoCD factory-a cluster Secret safe fields
+      ansible.builtin.assert:
+        that:
+          - tailscale_argocd_cluster_secret_json.name == tailscale_factory_a_name
+          - tailscale_argocd_cluster_secret_json.server == tailscale_factory_a_egress_server
+          - tailscale_argocd_cluster_secret_json.secretType == "cluster"
+          - tailscale_argocd_cluster_secret_json.serverName == tailscale_factory_a_kube_tls_server_name
+        fail_msg: "ArgoCD factory-a cluster Secret does not match expected Tailscale egress config"
+
+    - name: Print Tailscale verify summary
+      ansible.builtin.debug:
+        msg:
+          - "factory-a egress externalName: {{ tailscale_egress_status_json.externalName }}"
+          - "ArgoCD Tailscale UI: https://{{ tailscale_argocd_ui_status.ip }}/ ({{ tailscale_argocd_ui_status.hostname }})"
+          - "Grafana Tailscale UI: http://{{ tailscale_grafana_ui_status.ip }}/ ({{ tailscale_grafana_ui_status.hostname }})"
+          - "ArgoCD cluster Secret: {{ tailscale_factory_a_argocd_cluster_secret_name }} -> {{ tailscale_factory_a_egress_server }}"

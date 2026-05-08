@@ -1,7 +1,7 @@
 # Build Scripts
 
 상태: source of truth
-기준일: 2026-05-06
+기준일: 2026-05-07
 
 ## 목적
 
@@ -26,6 +26,7 @@
    - AWS Load Balancer Controller install/verify
    - Admin UI Route53 name server file generation
    - Admin UI HTTPS Ingress prepare/verify, disabled by default until ACM is issued
+   - Tailscale Operator, factory-a egress, ArgoCD/Grafana Tailscale UI, factory-a cluster Secret bootstrap/verify
 
 3. iot factory-a
    - IoT Thing / Policy / certificate 등록
@@ -40,7 +41,7 @@
 | `build-all.sh` | 전체 생성 순서 실행 |
 | `build-admin-ui-after-ns.sh` | Gabia NS 위임 후 ACM 발급을 기다리고 Admin UI HTTPS Ingress 활성화 |
 | `build-foundation.sh` | `infra/foundation` Terraform apply |
-| `build-hub.sh` | `infra/hub` Terraform apply 후 Ansible bootstrap |
+| `build-hub.sh` | `infra/hub` Terraform apply 후 Ansible bootstrap. 기본적으로 Tailscale Hub 복구까지 실행 |
 | `build-iot-factory-a.sh` | `factory-a` IoT Thing/certificate 생성 및 K3s Secret 등록 |
 
 ## 전체 생성
@@ -92,6 +93,34 @@ AWS Load Balancer Controller도 이미 `deployed` 상태이고 chart version이 
 
 ```bash
 FORCE_AWS_LB_CONTROLLER_UPGRADE=true scripts/build/build-hub.sh
+```
+
+Hub Tailscale bootstrap도 `BUILD_HUB=true`일 때 기본 실행된다. 이 단계는 아래 리소스가 이미 있으면 생성하지 않고 상태만 검증한다.
+
+```text
+tailscale/tailscale-operator Helm release
+argocd/factory-a-master-tailnet egress Service
+argocd/argocd-server-tailscale UI Service
+observability/grafana-tailscale UI Service
+argocd/cluster-factory-a cluster Secret
+```
+
+필수 secret 파일:
+
+```text
+~/Aegis/.aegis/secrets/tailscale/operator.env
+```
+
+해당 파일에 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`이 없으면 Hub build는 실패한다. Tailscale만 임시로 건너뛰려면 아래처럼 실행한다.
+
+```bash
+BUILD_TAILSCALE=false scripts/build/build-hub.sh
+```
+
+Tailscale Operator Helm release 강제 재적용이 필요하면 아래처럼 실행한다.
+
+```bash
+FORCE_TAILSCALE_OPERATOR_UPGRADE=true scripts/build/build-hub.sh
 ```
 
 ## Admin UI NS 위임 포함 재생성 순서
@@ -185,6 +214,7 @@ BUILD_FOUNDATION=false BUILD_HUB=false scripts/build/build-all.sh
 
 - `build-all.sh`는 Hub EKS와 NAT Gateway를 생성할 수 있어 비용이 발생한다.
 - Admin UI Ingress를 활성화하면 Public ALB와 ALB LCU, public IPv4 비용이 추가된다.
+- Tailscale Operator 자체는 EKS 내부 Kubernetes 리소스다. EKS를 destroy하면 사라지므로 다음 `build-hub.sh` 실행 때 secret 파일을 기준으로 다시 등록한다.
 - 전체 생성 범위에 대응하는 전체 삭제는 `scripts/destroy/destroy-all.sh`로 실행한다.
 - ArgoCD UI port-forward는 장기 실행 프로세스이므로 전체 build에는 포함하지 않는다.
 - UI 접속은 별도로 `scripts/ops/argocd-port-forward.sh`를 실행한다.

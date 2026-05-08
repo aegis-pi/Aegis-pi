@@ -15,6 +15,27 @@
     expected_loadbalancers: "{{ factory_a_services.values() | list }}"
 
   tasks:
+    - name: Validate start_test SSH transport is independent from Tailscale
+      ansible.builtin.assert:
+        that:
+          - ansible_host != factory_a_tailscale.master_ipv4
+        fail_msg: >-
+          start_test validates Tailscale on factory-a master, so do not run this
+          playbook over the same Tailscale IP ({{ factory_a_tailscale.master_ipv4 }}).
+          Use the factory internal eth0 route from a host on 10.10.10.0/24, or use
+          the current/reserved wlan0 management IP with -e factory_a_master_ssh_host=<master-wlan-ip>.
+        success_msg: "start_test SSH transport is independent from the Tailscale endpoint being validated"
+
+    - name: Warn when start_test SSH transport uses wlan0 DHCP address
+      ansible.builtin.debug:
+        msg: >-
+          start_test is running over {{ ansible_host }}, which looks like the wlan0
+          management network. If wlan0 uses DHCP, reserve the master IP on the AP/router
+          or pass the current wlan0 IP explicitly with -e factory_a_master_ssh_host=<master-wlan-ip>.
+          Do not rely on the Tailscale IP for this playbook because Tailscale is part of
+          the validation target.
+      when: ansible_host is match('^192\\.168\\.')
+
     - name: Get check timestamp from master
       ansible.builtin.command: date "+%Y-%m-%d %H:%M:%S %Z"
       register: check_time
@@ -53,6 +74,20 @@
           cmd: kubectl -n ai-apps get pods,ds -o wide
         - name: longhorn volumes
           cmd: kubectl -n longhorn-system get volumes.longhorn.io -o wide
+        - name: wlan0 ipv4
+          cmd: "ip -4 -o addr show dev {{ factory_a_network.internet_interface }} scope global"
+        - name: wlan0 default route
+          cmd: "ip route show default | grep 'dev {{ factory_a_network.internet_interface }}'"
+        - name: tailscale control plane dns
+          cmd: getent hosts controlplane.tailscale.com
+        - name: tailscale control plane https
+          cmd: "curl -fsS -o /dev/null --max-time 5 https://controlplane.tailscale.com/key?v=1 && echo reachable"
+        - name: tailscale daemon active
+          cmd: systemctl is-active tailscaled
+        - name: tailscale self status
+          cmd: tailscale status --self
+        - name: tailscale ipv4
+          cmd: tailscale ip -4
       register: start_test_results
       changed_when: false
       failed_when: false
@@ -82,6 +117,13 @@
         monitoring_output: "{{ start_test_results.results[11].stdout }}"
         ai_apps_output: "{{ start_test_results.results[12].stdout }}"
         longhorn_volumes_output: "{{ start_test_results.results[13].stdout }}"
+        wlan_ipv4_output: "{{ start_test_results.results[14].stdout }}"
+        wlan_default_route_output: "{{ start_test_results.results[15].stdout }}"
+        tailscale_control_dns_output: "{{ start_test_results.results[16].stdout }}"
+        tailscale_control_https_output: "{{ start_test_results.results[17].stdout }}"
+        tailscale_daemon_output: "{{ start_test_results.results[18].stdout }}"
+        tailscale_status_output: "{{ start_test_results.results[19].stdout }}"
+        tailscale_ipv4_output: "{{ start_test_results.results[20].stdout }}"
 
     - name: Validate critical start_test expectations
       ansible.builtin.assert:
@@ -154,6 +196,28 @@
           - failback_log.stdout is search('SKIP ai-apps/' ~ factory_a_workloads.audio_app ~ ': pod already exists on ' ~ factory_a_workloads.preferred_node)
         fail_msg: "Failback cron did not report expected worker2 skip state"
 
+    - name: Validate wlan0 internet path on factory-a master
+      ansible.builtin.assert:
+        that:
+          - wlan_ipv4_output is search(factory_a_network.internet_interface)
+          - wlan_ipv4_output is search('inet\\s+')
+          - wlan_default_route_output is search('default')
+          - wlan_default_route_output is search('dev ' ~ factory_a_network.internet_interface)
+          - tailscale_control_dns_output | trim != ""
+          - tailscale_control_https_output | trim == "reachable"
+        fail_msg: >-
+          factory-a master {{ factory_a_network.internet_interface }} internet path is not ready.
+          Check wlan IPv4, default route, DNS, and HTTPS reachability to controlplane.tailscale.com
+          before debugging tailscaled itself.
+
+    - name: Validate Tailscale on factory-a master
+      ansible.builtin.assert:
+        that:
+          - tailscale_daemon_output | trim == 'active'
+          - tailscale_status_output is search(factory_a_tailscale.master_hostname)
+          - tailscale_ipv4_output | trim == factory_a_tailscale.master_ipv4
+        fail_msg: "Tailscale is not connected as expected on factory-a master"
+
     - name: Create local evidence directory
       ansible.builtin.file:
         path: "{{ evidence_root }}"
@@ -170,6 +234,7 @@
           # Safe-Edge start_test evidence
 
           - execution_host: master
+          - ansible_host: {{ ansible_host }}
           - check_time: {{ check_time.stdout }}
           - automation: ansible
           - result: PASS

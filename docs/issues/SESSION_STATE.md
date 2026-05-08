@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-05-06
+기준일: 2026-05-07
 
 ## 목적
 
@@ -41,17 +41,21 @@
 | M1 | Issue 12 - Risk/Config | 완료 | `docs/issues/M1_hub-cloud.md` |
 | M2 | Issue 1 - Mesh/Tailscale 정책 | 완료 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
 | M2 | Issue 2 - factory-a Master Tailscale 참여 | 완료 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
+| M2 | Issue 3 - EKS Hub Tailscale 참여 | 완료 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
+| M2 | Issue 4 - kubeconfig Tailscale IP 기반 구성 | 완료 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
+| M2 | Issue 5 - ArgoCD factory-a cluster 등록 | 완료 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
+| M2 | Issue 6 - Hub -> factory-a Sync 확인 | 완료 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
 
 현재 바로 이어서 할 이슈:
 
 ```text
-M2 Issue 3 - [Mesh/Tailscale] EKS Hub Tailscale 참여 및 확인
+M3 Issue 1 - [배포/Helm] GitHub 저장소 구조 설계
 ```
 
 ## 현재 큰 상태
 
 ```text
-현재 단계: M1 Hub 클라우드 기반 구성
+현재 단계: M3 배포 파이프라인 준비
 완료: M0 factory-a Safe-Edge 기준선
 완료: M1 Issue 0 AWS CLI MFA 및 Terraform 접근 설정
 완료: M1 Issue 1 EKS/VPC Terraform apply 및 kubectl 접근 확인
@@ -68,9 +72,14 @@ M2 Issue 3 - [Mesh/Tailscale] EKS Hub Tailscale 참여 및 확인
 완료: M1 Issue 12 runtime-config.yaml 구조 초안과 VM dummy data 추천값 작성
 완료: M2 Issue 1 Tailscale Tailnet/tag/Auth Key 정책 수립 및 Tailnet 확인
 완료: M2 Issue 2 `factory-a-master` Tailscale 설치, Tailnet 참여, Windows 운영자 PC에서 ping/SSH 검증
+완료: M2 Issue 3 EKS Hub Tailscale Operator 설치, egress Service, ArgoCD/Grafana Tailscale IP UI 접근 검증
+완료: M2 Issue 4 Tailscale IP/tls-server-name 기반 factory-a kubeconfig 검증
+완료: M2 Issue 5 ArgoCD factory-a cluster 등록 및 Successful 확인
+완료: M2 Issue 6 factory-a-podinfo-smoke Sync/Healthy, Tailscale egress 장애/복구 검증
+보류: EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 상태: 2026-05-06 build-hub 재실행 완료. Hub EKS/ArgoCD/Prometheus Agent/Grafana/AWS Load Balancer Controller/Admin UI ALB/foundation S3/AMP/IoT/K3s Secret active 확인. Route53 Hosted Zone과 ACM certificate는 active이며 ACM은 `ISSUED`
+AWS 실제 리소스 상태: 2026-05-07 build-hub Tailscale 자동화 추가/검증 완료. Hub EKS/ArgoCD/Prometheus Agent/Grafana/AWS Load Balancer Controller/Admin UI ALB/Hub Tailscale Operator/factory-a egress/foundation S3/AMP/IoT/K3s Secret active 확인. Route53 Hosted Zone과 ACM certificate는 active이며 ACM은 `ISSUED`
 Terraform state: infra/hub active, infra/foundation active
 ```
 
@@ -85,6 +94,7 @@ Terraform state: infra/hub active, infra/foundation active
 - failover/failback 테스트 결과 및 트러블슈팅 문서 확장
 - 변경된 계획 추적용 `docs/changes/` 문서 추가
 - `start_test` 반복 점검용 Ansible playbook 추가
+- 2026-05-08 기준 `eth0` 내부망, `wlan0` 인터넷 default route, `tailscale0` 원격 제어망 역할을 확정하고 `start_test.yml`에 master `wlan0` 인터넷 경로와 Tailscale 상태 검증을 추가했다.
 
 ### Dashboard VPC 확장 방향
 
@@ -102,6 +112,7 @@ Terraform state: infra/hub active, infra/foundation active
 - 도메인은 `minsoo-tech.cloud` 기준으로 확정했다. Route53 Hosted Zone NS는 `ns-1079.awsdns-06.org`, `ns-1913.awsdns-47.co.uk`, `ns-7.awsdns-00.com`, `ns-872.awsdns-45.net`이다.
 - `scripts/build/build-hub.sh`는 Terraform apply 직후 `scripts/ops/admin-ui-nameservers.sh`를 실행해 `secret/admin-ui-nameservers.txt`를 갱신한다. Gabia에 입력할 NS는 재생성 후 이 파일을 다시 확인한다.
 - 현재 기본값은 `ADMIN_UI_INGRESS_ENABLED=false`지만, `scripts/build/build-all.sh --admin-ui`를 사용하면 기존 MFA/build 흐름 안에서 Admin UI Ingress까지 활성화한다. 2026-05-06에는 `ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh`로 shared ALB Ingress를 생성하고 HTTPS endpoint를 검증했다.
+- 현재 기본값은 `BUILD_TAILSCALE=true`이므로 `scripts/build/build-hub.sh`와 `scripts/build/build-all.sh`는 Hub bootstrap 이후 Tailscale Operator, factory-a egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD `factory-a` cluster Secret을 자동 복구/검증한다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 실패한다.
 
 ### AWS CLI MFA 및 Terraform 접근
 
@@ -305,9 +316,9 @@ secret exists, DATA=4
 
 ## 다음에 할 일
 
-### 1. 다음 시작 작업: M2 Issue 3 EKS Hub Tailscale 참여 및 확인
+### 1. 다음 시작 작업: M3 Issue 1
 
-M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1/2는 완료됐고, 다음 세션은 EKS Hub를 Tailnet에 참여시켜 `factory-a-master` Tailscale IP reachability를 검증하는 M2 Issue 3으로 이어간다.
+M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M3 Issue 1 배포 파이프라인 GitHub 저장소 구조 설계로 이어간다.
 
 현재 검증 완료 전제:
 
@@ -352,16 +363,34 @@ M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 
 - `factory-a-master` tag `tag:aegis-spoke-prod`, `tag:factory-a` 적용 완료
 - Windows 운영자 PC `minsoog14` Tailnet 참여 완료, Tailscale IPv4 `100.67.181.8`
 - Windows 운영자 PC에서 `100.117.40.125` ping 및 SSH 접근 성공
+- Tailscale OAuth client ID/secret 생성 완료, secret 파일은 `~/Aegis/.aegis/secrets/tailscale/operator.env`에서 관리
+- `tailscale-operator` Helm release 설치 완료, namespace `tailscale`, status `deployed`
+- `tailscale/operator` Pod `1/1 Running`, Deployment `1/1 Available`
+- `argocd/factory-a-master-tailnet` ExternalName egress Service 생성
+- egress proxy Pod `tailscale/ts-factory-a-master-tailnet-wp5c2-0` `1/1 Running`
+- EKS `argocd` namespace 임시 busybox Pod에서 `factory-a-master-tailnet:6443` TCP open 확인
+- Tailscale Admin Console에서 `tailscale-operator` (`tag:k8s-operator`)와 `argocd-factory-a-master-tailnet` (`tag:k8s`) Connected 확인
+- `factory-a` kubeconfig는 `~/Aegis/.aegis/secrets/kubeconfig/` 아래에 보관
+- Tailscale IP kubeconfig는 `server: https://100.117.40.125:6443`, `tls-server-name: 10.10.10.10` 조합으로 `kubectl get nodes` 성공
+- ArgoCD egress kubeconfig는 `server: https://factory-a-master-tailnet.argocd.svc.cluster.local:6443`, `tls-server-name: 10.10.10.10` 조합으로 EKS 내부 검증 성공
+- ArgoCD cluster `factory-a` 등록 완료, status `Successful`, version `v1.34.6`
+- `factory-a-podinfo-smoke` Application sync 성공, `Synced` + `Healthy`
+- `factory-a` K3s `aegis-m2-smoke` namespace에서 `podinfo` Pod 2개 `Running`
+- ArgoCD Tailscale UI `https://100.108.140.35/` HTTP 200 확인
+- Grafana Tailscale health `http://100.108.4.6/api/health` HTTP 200 확인
+- `argocd/factory-a-master-tailnet` Service 삭제 시 `factory-a-podinfo-smoke` sync가 `no such host`로 실패하는 것 확인
+- 동일 Service 재생성 후 Tailscale proxy pod, TCP `6443`, ArgoCD sync/health, cluster `Successful` 복구 확인
+- `scripts/build/build-hub.sh`에 Tailscale bootstrap/verify 자동 실행 추가
+- `hub_tailscale_bootstrap.yml`, `hub_tailscale_verify.yml` 실제 실행 통과
+- `scripts/ansible/playbooks/start_test.yml`에 라즈베리파이 재부팅 후 Tailscale daemon/self/IP 확인 추가
 
 다음 구현 순서:
 
 ```text
-M2 Issue 3:
-1. Tailscale Admin Console에서 EKS operator용 OAuth client 생성
-2. OAuth client ID/secret은 repository 밖 또는 Kubernetes Secret으로만 관리
-3. Hub EKS에 Tailscale Kubernetes Operator 설치
-4. EKS 내부에서 `factory-a-master` Tailscale IP `100.117.40.125` reachability 확인
-5. ArgoCD UI private access와 EKS API endpoint public CIDR 축소 기준 정리
+M3 Issue 1:
+1. GitHub 저장소 구조 설계
+2. base/env/factory values 경계 정의
+3. ApplicationSet과 GitHub Actions가 사용할 경로 기준 정리
 
 Issue 11:
 1. WAF/Cognito/OIDC는 MVP 이후 운영 보안 강화 백로그로 보류
@@ -453,7 +482,7 @@ https://grafana.minsoo-tech.cloud
   - `latest/factory-a/` write 허용
   - `raw/factory-a/` write 거부
 
-남은 내용: 없음. 이후 M1 Issue 6~10/12와 M2 Issue 1/2는 완료됐고, 현재 다음 작업은 `M2 Issue 3 - [Mesh/Tailscale] EKS Hub Tailscale 참여 및 확인`이다.
+남은 내용: 없음. 이후 M1 Issue 6~10/12와 M2 Issue 1/2는 완료됐고, M2 Issue 3은 EKS Hub Tailscale Operator 설치와 `factory-a-master` K3s API TCP reachability 검증까지 완료됐다.
 
 ### 4. ArgoCD 접근 전략 유지
 
@@ -505,7 +534,7 @@ scripts/destroy/destroy-hub.sh
 
 ## 문서 갱신 상태
 
-M1 Issue 4/5/6/7/8/9/10/12 완료, IoT Rule -> S3 raw 적재, `risk/risk-normalizer` IRSA 검증, AMP Workspace 생성, `observability/prometheus-agent` remote_write 수신 검증, Grafana AMP datasource query 검증, AWS Load Balancer Controller, Admin UI HTTPS Ingress, runtime-config.yaml과 VM dummy data 추천값, 현재 active AWS 상태, M2 Issue 1/2 완료 상태와 다음 M2 Issue 3 작업 기준을 문서에 반영했다.
+M1 Issue 4/5/6/7/8/9/10/12 완료, IoT Rule -> S3 raw 적재, `risk/risk-normalizer` IRSA 검증, AMP Workspace 생성, `observability/prometheus-agent` remote_write 수신 검증, Grafana AMP datasource query 검증, AWS Load Balancer Controller, Admin UI HTTPS Ingress, runtime-config.yaml과 VM dummy data 추천값, 현재 active AWS 상태, M2 Issue 1/2 완료 상태와 M2 Issue 3 Operator/egress 검증 결과를 문서에 반영했다.
 AWS 비용 기준은 `docs/ops/15_aws_cost_baseline.md`에 추가했고, AWS 리소스나 상시 운영 경로가 추가될 때 함께 갱신하는 규칙을 `docs/README.md`, `docs/ops/README.md`, `docs/planning/11_delivery_ownership_flow.md`에 반영했다.
 또한 앞으로의 구현 책임 경계를 Terraform, Ansible, GitHub Actions, GitHub+ArgoCD 흐름으로 고정하고 관련 문서를 최신화했다.
 
@@ -611,8 +640,13 @@ M1 Issue 11 보류: 운영 보안 강화 백로그
 M1 Issue 12 완료: runtime-config.yaml 구조 초안과 VM dummy data 추천값
 M2 Issue 1 완료: Tailnet/tag/Auth Key 정책 수립 및 Tailnet 확인
 M2 Issue 2 완료: factory-a-master Tailscale 참여, Windows 운영자 PC ping/SSH 검증
-다음 작업: M2 Issue 3 EKS Hub Tailscale 참여 및 확인
-주의: scripts/ansible/playbooks/02_start_test.yml -> start_test.yml rename 상태는 별도 변경으로 남아 있음
+M2 Issue 3 완료: EKS Hub Tailscale Operator, egress Service, ArgoCD/Grafana Tailscale IP UI 검증
+M2 Issue 4 완료: factory-a kubeconfig Tailscale IP/tls-server-name 검증
+M2 Issue 5 완료: ArgoCD factory-a cluster 등록
+M2 Issue 6 완료: factory-a-podinfo-smoke Sync/Healthy, Tailscale egress 장애/복구 검증
+Build 자동화 완료: build-hub/build-all에서 Hub Tailscale 복구 기본 실행
+다음 작업: M3 Issue 1 - GitHub 저장소 구조 설계
+주의: start_test 반복 점검 playbook은 scripts/ansible/playbooks/start_test.yml 기준으로 정리됨
 ```
 
 ## 갱신 규칙

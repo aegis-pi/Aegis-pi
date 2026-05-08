@@ -1,7 +1,7 @@
 # Destroy Scripts
 
 상태: source of truth
-기준일: 2026-05-06
+기준일: 2026-05-07
 
 ## 목적
 
@@ -20,6 +20,7 @@
 
 2. hub
    - Admin UI Ingress가 켜져 있었다면 Route53 CNAME, Ingress, ALB/TargetGroup/SecurityGroup 선삭제
+   - Tailscale Kubernetes 리소스는 별도 cleanup하지 않음
    - infra/hub Terraform destroy
    - EKS, VPC, node group, NAT Gateway 삭제
    - AMP remote write, Grafana AMP query, AWS Load Balancer Controller용 IRSA IAM role/policy 삭제
@@ -62,7 +63,7 @@ DESTROY_HUB=true
 DESTROY_FOUNDATION=true
 ```
 
-즉, 기본 `destroy-all.sh`는 `build-all.sh`의 전체 생성 범위에 대응해 IoT factory-a, Hub EKS/VPC/NAT Gateway/node group, Admin UI Route53/ACM/ALB 관련 리소스, foundation S3/IoT Rule/AMP Workspace를 순서대로 삭제한다.
+즉, 기본 `destroy-all.sh`는 `build-all.sh`의 전체 생성 범위에 대응해 IoT factory-a, Hub EKS/VPC/NAT Gateway/node group, Admin UI Route53/ACM/ALB 관련 리소스, foundation S3/IoT Rule/AMP Workspace를 순서대로 삭제한다. EKS 내부 Tailscale Operator와 proxy 리소스는 EKS 삭제와 함께 사라지므로 별도 cleanup하지 않는다.
 
 ## Foundation 보존 삭제
 
@@ -112,6 +113,9 @@ Hub destroy는 `infra/hub`가 foundation output을 읽는 구조라 `infra/found
 
 - `destroy-all.sh`는 Hub EKS와 NAT Gateway를 삭제한다.
 - `destroy-hub.sh`는 Terraform destroy 전에 Admin UI Ingress cleanup playbook을 먼저 실행한다. Ingress가 비활성화된 상태면 cleanup은 no-op에 가깝게 지나간다.
+- `destroy-hub.sh`는 Tailscale OAuth client, Tailscale Admin Console device, `factory-a-master` Tailscale 상태를 삭제하거나 revoke하지 않는다.
+- `factory-a-master` Tailscale은 라즈베리파이 OS 레벨 상태이므로 비용이 없고 유지한다. 라즈베리파이 재부팅 후에는 `scripts/ansible/playbooks/start_test.yml`로 `tailscaled`와 Tailnet IP를 확인한다.
+- EKS를 다시 만들면 `scripts/build/build-hub.sh`가 `~/Aegis/.aegis/secrets/tailscale/operator.env`를 사용해 Tailscale Operator, egress Service, UI Service, ArgoCD cluster Secret을 다시 생성/검증한다.
 - `destroy-foundation.sh`는 S3/AMP/IoT Rule 같은 영속 리소스를 삭제하는 자리다.
 - `scripts/destroy/destroy-all.sh`가 `scripts/build/build-all.sh`에 대응하는 전체 삭제 실행이다.
 - Foundation만 직접 삭제할 때는 안전장치로 `DESTROY_FOUNDATION=true scripts/destroy/destroy-foundation.sh`가 필요하다.

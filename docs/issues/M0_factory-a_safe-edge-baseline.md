@@ -392,10 +392,12 @@ docs/ops/11_ansible_test_automation.md
 
 ```bash
 cd scripts/ansible
-ansible-playbook playbooks/start_test.yml
+ansible-playbook -i inventory/factory-a.ini playbooks/start_test.yml
 ```
 
 비밀번호는 playbook prompt로만 입력하고 파일에 저장하지 않는다. 실행 산출물은 `scripts/ansible/evidence/`에 생성되지만 Git push 대상에서는 제외한다.
+
+2026-05-08 기준 `start_test.yml`은 master Tailscale 상태를 검증하기 전에 master `wlan0`의 IPv4, default route, `controlplane.tailscale.com` DNS/HTTPS reachability를 먼저 확인한다. control host가 `10.10.10.0/24` 내부망에 붙어 있으면 기본 inventory의 `10.10.10.10`으로 실행하고, master Tailscale IP는 SSH 실행 경로로 사용하지 않는다.
 
 변경 기록:
 

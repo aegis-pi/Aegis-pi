@@ -1,0 +1,164 @@
+---
+- name: Install K3s server on factory-a master
+  hosts: factory_a_master
+  gather_facts: false
+  become: true
+
+  vars_prompt:
+    - name: factory_a_master_password
+      prompt: "master SSH/sudo password"
+      private: true
+    - name: factory_a_k3s_token
+      prompt: "K3s cluster token"
+      private: true
+
+  tasks:
+    - name: Verify K3s server config was staged
+      ansible.builtin.stat:
+        path: /etc/rancher/k3s/config.yaml
+      register: k3s_server_config
+
+    - name: Require staged K3s server config
+      ansible.builtin.assert:
+        that:
+          - k3s_server_config.stat.exists
+        fail_msg: "Run playbooks/factory_a_os_baseline.yml before installing K3s."
+
+    - name: Check existing K3s server binary
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_binary
+
+    - name: Install K3s server
+      ansible.builtin.shell: |
+        set -euo pipefail
+        curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server" K3S_TOKEN="{{ factory_a_k3s_token }}" sh -
+      args:
+        executable: /bin/bash
+      when: not k3s_binary.stat.exists
+
+    - name: Ensure K3s server is enabled and running
+      ansible.builtin.systemd:
+        name: k3s
+        enabled: true
+        state: started
+
+    - name: Wait for Kubernetes API on master
+      ansible.builtin.command: kubectl get nodes
+      register: master_kubectl_nodes
+      changed_when: false
+      retries: 30
+      delay: 10
+      until: master_kubectl_nodes.rc == 0
+
+    - name: Taint master away from regular workloads
+      ansible.builtin.command: "{{ item }}"
+      changed_when: false
+      loop:
+        - kubectl taint nodes master node-role.kubernetes.io/control-plane=true:NoSchedule --overwrite
+        - kubectl taint nodes master node-role.kubernetes.io/master=true:NoSchedule --overwrite
+
+- name: Install K3s agents on factory-a workers
+  hosts: factory_a_workers
+  gather_facts: false
+  become: true
+  serial: 1
+
+  vars_prompt:
+    - name: factory_a_worker1_password
+      prompt: "worker1 SSH/sudo password"
+      private: true
+    - name: factory_a_worker2_password
+      prompt: "worker2 SSH/sudo password"
+      private: true
+    - name: factory_a_k3s_token
+      prompt: "K3s cluster token"
+      private: true
+
+  vars:
+    factory_a_master_api: "https://{{ factory_a_nodes.master.ip }}:6443"
+
+  tasks:
+    - name: Verify K3s agent config was staged
+      ansible.builtin.stat:
+        path: /etc/rancher/k3s/config.yaml
+      register: k3s_agent_config
+
+    - name: Require staged K3s agent config
+      ansible.builtin.assert:
+        that:
+          - k3s_agent_config.stat.exists
+        fail_msg: "Run playbooks/factory_a_os_baseline.yml before installing K3s."
+
+    - name: Check existing K3s agent binary
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_binary
+
+    - name: Install K3s agent
+      ansible.builtin.shell: |
+        set -euo pipefail
+        curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="agent" K3S_URL="{{ factory_a_master_api }}" K3S_TOKEN="{{ factory_a_k3s_token }}" sh -
+      args:
+        executable: /bin/bash
+      when: not k3s_binary.stat.exists
+
+    - name: Ensure K3s agent is enabled and running
+      ansible.builtin.systemd:
+        name: k3s-agent
+        enabled: true
+        state: started
+
+- name: Verify factory-a K3s cluster
+  hosts: factory_a_master
+  gather_facts: false
+  become: true
+
+  vars_prompt:
+    - name: factory_a_master_password
+      prompt: "master SSH/sudo password"
+      private: true
+
+  tasks:
+    - name: Wait for all expected nodes to be Ready
+      ansible.builtin.shell: |
+        set -euo pipefail
+        kubectl get node "{{ item }}" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      args:
+        executable: /bin/bash
+      register: node_ready_result
+      changed_when: false
+      retries: 30
+      delay: 10
+      until: node_ready_result.stdout == "True"
+      loop:
+        - master
+        - worker1
+        - worker2
+
+    - name: Read flannel public IPs
+      ansible.builtin.shell: |
+        set -euo pipefail
+        kubectl get node master worker1 worker2 \
+          -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.annotations.flannel\.alpha\.coreos\.com/public-ip}{"\n"}{end}'
+      args:
+        executable: /bin/bash
+      register: flannel_public_ips
+      changed_when: false
+
+    - name: Validate flannel public IPs use eth0 cluster IPs
+      ansible.builtin.assert:
+        that:
+          - flannel_public_ips.stdout is search('master ' ~ factory_a_nodes.master.ip)
+          - flannel_public_ips.stdout is search('worker1 ' ~ factory_a_nodes.worker1.ip)
+          - flannel_public_ips.stdout is search('worker2 ' ~ factory_a_nodes.worker2.ip)
+        fail_msg: "K3s/flannel did not bind to expected eth0 cluster IPs."
+
+    - name: Print K3s cluster summary
+      ansible.builtin.command: kubectl get nodes -o wide
+      register: k3s_nodes
+      changed_when: false
+
+    - name: Show K3s cluster summary
+      ansible.builtin.debug:
+        var: k3s_nodes.stdout_lines

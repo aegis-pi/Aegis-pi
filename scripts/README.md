@@ -12,7 +12,7 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 
 | 경로 | 내용 |
 | --- | --- |
-| `build/build-all.sh` | foundation, hub, IoT/K3s Secret 생성 순서 실행. `--admin-ui` 옵션으로 Admin UI HTTPS Ingress까지 활성화 |
+| `build/build-all.sh` | foundation, hub, IoT/K3s Secret 생성 순서 실행. Hub 단계에서 Tailscale 복구까지 기본 실행. `--admin-ui` 옵션으로 Admin UI HTTPS Ingress까지 활성화 |
 | `build/build-admin-ui-after-ns.sh` | Gabia NS 입력 후 ACM 발급 대기와 Admin UI HTTPS Ingress 활성화 |
 | `destroy/destroy-all.sh` | IoT/K3s Secret, hub, foundation 전체 삭제 순서 실행 |
 | `hub/run-hub.sh` | `build/build-hub.sh` 실행 후 ArgoCD port-forward까지 연결하는 호환 wrapper |
@@ -40,6 +40,8 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | `ansible/playbooks/hub_admin_ingress_bootstrap.yml` | Admin UI HTTPS Ingress 선택 적용 |
 | `ansible/playbooks/hub_admin_ingress_verify.yml` | Admin UI HTTPS Ingress 검증 |
 | `ansible/playbooks/hub_admin_ingress_cleanup.yml` | Hub destroy 전 Admin Ingress/ALB 정리 |
+| `ansible/playbooks/hub_tailscale_bootstrap.yml` | Hub Tailscale Operator, factory-a egress, Tailscale UI Service, ArgoCD cluster Secret 복구 |
+| `ansible/playbooks/hub_tailscale_verify.yml` | Hub Tailscale Operator/proxy, UI, factory-a K3s API, ArgoCD cluster Secret 검증 |
 
 반복 점검 자동화는 `ansible/` 아래에 둔다.
 

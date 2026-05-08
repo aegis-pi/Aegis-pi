@@ -138,7 +138,7 @@ Tailscale Admin Console에서 EKS operator용 OAuth client를 만든다.
 로컬 보관 예시:
 
 ```text
-~/.aegis/secrets/tailscale/operator.env
+~/Aegis/.aegis/secrets/tailscale/operator.env
 ```
 
 파일 형식:
@@ -187,9 +187,27 @@ TAILSCALE_AUTH_KEY="REDACTED"
 
 ## 4. Hub EKS에 Tailscale Operator 설치
 
+현재 기준에서는 `scripts/build/build-hub.sh`가 이 섹션의 Operator 설치, egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD `factory-a` cluster Secret 복구를 자동으로 수행한다. 각 단계는 이미 있으면 생성하지 않고 상태를 검증한다.
+
+자동 실행 조건:
+
+```text
+BUILD_TAILSCALE=true  # 기본값
+secret: ~/Aegis/.aegis/secrets/tailscale/operator.env
+required keys: TAILSCALE_OAUTH_CLIENT_ID, TAILSCALE_OAUTH_CLIENT_SECRET
+```
+
+수동으로 Tailscale 단계만 재검증하려면:
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ansible
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_bootstrap.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_verify.yml
+```
+
 로컬 shell에서 Hub kubeconfig가 EKS를 가리키는지 먼저 확인한다.
 
-상태: 다음 작업
+상태: build-hub 자동화 포함, 설치/검증 완료
 
 ```bash
 kubectl config current-context
@@ -200,7 +218,7 @@ OAuth client 값을 shell에 로드한다.
 
 ```bash
 set -a
-. ~/.aegis/secrets/tailscale/operator.env
+. ~/Aegis/.aegis/secrets/tailscale/operator.env
 set +a
 ```
 
@@ -236,6 +254,32 @@ status: connected
 
 검증 결과를 기록할 때 secret 값이나 device private detail은 남기지 않는다.
 
+2026-05-07 검증 기록:
+
+```text
+context: arn:aws:eks:ap-south-1:611058323802:cluster/AEGIS-EKS
+nodes: EKS worker node 2대 Ready
+helm release: tailscale-operator / namespace tailscale / status deployed / revision 1
+operator pod: tailscale/operator 1/1 Running
+operator deployment: tailscale/operator 1/1 Available
+CRD: connectors.tailscale.com, dnsconfigs.tailscale.com, proxyclasses.tailscale.com, proxygroups.tailscale.com, tailnets.tailscale.com 등 생성 확인
+secret source: ~/Aegis/.aegis/secrets/tailscale/operator.env
+```
+
+Tailscale Admin Console Machines 화면에서 `tailscale-operator` 또는 operator 관련 device가 `tag:k8s-operator`로 `Connected`인지 사용자가 최종 확인한다.
+
+Destroy 기준:
+
+```text
+destroy-hub.sh:
+  - 별도 Tailscale cleanup을 실행하지 않는다.
+  - EKS 내부 Operator/proxy 리소스는 EKS destroy와 함께 제거된다.
+  - Tailscale OAuth client와 factory-a-master device는 유지한다.
+
+next build-hub.sh:
+  - operator.env를 기준으로 새 EKS에 Tailscale Operator를 다시 등록한다.
+```
+
 ## 5. Hub EKS Egress 방식 결정
 
 M2의 목적은 Hub/ArgoCD가 Spoke K3s API에 접근하는 것이다. Spoke가 Tailnet device로 참여하면 Hub operator 또는 operator가 관리하는 egress proxy가 Tailnet 대상에 접근할 수 있어야 한다.
@@ -249,6 +293,42 @@ M2의 목적은 Hub/ArgoCD가 Spoke K3s API에 접근하는 것이다. Spoke가 
 5. ArgoCD cluster 등록
 
 EKS에서 Tailnet egress가 별도 Connector를 요구하는 경우, Tailscale Operator의 Connector CRD를 사용한다. Connector 사용 여부는 M2 Issue 3의 운영 방식 결정에 기록한다.
+
+2026-05-07 기준 초기 egress 검증은 Connector CRD 대신 Tailscale Operator의 ExternalName Service egress proxy를 사용했다. 현재는 `hub_tailscale_bootstrap.yml`이 아래 Service를 자동 적용한다. 기존 Service가 있고 `tailscale.com/tailnet-ip` annotation이 맞으면 apply를 건너뛰고 readiness만 확인한다.
+
+적용한 Service:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: factory-a-master-tailnet
+  namespace: argocd
+  annotations:
+    tailscale.com/tailnet-ip: "100.117.40.125"
+spec:
+  type: ExternalName
+  externalName: placeholder
+  ports:
+    - name: k3s-api
+      port: 6443
+      protocol: TCP
+    - name: ssh
+      port: 22
+      protocol: TCP
+```
+
+검증 결과:
+
+```text
+service: argocd/factory-a-master-tailnet
+operator rewrite: spec.externalName -> ts-factory-a-master-tailnet-wp5c2.tailscale.svc.cluster.local
+condition: TailscaleProxyReady=True
+proxy pod: tailscale/ts-factory-a-master-tailnet-wp5c2-0 1/1 Running
+tcp check: EKS argocd namespace 임시 busybox pod -> factory-a-master-tailnet:6443 open
+```
+
+따라서 M2 Issue 3의 Hub -> `factory-a-master` K3s API network reachability는 통과로 본다. 다음 단계는 M2 Issue 4에서 kubeconfig server 주소, TLS/SAN, ArgoCD cluster 등록 방식을 검증하는 것이다.
 
 ## 6. `factory-a` Master Tailnet 참여
 
@@ -373,6 +453,7 @@ clusters:
 
 - `factory-a.kubeconfig`, `factory-b.kubeconfig`, `factory-c.kubeconfig`에는 credential이 들어갈 수 있으므로 Git에 커밋하지 않는다.
 - K3s API server certificate SAN이 Tailscale IP를 허용하지 않으면 TLS 오류가 날 수 있다. 이 경우 M2 Issue 4에서 K3s SAN 설정 또는 접근 방식을 조정한다.
+- `factory-a`는 2026-05-07 기준 K3s API server certificate SAN에 Tailnet IP `100.117.40.125`가 없다. 이 때문에 Tailscale IP 또는 EKS egress Service DNS로 접근하는 kubeconfig에는 `tls-server-name: 10.10.10.10`을 명시한다.
 
 로컬 검증:
 
@@ -382,12 +463,51 @@ kubectl --kubeconfig factory-b.kubeconfig get nodes
 kubectl --kubeconfig factory-c.kubeconfig get nodes
 ```
 
+2026-05-07 검증 기록:
+
+```text
+raw kubeconfig: ~/Aegis/.aegis/secrets/kubeconfig/factory-a.raw.kubeconfig
+LAN kubeconfig: ~/Aegis/.aegis/secrets/kubeconfig/factory-a.lan.kubeconfig
+Tailscale IP kubeconfig: ~/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig
+ArgoCD egress kubeconfig: ~/Aegis/.aegis/secrets/kubeconfig/factory-a.argocd-egress.kubeconfig
+Tailscale IP server: https://100.117.40.125:6443
+ArgoCD egress server: https://factory-a-master-tailnet.argocd.svc.cluster.local:6443
+tls-server-name: 10.10.10.10
+result: master, worker1, worker2 Ready
+```
+
 ## 9. ArgoCD Cluster 등록
 
 M2 Issue 4의 kubeconfig 검증이 끝난 뒤 진행한다.
 
-```bash
-argocd cluster add factory-a --kubeconfig factory-a.kubeconfig
+`argocd cluster add`는 로컬 CLI가 먼저 target cluster에 접속해 `argocd-manager` ServiceAccount와 RBAC를 생성한다. 따라서 등록 bootstrap은 로컬에서 접근 가능한 kubeconfig로 수행하고, 최종 ArgoCD cluster secret은 EKS 내부 egress Service를 바라보게 구성한다.
+
+현재는 `hub_tailscale_bootstrap.yml`이 이 작업을 자동화한다.
+
+- `factory-a` 직접 kubeconfig: `~/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig`
+- target cluster에 `kube-system/argocd-manager` ServiceAccount/RBAC/token Secret이 없으면 생성
+- Hub EKS에 `argocd/cluster-factory-a` Secret이 없거나 token/server/config가 다르면 갱신
+- 이미 동일하면 cluster Secret apply를 건너뜀
+
+2026-05-07 `factory-a` 등록 기준:
+
+```text
+bootstrap kubeconfig: ~/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig
+ArgoCD cluster secret: argocd/cluster-factory-a
+cluster name: factory-a
+server: https://factory-a-master-tailnet.argocd.svc.cluster.local:6443
+tls server name: 10.10.10.10
+status: Successful
+version: v1.34.6
+```
+
+`argocd cluster add`가 target cluster에 만든 리소스:
+
+```text
+kube-system/argocd-manager ServiceAccount
+argocd-manager-role ClusterRole
+argocd-manager-role-binding ClusterRoleBinding
+kube-system/argocd-manager-long-lived-token Secret
 ```
 
 M5에서 VM Spoke를 추가할 때:
@@ -405,26 +525,90 @@ argocd cluster list
 
 ArgoCD UI에서 cluster connection status가 `Successful`인지 확인한다.
 
+## 9-1. Test Application Sync
+
+M2 Issue 6 정상 경로 검증은 `factory-a-podinfo-smoke` Application으로 수행했다.
+
+```text
+repo: https://github.com/stefanprodan/podinfo
+path: kustomize
+namespace: aegis-m2-smoke
+sync option: CreateNamespace=true
+```
+
+검증 결과:
+
+```text
+argocd app sync factory-a-podinfo-smoke --timeout 180: Succeeded
+Application sync status: Synced
+Application health: Healthy
+factory-a podinfo Deployment: 2/2 Available
+factory-a podinfo Pods: 2 Running
+```
+
+제외한 smoke 후보:
+
+- `argoproj/argocd-example-apps` `guestbook`: `gcr.io/google-samples/gb-frontend:v5`가 Raspberry Pi ARM64에서 `exec format error`
+- Bitnami nginx Helm chart: ArgoCD repo-server가 chart manifest generation 중 재시작
+
 ## 10. ArgoCD UI Private Access 전환
 
-M1에서는 ArgoCD UI를 로컬 `kubectl port-forward`로 접근한다.
+M1에서는 ArgoCD/Grafana를 shared Public ALB Ingress로 검증했다. M2 단기 운영에서는 Public ALB를 유지하면서 Tailscale IP 경로를 병행 검증한다.
 
-M2 이후 목표:
+M2 검증 결과:
 
-- public LoadBalancer를 만들지 않는다.
-- Tailscale 기반 private access로 ArgoCD UI 접근 경로를 정리한다.
-- EKS API endpoint public CIDR `0.0.0.0/0` 축소 기준을 수립한다.
+```text
+ArgoCD Tailscale service: argocd/argocd-server-tailscale
+ArgoCD hostname: argocd-aegis-hub.tailf83767.ts.net
+ArgoCD Tailscale IP: 100.108.140.35
+ArgoCD check: curl -k https://100.108.140.35/ -> HTTP 200
 
-구체 방식은 M2 Issue 3에서 operator/proxy/Connector 구성을 검증한 뒤 확정한다.
+Grafana Tailscale service: observability/grafana-tailscale
+Grafana hostname: grafana-aegis-hub.tailf83767.ts.net
+Grafana Tailscale IP: 100.108.4.6
+Grafana check: curl http://100.108.4.6/api/health -> HTTP 200
+```
+
+운영 기준:
+
+- 단기에는 Public ALB와 Tailscale IP UI 경로를 함께 둔다.
+- Tailscale UI 경로는 Tailnet 사용자만 접근 가능한 보조/전환 경로로 본다.
+- ArgoCD `argocd-server` 자체를 public Kubernetes `LoadBalancer` Service로 전환하지 않는다.
+- EKS API endpoint public CIDR 축소는 전체 설계가 닫힌 뒤 재검토한다.
+
+MagicDNS 이름은 브라우저에 `argocd-aegis-hub.tailf83767.ts.net` 또는 `grafana-aegis-hub.tailf83767.ts.net`처럼 입력할 수 있는 Tailnet 내부 이름이다. 별도 소유 도메인을 추가로 구매하거나 Route53에 등록할 필요는 없다. 단, 실제 접근 권한은 Tailnet에 등록된 사용자/기기 기준으로 제한된다.
 
 ## 11. 장애 검증
 
 검증 항목:
 
 - `factory-a-master` Tailscale 연결 정상 시 ArgoCD cluster connection `Successful`
-- Tailscale 연결 차단 시 ArgoCD cluster 상태 `Unknown` 또는 sync failure 확인
+- Tailscale egress 경로 차단 시 ArgoCD sync failure 확인
 - 복구 후 ArgoCD cluster connection 정상화 확인
 - 테스트 Application sync 성공
+
+2026-05-07 검증 결과:
+
+```text
+baseline:
+  argocd cluster list -> factory-a v1.34.6 Successful
+  factory-a-podinfo-smoke -> Synced / Healthy
+
+failure injection:
+  deleted Service argocd/factory-a-master-tailnet
+  EKS busybox nc check -> bad address 'factory-a-master-tailnet'
+  argocd app sync factory-a-podinfo-smoke --timeout 60 -> Failed
+  failure message -> no such host for factory-a-master-tailnet.argocd.svc.cluster.local
+
+recovery:
+  recreated Service argocd/factory-a-master-tailnet
+  operator rewrote externalName -> ts-factory-a-master-tailnet-jfvcc.tailscale.svc.cluster.local
+  proxy pod tailscale/ts-factory-a-master-tailnet-jfvcc-0 -> 1/1 Running
+  EKS busybox nc check -> factory-a-master-tailnet:6443 open
+  argocd app sync factory-a-podinfo-smoke --timeout 180 -> Succeeded
+  argocd app wait factory-a-podinfo-smoke --health --timeout 180 -> Healthy
+  argocd cluster list -> factory-a v1.34.6 Successful
+```
 
 운영형 대응:
 
@@ -464,11 +648,11 @@ M2 Issue 2 완료 처리:
 
 M2 Issue 3 완료 처리:
 
-- EKS Hub operator 또는 선택한 방식 적용
-- Tailscale Admin Console에서 Hub 연결 확인
-- EKS에서 `factory-a-master` Tailscale IP reachability 확인
-- ArgoCD UI private access 기준 기록
-- EKS API endpoint public CIDR 축소 기준 기록
+- 완료: EKS Hub Tailscale Kubernetes Operator 적용
+- 완료: Tailscale Admin Console에서 operator/proxy device 연결 확인
+- 완료: EKS에서 `factory-a-master` K3s API TCP `6443` reachability 확인
+- 완료: ArgoCD/Grafana Tailscale IP UI 접근 확인
+- 완료: EKS API endpoint public CIDR 축소는 설계 마무리 후 재검토로 보류 기록
 
 M2 Issue 4 완료 처리:
 
@@ -478,9 +662,9 @@ M2 Issue 4 완료 처리:
 
 M2 Issue 5/6 완료 처리:
 
-- ArgoCD cluster 등록
-- test Application sync
-- Tailscale 차단 시 failure 동작 확인
+- 완료: ArgoCD cluster 등록
+- 완료: test Application sync
+- 완료: Tailscale egress 차단 시 failure 동작 확인
 
 ## Reference
 

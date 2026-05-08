@@ -64,3 +64,28 @@ admin_ui_argocd_ingress_name: argocd-admin
 admin_ui_grafana_ingress_name: grafana-admin
 admin_ui_argocd_service_name: argocd-server
 admin_ui_grafana_service_name: grafana
+
+tailscale_operator_env_file: "{{ lookup('env', 'AEGIS_TAILSCALE_OPERATOR_ENV') | default(lookup('env', 'HOME') ~ '/Aegis/.aegis/secrets/tailscale/operator.env', true) }}"
+tailscale_namespace: tailscale
+tailscale_helm_repo_name: tailscale
+tailscale_helm_repo_url: https://pkgs.tailscale.com/helmcharts
+tailscale_chart_ref: tailscale/tailscale-operator
+tailscale_chart_version: 1.96.5
+tailscale_release_name: tailscale-operator
+tailscale_operator_force_upgrade: false
+
+tailscale_factory_a_name: factory-a
+tailscale_factory_a_master_ip: 100.117.40.125
+tailscale_factory_a_kube_tls_server_name: 10.10.10.10
+tailscale_factory_a_direct_kubeconfig: "{{ lookup('env', 'AEGIS_FACTORY_A_DIRECT_KUBECONFIG') | default(lookup('env', 'HOME') ~ '/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig', true) }}"
+tailscale_factory_a_egress_service_name: factory-a-master-tailnet
+tailscale_factory_a_egress_server: "https://{{ tailscale_factory_a_egress_service_name }}.{{ argocd_namespace }}.svc.cluster.local:6443"
+tailscale_factory_a_argocd_cluster_secret_name: cluster-factory-a
+tailscale_factory_a_argocd_manager_namespace: kube-system
+tailscale_factory_a_argocd_manager_service_account: argocd-manager
+tailscale_factory_a_argocd_manager_token_secret: argocd-manager-long-lived-token
+
+tailscale_argocd_ui_service_name: argocd-server-tailscale
+tailscale_argocd_ui_hostname: argocd-aegis-hub
+tailscale_grafana_ui_service_name: grafana-tailscale
+tailscale_grafana_ui_hostname: grafana-aegis-hub
