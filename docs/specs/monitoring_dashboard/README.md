@@ -13,5 +13,5 @@
 
 ## 기준
 
-- 현재 로컬 Grafana 기준과 후속 Dashboard VPC 기준을 구분해 작성한다.
+- 현재 로컬 Grafana 기준과 후속 Data / Dashboard VPC 기준을 구분해 작성한다.
 - 실제 대시보드 구현이 진행되면 API와 데이터 모델을 먼저 갱신한다.

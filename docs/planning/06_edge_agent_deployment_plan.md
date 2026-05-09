@@ -9,7 +9,7 @@
 
 `edge-agent`는 기존 Safe-Edge 워크로드를 대체하는 것이 아니라, 초기에는 기존 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 추가되는 클라우드 송신 컴포넌트다.
 
-Dashboard VPC 확장 기준에서는 대시보드가 Spoke나 Processing VPC 내부 API를 직접 조회하지 않는다. 따라서 `edge-agent`는 센서/AI/audio 결과뿐 아니라 노드, 장치, 워크로드, heartbeat 상태도 표준 payload로 송신한다.
+Data / Dashboard VPC 확장 기준에서는 대시보드가 Spoke K3s, ArgoCD, Control / Management VPC의 EKS API, Tailscale 관리망을 직접 조회하지 않는다. 따라서 `edge-agent`는 센서/AI/audio 결과뿐 아니라 노드, 장치, 워크로드, heartbeat 상태도 표준 payload로 송신한다.
 
 ## 역할
 
@@ -142,7 +142,7 @@ factory_id + measurement/source_type + source_timestamp
 
 AI 이벤트처럼 동일 timestamp에 여러 이벤트가 생길 수 있으면 `event_id` 또는 원본 row hash를 추가한다.
 
-Dashboard VPC에서 사용할 상태 payload는 아래 source type으로 분리한다.
+Data / Dashboard VPC에서 사용할 상태 payload는 아래 source type으로 분리한다.
 
 ```text
 sensor

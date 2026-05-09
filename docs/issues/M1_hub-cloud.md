@@ -83,8 +83,8 @@ M1 Hub 인프라를 Terraform으로 생성하기 전에 로컬 터미널에서 A
 ### 목표 (What & Why)
 
 Aegis-Pi Hub의 실행 환경인 EKS 클러스터를 생성한다.  
-ArgoCD, Grafana, Risk Score Engine 등 모든 Hub 컴포넌트가 EKS 위에서 동작하기 때문에  
-클러스터 구성이 Hub 전체의 기반이 된다.
+최신 클라우드 아키텍처 기준에서는 ArgoCD, Grafana 등 제어/관측 컴포넌트가 EKS Hub 위에서 동작하고, Risk Engine은 1번 Data / Dashboard VPC의 처리 영역으로 분리한다.
+따라서 이 클러스터 구성은 중앙 배포와 운영 관측 영역의 기반이 된다.
 
 ### 완료 조건 (Definition of Done)
 
@@ -142,7 +142,7 @@ ArgoCD, Grafana, Risk Score Engine 등 모든 Hub 컴포넌트가 EKS 위에서 
 ### GitHub Issue Comment Draft
 
 - 상태: 완료
-- 진행 요약: `infra/hub` Terraform root로 Hub Processing VPC, public/private subnet, NAT Gateway, EKS cluster, managed node group을 구성했다.
+- 진행 요약: `infra/hub` Terraform root로 Hub VPC, public/private subnet, NAT Gateway, EKS cluster, managed node group을 구성했다. 최신 아키텍처 명칭으로는 2번 Control / Management VPC의 초기 구현이다.
 - 변경/확인: `infra/hub/main.tf`, `infra/hub/variables.tf`, `infra/hub/outputs.tf`, `docs/planning/09_m1_eks_vpc_decision_record.md`를 확인했다.
 - 검증: 2026-05-06 `build-all` 기준 Hub EKS `ACTIVE`, nodegroup `ACTIVE`, worker node 2대 `Ready`를 확인했다.
 - 후속: EKS public endpoint CIDR 축소와 private 접근 전환은 M2/Tailscale 이후 진행한다.
@@ -154,15 +154,15 @@ ArgoCD, Grafana, Risk Score Engine 등 모든 Hub 컴포넌트가 EKS 위에서 
 ### 🎯 목표 (What & Why)
 
 EKS 내부 기능을 역할 기준으로 분리하여 관리한다.  
-네임스페이스 경계가 명확해야 이후 ArgoCD ApplicationSet 배포 대상, Grafana 데이터 소스 구분,  
-Risk Score Engine 독립 운영이 가능하다.
+네임스페이스 경계가 명확해야 이후 ArgoCD ApplicationSet 배포 대상과 Grafana 데이터 소스 구분이 가능하다.
+Risk Engine은 최신 클라우드 아키텍처 기준에서 1번 Data / Dashboard VPC의 처리 영역으로 분리한다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
 - [x] 아래 네임스페이스 생성 및 역할 정의 문서화
   - `argocd` - Hub에서 Spoke 배포 제어
   - `observability` - Grafana, AMP 연동 메트릭 관제
-  - `risk` - Risk Score Engine, 정규화 서비스
+  - `risk` - Hub 배포 검증용 또는 임시 risk workload. 최신 목표에서는 Risk Engine을 1번 Data / Dashboard VPC 처리 영역으로 분리
   - `ops-support` - `pipeline_status` 집계 보조 기능
 - [x] 각 네임스페이스에 기본 ResourceQuota 또는 LimitRange 설정 (선택)
 - [x] 네임스페이스 구조를 `docs/architecture/00_current_architecture.md` 또는 Hub 운영 문서에 반영
