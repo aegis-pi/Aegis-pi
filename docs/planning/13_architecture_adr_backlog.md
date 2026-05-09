@@ -31,7 +31,7 @@
 | ADR-CAND-004 | Dashboard Web/API를 Control VPC에 둘지 Data/Dashboard VPC에 둘지 | 사용자-facing Dashboard는 Data/Dashboard VPC 쪽이 자연스럽다는 방향. Dashboard API의 역할 경계는 추가 명세 필요 | `12_two_vpc_mvp_architecture_decision.md` |
 | ADR-CAND-005 | Dashboard Web은 public subnet에 둘지 private subnet에 둘지 | 서버형 Web이면 private app subnet, public에는 ALB/WAF만. 정적 SPA면 S3/CloudFront 가능 | `12_two_vpc_mvp_architecture_decision.md` |
 | ADR-CAND-006 | Grafana는 어느 VPC에 둘지, 무엇을 관측하는지 | Grafana는 Control/Management VPC에 두고 Hub EKS/AMP 운영 관측 도구로 사용. 사용자 Dashboard와 분리 | `12_two_vpc_mvp_architecture_decision.md`, `docs/ops/17_hub_grafana_amp.md` |
-| ADR-CAND-007 | 공장 로컬 ArgoCD와 Hub ArgoCD의 역할을 어떻게 나눌지 | MVP는 factory-a 로컬 ArgoCD와 EKS Hub ArgoCD를 모두 둔다. 두 ArgoCD의 ownership이 겹치지 않도록 namespace/repo/path 경계를 정해야 함 | `README.md`, `00_current_architecture.md`, `M3_deploy-pipeline.md` |
+| ADR-CAND-007 | 공장 로컬 ArgoCD와 Hub ArgoCD의 역할을 어떻게 나눌지 | 초기 검토안은 factory-a 로컬 ArgoCD와 EKS Hub ArgoCD의 ownership 분리였다. 최신 목표는 ADR-CAND-013의 Hub ArgoCD 중심 이관이며, Local ArgoCD는 전환 기간에만 유지 | `README.md`, `00_current_architecture.md`, `M3_deploy-pipeline.md`, `14_argocd_hub_migration_plan.md` |
 | ADR-CAND-008 | ArgoCD와 Tailscale은 같은 영역에 있어야 하는지 | 둘 다 Hub-Spoke 제어 plane이므로 Control/Management VPC에 둔다 | `12_two_vpc_mvp_architecture_decision.md`, `M2_mesh-vpn-hub-spoke.md` |
 | ADR-CAND-009 | Tailscale 등록 기기 탈취 또는 IP 유출 시 피해 범위를 어떻게 줄일지 | MVP는 Tailscale 유지. 공장별 tag/ACL, 시스템/운영자 권한 분리, K8s RBAC 최소화, DB 접근망 확장 금지 필요 | `12_two_vpc_mvp_architecture_decision.md`, `M2_mesh-vpn-hub-spoke.md` |
 | ADR-CAND-010 | ArgoCD, Grafana, Risk Engine을 한 컴퓨트 영역에 둘지 분리할지 | Risk Engine은 Data/Dashboard VPC로 분리. Grafana/ArgoCD는 Control VPC. 현재 EKS 기반에서는 EC2 단일 배치가 아니라 역할별 workload 배치로 해석 | `12_two_vpc_mvp_architecture_decision.md` |
@@ -248,15 +248,17 @@ Data service 관측까지 포함할지
 Grafana Admin UI 외부 접근 방식을 어떻게 제한할지
 ```
 
-## ADR-CAND-007: Local ArgoCD와 Hub ArgoCD ownership 분리
+## ADR-CAND-007: Local ArgoCD와 Hub ArgoCD ownership 분리 검토안
 
 ### 질문
 
 공장 내부 ArgoCD와 EKS Hub ArgoCD를 어떤 역할로 나눌지.
 
+이 항목은 초기 hybrid 검토안을 기록한 것이다. 최신 목표는 `ADR-CAND-013`과 `docs/planning/14_argocd_hub_migration_plan.md`의 Hub ArgoCD 중심 이관 방향을 따른다.
+
 ### 대화 중 나온 관점
 
-MVP 기준에서는 ArgoCD가 하나만 있는 구조가 아니다.
+초기 검토 기준에서는 ArgoCD가 하나만 있는 구조가 아니었다.
 
 공장 내부에는 이미 `factory-a` 로컬 자율 운영을 위한 ArgoCD가 있다. 이 ArgoCD는 기존 Safe-Edge 기준선의 GitOps 배포를 담당한다.
 
@@ -274,7 +276,7 @@ EKS Hub ArgoCD
   - Tailscale 경유로 spoke K3s cluster 접근
 ```
 
-따라서 "ArgoCD 2개"는 중복 배치가 아니라 역할이 다른 2계층 GitOps 구조로 본다.
+따라서 초기 검토안에서의 "ArgoCD 2개"는 중복 배치가 아니라 역할이 다른 2계층 GitOps 구조로 보았다.
 
 중요한 기준은 두 ArgoCD가 같은 리소스를 동시에 관리하지 않는 것이다.
 
@@ -324,7 +326,9 @@ aegis-pi 또는 별도 deploy repo:
   - edge-agent / spoke components / ApplicationSet
 ```
 
-AZ별 독립 ArgoCD를 두는 DR 구조는 별도 문제다. 현재 논의의 핵심은 factory-a local ArgoCD와 Hub ArgoCD의 ownership 분리다.
+AZ별 독립 ArgoCD를 두는 DR 구조는 별도 문제다. 이 후보의 핵심은 factory-a local ArgoCD와 Hub ArgoCD의 ownership 분리였다.
+
+최신 확정 방향에서는 이 hybrid ownership을 장기 운영 모델로 두지 않는다. `factory-a` Local ArgoCD는 전환 기간 동안 유지하고, 기존 workload를 단계적으로 Hub ArgoCD로 이관한 뒤 제거 또는 비활성화한다.
 
 ### ADR로 남길 때 결정해야 할 것
 

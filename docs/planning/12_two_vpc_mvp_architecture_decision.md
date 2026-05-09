@@ -215,19 +215,35 @@ AI / analytics worker
 
 ## ArgoCD 구성
 
-ArgoCD는 2번 Control / Management VPC의 EKS Hub 안에 하나의 논리적 인스턴스로 둔다.
+목표 구조는 Hub ArgoCD 중심이다.
 
-별도 ArgoCD를 공장 내부에 두지 않는다. 또한 가용영역별로 독립 ArgoCD를 두는 방식도 MVP 기준에서는 사용하지 않는다.
+2번 Control / Management VPC의 EKS Hub 안에 Hub ArgoCD를 두고, 이 ArgoCD가 `factory-a`, `factory-b`, `factory-c`의 Edge Agent와 공통 spoke component 배포를 관리한다.
 
 기준:
 
 ```text
-ArgoCD 1 logical instance
-EKS Hub 내부 배치
+Hub ArgoCD
+factory-a / factory-b / factory-c 배포 관리
+ApplicationSet 기반 factory별 배포
 EKS multi-AZ node group과 Kubernetes scheduling으로 가용성 확보
 필요 시 ArgoCD chart HA 옵션 검토
 Git repository와 Helm values를 source of truth로 유지
 ```
+
+`factory-a`에 기존 Local ArgoCD가 있는 경우에는 전환 기간 동안 유지한다.
+
+전환 기간의 기준:
+
+```text
+factory-a Local ArgoCD 유지
+신규 Edge Agent는 Hub ArgoCD로 배포
+기존 workload를 단계적으로 Hub ArgoCD로 이관
+이관 완료 후 Local ArgoCD 제거 또는 비활성화
+```
+
+장기 목표는 공장별 Local ArgoCD를 계속 늘리는 구조가 아니라 Hub ArgoCD 중심 운영이다. 세부 이관 계획은 `docs/planning/14_argocd_hub_migration_plan.md`를 따른다.
+
+가용영역별로 독립 ArgoCD를 두는 방식은 MVP 기준에서는 사용하지 않는다.
 
 DR은 ArgoCD 인스턴스를 여러 개 두는 방식보다, Git/Terraform/Ansible로 재현 가능하게 만드는 쪽을 우선한다.
 
@@ -326,7 +342,7 @@ Private Data subnet
 
 ```text
 Fleet Controller 별도 서비스
-공장 내부 ArgoCD
+공장별 Local ArgoCD 장기 운영 모델
 가용영역별 독립 ArgoCD 2개 운영
 Dashboard VPC와 Control VPC 간 상시 private DB 직접 연결
 Tailscale 대체망 즉시 구현
@@ -345,4 +361,3 @@ Fleet Controller라는 별도 서비스는 현재 프로젝트 범위에 없다.
    - 필요 시: DynamoDB latest status, RDS, Redis, OpenSearch
 6. 1번 VPC workload의 메트릭을 AMP로 보낼지 결정한다.
 7. ArgoCD HA 옵션은 M3/M4 이후 운영 안정화 단계에서 검토한다.
-
