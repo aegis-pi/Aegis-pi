@@ -18,6 +18,10 @@
 | `09_m1_eks_vpc_decision_record.md` | M1 EKS/VPC 설계 결정과 적용 결과 |
 | `10_portfolio_idea_assessment.md` | 포트폴리오 관점의 아이디어 평가와 MVP 메시지 |
 | `11_delivery_ownership_flow.md` | Terraform, Ansible, GitHub Actions, ArgoCD 책임 경계 |
+| `12_two_vpc_mvp_architecture_decision.md` | MVP 2 VPC 구조, Dashboard/Grafana/ArgoCD/Tailscale 배치 결정 |
+| `13_architecture_adr_backlog.md` | 향후 ADR로 분리할 아키텍처 질문과 쟁점 목록 |
+| `14_argocd_hub_migration_plan.md` | factory local ArgoCD를 Hub ArgoCD 중심으로 이관하는 계획과 장단점 |
+| `15_cloud_architecture_final.md` | 확정된 클라우드 아키텍처와 리소스 배치 |
 
 ## 기준
 
