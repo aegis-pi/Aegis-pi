@@ -9,6 +9,26 @@
 
 이 문서는 기존 Hub/Spoke 제어망과 별개로, 관리자 조회 화면을 public authenticated ingress로 제공하는 확장 방향을 정리한다.
 
+## 최신 기준
+
+2026-05-09 기준 최종 클라우드 아키텍처의 source of truth는 `docs/planning/15_cloud_architecture_final.md`다.
+
+이 문서의 `Dashboard VPC`와 `Processing VPC` 분리 표현은 초기 확장안이다. 최신 기준에서는 아래 이름과 경계를 사용한다.
+
+```text
+1번 VPC: Data / Dashboard VPC
+  - 데이터 처리
+  - Risk 계산
+  - 사용자 대시보드
+
+2번 VPC: Control / Management VPC
+  - 중앙 배포
+  - Hub-Spoke 연결
+  - 운영 관측
+```
+
+이 문서에서 유지할 결정은 Dashboard가 Tailscale, ArgoCD, EKS API, Spoke K3s API에 직접 접근하지 않는다는 경계다.
+
 ## 핵심 결정
 
 Dashboard VPC와 Processing VPC는 VPC Peering 또는 Transit Gateway로 직접 연결하지 않는다.

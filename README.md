@@ -188,19 +188,24 @@ LAN 제거 InfluxDB 공백:
 
 ## 목표 확장 구조
 
+최신 확정 클라우드 아키텍처는 `docs/planning/15_cloud_architecture_final.md`를 기준으로 한다.
+
 ```text
 AWS EKS Hub
     ├── factory-a  (현재 완료된 운영형 Raspberry Pi Safe-Edge)
     ├── factory-b  (후속 Mac mini VM 테스트베드)
     └── factory-c  (후속 Windows VM 테스트베드)
 
-Dashboard VPC
-    └── Route53 / ALB / WAF / Auth / Dashboard Web API
+2번 VPC: Control / Management
+    └── EKS Hub / Hub ArgoCD / Tailscale / Prometheus Agent / Grafana
+
+1번 VPC: Data / Dashboard
+    └── ALB / WAF / Dashboard Web/API / Event Processor / Risk Engine / RDS / Redis / OpenSearch
 ```
 
 후속 확장에서는 `edge-agent`를 추가해 `factory-a` 로컬 데이터와 노드/장치/워크로드 상태를 AWS IoT Core로 송신하고, IoT Core -> S3 데이터 플레인, latest status store, Risk Score Engine, ApplicationSet 기반 배포를 추가한다.
 
-관리자 대시보드는 Tailscale에 의존하지 않는 Dashboard VPC에서 제공한다. Dashboard VPC는 Processing VPC와 VPC Peering 없이 processed S3와 latest status store를 read-only IAM으로 조회한다.
+사용자 대시보드는 Tailscale에 의존하지 않는 1번 Data / Dashboard VPC에서 제공한다. Dashboard Web/API는 processed data와 latest status를 조회하고, ArgoCD/Tailscale/EKS API 같은 제어 plane에는 직접 접근하지 않는다.
 
 ## 구현 단계
 
@@ -212,7 +217,7 @@ Dashboard VPC
 | Phase 3 (M2) | Hub-Spoke 연결 | 진행 중, Issue 1~2 완료 |
 | Phase 4 (M3~M4) | Edge Agent, 배포/데이터 파이프라인 확장 | 대기 |
 | Phase 5 (M5) | `factory-b`, `factory-c` 테스트베드 확장 | 대기 |
-| Phase 6 (M6) | Risk Twin + Dashboard VPC 관제 화면 | 대기 |
+| Phase 6 (M6) | Risk Twin + Data / Dashboard VPC 관제 화면 | 대기 |
 | Phase 7 (M7) | 통합 검증 | 대기 |
 
 ## 문서 구조

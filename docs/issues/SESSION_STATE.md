@@ -96,10 +96,11 @@ Terraform state: infra/hub destroy 완료, infra/foundation destroy 완료
 - `start_test` 반복 점검용 Ansible playbook 추가
 - 2026-05-08 기준 `eth0` 내부망, `wlan0` 인터넷 default route, `tailscale0` 원격 제어망 역할을 확정하고 `start_test.yml`에 master `wlan0` 인터넷 경로와 Tailscale 상태 검증을 추가했다.
 
-### Dashboard VPC 확장 방향
+### Data / Dashboard VPC 확장 방향
 
-- 관리자 대시보드는 Tailscale에 직접 의존하지 않는 별도 Dashboard VPC 방향으로 정리
-- Dashboard VPC는 Processing VPC와 VPC Peering/TGW 없이 S3/latest status store를 read-only IAM으로 조회하는 방향 확정
+- 최신 확정 클라우드 아키텍처는 `docs/planning/15_cloud_architecture_final.md`를 기준으로 한다.
+- 사용자 대시보드는 Tailscale에 직접 의존하지 않는 1번 Data / Dashboard VPC 방향으로 정리
+- Dashboard Web/API는 ArgoCD, Tailscale, EKS API, Spoke K3s API에 직접 접근하지 않는 방향 확정
 - Edge Agent가 센서/시스템/장치/워크로드/pipeline heartbeat 상태를 함께 보내야 한다는 기준 반영
 - 관련 문서: `docs/planning/07_dashboard_vpc_extension_plan.md`
 

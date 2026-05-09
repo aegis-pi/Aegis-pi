@@ -7,6 +7,18 @@
 
 현재 완료된 `factory-a` Safe-Edge 기준선을 기반으로, 이후 Aegis-Pi가 확장할 목표 Hub/Spoke 구조를 정리한다.
 
+## 최신 기준
+
+2026-05-09 기준 확정된 클라우드 리소스 배치와 VPC 명명은 `docs/planning/15_cloud_architecture_final.md`를 source of truth로 한다.
+
+이 문서는 기존 목표 Hub/Spoke 구조를 설명하는 보조 문서다. 최신 기준의 VPC 경계는 아래와 같다.
+
+```text
+1번 VPC: Data / Dashboard VPC
+2번 VPC: Control / Management VPC
+Factory Spoke: factory-a / factory-b / factory-c
+```
+
 ## 현재와 목표의 경계
 
 현재 완료:
@@ -21,7 +33,8 @@ M1 Issue 5 factory-a IoT Thing/Policy/K3s Secret 생성 완료
 
 ```text
 AWS EKS Hub
-Dashboard VPC
+1번 Data / Dashboard VPC
+2번 Control / Management VPC
 factory-a / factory-b / factory-c 멀티 Spoke
 중앙 배포 / 중앙 수집 / Risk Twin 관제
 ```
@@ -76,7 +89,7 @@ Edge input
     -> Risk Normalizer
     -> Risk Score Engine
     -> S3 processed / latest status store
-    -> Dashboard VPC Web/API
+    -> Data / Dashboard VPC Web/API
 ```
 
 확장 조건:
@@ -85,7 +98,7 @@ Edge input
 - `edge-agent` 이미지를 만들고 `factory-a`에서는 real mode, `factory-b/c`에서는 dummy mode로 공통 송신 로직을 재사용할 것
 - IoT Core topic과 S3 partition 규칙을 확정할 것
 - `factory_id`, `source_type`, timestamp 기준을 고정할 것
-- Dashboard VPC가 Spoke나 Processing VPC에 직접 붙지 않도록, Edge Agent가 `system_status`, `device_status`, `workload_status`, `pipeline_heartbeat`까지 송신할 것
+- Dashboard Web/API가 Spoke K3s, ArgoCD, Control / Management VPC의 EKS API, Tailscale 관리망에 직접 붙지 않도록, Edge Agent가 `system_status`, `device_status`, `workload_status`, `pipeline_heartbeat`까지 송신할 것
 
 초기 topic 기준:
 
@@ -107,21 +120,21 @@ aegis/factory-c/workload_status
 aegis/factory-c/heartbeat
 ```
 
-## 목표 Dashboard VPC
+## 목표 Data / Dashboard VPC
 
-관리자 대시보드는 Tailscale/VPN 의존 없이 Route53, ALB, WAF, Cognito 또는 사내 IdP 인증 뒤에 제공한다.
+사용자 대시보드는 Tailscale/VPN 의존 없이 ALB, WAF, Cognito 또는 사내 IdP 인증 뒤에 제공한다.
 
-Dashboard VPC와 Processing VPC는 VPC Peering 또는 Transit Gateway로 직접 연결하지 않는다. Dashboard Web/API는 processed S3 prefix와 latest status store를 read-only IAM 권한으로 조회한다.
+Dashboard Web/API는 ArgoCD, Tailscale, EKS API 같은 제어 plane에 직접 접근하지 않는다. 데이터 조회는 1번 Data / Dashboard VPC의 processed data와 latest status store를 기준으로 한다.
 
 ```text
-Dashboard VPC
-    -> Route53
+1번 Data / Dashboard VPC
     -> ALB
     -> WAF
     -> Auth
     -> Dashboard Web/API
-    -> S3 processed read-only
-    -> DynamoDB/Timestream latest status read-only
+    -> Event Processor
+    -> Risk Engine
+    -> RDS / Redis / OpenSearch
 ```
 
 상세 기준:
@@ -147,7 +160,7 @@ ops-support
 | --- | --- |
 | `argocd` | 멀티 Spoke 배포 제어 |
 | `observability` | AMP, Prometheus 연동, 내부 관측 |
-| `risk` | normalizer, score engine |
+| `risk` | Hub 배포 검증용 또는 임시 workload. 최신 목표에서는 Risk Engine을 1번 Data / Dashboard VPC 처리 영역으로 분리 |
 | `ops-support` | pipeline status 집계 |
 
 ## Factory 역할
@@ -177,7 +190,7 @@ pipeline_status
 event
 ```
 
-현재 `factory-a`의 Grafana dashboard는 Risk Twin 전 단계의 로컬 관제 기준선이다. 후속 단계에서 이 값을 표준 schema, Risk Score Engine, Dashboard VPC 관제 화면으로 연결한다.
+현재 `factory-a`의 Grafana dashboard는 Risk Twin 전 단계의 로컬 관제 기준선이다. 후속 단계에서 이 값을 표준 schema, Risk Engine, Data / Dashboard VPC 관제 화면으로 연결한다.
 
 ## 확장 우선순위
 
@@ -187,7 +200,7 @@ event
 4. Tailscale 또는 동등한 Hub-Spoke 연결 방식 확정
 5. GitHub Actions / ECR / ArgoCD ApplicationSet 구성
 6. Edge Agent 구현 및 IoT Core / S3 데이터 수집 경로 구성
-7. Dashboard VPC, latest status store, Risk Score Engine 및 dashboard 구현
+7. 1번 Data / Dashboard VPC, latest status store, Risk Engine 및 dashboard 구현
 8. `factory-b`, `factory-c` 테스트베드 확장
 
 ## 현재 구조로 가져오면 안 되는 것
@@ -200,7 +213,7 @@ IoT Core / S3
 ECR
 GitHub Actions
 Tailscale
-Dashboard VPC
+Data / Dashboard VPC
 factory-b / factory-c
 Risk Score Engine
 LLM 보고서
