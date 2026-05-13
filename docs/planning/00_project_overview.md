@@ -54,6 +54,17 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 - IoT Core -> S3 -> Risk Score 처리 흐름으로 공장별 위험 상태를 만든다.
 - 관리자 대시보드는 Tailscale에 의존하지 않는 Dashboard VPC에서 Route53/ALB/WAF/Auth 뒤에 제공하고, processed S3와 latest status store를 read-only로 조회한다.
 
+### 2026-05-13 멘토링 반영
+
+기존 개요는 Safe-Edge를 멀티 공장 중앙 관제로 확장하는 목표를 기술 구조 중심으로 정리했다. 멘토링 이후에는 이 구조를 고객 요구사항과 검증 지표 중심으로 보강한다.
+
+| 항목 | 기존 초안 | 보강 방향 |
+| --- | --- | --- |
+| 데이터 흐름 | IoT Core -> S3 -> Risk Score | latest status store와 S3 raw의 역할을 분리 |
+| 실시간성 | 관제 화면에 최신 상태 표시 | 준실시간 관제로 정의하고 지연시간/성공률 측정 |
+| 보고서 | 후속 자동화 범위 | MVP 최소 범위에서 일일 운영 리포트 초안 포함 검토 |
+| CI/CD | 배포 자동화 | 리포트 기반 모델/설정 업데이트 후보를 승인 후 GitOps로 배포 |
+
 ## 대상 사용자
 
 - 1차 사용자: 본사 관제 담당자

@@ -105,7 +105,7 @@ Public ALB: 단기 유지
 
 ## 현재 Hub bootstrap 기준
 
-M1 Issue 0~10에서는 AWS MFA/Terraform 접근, Hub EKS/VPC 기준선, Hub namespace 기준선, Hub ArgoCD bootstrap, foundation S3 data bucket `aegis-bucket-data`, AMP Workspace `AEGIS-AMP-hub`, `factory-a` IoT Thing/certificate/policy/K3s Secret, IoT Rule -> S3 `raw/` prefix 적재, `risk/risk-normalizer` IRSA S3 권한, `observability/prometheus-agent` 설치 및 AMP remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, ArgoCD/Grafana HTTPS Admin Ingress를 검증했다.
+M1 Issue 0~10에서는 AWS MFA/Terraform 접근, Hub EKS/VPC 기준선, Hub namespace 기준선, Hub ArgoCD bootstrap, foundation S3 data bucket `aegis-bucket-data`, AMP Workspace `AEGIS-AMP-hub`, `factory-a` IoT Thing/certificate/policy/K3s Secret, IoT Rule -> S3 `raw/` prefix 적재, M1 검증용 `risk/risk-normalizer` IRSA S3 권한, `observability/prometheus-agent` 설치 및 AMP remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, ArgoCD/Grafana HTTPS Admin Ingress를 검증했다.
 
 2026-05-08 기준 `scripts/build/build-hub.sh`는 Hub EKS bootstrap 이후 Tailscale Operator, `factory-a` egress, ArgoCD/Grafana Tailscale UI, ArgoCD `factory-a` cluster Secret까지 자동 복구/검증한다. 기본 전체 재생성은 `scripts/build/build-all.sh`, Admin UI까지 포함한 재생성은 `scripts/build/build-all.sh --admin-ui`, 전체 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. `destroy-all.sh`는 AWS MFA 전에 `factory-a` K3s IoT Secret을 먼저 삭제하고, 이후 IoT/Hub/foundation을 정리한다. 비용 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.
 
@@ -207,6 +207,20 @@ AWS EKS Hub
 
 사용자 대시보드는 Tailscale에 의존하지 않는 1번 Data / Dashboard VPC에서 제공한다. Dashboard Web/API는 processed data와 latest status를 조회하고, ArgoCD/Tailscale/EKS API 같은 제어 plane에는 직접 접근하지 않는다.
 
+### 2026-05-13 멘토링 반영: 목표 구조 보강
+
+위 목표 구조는 기존 초안으로 유지한다. 다만 2026-05-13 멘토링에서 아래 보완점이 나왔다.
+
+| 항목 | 기존 초안 | 멘토링 후 보강 방향 |
+| --- | --- | --- |
+| VPC 분리 | Control / Management VPC와 Data / Dashboard VPC를 분리 | 2VPC가 항상 정답이라는 표현은 피하고, 고객 요구사항상 역할/접근/보안 책임이 분리되는 경우를 고려한 목표 구조로 설명 |
+| 데이터 흐름 | IoT Core -> S3 raw -> Risk Engine -> Dashboard | S3 raw는 원본 보존/재처리/리포트 입력으로 두고, Dashboard용 latest status는 Lambda/SQS/SNS 같은 얇은 이벤트 처리 계층을 추가 검토 |
+| 실시간성 | 관제 화면의 최신 상태 표시 | 초저지연 실시간 제어가 아니라 1~5초 또는 수십 초 기준의 준실시간 관제로 정의하고, 데이터 주기/크기/성공률/지연시간을 수치로 검증 |
+| VM Spoke | factory-b/c를 테스트베드 Spoke로 추가 | 실제 공장 대체가 아니라 topic/prefix 분리, 수신 성공률, 지연시간, Risk Score 분리 계산을 검증하는 VM 테스트베드로 설명 |
+| CI/CD | GitHub Actions/ECR/ArgoCD 배포 파이프라인 | 일일 운영 리포트가 제안하는 모델/설정 업데이트 후보를 운영자 승인 후 GitOps로 배포하는 운영 피드백 루프로 설명 |
+
+즉, 기존 구조를 폐기하는 것이 아니라 평가/실무 관점에서 설계 이유와 검증 기준을 더 명확히 추가한다.
+
 ## 구현 단계
 
 | 단계 | 내용 | 상태 |
@@ -218,6 +232,8 @@ AWS EKS Hub
 | Phase 4 (M3~M4) | Edge Agent, 배포/데이터 파이프라인 확장 | 대기 |
 | Phase 5 (M5) | `factory-b`, `factory-c` 테스트베드 확장 | 대기 |
 | Phase 6 (M6) | Risk Twin + Data / Dashboard VPC 관제 화면 | 대기 |
+
+2026-05-13 멘토링 이후 Phase 6에는 MVP 최소 범위의 일일 운영 리포트 초안을 포함하는 방향을 검토한다. 이 리포트는 자동 재학습이나 자동 배포가 아니라, S3 raw/processed/latest와 사고 이미지, Risk 결과를 바탕으로 Edge AI 판단의 실패/불확실 사례와 모델/설정 업데이트 후보를 정리하는 용도다.
 | Phase 7 (M7) | 통합 검증 | 대기 |
 
 ## 문서 구조

@@ -13,6 +13,22 @@
 - AWS Hub EKS/ArgoCD, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret은 2026-05-06~2026-05-07 기준 `build-all --admin-ui`와 `build-hub`로 재생성/검증했고, 2026-05-08 비용 정리를 위해 destroy 완료 상태다.
 - 전체 MVP는 운영형 Spoke 1개와 테스트베드형 Spoke 2개를 포함한 멀티 공장 관제 구조를 목표로 한다.
 
+## 2026-05-13 멘토링 반영
+
+### 기존 초안
+
+기존 MVP 초안은 `factory-a/b/c`, EKS Hub, Tailscale, IoT Core -> S3, Risk Score, 메인 대시보드를 중심으로 정의했다. 이 초안에서는 LLM 기반 일일 보고서 자동 생성은 MVP 범위 초과로 분류했다.
+
+### 변경 이유
+
+멘토링에서는 CI/CD와 ArgoCD가 필요한 이유를 더 명확히 설명해야 한다는 피드백이 있었다. 단순 대시보드만으로는 모델/설정 업데이트와 배포 파이프라인의 필요성이 약해질 수 있다.
+
+### 보강 방향
+
+기존 MVP 범위는 유지하되, LLM 보고서를 전체 자동화 기능이 아니라 하루 1회 운영 리포트 초안 생성으로 제한해 포함하는 방향을 검토한다. 이 리포트는 자동 재학습이나 자동 배포가 아니라, Edge AI 판단의 실패/불확실 사례와 모델/설정 업데이트 후보를 찾는 용도다.
+
+추가로 Dashboard 최신 상태는 S3 raw를 직접 조회하는 방식이 아니라, latest status store를 통해 준실시간으로 조회하는 방향을 검토한다. S3 raw는 원본 보존, 재처리, 감사, 리포트 입력으로 유지한다.
+
 ## 현재 완료 범위
 
 - `factory-a` Safe-Edge 기준선 재구성

@@ -28,6 +28,20 @@ Factory Spoke 영역
   - 사용자 대시보드
 ```
 
+## 2026-05-13 멘토링 반영
+
+### 기존 초안
+
+기존 최종 아키텍처 초안은 Control / Management VPC와 Data / Dashboard VPC를 분리하고, 데이터 흐름을 IoT Core -> S3 raw -> Event Processor -> Risk Engine -> Dashboard로 설명했다.
+
+### 변경 이유
+
+멘토링에서는 VPC 분리는 정답이 아니라 고객 요구사항에 따른 선택이며, Dashboard의 실시간성도 수치로 정의해야 한다는 피드백이 있었다. S3 raw만으로 현재 상태를 표시한다고 설명하면 준실시간 관제 근거가 약해질 수 있다.
+
+### 보강 방향
+
+기존 S3 raw 흐름은 원본 보존과 재처리 경로로 유지한다. 동시에 Dashboard 현재 상태 조회를 위해 IoT Core 이후 Lambda 또는 SQS/SNS를 거쳐 latest status store를 갱신하는 경로를 추가 검토한다. Dual VPC는 고객 보안 요구와 역할 분리 요구가 있을 때 설득력 있는 목표 구조로 설명한다.
+
 전체 연결 구조는 아래와 같다.
 
 ```text
@@ -325,4 +339,3 @@ Hub EKS / Prometheus Agent / Edge Agent metrics
   -> AMP
   -> Grafana
 ```
-
