@@ -89,8 +89,8 @@ factories:
     display_name: Factory A
     status: active
     spoke_type: production-edge
-    environment_type: raspberry-pi
-    input_module_type: real
+    environment_type: physical-rpi
+    input_module_type: sensor
     cluster:
       platform: k3s
       topology: three-node
