@@ -14,7 +14,7 @@ output "cluster_endpoint" {
 }
 
 output "vpc_id" {
-  description = "Hub Processing VPC ID."
+  description = "Control / Management VPC ID."
   value       = aws_vpc.hub.id
 }
 

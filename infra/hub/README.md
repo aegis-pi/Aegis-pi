@@ -6,9 +6,9 @@
 
 전체 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 따른다. 이 디렉터리는 Terraform 기반 AWS 인프라만 담당한다.
 
-후속 확장에서는 관리자 대시보드용 Dashboard VPC도 함께 설계한다.
+후속 확장에서는 사용자 대시보드와 데이터 처리용 1번 Data / Dashboard VPC도 함께 설계한다.
 
-Dashboard VPC는 Processing VPC와 VPC Peering 없이 Route53, ALB, WAF, Auth, Dashboard Web/API를 제공하고, processed S3와 latest status store를 read-only IAM으로 조회한다.
+Data / Dashboard VPC는 Control / Management VPC와 직접 DB 접근이나 상시 private service 호출 없이 Route53, ALB, WAF, Auth, Dashboard Web/API를 제공하고, processed S3와 latest status store를 조회한다.
 
 기준 문서:
 
@@ -44,9 +44,9 @@ infra/hub/
 최소 분리 기준:
 
 ```text
-infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group, Route53/ACM, EKS-bound IRSA IAM roles
+infra/hub         Control / Management VPC, subnet, NAT Gateway, EKS cluster, node group, Route53/ACM, EKS-bound IRSA IAM roles
 scripts/ansible   kubeconfig, Kubernetes namespace, LimitRange, ArgoCD bootstrap, AWS Load Balancer Controller, Admin Ingress, ServiceAccount annotation
-infra/foundation  S3, ECR, AMP, IoT Core처럼 EKS destroy와 분리할 영속 리소스
+infra/foundation  S3, AMP, IoT Core처럼 EKS destroy와 분리할 영속 리소스. ECR은 M3 이미지 파이프라인 단계에서 추가 예정
 ```
 
 ## MVP 기본값
@@ -150,12 +150,12 @@ Issue 2~3/7~10 기준 Hub namespace, ArgoCD, Prometheus Agent, Grafana, AWS Load
 | --- | --- | --- |
 | `argocd` | Hub에서 Spoke 배포 제어 | `scripts/ansible/files/hub-bootstrap.yaml` |
 | `observability` | Grafana, AMP 연동 메트릭 관제 | `scripts/ansible/files/hub-bootstrap.yaml` |
-| `risk` | Risk Score Engine, 정규화 서비스 | `scripts/ansible/files/hub-bootstrap.yaml` |
+| `risk` | Hub 배포 검증용 또는 임시 risk workload. Risk Engine은 Data / Dashboard VPC 처리 영역으로 분리 | `scripts/ansible/files/hub-bootstrap.yaml` |
 | `ops-support` | `pipeline_status` 집계 보조 기능 | `scripts/ansible/files/hub-bootstrap.yaml` |
 
-`risk/risk-normalizer`, `observability/prometheus-agent`, `observability/grafana`, `kube-system/aws-load-balancer-controller` ServiceAccount는 Hub bootstrap playbook이 생성하거나 확인하고 Terraform output의 IRSA role ARN으로 annotation한다.
+M1 검증용 `risk/risk-normalizer`, `observability/prometheus-agent`, `observability/grafana`, `kube-system/aws-load-balancer-controller` ServiceAccount는 Hub bootstrap playbook이 생성하거나 확인하고 Terraform output의 IRSA role ARN으로 annotation한다.
 
-IRSA 권한 범위:
+M1 검증용 risk-normalizer IRSA 권한 범위:
 
 ```text
 role: AEGIS-IAMRole-IRSA-risk-normalizer

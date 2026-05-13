@@ -14,7 +14,7 @@
 
 ## 후속 후보 리소스
 
-- ECR 이미지 저장소
+- ECR 이미지 저장소 (M3 이미지 파이프라인 단계에서 추가 예정)
 - IoT Core Thing, 인증서
 
 ## AMP Workspace 기준

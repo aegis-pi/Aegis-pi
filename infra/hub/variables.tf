@@ -17,7 +17,7 @@ variable "aws_region" {
 }
 
 variable "vpc_cidr" {
-  description = "CIDR block for the Hub Processing VPC."
+  description = "CIDR block for the Control / Management VPC."
   type        = string
   default     = "10.0.0.0/16"
 }
@@ -34,7 +34,7 @@ variable "az_count" {
 }
 
 variable "availability_zone_suffixes" {
-  description = "Availability Zone suffixes used for Hub Processing VPC subnets."
+  description = "Availability Zone suffixes used for Control / Management VPC subnets."
   type        = list(string)
   default     = ["a", "c"]
 

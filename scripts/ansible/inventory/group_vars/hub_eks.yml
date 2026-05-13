@@ -7,7 +7,7 @@ hub_namespaces:
     role: Grafana, AMP 연동 메트릭 관제
   - name: risk
     component: risk
-    role: Risk Score Engine, 정규화 서비스
+    role: Hub 배포 검증용 또는 임시 risk workload. Risk Engine은 Data / Dashboard VPC 처리 영역으로 분리
   - name: ops-support
     component: ops-support
     role: pipeline_status 집계 보조 기능

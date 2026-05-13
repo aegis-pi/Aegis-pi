@@ -6,7 +6,7 @@ Safe-Edge 반복 점검과 Hub EKS bootstrap 자동화를 관리한다.
 
 Hub EKS의 ArgoCD bootstrap은 SSH를 사용하지 않는다. Ansible은 `localhost`에서 실행되고, `infra/hub` Terraform output을 dynamic inventory로 읽은 뒤 EKS Kubernetes API에 접근한다.
 
-현재 bootstrap은 namespace/LimitRange, ArgoCD Helm release, `risk/risk-normalizer` IRSA ServiceAccount, `observability/prometheus-agent` AMP remote_write IRSA ServiceAccount, Prometheus Agent remote_write 구성, 내부 Grafana AMP datasource, AWS Load Balancer Controller, 선택적 Admin UI HTTPS Ingress, Hub Tailscale Operator/egress/UI/cluster Secret 구성을 적용한다.
+현재 bootstrap은 namespace/LimitRange, ArgoCD Helm release, M1 검증용 `risk/risk-normalizer` IRSA ServiceAccount, `observability/prometheus-agent` AMP remote_write IRSA ServiceAccount, Prometheus Agent remote_write 구성, 내부 Grafana AMP datasource, AWS Load Balancer Controller, 선택적 Admin UI HTTPS Ingress, Hub Tailscale Operator/egress/UI/cluster Secret 구성을 적용한다. 최신 목표에서 Risk Engine과 Event Processor는 1번 Data / Dashboard VPC 처리 영역에 둔다.
 
 선행 조건:
 
