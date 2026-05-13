@@ -48,6 +48,32 @@ EKS Hub ArgoCD
 
 `factory-a` 로컬 ArgoCD는 기존 Safe-Edge 기준선을 구축하고 검증하는 데 사용했다.
 
+## 2026-05-13 멘토링 반영: CI/CD가 필요한 이유
+
+### 기존 초안
+
+기존 문서는 `factory-a` local ArgoCD를 Hub ArgoCD 중심으로 이관할 때의 장단점, 장애 시나리오, 전환 단계를 비교하는 데 집중했다. 이 비교 구조는 유지한다.
+
+### 변경 이유
+
+멘토링에서는 ArgoCD를 어디에 둘지보다, Aegis-Pi가 지속적인 CI/CD가 필요한 시스템인지 먼저 설명해야 한다는 피드백이 있었다.
+
+### 보강 방향
+
+Aegis-Pi의 CD 대상은 단순한 샘플 애플리케이션이 아니라 Edge AI와 데이터 수집 컴포넌트다. M6에서 일일 운영 리포트 초안이 추가되면, S3에 쌓인 사고 이미지와 이상 이벤트, Risk Score 결과를 바탕으로 Edge AI의 실패/불확실 사례와 설정 보정 후보를 찾게 된다.
+
+```text
+Edge AI 추론 / 센서 이벤트
+  -> S3 raw / processed / latest status
+  -> Risk Score + 일일 운영 리포트
+  -> 모델/설정 업데이트 후보
+  -> 운영자 승인
+  -> GitHub Actions / ECR / Hub ArgoCD
+  -> factory-a/b/c rollout
+```
+
+이 흐름 때문에 ArgoCD는 "배포 도구를 하나 더 둔 것"이 아니라, 운영 피드백을 Edge 워크로드 개선으로 연결하는 GitOps 제어 지점이다. MVP에서는 자동 재학습이나 자동 교체가 아니라, 운영자 승인 후 GitOps 배포까지를 범위로 둔다.
+
 ## 변경 후 구조
 
 ```text
@@ -347,4 +373,3 @@ MVP와 M3 배포 파이프라인 기준으로는 Hub ArgoCD 중심 구조가 더
 구현 목표: 3~5일
 핵심 안전장치: manual sync, prune 제한, PVC/Secret/Service 영향 확인
 ```
-

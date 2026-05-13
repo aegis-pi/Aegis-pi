@@ -11,6 +11,7 @@
 | 날짜 | 버전 | 내용 |
 | --- | --- | --- |
 | 2026-05-04 | rev-20260504-01 | GitHub Actions는 CI, GitHub+ArgoCD는 CD로 사용하는 책임 경계 기준을 반영 |
+| 2026-05-13 | rev-20260513-01 | 기존 배포 파이프라인 초안은 유지하고, CI/CD가 필요한 이유를 일일 리포트 기반 모델/설정 업데이트 피드백 루프로 보강 |
 
 ---
 
@@ -27,6 +28,41 @@ GitHub + ArgoCD:
 ```
 
 GitHub Actions는 운영 클러스터에 직접 `kubectl apply`하지 않는다. 실제 배포는 GitHub repository에 남은 desired state를 ArgoCD가 sync하는 방식으로 수행한다.
+
+---
+
+## 2026-05-13 멘토링 반영: CI/CD 필요성 보강
+
+### 기존 초안
+
+기존 M3 초안은 GitHub Actions -> ECR -> ArgoCD -> Spoke rollout 흐름을 자동화하는 데 집중했다. 이 초안은 유지한다.
+
+```text
+GitHub Actions
+  -> image build / ECR push
+  -> Helm values update
+  -> Hub ArgoCD sync
+  -> factory-a rollout
+```
+
+### 변경 이유
+
+멘토링에서는 "이 서비스가 지속적인 CI/CD가 필요한 환경인지"를 먼저 설명해야 한다는 피드백이 있었다. Edge Agent를 한 번 배포하는 것만으로는 CI/CD의 필요성이 약해 보일 수 있다.
+
+### 보강 방향
+
+Aegis-Pi는 Edge AI 추론 결과, 사고 이미지, Risk Score를 중앙에 모아 일일 운영 리포트 초안을 만들고, 이 결과를 바탕으로 모델 또는 설정 업데이트 후보를 찾는다.
+
+```text
+Edge AI / Sensor 이벤트
+  -> IoT Core / S3 raw / latest status
+  -> Risk Score + 일일 운영 리포트
+  -> 실패/불확실 사례와 설정 보정 후보 확인
+  -> 운영자 승인
+  -> GitHub Actions / ECR / ArgoCD로 Edge workload 업데이트
+```
+
+따라서 M3 배포 파이프라인은 단순 자동화가 아니라, 운영 피드백을 Edge 워크로드 개선으로 연결하기 위한 기반이다. MVP에서는 자동 재학습이나 운영자 승인 없는 자동 배포는 포함하지 않고, 승인된 변경을 GitOps로 배포하는 범위까지 검증한다.
 
 ---
 
