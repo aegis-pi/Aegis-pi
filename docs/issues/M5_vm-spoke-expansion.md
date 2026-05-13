@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-05-13 멘토링 반영: VM Spoke 검증 목적 보강
+
+### 기존 초안
+
+기존 M5 초안은 Mac mini VM과 Windows VM을 각각 `factory-b`, `factory-c` 테스트베드 Spoke로 추가하는 데 집중했다.
+
+### 변경 이유
+
+멘토링에서는 VM Spoke가 실제 공장을 완전히 대체하는 증거가 아니라는 점을 명확히 해야 한다는 피드백이 있었다. 고객 요구사항 관점에서는 초당 데이터 크기, 성공률/실패율, 지연시간처럼 무엇을 증명할지 정의해야 한다.
+
+### 보강 방향
+
+`factory-b/c`는 실제 센서 정확도 검증이 아니라 멀티 factory 흐름 검증용 테스트베드로 설명한다. 핵심 검증 대상은 factory별 클러스터 식별, ApplicationSet 배포, IoT topic 분리, S3 prefix 분리, latest status 반영, Risk Score 분리 계산, Dashboard 카드 분리 표시다.
+
+---
+
 ## Issue 1 - [Spoke/K3s] Mac mini VM K3s 구성 (`factory-b`)
 
 ### 🎯 목표 (What & Why)
