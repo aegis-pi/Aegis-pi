@@ -25,7 +25,7 @@ GitHub Actions:
   CI
   image build
   test
-  push to registry
+  push to ECR
   manifest/value update
 
 GitHub + ArgoCD:
@@ -44,6 +44,32 @@ GitHub + ArgoCD:
 | Software configuration | Ansible | 클러스터 위 초기 설정, 운영 도구 설치, Secret 주입 절차, bootstrap 후 health check |
 | CI | GitHub Actions | lint, test, image build, vulnerability scan, ECR push, values/manifest update PR 또는 commit |
 | CD | GitHub + ArgoCD | Git repository의 Application, ApplicationSet, Helm values를 기준으로 실제 클러스터에 sync |
+
+## 이미지 저장소 기준
+
+M3 이후 Spoke workload 컨테이너 이미지는 Docker Hub가 아니라 AWS ECR을 표준 registry로 사용한다.
+
+```text
+ECR registry:
+  611058323802.dkr.ecr.ap-south-1.amazonaws.com
+
+Current repository:
+  aegis/edge-agent
+
+Deployment image:
+  611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent:sha-<7-char-git-sha>
+```
+
+Docker Hub는 초기 실습이나 임시 로컬 검증 경로로만 취급한다. GitOps 배포 기준 문서와 Helm values에는 ECR image reference를 기록한다.
+
+Raspberry Pi K3s Spoke는 EKS node가 아니므로 ECR pull 권한을 IAM node role로 상속받지 않는다. Spoke 배포 전 대상 namespace에 `kubernetes.io/dockerconfigjson` 타입의 `imagePullSecret`을 생성/갱신한다.
+
+```text
+namespace: aegis-spoke-system
+secret name: ecr-registry
+```
+
+이 Secret 생성/갱신 절차는 M3에서 별도 작업으로 검증한다. GitHub Actions는 운영 cluster에 직접 `kubectl apply`하지 않고, image tag 또는 Helm values 변경을 GitOps repo에 반영한다. 실제 배포와 drift control은 EKS Hub ArgoCD가 담당한다.
 
 ## 적용 순서
 
