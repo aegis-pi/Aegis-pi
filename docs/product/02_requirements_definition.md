@@ -115,6 +115,26 @@
 | `factory_state` payload 크기 | 약 0.6 KB | 3초 주기 전송이 IoT Core/S3 병목을 만들 가능성이 낮아야 한다. | compact JSON 기준 실제 payload 크기 측정 | `docs/specs/iot_data_format.md` |
 | `infra_state` payload 크기 | 약 1.6 KB | 20초 주기 상태 전송이 운영 부담 대비 충분한 헬스 체크 정보를 제공해야 한다. | compact JSON 기준 실제 payload 크기 측정 | `docs/specs/iot_data_format.md` |
 | 공장 1개 일일 raw payload | 약 25 MB/day | S3 raw 보존과 재처리 비용이 MVP 규모에서 감당 가능해야 한다. | M4/M7에서 실제 S3 object 크기 합산 | `docs/specs/iot_data_format.md` |
+| Risk Score 범위 | 0~100 | 공장 위험도를 단일 점수로 비교할 수 있어야 한다. | 정상/주의/위험 시나리오별 score 산출 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
+| Risk 안전 구간 | 0~39 | 정상 상태 공장은 안전으로 분류되어야 한다. | 정상 입력 시 Risk Score 0~39 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
+| Risk 주의 구간 | 40~69 | 위험 징후가 있으나 즉시 위험은 아닌 상태를 구분해야 한다. | 주의 시나리오 입력 후 상태 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
+| Risk 위험 구간 | 70~100 | 즉시 우선 대응이 필요한 공장을 위험으로 분류해야 한다. | 위험 시나리오 입력 후 상태 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
+| AI/Sound 안전 매핑 | 0.0~0.2 | 최근 평균 AI 값이 낮으면 안전으로 표시해야 한다. | Grafana 또는 Dashboard score-label 매핑 확인 | `docs/specs/monitoring_dashboard/00_requirements.md` |
+| AI/Sound 주의 매핑 | 0.3~0.7 | 불확실한 AI 결과는 주의 상태로 표현해야 한다. | Grafana 또는 Dashboard score-label 매핑 확인 | `docs/specs/monitoring_dashboard/00_requirements.md` |
+| AI/Sound 위험 매핑 | 0.8~1.0 | 높은 평균 AI 값은 위험 레이블로 표시해야 한다. | Grafana 또는 Dashboard score-label 매핑 확인 | `docs/specs/monitoring_dashboard/00_requirements.md` |
+| stale 센서 기준 | 3분 | 센서 데이터 무수신이 일정 시간 지속되면 Risk 원인으로 반영해야 한다. | M6 stale 시나리오 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
+| stale Edge Agent 기준 | 2분 | Edge Agent 무응답을 공장 상태 원인으로 반영해야 한다. | M6 stale 시나리오 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
+| stale 노드 기준 | 1분 | 노드 상태 이상은 다른 장치보다 빠르게 반영해야 한다. | M6 stale 시나리오 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
+| stale 카메라/마이크 기준 | 3분 | 영상/음성 장치 무수신이 지속되면 장치 이상으로 반영해야 한다. | M6 stale 시나리오 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
+| stale 데이터 파이프라인 기준 | 2분 | 데이터 수집 파이프라인 이상을 Risk 원인으로 반영해야 한다. | M6 stale 시나리오 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
+| 로컬 InfluxDB 보존 | 1일 | 엣지 로컬 시계열 저장소가 무한 증가하지 않아야 한다. | retention policy 확인 | `docs/ops/08_data_retention.md` |
+| AI snapshot 보존 | 24시간 | 이미지 스냅샷이 로컬 디스크를 장기 점유하지 않아야 한다. | cleanup sidecar와 purge 결과 확인 | `docs/ops/08_data_retention.md` |
+| failover 관측 bucket | 10초/1초 | 장애 전환 중 데이터 공백과 중복 write를 측정할 수 있어야 한다. | InfluxDB bucket count 분석 | `docs/ops/09_failover_failback_test_results.md` |
+| 장애 테스트 초기 판정 보류 | 5분 | 일시적인 Ready/Running 흔들림을 성공으로 오판하지 않아야 한다. | 장애 테스트 체크리스트 확인 | `docs/ops/03_test_checklist.md` |
+| Hub active 고정 비용 | 약 $0.3606/hour | MVP Hub 운영 비용을 설명 가능해야 한다. | 비용 baseline 재계산 | `docs/ops/15_aws_cost_baseline.md` |
+| Hub active 24시간 비용 | 약 $8.65/day | 단기 테스트 운영 비용을 예측할 수 있어야 한다. | 비용 baseline 재계산 | `docs/ops/15_aws_cost_baseline.md` |
+| Hub active 월 비용 | 약 $263.24/730h | 상시 운영 비용 규모를 설명 가능해야 한다. | 비용 baseline 재계산 | `docs/ops/15_aws_cost_baseline.md` |
+| destroy 이후 고정 비용 | $0.0000/hour | 테스트 종료 후 비용을 제거할 수 있어야 한다. | destroy-all 후 리소스 조회 | `docs/ops/15_aws_cost_baseline.md` |
 
 ### 업무/사용자 요구사항
 
