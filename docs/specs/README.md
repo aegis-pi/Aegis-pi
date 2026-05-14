@@ -6,6 +6,7 @@
 
 | 경로 | 역할 |
 | --- | --- |
+| `iot_data_format.md` | Edge Agent -> IoT Core 전송 데이터 포맷, topic, S3 raw path, 전송 주기 명세 |
 | `monitoring_dashboard/` | 관제 화면 요구사항, 화면 구성, API, 데이터 모델 명세 |
 
 ## 기준
