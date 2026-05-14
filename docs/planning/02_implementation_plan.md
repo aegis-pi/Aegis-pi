@@ -15,7 +15,7 @@
 - Hub AWS 리소스와 foundation S3/AMP/Admin UI는 2026-05-06~2026-05-07 `build-all --admin-ui`와 `build-hub`로 재생성/검증했고, 2026-05-08 비용 정리를 위해 `destroy-all.sh`로 삭제했다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
-- 현재 다음 단계는 M3 Issue 1 배포 파이프라인 GitHub 저장소 구조 설계다.
+- 현재 다음 단계는 M3 Issue 2 ECR 저장소 구성 및 이미지 태그 전략이다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
@@ -239,12 +239,12 @@ Hub 생성 순서:
 
 주요 작업:
 
-- Risk Score Engine 구현
+- Lambda data processor Risk 계산 로직 구현
 - `runtime-config.yaml` 적용
 - 온도/습도 기준 초안 반영
 - Risk Twin 출력 구조 구현
 - Dashboard Web/API 또는 Grafana 관제 화면 구현
-- Dashboard VPC에서 ALB/WAF/Auth를 통해 접근하고, processed S3와 latest status store를 read-only로 조회
+- Dashboard VPC에서 ALB/WAF/Auth를 통해 접근하고, DynamoDB LATEST/HISTORY와 S3 processed를 read-only로 조회
 
 완료 조건:
 

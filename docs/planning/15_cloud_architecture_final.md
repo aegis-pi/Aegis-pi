@@ -32,7 +32,7 @@ Factory Spoke 영역
 
 ### 기존 초안
 
-기존 최종 아키텍처 초안은 Control / Management VPC와 Data / Dashboard VPC를 분리하고, 데이터 흐름을 IoT Core -> S3 raw -> Event Processor -> Risk Engine -> Dashboard로 설명했다.
+기존 최종 아키텍처 초안은 Control / Management VPC와 Data / Dashboard VPC를 분리하고, 데이터 흐름을 IoT Core -> S3 raw -> 별도 이벤트/위험도 처리 서비스 -> Dashboard로 설명했다.
 
 ### 변경 이유
 
@@ -40,7 +40,7 @@ Factory Spoke 영역
 
 ### 보강 방향
 
-기존 S3 raw 흐름은 원본 보존과 재처리 경로로 유지한다. 동시에 Dashboard 현재 상태 조회를 위해 IoT Core 이후 Lambda 또는 SQS/SNS를 거쳐 latest status store를 갱신하는 경로를 추가 검토한다. Dual VPC는 고객 보안 요구와 역할 분리 요구가 있을 때 설득력 있는 목표 구조로 설명한다.
+최신 기준에서는 S3 raw 흐름을 원본 보존과 재처리 경로로 유지한다. 동시에 Dashboard 현재 상태 조회를 위해 IoT Core 이후 Lambda data processor가 DynamoDB LATEST/HISTORY와 S3 processed를 갱신한다. Dual VPC는 고객 보안 요구와 역할 분리 요구가 있을 때 설득력 있는 목표 구조로 설명한다.
 
 전체 연결 구조는 아래와 같다.
 
@@ -57,10 +57,9 @@ factory-a / factory-b / factory-c
 factory-a / factory-b / factory-c
   -> telemetry
   -> IoT Core
-  -> S3 raw
+      -> IoT Rule -> S3 raw
+      -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed
   -> Data / Dashboard VPC
-      -> Event Processor
-      -> Risk Engine
       -> Dashboard Backend/API
       -> Dashboard Web
 ```
@@ -209,8 +208,7 @@ Public Subnet
 Private App Subnet
   - Dashboard Web
   - Dashboard Backend/API
-  - Event Processor
-  - Risk Engine
+  - Lambda data processor integration
   - Replay Builder
   - Near-miss Aggregator
   - AI / Analytics Worker
@@ -220,9 +218,11 @@ Private App Subnet
 
 ```text
 Private Data Subnet
-  - RDS / PostgreSQL
-  - Redis / ElastiCache
-  - OpenSearch
+  - DynamoDB LATEST/HISTORY access
+  - S3 processed access
+  - RDS / PostgreSQL (후속)
+  - Redis / ElastiCache (후속)
+  - OpenSearch (후속)
 ```
 
 ### 데이터 흐름
@@ -230,10 +230,11 @@ Private Data Subnet
 ```text
 factory-a/b/c telemetry
   -> IoT Core
-  -> S3 raw
-  -> Event Processor
-  -> Risk Engine
-  -> processed / latest 저장
+      -> IoT Rule -> S3 raw
+      -> Lambda data processor
+          -> DynamoDB LATEST
+          -> DynamoDB HISTORY
+          -> S3 processed
   -> Dashboard Backend/API
   -> Dashboard Web
 ```
@@ -299,13 +300,14 @@ Control / Management VPC
 Data / Dashboard VPC
   - Dashboard Web
   - Dashboard Backend/API
-  - Event Processor
-  - Risk Engine
+  - Lambda data processor integration
+  - DynamoDB LATEST/HISTORY
+  - S3 processed
   - Replay Builder
   - Near-miss Aggregator
-  - RDS
-  - Redis
-  - OpenSearch
+  - RDS (후속)
+  - Redis (후속)
+  - OpenSearch (후속)
 ```
 
 ## 최종 흐름
@@ -325,9 +327,8 @@ GitHub Actions
 ```text
 factory-a/b/c
   -> IoT Core
-  -> S3 raw
-  -> Event Processor
-  -> Risk Engine
+      -> IoT Rule -> S3 raw
+      -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed
   -> Dashboard API
   -> Dashboard Web
 ```
@@ -338,4 +339,23 @@ factory-a/b/c
 Hub EKS / Prometheus Agent / Edge Agent metrics
   -> AMP
   -> Grafana
+```
+
+## 2026-05-14 수정 방향
+
+`docs/specs/data_storage_pipeline.md`를 IoT Core 이후 데이터 저장의 최신 source of truth로 둔다.
+
+이전 문서에서 쓰던 `Event Processor`, `Risk Engine`, `Risk Normalizer`, `pipeline-status-aggregator`는 별도 장기 실행 컨테이너 서비스명이 아니라 Lambda data processor 내부 처리 단계로 해석한다.
+
+MVP 최신 흐름은 아래와 같다.
+
+```text
+Edge Agent
+  -> AWS IoT Core
+      -> IoT Rule -> S3 raw
+      -> Lambda data processor
+          -> DynamoDB LATEST
+          -> DynamoDB HISTORY
+          -> S3 processed
+  -> Dashboard API/Web
 ```

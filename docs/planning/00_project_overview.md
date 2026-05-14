@@ -13,7 +13,7 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - `factory-a`는 로컬 K3s 3노드, ArgoCD, Helm, Longhorn, InfluxDB, Grafana, AI 앱 failover/failback 기준선을 갖는다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
 - AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/AMP, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 2026-05-06~2026-05-07 `build-all --admin-ui` 및 `build-hub`로 검증했고, 2026-05-08 비용 정리를 위해 `destroy-all.sh`로 삭제했다.
-- M1 Issue 5에서 IoT Rule -> S3 raw 적재와 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다.
+- M1 Issue 5에서 IoT Rule -> S3 raw 적재와 M1 검증용 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다. 최신 데이터 처리 방향은 별도 risk-normalizer 파드가 아니라 Lambda data processor와 DynamoDB/S3 processed다.
 - M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 기본 메트릭 수신을 검증했다.
 - M1 Issue 8에서 내부 Grafana를 설치하고 AMP datasource query를 검증했다.
@@ -22,7 +22,7 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
-- 다음 작업은 M3 Issue 1 배포 파이프라인 GitHub 저장소 구조 설계다. M1 Issue 11 운영 보안 강화와 EKS API endpoint CIDR 축소는 MVP 설계 마무리 후 재검토한다.
+- 다음 작업은 M3 Issue 2 ECR 저장소 구성 및 이미지 태그 전략이다. M1 Issue 11 운영 보안 강화와 EKS API endpoint CIDR 축소는 MVP 설계 마무리 후 재검토한다.
 - `factory-b`, `factory-c`, Edge Agent, Risk Twin은 후속 확장 단계다.
 
 ## 프로젝트명
@@ -49,9 +49,9 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 - 로컬 GitOps는 GitHub repository와 ArgoCD UI sync를 기준으로 운영한다.
 - Grafana는 InfluxDB 센서/AI 결과와 Prometheus 노드 상태를 함께 보여준다.
 - `factory-b`, `factory-c`를 테스트베드형 Spoke로 추가한다.
-- AWS EKS Hub에서 여러 Spoke를 중앙 배포/처리한다.
-- IoT Core -> S3 -> Risk Score 처리 흐름으로 공장별 위험 상태를 만든다.
-- 관리자 대시보드는 Tailscale에 의존하지 않는 Dashboard VPC에서 Route53/ALB/WAF/Auth 뒤에 제공하고, processed S3와 latest status store를 read-only로 조회한다.
+- AWS EKS Hub에서 여러 Spoke를 중앙 배포한다.
+- IoT Core -> IoT Rule/S3 raw와 IoT Core -> Lambda data processor -> DynamoDB/S3 processed 흐름으로 공장별 위험 상태를 만든다.
+- 관리자 대시보드는 Tailscale에 의존하지 않는 Dashboard VPC에서 Route53/ALB/WAF/Auth 뒤에 제공하고, DynamoDB LATEST/HISTORY와 S3 processed를 read-only로 조회한다.
 
 ### 2026-05-13 멘토링 반영
 
@@ -59,7 +59,7 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 
 | 항목 | 기존 초안 | 보강 방향 |
 | --- | --- | --- |
-| 데이터 흐름 | IoT Core -> S3 -> Risk Score | latest status store와 S3 raw의 역할을 분리 |
+| 데이터 흐름 | IoT Core 이후 단순 위험도 처리 | 최신 기준은 IoT Rule -> S3 raw와 Lambda -> DynamoDB LATEST/HISTORY + S3 processed로 분리 |
 | 실시간성 | 관제 화면에 최신 상태 표시 | 준실시간 관제로 정의하고 지연시간/성공률 측정 |
 | 보고서 | 후속 자동화 범위 | MVP 최소 범위에서 일일 운영 리포트 초안 포함 검토 |
 | CI/CD | 배포 자동화 | 리포트 기반 모델/설정 업데이트 후보를 승인 후 GitOps로 배포 |

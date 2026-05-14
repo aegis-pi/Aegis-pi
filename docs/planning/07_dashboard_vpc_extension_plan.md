@@ -50,10 +50,9 @@ factory-a / factory-b / factory-c
   -> S3 raw
 
 Processing VPC
-  -> Normalizer
-  -> Risk Engine
+  -> Lambda data processor
   -> S3 processed
-  -> DynamoDB or Timestream latest status
+  -> DynamoDB LATEST/HISTORY
 
 Dashboard VPC
   -> Route53
@@ -94,10 +93,10 @@ S3 raw
   - 재처리, 감사, 이력 보존
 
 S3 processed
-  - Normalizer/Risk Engine 처리 결과 저장
+  - Lambda data processor 처리 결과 저장
   - 상세 조회, 리포트, drill-down
 
-DynamoDB or Timestream latest status
+DynamoDB LATEST/HISTORY
   - 공장별 최신 상태
   - risk level
   - top reasons
@@ -237,7 +236,7 @@ MVP 기준 예상 지연은 수집 주기, AWS 처리 지연, 대시보드 refre
   -> Edge Agent 감지:        0~10초
   -> IoT Core publish:       0.1~2초
   -> IoT Rule / S3 적재:     1~5초
-  -> Normalizer/Risk 처리:   2~10초
+  -> Lambda/DynamoDB 처리:   1~10초
   -> latest DB 반영:         0.1~2초
   -> Dashboard refresh:      5~15초
 
@@ -334,6 +333,25 @@ M7:
 
 ## 결론
 
-Dashboard VPC는 조회 전용 public access 영역이고, Processing VPC는 수집/처리/제어 영역이다.
+Dashboard VPC는 조회 전용 public access 영역이고, cloud-side data processing은 Lambda data processor와 managed storage 중심으로 둔다.
 
 두 VPC를 네트워크로 연결하지 않고, S3 processed와 latest status store를 IAM read-only로 조회하는 구조를 목표 확장안으로 둔다.
+
+## 2026-05-14 수정 방향
+
+이 문서의 `Processing VPC`, `Normalizer`, `Risk Engine` 표현은 이전 확장안의 용어다.
+
+최신 MVP 기준은 아래 흐름이다.
+
+```text
+IoT Core
+  -> IoT Rule -> S3 raw
+  -> Lambda data processor
+      -> DynamoDB LATEST
+      -> DynamoDB HISTORY
+      -> S3 processed
+Dashboard Web/API
+  -> read-only DynamoDB + S3 processed
+```
+
+별도 `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` 컨테이너 서비스는 MVP 구현 대상에서 제외한다.

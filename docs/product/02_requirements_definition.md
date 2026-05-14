@@ -76,10 +76,10 @@
 | DEC-04 | Edge 실행 환경은 K3s를 유지한다 | `factory-a`에서 K3s, ArgoCD, Longhorn, failover/failback 기준선이 검증됐다 | Greengrass를 MVP 메인 런타임으로 도입 | `docs/planning/05_decision_rationale.md` |
 | DEC-05 | Edge Agent가 IoT Core로 MQTT publish한다 | 디바이스 인증, 라우팅, S3 적재를 표준 AWS 경로로 처리한다 | 직접 HTTP API 수신 | `docs/planning/05_decision_rationale.md` |
 | DEC-06 | IoT Core 수신 원본은 S3 raw로 보존한다 | 재처리, 감사, Risk 로직 보정 근거를 남긴다 | Risk Service 직접 처리만 수행 | `docs/planning/05_decision_rationale.md`, `docs/specs/iot_data_format.md` |
-| DEC-07 | Risk 계산은 장기 실행 서비스/worker로 둔다 | 최근 상태, 이전 상태, 지속 시간, top causes를 유지해야 한다 | 단일 Lambda 기반 계산 | `docs/planning/05_decision_rationale.md` |
+| DEC-07 | Risk 계산은 Lambda data processor로 둔다 | 최근 상태, 이전 상태, 지속 시간, top causes는 DynamoDB LATEST/HISTORY를 상태 저장소로 두고 계산한다 | 별도 장기 실행 Risk 서비스/worker | `docs/planning/05_decision_rationale.md`, `docs/specs/data_storage_pipeline.md` |
 | DEC-08 | 공장 상태와 인프라 상태를 `factory_state`, `infra_state`로 나눈다 | Risk 입력과 운영 헬스 체크의 목적과 주기가 다르다 | 5~6개 source type을 모두 별도 전송 | `docs/specs/iot_data_format.md` |
 | DEC-09 | `factory_state`는 3초 주기로 전송한다 | Risk Score 입력을 준실시간으로 반영한다 | AI 결과 변화 즉시 이벤트 전송 | `docs/specs/iot_data_format.md` |
-| DEC-10 | AI 결과는 최근 window 평균 score로 보낸다 | 모델 오탐에 민감하게 반응하지 않고 Risk Engine이 가중치 계산을 하게 한다 | Edge에서 최종 `0/1` 판정 | `docs/specs/iot_data_format.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
+| DEC-10 | AI 결과는 최근 window 평균 score로 보낸다 | 모델 오탐에 민감하게 반응하지 않고 Lambda data processor의 Risk 계산 로직이 가중치 계산을 하게 한다 | Edge에서 최종 `0/1` 판정 | `docs/specs/iot_data_format.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
 | DEC-11 | `infra_state`는 20초 주기로 전송한다 | 1분 내 파이프라인 헬스 체크를 하면서 운영 부담을 줄인다 | heartbeat 별도 파이프라인 | `docs/specs/iot_data_format.md` |
 | DEC-12 | `pipeline_status`는 cloud-side에서 계산한다 | Edge는 사실과 요약값만 보내고 최종 판단은 중앙에서 일관되게 한다 | Edge Agent가 최종 pipeline 상태를 직접 판단 | `docs/specs/iot_data_format.md` |
 | DEC-13 | Dashboard는 latest status store를 우선 조회한다 | S3 raw만으로는 최신 상태 조회 근거가 약하다 | S3 raw 직접 조회 기반 화면 | `docs/planning/07_dashboard_vpc_extension_plan.md`, `docs/planning/15_cloud_architecture_final.md` |
@@ -105,9 +105,9 @@
 | --- | ---: | --- | --- | --- |
 | `factory_state` 전송 주기 | 3초 | 공장 상태를 Risk Score에 준실시간으로 반영해야 한다. | M4에서 10분 이상 연속 publish/S3 적재 확인 | `docs/specs/iot_data_format.md`, `docs/issues/M4_data-plane.md` |
 | `infra_state` 전송 주기 | 20초 | 노드/워크로드/장치/heartbeat 상태를 1분 내 운영자가 인지할 수 있어야 한다. | M4에서 `infra_state` 누락 시 warning/critical 판정 확인 | `docs/specs/iot_data_format.md` |
-| AI score 방식 | 최근 3초 또는 최근 N개 평균, `0.0~1.0` | AI 모델 순간 오탐에 즉시 반응하지 않고 Risk Engine에서 가중치를 곱해 계산할 수 있어야 한다. | 샘플 window의 `fire_score`, `fall_score`, `bend_score` 계산 확인 | `docs/specs/iot_data_format.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
+| AI score 방식 | 최근 3초 또는 최근 N개 평균, `0.0~1.0` | AI 모델 순간 오탐에 즉시 반응하지 않고 Lambda data processor에서 가중치를 곱해 계산할 수 있어야 한다. | 샘플 window의 `fire_score`, `fall_score`, `bend_score` 계산 확인 | `docs/specs/iot_data_format.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
 | source type 수 | 2개 | IoT topic, S3 partition, Dashboard 처리 경로를 단순하게 유지해야 한다. | `factory_state`, `infra_state` 두 경로 분리 적재 확인 | `docs/specs/iot_data_format.md` |
-| `pipeline_status.normal` | latest `infra_state` age <= 20초 | 최신 인프라 상태가 정상 주기 안에 들어오면 정상으로 본다. | pipeline-status-aggregator 판단 결과 확인 | `docs/specs/iot_data_format.md` |
+| `pipeline_status.normal` | latest `infra_state` age <= 20초 | 최신 인프라 상태가 정상 주기 안에 들어오면 정상으로 본다. | Lambda data processor 판단 결과 확인 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
 | `pipeline_status.warning` | latest `infra_state` age > 40초 | 20초 주기 기준 1회 이상 누락 가능성이 있으면 주의로 본다. | Edge Agent 중지/지연 테스트 | `docs/specs/iot_data_format.md` |
 | `pipeline_status.critical` | latest `infra_state` age > 60초 | 인프라 상태 이상을 1분 내 감지해야 한다. | Edge Agent 중지 후 critical 전환 시간 측정 | `docs/specs/iot_data_format.md` |
 | 일반 상태 Dashboard 반영 | 10~35초 목표 | 관제 화면은 실시간 제어가 아니라 준실시간 운영 관제 수준을 만족해야 한다. | M6에서 상태 변화 후 화면 반영 시간 측정 | `docs/planning/03_evaluation_plan.md`, `docs/planning/07_dashboard_vpc_extension_plan.md` |
@@ -152,7 +152,7 @@
 | FR-01 | Edge Agent는 공장 상태 데이터를 `factory_state` 메시지로 IoT Core에 전송해야 한다. | DEC-05, DEC-08 |
 | FR-02 | `factory_state`는 온도, 습도, 기압, 화재 score, 넘어짐 score, 굽힘 score, 이상소음 텍스트를 포함해야 한다. | DEC-08, DEC-09, DEC-10 |
 | FR-03 | Edge Agent는 클러스터, 노드, 워크로드, 장치, heartbeat 상태를 `infra_state` 메시지로 전송해야 한다. | DEC-08, DEC-11 |
-| FR-04 | Risk Engine은 Edge가 보낸 평균 score와 센서 요약값을 사용해 최종 Risk Score와 `안전 / 주의 / 위험` 상태를 계산해야 한다. | DEC-03, DEC-07, DEC-10, DEC-12 |
+| FR-04 | Lambda data processor는 Edge가 보낸 평균 score와 센서 요약값을 사용해 최종 Risk Score와 `안전 / 주의 / 위험` 상태를 계산해야 한다. | DEC-03, DEC-07, DEC-10, DEC-12 |
 | FR-05 | 수신 원본 데이터는 S3 raw에 저장되어 재처리, 감사, 리포트 입력으로 사용할 수 있어야 한다. | DEC-06 |
 | FR-06 | Dashboard는 latest status store와 processed result를 조회해 공장별 최신 상태, 원인, 로그를 제공해야 한다. | DEC-13, DEC-15 |
 | FR-07 | Hub ArgoCD는 `factory-a/b/c` Spoke의 Edge Agent와 공통 구성요소를 공장별 값으로 배포할 수 있어야 한다. | DEC-02, DEC-17 |
@@ -176,7 +176,7 @@
 | ARC-01 | `factory-a` 운영형 Spoke는 기존 Raspberry Pi 3-node K3s 기준선을 유지해야 한다. | DEC-04, DEC-19 |
 | ARC-02 | MVP Edge 런타임은 K3s workload와 Edge Agent를 기본으로 하고, Greengrass는 후속 재검토 대상으로 둔다. | DEC-04 |
 | ARC-03 | Cloud 수신 진입점은 AWS IoT Core MQTT와 IoT Rule을 기본 경로로 둔다. | DEC-05 |
-| ARC-04 | 데이터 처리 흐름은 IoT Core, S3 raw, Event Processor, Risk Engine, processed/latest 저장소, Dashboard 순서로 구성한다. | DEC-06, DEC-07, DEC-13 |
+| ARC-04 | 데이터 처리 흐름은 IoT Core, IoT Rule/S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, Dashboard 순서로 구성한다. | DEC-06, DEC-07, DEC-13 |
 | ARC-05 | Control / Management VPC와 Data / Dashboard VPC는 고객 보안과 역할 분리 요구가 있을 때의 목표 구조로 유지한다. | DEC-14 |
 | ARC-06 | 단일 VPC 대안은 가능하지만, MVP 문서화 기준에서는 제어 plane과 사용자 조회 plane의 경계를 분리해 설명해야 한다. | DEC-14, DEC-15 |
 | ARC-07 | Grafana는 운영 관측 도구로 유지하고, 사용자-facing 제품 화면은 Dashboard Web/API로 분리한다. | DEC-16 |
@@ -219,12 +219,12 @@
 | BR-01, BR-02 | 메인 Dashboard에 공장별 상태 카드, 원인, 이상 시스템 목록, 로그를 둔다. | M6에서 상태 카드/이상 목록/로그 패널 확인 | `docs/product/01_user_flow.md`, `docs/planning/03_evaluation_plan.md` |
 | FR-01, FR-02, NFR-01 | Edge Agent가 `factory_state`를 3초 주기로 publish한다. | M4에서 IoT Core -> S3 적재와 Risk 처리 확인 | `docs/specs/iot_data_format.md`, `docs/issues/M4_data-plane.md` |
 | FR-03, NFR-02 | Edge Agent가 `infra_state`를 20초 주기로 publish하고 cloud-side가 pipeline 상태를 계산한다. | M4에서 infra 상태 적재와 latest 반영 확인 | `docs/specs/iot_data_format.md`, `docs/planning/03_evaluation_plan.md` |
-| FR-04, NFR-05 | Risk Engine이 평균 score와 센서 요약값을 기반으로 Risk Score를 계산한다. | M6에서 Risk Score 변화가 화면에 반영되는지 확인 | `docs/specs/iot_data_format.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
+| FR-04, NFR-05 | Lambda data processor가 평균 score와 센서 요약값을 기반으로 Risk Score를 계산한다. | M6에서 Risk Score 변화가 화면에 반영되는지 확인 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
 | FR-05 | IoT Rule이 raw JSON을 `raw/{factory_id}/{source_type}/...` 경로에 저장한다. | M4에서 S3 raw object와 partition 확인 | `docs/planning/05_decision_rationale.md`, `docs/specs/iot_data_format.md` |
 | FR-06, NFR-03, NFR-04 | Dashboard Backend/API가 latest status store와 processed result를 조회한다. | M6에서 일반 상태 10~35초, 장애 판정 40~60초 목표 확인 | `docs/planning/07_dashboard_vpc_extension_plan.md`, `docs/planning/03_evaluation_plan.md` |
 | ARC-01, OPS-06 | `factory-a` K3s workload는 worker2 preferred, worker1 failover, 조건부 failback을 유지한다. | failover/failback 테스트 결과와 M0 회귀 확인 | `docs/ops/09_failover_failback_test_results.md` |
 | ARC-02, ARC-03 | K3s + Edge Agent + IoT Core 구조를 사용한다. | Edge Agent 배포와 MQTT publish 확인 | `docs/planning/05_decision_rationale.md` |
-| ARC-04 | S3 raw 이후 Event Processor/Risk Engine/latest/Dashboard 흐름을 사용한다. | M4, M6, M7 통합 검증 | `docs/planning/15_cloud_architecture_final.md` |
+| ARC-04 | IoT Core 이후 IoT Rule/S3 raw와 Lambda/DynamoDB/S3 processed/Dashboard 흐름을 사용한다. | M4, M6, M7 통합 검증 | `docs/specs/data_storage_pipeline.md`, `docs/planning/15_cloud_architecture_final.md` |
 | ARC-05, SEC-01 | Dashboard와 Control plane을 네트워크/권한 경계로 분리한다. | M1/M6에서 Dashboard가 ArgoCD/Tailscale/EKS/Spoke API를 직접 조회하지 않음을 확인 | `docs/planning/12_two_vpc_mvp_architecture_decision.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
 | OPS-01 ~ OPS-05 | Terraform, Ansible, GitHub Actions, ArgoCD 책임 경계를 따른다. | M3에서 push -> ECR -> ArgoCD rollout 확인 | `docs/planning/11_delivery_ownership_flow.md` |
 | COST-01, COST-02 | 비용 baseline과 destroy 절차를 운영 문서에 유지한다. | AWS 리소스 추가 시 비용 문서 갱신 여부 확인 | `docs/ops/15_aws_cost_baseline.md` |
@@ -239,7 +239,7 @@
 | M1 | Hub 핵심 서비스, VPC/접근 경계 설명 가능성 | ARC-05, SEC-01 |
 | M2 | Hub-Spoke 연결과 `factory-a` 테스트 배포 | SEC-03, FR-07 |
 | M3 | CI/CD와 ArgoCD rollout | OPS-01 ~ OPS-05 |
-| M4 | IoT Core, S3 raw, 정규화, Risk 처리, latest status | FR-01 ~ FR-05, NFR-01, NFR-02 |
+| M4 | IoT Core, S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed | FR-01 ~ FR-05, NFR-01, NFR-02 |
 | M5 | `factory-b/c` 테스트베드 추가와 3개 공장 Fleet 인식 | BR-04, FR-07 |
 | M6 | Risk Twin Dashboard, 상태 카드, 원인, 로그, 지연 목표 | BR-01 ~ BR-03, FR-06, NFR-03, NFR-04 |
 | M7 | 운영형/테스트베드형/장애/롤백 통합 시나리오 | 전체 요구사항 회귀 |
@@ -252,7 +252,7 @@
 | --- | --- | --- |
 | AWS IoT Greengrass 메인 런타임 | MVP 제외 | 장시간 오프라인 버퍼링, Greengrass fleet 관리, 로컬 메시징이 핵심 병목이 되는 경우 |
 | 직접 HTTP API 수신 | MVP 제외 | IoT Core 인증/Rules/S3 경로보다 직접 API가 명확히 단순해지는 경우 |
-| Lambda 중심 Risk 계산 | MVP 제외 | Risk 계산이 단일 이벤트 변환 수준으로 축소되는 경우 |
+| 별도 장기 실행 Risk 서비스/worker | MVP 제외 | Lambda 처리 한계, 복잡한 재처리, 별도 스케일링 요구가 확인되는 경우 |
 | 별도 이벤트 전용 파이프라인 | MVP 제외 | 평균 score 기반 Risk로 설명하기 어려운 이벤트 요구가 생기는 경우 |
 | 장기 이력 분석 계층 | MVP 후속 | Risk 보정, 리포트, near-miss 분석이 MVP 이후 주요 가치가 되는 경우 |
 | WAF/Cognito/OIDC 고도화 | MVP 후속 | 외부 사용자 접근과 인증 요구가 실제 운영 요구로 확정되는 경우 |
@@ -269,3 +269,20 @@
 - `docs/ops/`의 검증 결과가 기존 요구사항 수치를 바꾼다.
 - MVP 포함/제외 범위가 바뀐다.
 - 새 AWS 상시 리소스나 비용 구조가 추가된다.
+
+## 2026-05-14 수정 방향
+
+이 문서의 최신 요구사항 기준은 Lambda/DynamoDB 데이터 처리 방향이다.
+
+Risk 계산은 별도 장기 실행 `risk-score-engine` 서비스가 아니라 Lambda data processor 내부 로직으로 구현한다. 최신 데이터 저장 source of truth는 `docs/specs/data_storage_pipeline.md`이며, 흐름은 아래와 같다.
+
+```text
+IoT Core
+  -> IoT Rule -> S3 raw
+  -> Lambda data processor
+      -> DynamoDB LATEST
+      -> DynamoDB HISTORY
+      -> S3 processed
+Dashboard Web/API
+  -> DynamoDB + S3 processed read-only 조회
+```

@@ -271,7 +271,7 @@ IoT Core
 S3
 ECR
 GitHub Actions
-Risk Score Engine
+Lambda data processor / Risk calculation
 AMP
 ApplicationSet
 edge-agent

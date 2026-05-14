@@ -15,7 +15,7 @@
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
 - 2026-05-07 `build-hub`는 AWS Hub EKS/VPC/NAT/EIP, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI, Hub Tailscale Operator/egress/UI/cluster Secret 복구를 자동화한다.
 - 2026-05-08 `destroy-all.sh`로 K3s IoT Secret, IoT, Hub, foundation을 삭제했고, 현재 active AEGIS AWS fixed-cost resource는 0개다.
-- M1 Issue 5에서 IoT Rule -> S3 raw 적재와 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다.
+- M1 Issue 5에서 IoT Rule -> S3 raw 적재와 M1 검증용 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다. 최신 데이터 처리 방향은 Lambda data processor와 DynamoDB/S3 processed다.
 - M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 `up{cluster="AEGIS-EKS"}` 수신을 검증했다.
 - M1 Issue 8에서 내부 Grafana를 설치하고 AMP datasource를 SigV4 + IRSA로 검증했다.
@@ -27,8 +27,9 @@
 - M2 Issue 3에서 EKS Hub Tailscale Operator 설치, egress Service 생성, EKS 내부 `factory-a-master` K3s API TCP `6443` reachability, ArgoCD/Grafana Tailscale IP UI 접근 검증까지 완료했다.
 - M2 Issue 4/5에서 `tls-server-name: 10.10.10.10` 기반 `factory-a` kubeconfig와 ArgoCD cluster 등록을 완료했고, cluster status `Successful`을 확인했다.
 - M2 Issue 6에서 `factory-a-podinfo-smoke` Application을 `factory-a`에 Sync해 `Synced` + `Healthy`, Pod 2개 `Running`을 확인했고, Tailscale egress Service 삭제 시 sync failure 및 재생성 후 복구를 검증했다.
-- 다음 작업은 M3 Issue 1 배포 파이프라인 저장소 구조 설계다. EKS API endpoint CIDR 축소와 M1 Issue 11 운영 보안 강화는 MVP 이후/설계 마무리 후 재검토로 보류했다.
-- `factory-b`, `factory-c`, ECR, GitHub Actions CI는 후속 단계다.
+- M3 Issue 1에서 `aegis-pi-gitops` GitOps 저장소 구조, `aegis-spoke` Helm chart, 공장별 values, ApplicationSet skeleton, manifest validation workflow를 완료했다.
+- 다음 작업은 M3 Issue 2 ECR 저장소 구성 및 이미지 태그 전략이다. EKS API endpoint CIDR 축소와 M1 Issue 11 운영 보안 강화는 MVP 이후/설계 마무리 후 재검토로 보류했다.
+- `factory-b`, `factory-c`, GitHub Actions build/deploy CI는 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
 - 계획과 실제 구현이 달라진 결정은 `docs/changes/`에서 추적한다.

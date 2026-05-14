@@ -33,7 +33,7 @@ K3s, Longhorn, ArgoCD, Grafana, EKS, IoT Core, S3, Risk Score, Dashboard VPC, Ta
 ### Cloud Hub 확장이 자연스럽다
 
 엣지에서 수집한 센서값과 시스템 상태를 Hub로 올리고, 공장별 상태를 중앙에서 비교하는 구조는 산업 IoT 맥락과 맞다.
-IoT Core, S3, latest status store, Risk Score Engine, Dashboard VPC로 이어지는 확장 방향도 설계상 자연스럽다.
+IoT Core, S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, Dashboard VPC로 이어지는 확장 방향도 설계상 자연스럽다.
 
 ## 약점과 주의점
 
@@ -83,7 +83,7 @@ K3s, EKS, ArgoCD, Longhorn, Grafana, IoT Core를 썼다는 사실 자체보다, 
 1. `factory-a`에서 장애 발생 시 워크로드가 살아남는지 검증한다.
 2. 장애 동안 발생한 데이터 공백을 측정한다.
 3. Edge Agent가 공장 상태를 표준 이벤트로 Hub에 보낸다.
-4. Risk Score Engine이 상태를 `normal`, `warning`, `critical`로 계산한다.
+4. Lambda data processor가 상태를 `normal`, `warning`, `critical`로 계산한다.
 5. 대시보드가 공장별 위험 원인을 보여준다.
 
 이 범위가 완성되면 프로젝트는 "엣지 운영 자동화"와 "중앙 위험 관제"를 모두 보여줄 수 있다.
@@ -94,7 +94,7 @@ K3s, EKS, ArgoCD, Longhorn, Grafana, IoT Core를 썼다는 사실 자체보다, 
 포트폴리오 설득력을 높이는 순서는 다음과 같다.
 
 1. Edge Agent 최소 구현
-2. Risk Score Engine 최소 구현
+2. Lambda data processor Risk 계산 로직 최소 구현
 3. Risk 입력 스키마와 샘플 이벤트
 4. 단위 테스트와 smoke test
 5. 간단한 공장별 상태 대시보드

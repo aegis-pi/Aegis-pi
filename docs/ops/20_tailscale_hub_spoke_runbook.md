@@ -16,7 +16,7 @@ Hub EKS / ArgoCD
   -> factory-a / factory-b / factory-c K3s API
 ```
 
-Tailscale은 관리자 대시보드 접근망이 아니다. Dashboard Web/API는 Dashboard VPC에서 제공하고, processed S3와 latest status store만 read-only로 조회한다.
+Tailscale은 관리자 대시보드 접근망이 아니다. Dashboard Web/API는 Data / Dashboard VPC에서 제공하고, DynamoDB LATEST/HISTORY와 S3 processed만 read-only로 조회한다.
 
 ## 현재 선행 상태
 

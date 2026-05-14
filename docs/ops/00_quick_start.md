@@ -14,7 +14,7 @@
 - AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선은 2026-05-06~2026-05-07 `build-all --admin-ui`와 `build-hub`로 재생성/검증했고, 2026-05-08 비용 정리를 위해 `destroy-all.sh`로 삭제했다.
 - Foundation S3 bucket `aegis-bucket-data`, AMP Workspace `AEGIS-AMP-hub`, IoT Rule -> S3 raw 적재는 검증 후 삭제된 상태다.
 - IoT Core `factory-a` Thing/certificate/policy와 K3s Secret은 검증 후 삭제된 상태다. 로컬 인증서 파일은 `secret/iot/factory-a`에 남아 있을 수 있지만 AWS IoT certificate는 삭제됐다.
-- `risk/risk-normalizer` IRSA S3 권한과 `observability/prometheus-agent` AMP remote_write 수신은 검증 완료 상태다.
+- `risk/risk-normalizer` IRSA S3 권한과 `observability/prometheus-agent` AMP remote_write 수신은 검증 완료 상태다. 단, `risk/risk-normalizer`는 M1 권한 검증 이력이며 최신 데이터 처리 구현 대상은 Lambda data processor와 DynamoDB/S3 processed다.
 - Hub Prometheus Agent는 rebuild 시 `observability` 네임스페이스에서 재설치되며, 이전 검증에서는 AMP Query API로 `up{cluster="AEGIS-EKS"}` 수신을 확인했다.
 - 내부 Grafana는 rebuild 시 `observability` 네임스페이스에서 재설치되며, 이전 검증에서는 AMP datasource `AEGIS-AMP`가 SigV4 + IRSA로 query 가능했다.
 - AWS Load Balancer Controller와 Admin UI HTTPS Ingress는 이전 검증에서 `https://argocd.minsoo-tech.cloud`, `https://grafana.minsoo-tech.cloud` 접근을 확인했고, 현재는 Hub destroy와 함께 삭제된 상태다.
@@ -96,4 +96,4 @@ k3s-agent 중지 장애 테스트
 1. 계획과 실제 구현이 달라진 항목은 `docs/changes/`에 Change Record로 남긴다.
 2. `README.md`, `docs/README.md`, architecture 문서를 현재 `factory-a` 기준으로 유지한다.
 3. Grafana/dashboard 스펙을 실제 InfluxDB + Prometheus 기준으로 유지한다.
-4. M1 Issue 9 AWS Load Balancer Controller, M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress, M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. 다음 작업은 M3 Issue 1 배포 파이프라인 GitHub 저장소 구조 설계다.
+4. M1 Issue 9 AWS Load Balancer Controller, M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress, M1 Issue 12 `runtime-config.yaml` 구조 초안, M3 Issue 1 GitOps 저장소 구조 설계는 완료됐다. 다음 작업은 M3 Issue 2 ECR 저장소 구성 및 이미지 태그 전략이다.
