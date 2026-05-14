@@ -1,0 +1,232 @@
+# Requirements Definition Traceability
+
+상태: source of truth
+기준일: 2026-05-14
+
+## 목적
+
+이 문서는 Aegis-Pi를 진행하며 선택한 제품, 아키텍처, 데이터, 운영, 배포, 보안, 비용 기준을 요구사항 정의서 관점으로 재정리한다.
+
+핵심 목적은 특정 결정 몇 개를 사후 정당화하는 것이 아니라, 현재 설계와 구현 방향이 어떤 기업 도입 요구사항을 만족하기 위해 선택되었는지 추적 가능하게 만드는 것이다.
+
+따라서 이 문서의 요구사항은 별도로 새로 만든 가정이 아니라, 기존 `docs/` 문서에 이미 기록된 선택 사항과 검증 기준을 요구사항 언어로 변환한 것이다.
+
+## 요구사항 도출 방식
+
+요구사항은 아래 순서로 도출한다.
+
+```text
+문서 탐색
+  -> 프로젝트 선택 사항 수집
+  -> 선택 이유와 제외 범위 확인
+  -> 기업/운영 관점 요구사항으로 변환
+  -> 설계 반영 위치와 검증 방법 연결
+```
+
+### 1. 문서군 분류
+
+`docs/` 전체를 아래 기준으로 나누어 확인한다.
+
+| 문서군 | 확인 목적 | 대표 문서 |
+| --- | --- | --- |
+| 제품/사용자 | 누가 어떤 판단을 해야 하는지 확인 | `docs/product/00_mvp_scope.md`, `docs/product/01_user_flow.md` |
+| 아키텍처 | 공장, Hub, VPC, 데이터 흐름 경계 확인 | `docs/planning/12_two_vpc_mvp_architecture_decision.md`, `docs/planning/15_cloud_architecture_final.md` |
+| 선택 이유 | 여러 대안 중 현재 방식을 택한 이유 확인 | `docs/planning/05_decision_rationale.md` |
+| 배포/운영 책임 | Terraform, Ansible, CI, CD 책임 분리 확인 | `docs/planning/11_delivery_ownership_flow.md` |
+| 마일스톤 | 단계별 완료 기준과 검증 항목 확인 | `docs/issues/M0_*.md` ~ `docs/issues/M7_*.md`, `docs/issues/MASTER_CHECKLIST.md` |
+| 운영 기록 | 실제 운영 제약, 비용, 장애 검증 결과 확인 | `docs/ops/*` |
+| 변경 기록 | 진행 중 바뀐 설계 선택 확인 | `docs/changes/*` |
+| 스펙 | 데이터 포맷, 대시보드, API, 모델 기준 확인 | `docs/specs/*` |
+
+### 2. 조항 후보 탐색 기준
+
+각 문서에서 아래 표현을 요구사항 후보로 본다.
+
+| 유형 | 탐색 표현 |
+| --- | --- |
+| 결정 | `확정`, `선택`, `채택`, `유지`, `분리`, `보류`, `제외`, `대체` |
+| 요구 | `목표`, `요구`, `성공 기준`, `완료 기준`, `검증`, `관제`, `운영` |
+| 근거 | `이유`, `왜`, `rationale`, `판단`, `trade-off`, `멘토링 반영` |
+| 범위 | `MVP`, `후속`, `deferred`, `out of scope`, `backlog` |
+
+### 3. 변환 규칙
+
+발견한 항목은 바로 요구사항으로 쓰지 않고 먼저 프로젝트 선택 사항으로 정리한다.
+
+| 원문에서 발견한 내용 | 요구사항 변환 기준 |
+| --- | --- |
+| 사용자가 보는 흐름 | 업무/사용자 요구사항 |
+| 포함 기능과 제외 기능 | MVP 범위 요구사항 |
+| 전송 주기, 지연 목표, 보존 기간 | 비기능 요구사항 |
+| K3s, IoT Core, S3, ArgoCD 같은 채택 기술 | 아키텍처/제약 요구사항 |
+| VPC 분리, Tailscale, IAM, WAF/Auth | 보안/접근 제어 요구사항 |
+| failover, failback, retention, cleanup | 운영/가용성 요구사항 |
+| 비용 baseline, destroy 절차 | 비용/운영성 요구사항 |
+| 보류한 선택지 | MVP 제외 범위 또는 후속 요구사항 |
+
+## 프로젝트 선택 사항 인벤토리
+
+아래 표는 현재 문서에서 확인되는 주요 선택 사항을 요구사항으로 변환하기 전의 원본 인벤토리다.
+
+| ID | 선택 사항 | 선택 이유 | 제외/보류한 대안 | 근거 문서 |
+| --- | --- | --- | --- | --- |
+| DEC-01 | MVP 사용자를 본사 관제 담당자로 둔다 | 여러 공장의 위험 상태와 원인을 빠르게 식별해야 한다 | 단일 공장 현장 Grafana만 제품 화면으로 유지 | `docs/product/01_user_flow.md` |
+| DEC-02 | MVP는 `factory-a/b/c` 멀티 공장 구조로 둔다 | 운영형 1개와 테스트베드형 2개로 확장성을 검증한다 | 단일 공장 PoC에서 종료 | `docs/product/00_mvp_scope.md` |
+| DEC-03 | Risk 상태는 `안전 / 주의 / 위험`으로 표현한다 | 숫자보다 상태를 먼저 이해해야 한다 | 원시 센서값 중심 화면 | `docs/product/00_mvp_scope.md`, `docs/product/01_user_flow.md` |
+| DEC-04 | Edge 실행 환경은 K3s를 유지한다 | `factory-a`에서 K3s, ArgoCD, Longhorn, failover/failback 기준선이 검증됐다 | Greengrass를 MVP 메인 런타임으로 도입 | `docs/planning/05_decision_rationale.md` |
+| DEC-05 | Edge Agent가 IoT Core로 MQTT publish한다 | 디바이스 인증, 라우팅, S3 적재를 표준 AWS 경로로 처리한다 | 직접 HTTP API 수신 | `docs/planning/05_decision_rationale.md` |
+| DEC-06 | IoT Core 수신 원본은 S3 raw로 보존한다 | 재처리, 감사, Risk 로직 보정 근거를 남긴다 | Risk Service 직접 처리만 수행 | `docs/planning/05_decision_rationale.md`, `docs/specs/iot_data_format.md` |
+| DEC-07 | Risk 계산은 장기 실행 서비스/worker로 둔다 | 최근 상태, 이전 상태, 지속 시간, top causes를 유지해야 한다 | 단일 Lambda 기반 계산 | `docs/planning/05_decision_rationale.md` |
+| DEC-08 | 공장 상태와 인프라 상태를 `factory_state`, `infra_state`로 나눈다 | Risk 입력과 운영 헬스 체크의 목적과 주기가 다르다 | 5~6개 source type을 모두 별도 전송 | `docs/specs/iot_data_format.md` |
+| DEC-09 | `factory_state`는 3초 주기로 전송한다 | Risk Score 입력을 준실시간으로 반영한다 | AI 결과 변화 즉시 이벤트 전송 | `docs/specs/iot_data_format.md` |
+| DEC-10 | AI 결과는 최근 window 평균 score로 보낸다 | 모델 오탐에 민감하게 반응하지 않고 Risk Engine이 가중치 계산을 하게 한다 | Edge에서 최종 `0/1` 판정 | `docs/specs/iot_data_format.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
+| DEC-11 | `infra_state`는 20초 주기로 전송한다 | 1분 내 파이프라인 헬스 체크를 하면서 운영 부담을 줄인다 | heartbeat 별도 파이프라인 | `docs/specs/iot_data_format.md` |
+| DEC-12 | `pipeline_status`는 cloud-side에서 계산한다 | Edge는 사실과 요약값만 보내고 최종 판단은 중앙에서 일관되게 한다 | Edge Agent가 최종 pipeline 상태를 직접 판단 | `docs/specs/iot_data_format.md` |
+| DEC-13 | Dashboard는 latest status store를 우선 조회한다 | S3 raw만으로는 최신 상태 조회 근거가 약하다 | S3 raw 직접 조회 기반 화면 | `docs/planning/07_dashboard_vpc_extension_plan.md`, `docs/planning/15_cloud_architecture_final.md` |
+| DEC-14 | Control / Management VPC와 Data / Dashboard VPC를 분리한다 | 고객 보안, 역할 분리, 감사 요구가 강해질 때 설득력 있는 목표 구조다 | 단일 VPC만 고정 | `docs/planning/12_two_vpc_mvp_architecture_decision.md`, `docs/planning/15_cloud_architecture_final.md` |
+| DEC-15 | Dashboard Web/API는 ArgoCD, Tailscale, EKS API, Spoke API를 직접 조회하지 않는다 | 사용자 조회망과 제어망의 lateral movement를 줄인다 | Dashboard가 제어 plane API 직접 조회 | `docs/planning/07_dashboard_vpc_extension_plan.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
+| DEC-16 | Grafana는 운영자/개발자용 관측 도구로 둔다 | 사용자용 Risk Twin Dashboard와 역할이 다르다 | Grafana를 public 사용자 제품 화면으로 사용 | `docs/planning/12_two_vpc_mvp_architecture_decision.md` |
+| DEC-17 | Hub ArgoCD/ApplicationSet 중심 배포를 목표로 한다 | 공장별 values, sync 정책, drift 확인을 GitOps로 관리한다 | GitHub Actions에서 각 Spoke에 직접 `kubectl apply` | `docs/planning/05_decision_rationale.md`, `docs/planning/11_delivery_ownership_flow.md` |
+| DEC-18 | Terraform, Ansible, GitHub Actions, ArgoCD 책임을 분리한다 | 인프라, bootstrap, CI, CD의 source of truth를 분리한다 | Terraform/CI가 클러스터 앱 상태까지 장기 소유 | `docs/planning/11_delivery_ownership_flow.md` |
+| DEC-19 | `factory-a`는 worker2 preferred, worker1 failover, cron failback 기준을 사용한다 | 실제 장애 테스트에서 failover/failback 기준선이 검증됐다 | 수동 복구만 사용 | `docs/ops/09_failover_failback_test_results.md` |
+| DEC-20 | AI snapshot은 Longhorn PVC가 아니라 node-local hostPath로 둔다 | RWO PVC attach 문제가 AI failover를 막았다 | AI snapshot Longhorn RWO PVC 유지 | `docs/changes/0001-ai-snapshot-pvc-to-hostpath.md`, `docs/ops/09_failover_failback_test_results.md` |
+| DEC-21 | InfluxDB는 1일 retention, AI snapshot은 24시간 cleanup을 적용한다 | 로컬 저장소가 무한히 증가하지 않아야 한다 | 로컬 장기 보존 | `docs/ops/08_data_retention.md` |
+| DEC-22 | AWS Hub 비용은 active/destroy 상태를 기준으로 관리한다 | MVP 운영 비용을 설명하고 필요 시 0에 가깝게 낮출 수 있어야 한다 | 상시 리소스 비용 미관리 | `docs/ops/15_aws_cost_baseline.md` |
+| DEC-23 | Tailscale은 MVP Hub-Spoke 제어망으로 유지한다 | Site-to-Site VPN, TGW, Direct Connect, WireGuard보다 MVP 복잡도가 낮다 | 전용망을 즉시 구현 | `docs/planning/12_two_vpc_mvp_architecture_decision.md`, `docs/ops/20_tailscale_hub_spoke_runbook.md` |
+| DEC-24 | WAF/Cognito/OIDC, 장기 분석, 별도 이벤트 파이프라인은 MVP 후속으로 둔다 | MVP 핵심 검증 범위를 데이터 수집, Risk, 관제, 배포에 집중한다 | 모든 운영 자동화와 보안 기능을 MVP에 포함 | `docs/product/00_mvp_scope.md`, `docs/ops/21_hub_admin_ui_ingress.md` |
+
+## 요구사항 정의
+
+### 업무/사용자 요구사항
+
+| ID | 요구사항 | 근거 선택 |
+| --- | --- | --- |
+| BR-01 | 본사 관제 담당자는 여러 공장 중 현재 가장 위험한 공장을 한 화면에서 식별할 수 있어야 한다. | DEC-01, DEC-02 |
+| BR-02 | 사용자는 위험 상태만 보는 것이 아니라, 그 공장이 왜 위험한지 센서/AI 축과 시스템 축으로 분리해 확인할 수 있어야 한다. | DEC-01, DEC-03, DEC-13 |
+| BR-03 | 사용자는 최근 상태 변화 시간과 흐름을 확인해 운영 대응 또는 상세 확인으로 이어질 수 있어야 한다. | DEC-01, DEC-03 |
+| BR-04 | 운영형 Spoke와 테스트베드형 Spoke는 같은 관제 구조 안에서 공장 단위로 식별되어야 한다. | DEC-02 |
+
+### 기능 요구사항
+
+| ID | 요구사항 | 근거 선택 |
+| --- | --- | --- |
+| FR-01 | Edge Agent는 공장 상태 데이터를 `factory_state` 메시지로 IoT Core에 전송해야 한다. | DEC-05, DEC-08 |
+| FR-02 | `factory_state`는 온도, 습도, 기압, 화재 score, 넘어짐 score, 굽힘 score, 이상소음 텍스트를 포함해야 한다. | DEC-08, DEC-09, DEC-10 |
+| FR-03 | Edge Agent는 클러스터, 노드, 워크로드, 장치, heartbeat 상태를 `infra_state` 메시지로 전송해야 한다. | DEC-08, DEC-11 |
+| FR-04 | Risk Engine은 Edge가 보낸 평균 score와 센서 요약값을 사용해 최종 Risk Score와 `안전 / 주의 / 위험` 상태를 계산해야 한다. | DEC-03, DEC-07, DEC-10, DEC-12 |
+| FR-05 | 수신 원본 데이터는 S3 raw에 저장되어 재처리, 감사, 리포트 입력으로 사용할 수 있어야 한다. | DEC-06 |
+| FR-06 | Dashboard는 latest status store와 processed result를 조회해 공장별 최신 상태, 원인, 로그를 제공해야 한다. | DEC-13, DEC-15 |
+| FR-07 | Hub ArgoCD는 `factory-a/b/c` Spoke의 Edge Agent와 공통 구성요소를 공장별 값으로 배포할 수 있어야 한다. | DEC-02, DEC-17 |
+
+### 비기능 요구사항
+
+| ID | 요구사항 | 기준 | 근거 선택 |
+| --- | --- | --- | --- |
+| NFR-01 | 공장 상태 데이터는 준실시간 Risk 계산에 사용할 수 있어야 한다. | Edge publish 주기 3초 | DEC-09 |
+| NFR-02 | 인프라 이상은 운영자가 1분 내 인지할 수 있어야 한다. | Edge publish 주기 20초, heartbeat miss는 cloud-side에서 판정 | DEC-11, DEC-12 |
+| NFR-03 | Dashboard의 일반 상태 변화는 MVP 목표 지연 범위 안에 반영되어야 한다. | 10~35초 목표 | DEC-13 |
+| NFR-04 | 장애 판정은 운영 관제에서 실용적인 시간 안에 반영되어야 한다. | 40~60초 목표 | DEC-11, DEC-13 |
+| NFR-05 | AI 오탐 민감도를 낮추기 위해 순간 `0/1` 이벤트보다 최근 window 평균 score를 사용해야 한다. | 최근 3초 또는 최근 N개 평균 | DEC-10 |
+| NFR-06 | 로컬 저장소는 무한 증가하지 않도록 보존 정책을 가져야 한다. | InfluxDB 1일, AI snapshot 24시간 cleanup | DEC-21 |
+| NFR-07 | 장애 테스트 결과는 데이터 공백, failover/failback 시간, 중복 write 가능성을 측정 가능해야 한다. | 1초/10초 bucket 분석 | DEC-19 |
+
+### 아키텍처/제약 요구사항
+
+| ID | 요구사항 | 근거 선택 |
+| --- | --- | --- |
+| ARC-01 | `factory-a` 운영형 Spoke는 기존 Raspberry Pi 3-node K3s 기준선을 유지해야 한다. | DEC-04, DEC-19 |
+| ARC-02 | MVP Edge 런타임은 K3s workload와 Edge Agent를 기본으로 하고, Greengrass는 후속 재검토 대상으로 둔다. | DEC-04 |
+| ARC-03 | Cloud 수신 진입점은 AWS IoT Core MQTT와 IoT Rule을 기본 경로로 둔다. | DEC-05 |
+| ARC-04 | 데이터 처리 흐름은 IoT Core, S3 raw, Event Processor, Risk Engine, processed/latest 저장소, Dashboard 순서로 구성한다. | DEC-06, DEC-07, DEC-13 |
+| ARC-05 | Control / Management VPC와 Data / Dashboard VPC는 고객 보안과 역할 분리 요구가 있을 때의 목표 구조로 유지한다. | DEC-14 |
+| ARC-06 | 단일 VPC 대안은 가능하지만, MVP 문서화 기준에서는 제어 plane과 사용자 조회 plane의 경계를 분리해 설명해야 한다. | DEC-14, DEC-15 |
+| ARC-07 | Grafana는 운영 관측 도구로 유지하고, 사용자-facing 제품 화면은 Dashboard Web/API로 분리한다. | DEC-16 |
+
+### 보안/접근 제어 요구사항
+
+| ID | 요구사항 | 근거 선택 |
+| --- | --- | --- |
+| SEC-01 | Dashboard Web/API는 Spoke K3s API, EKS admin API, ArgoCD admin API, Tailscale 관리망을 직접 조회하지 않아야 한다. | DEC-15 |
+| SEC-02 | Dashboard API는 processed/latest 데이터에 대한 조회 권한 중심으로 제한해야 한다. | DEC-13, DEC-15 |
+| SEC-03 | Hub-Spoke 제어망은 MVP에서 Tailscale을 사용하되, Dashboard/Risk 접근망으로 확장하지 않아야 한다. | DEC-23 |
+| SEC-04 | Secret 값, MFA OTP, Access Key, Session Token은 Git과 문서에 기록하지 않아야 한다. | DEC-18 |
+| SEC-05 | WAF/Cognito/OIDC 같은 고급 사용자 인증/보호 기능은 MVP 후속 항목으로 관리한다. | DEC-24 |
+
+### 배포/운영 요구사항
+
+| ID | 요구사항 | 근거 선택 |
+| --- | --- | --- |
+| OPS-01 | AWS 인프라는 Terraform을 source of truth로 관리해야 한다. | DEC-18 |
+| OPS-02 | 클러스터 bootstrap, 초기 설정, 운영 검증은 Ansible이 담당해야 한다. | DEC-18 |
+| OPS-03 | GitHub Actions는 CI, 이미지 빌드, 테스트, registry push, manifest/value update에 집중해야 한다. | DEC-18 |
+| OPS-04 | 런타임 배포 상태와 drift 제어는 GitHub repository와 ArgoCD가 담당해야 한다. | DEC-17, DEC-18 |
+| OPS-05 | GitHub Actions는 운영 클러스터에 직접 `kubectl apply`를 수행하지 않아야 한다. | DEC-17, DEC-18 |
+| OPS-06 | 운영형 `factory-a`는 failover/failback 기준선을 유지하고, AI snapshot 저장 구조는 failover를 방해하지 않아야 한다. | DEC-19, DEC-20 |
+| OPS-07 | 물리 장애 유발은 MVP에서 수동 유지하되, 상태 수집과 evidence pack 생성은 Ansible 자동화 대상으로 둔다. | DEC-18, DEC-19 |
+
+### 비용/범위 요구사항
+
+| ID | 요구사항 | 근거 선택 |
+| --- | --- | --- |
+| COST-01 | 새 AWS 상시 리소스가 추가되면 비용 baseline 문서를 함께 갱신해야 한다. | DEC-22 |
+| COST-02 | 장시간 사용하지 않는 Hub 리소스는 destroy 절차로 비용을 낮출 수 있어야 한다. | DEC-22 |
+| COST-03 | MVP는 데이터 수집, Risk Score, 관제, 배포 파이프라인 검증에 집중하고 장기 분석/완전 자동 운영은 후속으로 둔다. | DEC-24 |
+| COST-04 | LLM 기반 리포트는 전체 자동화가 아니라 운영 리포트 초안 생성 수준으로만 후속 검토한다. | DEC-24 |
+
+## 요구사항-설계 추적표
+
+| 요구사항 | 설계 반영 | 검증 방법 | 근거 문서 |
+| --- | --- | --- | --- |
+| BR-01, BR-02 | 메인 Dashboard에 공장별 상태 카드, 원인, 이상 시스템 목록, 로그를 둔다. | M6에서 상태 카드/이상 목록/로그 패널 확인 | `docs/product/01_user_flow.md`, `docs/planning/03_evaluation_plan.md` |
+| FR-01, FR-02, NFR-01 | Edge Agent가 `factory_state`를 3초 주기로 publish한다. | M4에서 IoT Core -> S3 적재와 Risk 처리 확인 | `docs/specs/iot_data_format.md`, `docs/issues/M4_data-plane.md` |
+| FR-03, NFR-02 | Edge Agent가 `infra_state`를 20초 주기로 publish하고 cloud-side가 pipeline 상태를 계산한다. | M4에서 infra 상태 적재와 latest 반영 확인 | `docs/specs/iot_data_format.md`, `docs/planning/03_evaluation_plan.md` |
+| FR-04, NFR-05 | Risk Engine이 평균 score와 센서 요약값을 기반으로 Risk Score를 계산한다. | M6에서 Risk Score 변화가 화면에 반영되는지 확인 | `docs/specs/iot_data_format.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
+| FR-05 | IoT Rule이 raw JSON을 `raw/{factory_id}/{source_type}/...` 경로에 저장한다. | M4에서 S3 raw object와 partition 확인 | `docs/planning/05_decision_rationale.md`, `docs/specs/iot_data_format.md` |
+| FR-06, NFR-03, NFR-04 | Dashboard Backend/API가 latest status store와 processed result를 조회한다. | M6에서 일반 상태 10~35초, 장애 판정 40~60초 목표 확인 | `docs/planning/07_dashboard_vpc_extension_plan.md`, `docs/planning/03_evaluation_plan.md` |
+| ARC-01, OPS-06 | `factory-a` K3s workload는 worker2 preferred, worker1 failover, 조건부 failback을 유지한다. | failover/failback 테스트 결과와 M0 회귀 확인 | `docs/ops/09_failover_failback_test_results.md` |
+| ARC-02, ARC-03 | K3s + Edge Agent + IoT Core 구조를 사용한다. | Edge Agent 배포와 MQTT publish 확인 | `docs/planning/05_decision_rationale.md` |
+| ARC-04 | S3 raw 이후 Event Processor/Risk Engine/latest/Dashboard 흐름을 사용한다. | M4, M6, M7 통합 검증 | `docs/planning/15_cloud_architecture_final.md` |
+| ARC-05, SEC-01 | Dashboard와 Control plane을 네트워크/권한 경계로 분리한다. | M1/M6에서 Dashboard가 ArgoCD/Tailscale/EKS/Spoke API를 직접 조회하지 않음을 확인 | `docs/planning/12_two_vpc_mvp_architecture_decision.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
+| OPS-01 ~ OPS-05 | Terraform, Ansible, GitHub Actions, ArgoCD 책임 경계를 따른다. | M3에서 push -> ECR -> ArgoCD rollout 확인 | `docs/planning/11_delivery_ownership_flow.md` |
+| COST-01, COST-02 | 비용 baseline과 destroy 절차를 운영 문서에 유지한다. | AWS 리소스 추가 시 비용 문서 갱신 여부 확인 | `docs/ops/15_aws_cost_baseline.md` |
+
+## 검증 기준
+
+요구사항 검증은 마일스톤별로 나눈다.
+
+| 단계 | 검증 초점 | 주요 요구사항 |
+| --- | --- | --- |
+| M0 | `factory-a` K3s 기준선, 로컬 데이터, Grafana, failover/failback | ARC-01, OPS-06, NFR-07 |
+| M1 | Hub 핵심 서비스, VPC/접근 경계 설명 가능성 | ARC-05, SEC-01 |
+| M2 | Hub-Spoke 연결과 `factory-a` 테스트 배포 | SEC-03, FR-07 |
+| M3 | CI/CD와 ArgoCD rollout | OPS-01 ~ OPS-05 |
+| M4 | IoT Core, S3 raw, 정규화, Risk 처리, latest status | FR-01 ~ FR-05, NFR-01, NFR-02 |
+| M5 | `factory-b/c` 테스트베드 추가와 3개 공장 Fleet 인식 | BR-04, FR-07 |
+| M6 | Risk Twin Dashboard, 상태 카드, 원인, 로그, 지연 목표 | BR-01 ~ BR-03, FR-06, NFR-03, NFR-04 |
+| M7 | 운영형/테스트베드형/장애/롤백 통합 시나리오 | 전체 요구사항 회귀 |
+
+## MVP 제외 범위와 후속 요구사항
+
+아래 항목은 요구가 없다는 뜻이 아니라, 현재 MVP에서 핵심 검증을 흐리지 않기 위해 후속 요구사항으로 분리한 것이다.
+
+| 항목 | 현재 분류 | 후속 재검토 조건 |
+| --- | --- | --- |
+| AWS IoT Greengrass 메인 런타임 | MVP 제외 | 장시간 오프라인 버퍼링, Greengrass fleet 관리, 로컬 메시징이 핵심 병목이 되는 경우 |
+| 직접 HTTP API 수신 | MVP 제외 | IoT Core 인증/Rules/S3 경로보다 직접 API가 명확히 단순해지는 경우 |
+| Lambda 중심 Risk 계산 | MVP 제외 | Risk 계산이 단일 이벤트 변환 수준으로 축소되는 경우 |
+| 별도 이벤트 전용 파이프라인 | MVP 제외 | 평균 score 기반 Risk로 설명하기 어려운 이벤트 요구가 생기는 경우 |
+| 장기 이력 분석 계층 | MVP 후속 | Risk 보정, 리포트, near-miss 분석이 MVP 이후 주요 가치가 되는 경우 |
+| WAF/Cognito/OIDC 고도화 | MVP 후속 | 외부 사용자 접근과 인증 요구가 실제 운영 요구로 확정되는 경우 |
+| Site-to-Site VPN, TGW, Direct Connect, self-hosted WireGuard | MVP 후속 | Tailscale 운영 한계나 고객 네트워크 정책 요구가 확인되는 경우 |
+| 완전 자동 물리 장애 유발 | MVP 후속 | 정기 무인 장애 리허설이 운영 요구가 되는 경우 |
+
+## 갱신 규칙
+
+아래 상황이 생기면 이 문서를 함께 갱신한다.
+
+- `docs/planning/`에 새로운 아키텍처 결정이 추가된다.
+- `docs/specs/`의 데이터 포맷, API, Dashboard 모델이 바뀐다.
+- `docs/issues/`의 마일스톤 완료 기준이 바뀐다.
+- `docs/ops/`의 검증 결과가 기존 요구사항 수치를 바꾼다.
+- MVP 포함/제외 범위가 바뀐다.
+- 새 AWS 상시 리소스나 비용 구조가 추가된다.

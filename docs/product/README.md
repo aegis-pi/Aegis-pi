@@ -8,6 +8,7 @@
 | --- | --- |
 | `00_mvp_scope.md` | Aegis-Pi MVP에 포함할 기능과 제외할 기능 |
 | `01_user_flow.md` | 관리자와 운영자가 관제 화면에서 보는 흐름 |
+| `02_requirements_definition.md` | 프로젝트 선택 사항을 요구사항 정의와 검증 기준으로 역추적한 문서 |
 
 ## 기준
 
