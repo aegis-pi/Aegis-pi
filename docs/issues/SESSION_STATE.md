@@ -52,11 +52,32 @@
 M3 Issue 2 - [배포/ECR] 저장소 구성 및 이미지 태그 전략
 ```
 
+다음 세션 최우선 실행 순서:
+
+```text
+1. 클라우드 리소스 재생성
+   - Hub EKS/VPC/ArgoCD/Tailscale 경로를 다시 올린다.
+   - 기본 진입점: scripts/build/build-hub.sh
+   - 전체 재생성이 필요하면 scripts/build/build-all.sh 사용
+
+2. factory-a 연결을 UI로 먼저 확인
+   - ArgoCD UI에 접속한다.
+   - Clusters 화면에서 factory-a Connection Status가 Successful인지 확인한다.
+   - 필요하면 factory-a-podinfo-smoke 또는 aegis-spoke Application의 Synced/Healthy 상태를 확인한다.
+
+3. 위 두 항목이 확인된 뒤 M3 Issue 2 마무리 또는 Issue 3 이후 작업으로 넘어간다.
+```
+
 ## 현재 큰 상태
 
 ```text
 현재 단계: M3 배포 파이프라인 준비
 완료: M3 Issue 1 GitOps 저장소 구조, 공장별 values, smoke chart, GitHub Actions manifest validation
+진행 중: M3 Issue 2 ECR 범위는 edge-agent로 확정, infra/foundation Terraform source 작성 및 ECR repository 생성/삭제 절차 검증 완료
+현재 AWS 상태: ECR `aegis/edge-agent`는 사용자 요청으로 destroy 완료
+이미지 기준: Docker Hub가 아니라 ECR `611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent`를 표준 registry로 사용
+남음: GitHub Actions OIDC push role, Spoke K3s imagePullSecret 갱신 방식, 실제 image push/pull 검증
+후속 리팩토링: 문서 repo/code repo/GitOps repo 분리와 OIDC 기반 CI/CD/Destroy 고도화는 M7 Issue 0에서 최종 통합 검증 전 진행
 완료: M0 factory-a Safe-Edge 기준선
 완료: M1 Issue 0 AWS CLI MFA 및 Terraform 접근 설정
 완료: M1 Issue 1 EKS/VPC Terraform apply 및 kubectl 접근 확인
@@ -82,6 +103,7 @@ M3 Issue 2 - [배포/ECR] 저장소 구성 및 이미지 태그 전략
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
 AWS 실제 리소스 상태: 2026-05-08 `destroy-all.sh` 기준 전체 삭제 완료. Hub EKS/VPC/NAT/EIP/ALB, Route53/ACM, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/certificate, K3s IoT Secret 삭제 확인. AEGIS EKS KMS keys는 `PendingDeletion`
 Terraform state: infra/hub destroy 완료, infra/foundation destroy 완료
+다음 작업 우선순위: M3 Issue 3 이후로 넘어가기 전, 클라우드 리소스를 다시 올리고 ArgoCD UI에서 `factory-a` cluster 연결 상태를 먼저 확인한다.
 ```
 
 ## 지금까지 완료한 일
