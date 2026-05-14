@@ -11,6 +11,7 @@
 | `02_api_spec.md` | Dashboard Web/API가 제공할 API 초안 |
 | `03_data_model.md` | InfluxDB, Prometheus, Risk 상태 데이터 모델 |
 | `04_risk_twin_web_screen_design.md` | Data / Dashboard VPC 기반 Risk Twin Web 화면 설계 |
+| `05_screen_data_mapping.md` | Risk Twin Web 화면별 DynamoDB/S3 데이터 필드 매핑 |
 
 ## 기준
 
