@@ -22,6 +22,208 @@
 
 ---
 
+## Issue 0 - [리팩토링/CI-CD] 최종 테스트 전 Repository 분리 및 OIDC 기반 파이프라인 정리
+
+### 🎯 목표 (What & Why)
+
+M0~M6 기능 구현이 완료된 뒤 최종 통합 검증에 들어가기 전에 repository 구조와 CI/CD 책임 경계를 정리한다.
+
+현재 단계에서는 전체 구성요소가 실제로 동작하는지 확인하는 것이 우선이다. 기능 구현이 안정화되기 전부터 문서 repo, 코드 repo, 인프라 repo를 강하게 분리하면 변경 비용이 커진다.
+
+따라서 M7 시작 전에 리팩토링 단계로 아래를 정리한다.
+
+```text
+문서 변경 흐름
+코드/인프라 변경 흐름
+GitOps 배포 흐름
+AWS OIDC 인증 경계
+Destroy 수동 실행 경계
+```
+
+### Repository 분리 방향
+
+최종 테스트 전 아래 구조로 분리할지 결정한다.
+
+```text
+Aegis-pi-docs
+  - docs/
+  - planning/
+  - issues/
+  - architecture/spec 문서
+
+Aegis-pi
+  - apps/
+  - infra/
+  - scripts/
+  - tests/
+  - CI/CD workflow
+
+aegis-pi-gitops
+  - Helm charts
+  - envs/factory-a|b|c values
+  - ApplicationSet
+  - GitOps manifest validation workflow
+```
+
+목표는 문서 변경과 코드/인프라 변경의 release cadence를 분리하고, CI/CD가 코드 repo의 실제 빌드/테스트/배포 책임에 집중하게 만드는 것이다.
+
+### 공통 보안 기반 - GitHub OIDC
+
+모든 AWS 접근 workflow는 GitHub OIDC(OpenID Connect)를 공통 기반으로 사용한다.
+
+```text
+GitHub Actions
+  -> AWS STS AssumeRoleWithWebIdentity
+  -> short-lived credentials
+  -> AWS API
+```
+
+원칙:
+
+- GitHub Secrets에 장기 AWS Access Key를 저장하지 않는다.
+- PR 검증, main 배포, destroy, ECR push 권한을 role 단위로 분리한다.
+- branch, repository, workflow, environment 조건으로 role assume 범위를 제한한다.
+
+후속 role 후보:
+
+```text
+aegis-github-actions-plan-role
+aegis-github-actions-apply-role
+aegis-github-actions-destroy-role
+aegis-github-actions-ecr-push-role
+```
+
+### CI 파이프라인 정리
+
+트리거:
+
+```text
+pull_request -> main
+```
+
+목적:
+
+```text
+문법 오류와 계획 오류를 사전에 잡는다.
+실제 AWS 리소스는 생성하지 않는다.
+```
+
+실행 흐름:
+
+```text
+checkout
+configure AWS credentials with OIDC
+terraform fmt -check
+terraform init
+terraform validate
+terraform plan
+```
+
+PR reviewer는 `terraform plan` 결과를 보고 실제 생성/수정/삭제될 리소스를 검토한다.
+
+### CD 파이프라인 정리
+
+트리거:
+
+```text
+push -> main
+```
+
+목적:
+
+```text
+리뷰가 끝난 인프라 변경을 AWS에 반영한다.
+```
+
+실행 흐름:
+
+```text
+checkout
+configure AWS credentials with OIDC
+terraform init
+terraform apply -auto-approve
+```
+
+`foundation`, `hub`, 후속 `dashboard` root는 생명주기가 다르므로 workflow를 분리한다.
+
+### Destroy 파이프라인 정리
+
+트리거:
+
+```text
+workflow_dispatch
+```
+
+목적:
+
+```text
+실습/검증 종료 후 과금 방지를 위해 수동으로 리소스를 삭제한다.
+```
+
+실행 흐름:
+
+```text
+checkout
+configure AWS credentials with OIDC
+terraform init
+terraform destroy -auto-approve
+```
+
+원칙:
+
+- push나 PR로 destroy가 자동 실행되지 않게 한다.
+- GitHub Environment protection과 required reviewer를 사용한다.
+- `hub`, `foundation`, `all` 같은 입력값으로 삭제 범위를 명시한다.
+
+### Image/GitOps 파이프라인 정리
+
+실제 `edge-agent` 코드가 구현된 뒤 아래 파이프라인을 정리한다.
+
+```text
+apps/edge-agent change
+  -> test / docker build
+  -> ECR push
+  -> aegis-pi-gitops values image tag update
+  -> ArgoCD sync
+  -> Spoke K3s rollout
+```
+
+이미지 태그 기준:
+
+```text
+deployment tag: sha-<7-char-git-sha>
+moving tags: main, latest
+```
+
+주의:
+
+- GitHub Actions는 운영 클러스터에 직접 `kubectl apply`하지 않는다.
+- 실제 배포 상태는 `aegis-pi-gitops` repo와 ArgoCD가 소유한다.
+- Spoke K3s는 EKS node가 아니므로 ECR pull은 `imagePullSecret` 또는 후속 secret 관리 도구로 별도 처리한다.
+
+### ✅ 완료 조건 (Definition of Done)
+
+- [ ] 문서 repo와 코드/인프라 repo를 분리할지 최종 결정
+- [ ] repo 분리 시 migration 순서와 freeze window 정의
+- [ ] GitHub OIDC provider와 role 분리 기준 확정
+- [ ] CI plan role, CD apply role, Destroy role, ECR push role 권한 경계 정의
+- [ ] CI workflow는 PR에서 `fmt/init/validate/plan`만 수행하도록 정리
+- [ ] CD workflow는 main 병합 후 `apply`를 수행하도록 정리
+- [ ] Destroy workflow는 `workflow_dispatch`와 environment protection만 허용하도록 정리
+- [ ] `aegis-pi-gitops` validation workflow와 image tag update 흐름 정리
+- [ ] 리팩토링 후 M7 Issue 1~6 최종 통합 검증을 시작할 수 있는 상태 확인
+
+### 🔍 Acceptance Criteria
+
+- 장기 AWS Access Key 없이 GitHub OIDC로 AWS 접근 가능
+- PR에서는 리소스 생성/삭제 없이 plan만 확인 가능
+- main merge 후 apply 경로가 명확함
+- destroy는 수동 실행과 승인 경계를 가짐
+- GitOps repo가 ArgoCD source of truth로 유지됨
+- 최종 통합 테스트 전에 repo/CI/CD 책임 경계가 문서화됨
+
+---
+
 ## Issue 1 - [검증/운영형] `factory-a` 운영형 시나리오 검증
 
 ### 🎯 목표 (What & Why)

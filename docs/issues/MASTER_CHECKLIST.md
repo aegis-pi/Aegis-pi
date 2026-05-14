@@ -117,6 +117,7 @@
 
 원본: `docs/issues/M7_integration-test.md`
 
+- [ ] Issue 0 - [리팩토링/CI-CD] 최종 테스트 전 Repository 분리 및 OIDC 기반 파이프라인 정리
 - [ ] Issue 1 - [검증/운영형] `factory-a` 운영형 시나리오 검증
 - [ ] Issue 2 - [검증/테스트베드] `factory-b`, `factory-c` 테스트베드형 시나리오 검증
 - [ ] Issue 3 - [검증/Failover] Failover 시나리오 (Worker-2 장애 -> Worker-1 승계 -> Hub 반영)
