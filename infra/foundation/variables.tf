@@ -69,3 +69,38 @@ variable "noncurrent_version_expiration_days" {
   type        = number
   default     = 90
 }
+
+variable "ecr_edge_agent_repository_name" {
+  description = "ECR repository name for the edge-agent container image."
+  type        = string
+  default     = "aegis/edge-agent"
+}
+
+variable "ecr_edge_agent_image_tag_mutability" {
+  description = "ECR image tag mutability for edge-agent. Keep MUTABLE so CI can move main/latest tags while deployments pin sha-* tags."
+  type        = string
+  default     = "MUTABLE"
+
+  validation {
+    condition     = contains(["MUTABLE", "IMMUTABLE"], var.ecr_edge_agent_image_tag_mutability)
+    error_message = "ecr_edge_agent_image_tag_mutability must be MUTABLE or IMMUTABLE."
+  }
+}
+
+variable "ecr_edge_agent_scan_on_push" {
+  description = "Whether ECR scans edge-agent images when they are pushed."
+  type        = bool
+  default     = true
+}
+
+variable "ecr_edge_agent_keep_sha_images" {
+  description = "Number of sha-* tagged edge-agent images to keep."
+  type        = number
+  default     = 50
+}
+
+variable "ecr_edge_agent_expire_untagged_days" {
+  description = "Days before untagged edge-agent images expire."
+  type        = number
+  default     = 7
+}

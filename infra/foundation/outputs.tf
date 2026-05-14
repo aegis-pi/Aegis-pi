@@ -67,3 +67,26 @@ output "amp_remote_write_endpoint" {
   description = "Remote write endpoint for Prometheus Agent or Prometheus remote_write."
   value       = "${aws_prometheus_workspace.hub.prometheus_endpoint}api/v1/remote_write"
 }
+
+output "edge_agent_ecr_repository_name" {
+  description = "ECR repository name for the edge-agent image."
+  value       = aws_ecr_repository.edge_agent.name
+}
+
+output "edge_agent_ecr_repository_url" {
+  description = "ECR repository URL for the edge-agent image."
+  value       = aws_ecr_repository.edge_agent.repository_url
+}
+
+output "edge_agent_ecr_repository_arn" {
+  description = "ECR repository ARN for the edge-agent image."
+  value       = aws_ecr_repository.edge_agent.arn
+}
+
+output "edge_agent_image_tag_strategy" {
+  description = "Image tag strategy for the edge-agent deployment pipeline."
+  value = {
+    deployment_tag = "sha-<7-char-git-sha>"
+    moving_tags    = ["main", "latest"]
+  }
+}

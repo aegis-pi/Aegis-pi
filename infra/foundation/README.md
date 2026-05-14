@@ -9,13 +9,46 @@
 - S3 데이터 버킷: `aegis-bucket-data`
 - IoT Rule -> S3 raw 적재: `AEGIS_IoTRule_factory_a_raw_s3`
 - AMP Workspace: `AEGIS-AMP-hub`
+- ECR repository: `aegis/edge-agent`
 
 2026-05-08 기준 위 리소스는 검증 후 비용 정리를 위해 `scripts/destroy/destroy-all.sh`로 삭제했다. 이 디렉터리는 다음 rebuild 때 같은 기준으로 foundation 리소스를 다시 생성하는 Terraform source of truth다.
 
 ## 후속 후보 리소스
 
-- ECR 이미지 저장소 (M3 이미지 파이프라인 단계에서 추가 예정)
 - IoT Core Thing, 인증서
+
+## ECR 기준
+
+```text
+repository: aegis/edge-agent
+repository URL: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent
+repository ARN: arn:aws:ecr:ap-south-1:611058323802:repository/aegis/edge-agent
+image tag mutability: MUTABLE
+scan on push: enabled
+encryption: AES256
+deployment tag: sha-<7-char-git-sha>
+moving tags: main, latest
+untagged image expiration: 7 days
+sha-* image retention: latest 50 images
+```
+
+M3 Issue 2 기준 ECR 대상은 `edge-agent` 하나다. Lambda data processor는 zip 배포를 기본으로 하며, `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` repository는 만들지 않는다.
+
+ArgoCD가 배포할 Helm values는 `sha-<7자리>` 태그를 배포 기준으로 삼는다. `main`과 `latest`는 빌드 확인과 수동 디버깅을 위한 이동 태그로만 사용한다.
+
+Spoke K3s는 EKS managed node가 아니므로 EKS node role의 ECR pull 권한으로는 이미지를 받을 수 없다. M3 Issue 3~4에서 GitHub Actions push role과 Spoke K3s `imagePullSecret` 갱신 방식을 별도 연결한다.
+
+검증 결과:
+
+```text
+terraform validate: success
+terraform apply target: aws_ecr_repository.edge_agent, aws_ecr_lifecycle_policy.edge_agent
+apply result: 2 added, 0 changed, 0 destroyed
+aws ecr describe-repositories: MUTABLE, scanOnPush=true, AES256
+terraform destroy target: aws_ecr_lifecycle_policy.edge_agent, aws_ecr_repository.edge_agent
+destroy result: 0 added, 0 changed, 2 destroyed
+current AWS state: deleted, RepositoryNotFoundException 확인
+```
 
 ## AMP Workspace 기준
 
