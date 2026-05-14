@@ -339,6 +339,25 @@ Cloud-side `pipeline-status-aggregator`는 아래 입력을 바탕으로 `pipeli
 
 이 기준은 20초 주기에서 1분 내 파이프라인 이상을 감지하기 위한 MVP 기준이다. M7 통합 검증에서 실제 지연과 누락률을 보고 보정한다.
 
+## Payload Size and Traffic
+
+현재 예시 메시지를 compact JSON으로 직렬화했을 때의 대략적인 payload 크기는 아래와 같다.
+
+| source_type | compact JSON 예시 크기 | 전송 주기 | 초당 payload | 1일 payload |
+| --- | ---: | ---: | ---: | ---: |
+| `factory_state` | 약 0.6 KB | 3초 | 약 0.2 KB/s | 약 18 MB/day |
+| `infra_state` | 약 1.6 KB | 20초 | 약 0.08 KB/s | 약 7 MB/day |
+| 합계 | - | - | 약 0.3 KB/s | 약 25 MB/day |
+
+위 값은 JSON payload만 기준으로 한 MVP 산정값이다. MQTT/TLS, IoT Core, S3 object metadata, CloudWatch log 같은 전송/저장 오버헤드는 포함하지 않는다.
+
+판단:
+
+- 공장 1개 기준 raw payload는 하루 약 25 MB 수준이므로 IoT Core와 S3 적재 병목보다 처리 단순성이 더 중요하다.
+- `factory_state`는 Risk Score 입력이므로 3초 주기를 유지한다.
+- `infra_state`는 운영 헬스 체크 목적이므로 20초 주기로도 1분 내 이상 감지가 가능하다.
+- M7 통합 검증에서 실제 payload 크기, publish 성공률, S3 적재 지연, Dashboard 반영 지연을 측정해 보정한다.
+
 ## Null and Missing Value Policy
 
 MVP 기준 원칙:

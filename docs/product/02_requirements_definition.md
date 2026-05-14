@@ -97,6 +97,25 @@
 
 ## 요구사항 정의
 
+### 수치 기준 요약
+
+아래 값들은 데이터 포맷 논의 과정에서 확정한 MVP 기준이며, 요구사항 정의서에서는 비기능 요구사항과 검증 기준으로 해석한다.
+
+| 항목 | 확정값 | 요구사항 의미 | 검증 방법 | 근거 문서 |
+| --- | ---: | --- | --- | --- |
+| `factory_state` 전송 주기 | 3초 | 공장 상태를 Risk Score에 준실시간으로 반영해야 한다. | M4에서 10분 이상 연속 publish/S3 적재 확인 | `docs/specs/iot_data_format.md`, `docs/issues/M4_data-plane.md` |
+| `infra_state` 전송 주기 | 20초 | 노드/워크로드/장치/heartbeat 상태를 1분 내 운영자가 인지할 수 있어야 한다. | M4에서 `infra_state` 누락 시 warning/critical 판정 확인 | `docs/specs/iot_data_format.md` |
+| AI score 방식 | 최근 3초 또는 최근 N개 평균, `0.0~1.0` | AI 모델 순간 오탐에 즉시 반응하지 않고 Risk Engine에서 가중치를 곱해 계산할 수 있어야 한다. | 샘플 window의 `fire_score`, `fall_score`, `bend_score` 계산 확인 | `docs/specs/iot_data_format.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
+| source type 수 | 2개 | IoT topic, S3 partition, Dashboard 처리 경로를 단순하게 유지해야 한다. | `factory_state`, `infra_state` 두 경로 분리 적재 확인 | `docs/specs/iot_data_format.md` |
+| `pipeline_status.normal` | latest `infra_state` age <= 20초 | 최신 인프라 상태가 정상 주기 안에 들어오면 정상으로 본다. | pipeline-status-aggregator 판단 결과 확인 | `docs/specs/iot_data_format.md` |
+| `pipeline_status.warning` | latest `infra_state` age > 40초 | 20초 주기 기준 1회 이상 누락 가능성이 있으면 주의로 본다. | Edge Agent 중지/지연 테스트 | `docs/specs/iot_data_format.md` |
+| `pipeline_status.critical` | latest `infra_state` age > 60초 | 인프라 상태 이상을 1분 내 감지해야 한다. | Edge Agent 중지 후 critical 전환 시간 측정 | `docs/specs/iot_data_format.md` |
+| 일반 상태 Dashboard 반영 | 10~35초 목표 | 관제 화면은 실시간 제어가 아니라 준실시간 운영 관제 수준을 만족해야 한다. | M6에서 상태 변화 후 화면 반영 시간 측정 | `docs/planning/03_evaluation_plan.md`, `docs/planning/07_dashboard_vpc_extension_plan.md` |
+| 장애 판정 Dashboard 반영 | 40~60초 목표 | 파이프라인/노드 장애는 운영자가 1분 내 파악할 수 있어야 한다. | M6/M7 장애 시나리오에서 반영 시간 측정 | `docs/planning/03_evaluation_plan.md`, `docs/planning/07_dashboard_vpc_extension_plan.md` |
+| `factory_state` payload 크기 | 약 0.6 KB | 3초 주기 전송이 IoT Core/S3 병목을 만들 가능성이 낮아야 한다. | compact JSON 기준 실제 payload 크기 측정 | `docs/specs/iot_data_format.md` |
+| `infra_state` payload 크기 | 약 1.6 KB | 20초 주기 상태 전송이 운영 부담 대비 충분한 헬스 체크 정보를 제공해야 한다. | compact JSON 기준 실제 payload 크기 측정 | `docs/specs/iot_data_format.md` |
+| 공장 1개 일일 raw payload | 약 25 MB/day | S3 raw 보존과 재처리 비용이 MVP 규모에서 감당 가능해야 한다. | M4/M7에서 실제 S3 object 크기 합산 | `docs/specs/iot_data_format.md` |
+
 ### 업무/사용자 요구사항
 
 | ID | 요구사항 | 근거 선택 |
