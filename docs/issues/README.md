@@ -14,7 +14,7 @@
 | `M3_deploy-pipeline.md` | GitHub Actions, ECR, ArgoCD 기반 배포 파이프라인 |
 | `M4_data-plane.md` | Edge Agent, IoT Core, S3 데이터 플레인 |
 | `M5_vm-spoke-expansion.md` | `factory-b`, `factory-c` VM Spoke 확장 |
-| `M6_risk-twin-dashboard.md` | Risk Score Engine과 관제 화면 |
+| `M6_risk-twin-dashboard.md` | Lambda Risk 계산 로직과 관제 화면 |
 | `M7_integration-test.md` | 전체 통합 검증 시나리오 |
 | `edit.md` | 이슈 문서 보강 메모와 수정 방향 |
 

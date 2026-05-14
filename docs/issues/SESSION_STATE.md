@@ -49,13 +49,14 @@
 현재 바로 이어서 할 이슈:
 
 ```text
-M3 Issue 1 - [배포/Helm] GitHub 저장소 구조 설계
+M3 Issue 2 - [배포/ECR] 저장소 구성 및 이미지 태그 전략
 ```
 
 ## 현재 큰 상태
 
 ```text
 현재 단계: M3 배포 파이프라인 준비
+완료: M3 Issue 1 GitOps 저장소 구조, 공장별 values, smoke chart, GitHub Actions manifest validation
 완료: M0 factory-a Safe-Edge 기준선
 완료: M1 Issue 0 AWS CLI MFA 및 Terraform 접근 설정
 완료: M1 Issue 1 EKS/VPC Terraform apply 및 kubectl 접근 확인
@@ -315,9 +316,9 @@ secret exists, DATA=4
 
 ## 다음에 할 일
 
-### 1. 다음 시작 작업: M3 Issue 1
+### 1. 다음 시작 작업: M3 Issue 2
 
-M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M3 Issue 1 배포 파이프라인 GitHub 저장소 구조 설계로 이어간다.
+M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. M3 Issue 1 GitOps 저장소 구조 설계는 `aegis-pi-gitops`에서 완료했다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M3 Issue 2 ECR 저장소 구성 및 이미지 태그 전략으로 이어간다.
 
 최근 검증 완료 전제:
 
@@ -382,14 +383,20 @@ M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 
 - `scripts/build/build-hub.sh`에 Tailscale bootstrap/verify 자동 실행 추가
 - `hub_tailscale_bootstrap.yml`, `hub_tailscale_verify.yml` 실제 실행 통과
 - `scripts/ansible/playbooks/start_test.yml`에 라즈베리파이 재부팅 후 Tailscale daemon/self/IP 확인 추가
+- `aegis-pi-gitops` repository `origin/main`에 M3 GitOps MVP 구조 반영 완료
+- `aegis-pi-gitops/charts/aegis-spoke` Helm chart 작성 완료
+- `aegis-pi-gitops/envs/factory-a|b|c/values.yaml` 공장별 values 작성 완료
+- `aegis-pi-gitops/applicationsets/aegis-spoke-applicationset.yaml` ApplicationSet skeleton 작성 완료
+- `aegis-pi-gitops/.github/workflows/validate.yaml` manifest validation workflow 작성 및 Helm template 원본 파싱 오류 수정 완료
+- GitHub Actions `Validate GitOps Manifests` 통과 확인
 
 다음 구현 순서:
 
 ```text
-M3 Issue 1:
-1. GitHub 저장소 구조 설계
-2. base/env/factory values 경계 정의
-3. ApplicationSet과 GitHub Actions가 사용할 경로 기준 정리
+M3 Issue 2:
+1. ECR 저장소 범위 확정
+2. 이미지 이름과 태그 규칙 확정
+3. GitHub Actions build/push에서 사용할 AWS 권한과 secret 기준 정리
 
 Issue 11:
 1. WAF/Cognito/OIDC는 MVP 이후 운영 보안 강화 백로그로 보류
@@ -626,7 +633,8 @@ M2 Issue 5 완료: ArgoCD factory-a cluster 등록
 M2 Issue 6 완료: factory-a-podinfo-smoke Sync/Healthy, Tailscale egress 장애/복구 검증
 Build 자동화 완료: build-hub/build-all에서 Hub Tailscale 복구 기본 실행
 문서 최신화: README, docs README, project overview, implementation plan, session handoff의 M2 완료 범위와 다음 작업 기준 정합화
-다음 작업: M3 Issue 1 - GitHub 저장소 구조 설계
+M3 Issue 1 완료: aegis-pi-gitops GitOps 저장소 구조, 공장별 values, smoke chart, ApplicationSet skeleton, manifest validation workflow
+다음 작업: M3 Issue 2 - ECR 저장소 구성 및 이미지 태그 전략
 주의: start_test 반복 점검 playbook은 scripts/ansible/playbooks/start_test.yml 기준으로 정리됨
 ```
 

@@ -200,7 +200,7 @@ IoT Core → S3까지 흐르는지 확인한다.
 3개 Spoke 모두 Hub에서 배포/수집 가능한 상태를 완성한다.
 
 > 실행 전 확인:
-> M4의 `pipeline-status-aggregator`가 `factory_id` 기준으로 다중 공장을 식별하고,
+> M4의 Lambda data processor가 `factory_id` 기준으로 다중 공장을 식별하고,
 > Grafana/Hub에서 3개 공장 상태를 구분해 조회할 수 있어야 한다.
 
 ### ✅ 완료 조건 (Definition of Done)

@@ -66,7 +66,7 @@
 
 원본: `docs/issues/M3_deploy-pipeline.md`
 
-- [ ] Issue 1 - [배포/Helm] GitHub 저장소 구조 설계 (베이스 + 공장별 values)
+- [x] Issue 1 - [배포/Helm] GitHub 저장소 구조 설계 (베이스 + 공장별 values)
 - [ ] Issue 2 - [배포/ECR] 저장소 구성 및 이미지 태그 전략
 - [ ] Issue 3 - [배포/GitHub Actions] 빌드/푸시 워크플로우 구성
 - [ ] Issue 4 - [배포/ArgoCD] ApplicationSet 구성 (`factory-a` 기준)
@@ -84,8 +84,8 @@
 - [ ] Issue 3 - [데이터/Container] `factory-a` Edge Agent 컨테이너화 및 K3s 배포 준비
 - [ ] Issue 4 - [데이터/IoT Core] Edge Agent -> IoT Core 연결 및 수신 확인
 - [ ] Issue 5 - [데이터/S3] IoT Core -> S3 적재 확인 (경로 파티셔닝 포함)
-- [ ] Issue 6 - [데이터/정규화] EKS 내부 정규화/판단 서비스 구현
-- [ ] Issue 7 - [데이터/Pipeline] `pipeline_status` 주기 집계 구현 (`ops-support`)
+- [ ] Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
+- [ ] Issue 7 - [데이터/Pipeline] `pipeline_status` Lambda 처리 검증
 - [ ] Issue 8 - [검증/데이터] `factory-a` 데이터 플레인 end-to-end 검증
 
 ## M5. VM Spoke 확장 - `factory-b`, `factory-c`
@@ -104,7 +104,7 @@
 
 원본: `docs/issues/M6_risk-twin-dashboard.md`
 
-- [ ] Issue 1 - [Risk/Engine] Risk Score Engine 구현 (가중치 초기안)
+- [ ] Issue 1 - [Risk/Lambda] Lambda Risk 계산 로직 구현 (가중치 초기안)
 - [ ] Issue 2 - [Risk/Config] `runtime-config.yaml` 전역 설정 적용 및 필드 제어 구현
 - [ ] Issue 3 - [Risk/Config] 온도/습도 이상 기준값 초안 적용
 - [ ] Issue 4 - [Risk/Twin] Risk Twin 출력 구조 구현

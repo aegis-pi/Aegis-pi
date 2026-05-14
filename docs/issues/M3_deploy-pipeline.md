@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | 2026-05-04 | rev-20260504-01 | GitHub Actions는 CI, GitHub+ArgoCD는 CD로 사용하는 책임 경계 기준을 반영 |
 | 2026-05-13 | rev-20260513-01 | 기존 배포 파이프라인 초안은 유지하고, CI/CD가 필요한 이유를 일일 리포트 기반 모델/설정 업데이트 피드백 루프로 보강 |
+| 2026-05-14 | rev-20260514-01 | M3 Issue 1 GitOps 저장소 구조, 공장별 values, smoke chart, manifest validation 완료 상태 반영 |
 
 ---
 
@@ -75,7 +76,7 @@ Edge AI / Sensor 이벤트
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] 저장소 구조 확정 및 초기화
+- [x] 저장소 구조 확정 및 초기화
   ```
   charts/
     aegis-spoke/          # 공통 베이스 Helm 차트
@@ -92,19 +93,19 @@ Edge AI / Sensor 이벤트
   .github/
     workflows/
   ```
-- [ ] 공장별 values 범위 확정 및 초기값 작성
+- [x] 공장별 values 범위 확정 및 초기값 작성
   - `factory_id`
   - `environment_type` (`physical-rpi` / `vm-mac` / `vm-windows`)
   - `input_module_type` (`sensor` / `dummy`)
   - 사용 필드 여부 (display, risk_enabled)
-- [ ] M3 배포 검증용 기준 앱 1개 선정
+- [x] M3 배포 검증용 기준 앱 1개 선정
   - 실제 서비스 또는 `sample-app`
   - 이후 GitHub Actions / ArgoCD / end-to-end 검증의 공통 대상
-- [ ] `input_module_type` 기본 매핑 적용
+- [x] `input_module_type` 기본 매핑 적용
   - `factory-a` = `sensor`
   - `factory-b` = `dummy`
   - `factory-c` = `dummy`
-- [ ] 베이스 차트와 values 경계 역할 분리 문서화
+- [x] 베이스 차트와 values 경계 역할 분리 문서화
 
 ### 🔍 Acceptance Criteria
 
@@ -112,6 +113,14 @@ Edge AI / Sensor 이벤트
 - 기준 앱이 차트/values 구조 안에서 일관되게 표현됨
 - 공장별 values 파일이 서로 독립적으로 동작
 - 저장소 구조가 배포 파이프라인 관련 문서에 반영됨
+
+### GitHub Issue Comment Draft
+
+- 상태: 완료
+- 진행 요약: `aegis-pi-gitops` 저장소에 M3 GitOps source of truth 구조를 만들고, `charts/aegis-spoke` 공통 Helm chart와 `envs/factory-a|b|c/values.yaml` 공장별 override를 분리했다. MVP 배포 검증 대상은 기존 `factory-a` 운영 workload를 건드리지 않는 `aegis-spoke-smoke`로 정했다.
+- 변경/확인: `/home/vicbear/Aegis/aegis-pi-gitops`의 `README.md`, `charts/aegis-spoke/`, `envs/factory-a/values.yaml`, `envs/factory-b/values.yaml`, `envs/factory-c/values.yaml`, `applicationsets/aegis-spoke-applicationset.yaml`, `.github/workflows/validate.yaml`
+- 검증: `helm lint charts/aegis-spoke -f envs/factory-a/values.yaml` 통과, `helm template aegis-spoke charts/aegis-spoke -f envs/factory-a|b|c/values.yaml` 렌더링 통과, GitHub Actions `Validate GitOps Manifests` 통과
+- 후속: M3 Issue 2에서 ECR 저장소 구성과 이미지 태그 전략을 확정한다.
 
 ---
 
@@ -126,9 +135,8 @@ Edge AI / Sensor 이벤트
 
 - [ ] 서비스별 ECR 저장소 생성
   - Edge Agent
-  - Dummy Sensor
-  - Risk Score Engine
-  - 정규화/판단 서비스
+  - Lambda data processor는 zip 배포를 기본으로 하며 ECR 대상에서 제외
+  - Lambda를 container image로 배포하기로 결정할 때만 `aegis-data-processor` 같은 통합 처리기 repository 추가
 - [ ] 이미지 태그 전략 확정
   - 기본 태그: `git sha` (`sha-<7자리>`)
   - 보조 태그: `latest` 또는 브랜치명 (선택 적용)
@@ -140,8 +148,8 @@ Edge AI / Sensor 이벤트
 ### 🔍 Acceptance Criteria
 
 - AWS 콘솔에서 ECR 저장소 목록 확인
-- 로컬에서 `docker push` 후 ECR 저장소에 이미지 확인
-- EKS 파드에서 ECR 이미지 풀 성공
+- 로컬 또는 GitHub Actions에서 `edge-agent` 이미지 push 후 ECR 저장소에 이미지 확인
+- Spoke K3s 파드에서 ECR `edge-agent` 이미지 풀 성공
 
 ---
 

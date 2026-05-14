@@ -83,7 +83,7 @@ M1 Hub 인프라를 Terraform으로 생성하기 전에 로컬 터미널에서 A
 ### 목표 (What & Why)
 
 Aegis-Pi Hub의 실행 환경인 EKS 클러스터를 생성한다.  
-최신 클라우드 아키텍처 기준에서는 ArgoCD, Grafana 등 제어/관측 컴포넌트가 EKS Hub 위에서 동작하고, Risk Engine은 1번 Data / Dashboard VPC의 처리 영역으로 분리한다.
+최신 클라우드 아키텍처 기준에서는 ArgoCD, Grafana 등 제어/관측 컴포넌트가 EKS Hub 위에서 동작하고, IoT Core 이후 데이터 처리는 Lambda data processor가 DynamoDB LATEST/HISTORY와 S3 processed로 저장한다.
 따라서 이 클러스터 구성은 중앙 배포와 운영 관측 영역의 기반이 된다.
 
 ### 완료 조건 (Definition of Done)
@@ -155,15 +155,15 @@ Aegis-Pi Hub의 실행 환경인 EKS 클러스터를 생성한다.
 
 EKS 내부 기능을 역할 기준으로 분리하여 관리한다.  
 네임스페이스 경계가 명확해야 이후 ArgoCD ApplicationSet 배포 대상과 Grafana 데이터 소스 구분이 가능하다.
-Risk Engine은 최신 클라우드 아키텍처 기준에서 1번 Data / Dashboard VPC의 처리 영역으로 분리한다.
+최신 클라우드 아키텍처 기준에서 별도 Risk 계산 파드는 두지 않고, Risk 계산은 Lambda data processor 내부 로직으로 처리한다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
 - [x] 아래 네임스페이스 생성 및 역할 정의 문서화
   - `argocd` - Hub에서 Spoke 배포 제어
   - `observability` - Grafana, AMP 연동 메트릭 관제
-  - `risk` - Hub 배포 검증용 또는 임시 risk workload. 최신 목표에서는 Risk Engine을 1번 Data / Dashboard VPC 처리 영역으로 분리
-  - `ops-support` - `pipeline_status` 집계 보조 기능
+  - `risk` - M1 Hub 배포/IRSA 검증용 또는 임시 risk workload. 최신 목표에서는 별도 Risk 계산 파드를 두지 않음
+  - `ops-support` - M1 보조 namespace. 최신 목표에서는 `pipeline_status` 갱신을 Lambda data processor가 담당
 - [x] 각 네임스페이스에 기본 ResourceQuota 또는 LimitRange 설정 (선택)
 - [x] 네임스페이스 구조를 `docs/architecture/00_current_architecture.md` 또는 Hub 운영 문서에 반영
 
@@ -776,3 +776,20 @@ factories:
 - 변경/확인: `factory-a`는 real input production-edge, `factory-b`는 Mac UTM `stable-lab`, `factory-c`는 Windows VirtualBox `noisy-vm` 기준으로 추천값을 작성했다.
 - 검증: Ansible `from_yaml`로 YAML 파싱을 확인했고, 전역 risk weight 합계가 `100`임을 확인했다.
 - 후속: M2에서 Tailscale Tailnet/Auth Key 실발급과 Spoke K3s API 연결을 진행한다.
+
+## 2026-05-14 수정 방향
+
+이 문서의 `risk/risk-normalizer`와 `risk` namespace 기록은 M1 당시 IRSA와 S3 권한을 검증한 과거 이력이다.
+
+최신 데이터 처리 기준은 별도 `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` 파드가 아니라 Lambda data processor와 DynamoDB/S3 processed다.
+
+```text
+IoT Core
+  -> IoT Rule -> S3 raw
+  -> Lambda data processor
+      -> DynamoDB LATEST
+      -> DynamoDB HISTORY
+      -> S3 processed
+```
+
+따라서 M1 문서의 Risk 관련 Kubernetes 리소스는 현재 구현 대상이 아니라 과거 검증 결과로만 해석한다.
