@@ -527,7 +527,7 @@ Hub 내부 관측에 사용할 Grafana 또는 AMP 조회 기준을 구성한다.
 - [x] 데이터 소스 연결
   - AMP (Prometheus 호환)
 - [x] Grafana 버전 및 설치 방식 기록
-- [x] Dashboard VPC가 조회할 latest status store 후보를 문서에 명시
+- [x] Dashboard VPC가 조회할 DynamoDB LATEST/HISTORY와 S3 processed 후보를 문서에 명시
 
 ### 🔍 Acceptance Criteria
 
@@ -556,7 +556,7 @@ Hub 내부 관측에 사용할 Grafana 또는 AMP 조회 기준을 구성한다.
   - Grafana Service `ClusterIP`
   - Grafana API proxy로 `up{cluster="AEGIS-EKS"}` AMP query 성공
   - Query result: `kubernetes-apiservers`, `kubernetes-nodes`, `kubernetes-pods`, `prometheus-agent` 모두 `1`
-- Dashboard VPC latest status store 후보: MVP는 S3 `latest/` prefix, 낮은 지연/조건부 갱신이 필요해지면 DynamoDB 추가
+- Dashboard VPC 최신 상태 저장소 후보: 최신 기준은 DynamoDB LATEST/HISTORY와 S3 processed. M1 당시 S3 `latest/` prefix 후보는 과거 검토안으로만 남김
 
 ### GitHub Issue Comment Draft
 

@@ -126,7 +126,7 @@ Worker-2 장애 → Worker-1 AI 감시 승계 → Longhorn 데이터 보존 → 
 - Failover 2분 이내 달성
 - Longhorn 데이터 보존 확인
 - Hub 관제 화면에서 Failover 전체 과정 추적 가능
-- Data / Dashboard VPC에서 latest status store 기반으로 Failover 상태 확인 가능
+- Data / Dashboard VPC에서 DynamoDB LATEST/HISTORY 기반으로 Failover 상태 확인 가능
 - 복구 후 관제 화면 자동 정상화
 
 ---
@@ -175,7 +175,7 @@ Worker-2 장애 → Worker-1 AI 감시 승계 → Longhorn 데이터 보존 → 
   - `pipeline_status` 주기 집계 간격 보정
   - source_type별 지연/누락 수치 기준 확정
   - heartbeat 주기와 장애 판정 miss count 확정
-  - Dashboard latest status store 반영 지연 기준 확정
+  - Dashboard DynamoDB LATEST/HISTORY 반영 지연 기준 확정
   - 데이터 보존 기간 수치 확정
 
 - [ ] **Risk 모델 보정**

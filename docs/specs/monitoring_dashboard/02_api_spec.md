@@ -41,7 +41,7 @@ SELECT "is_danger" FROM "acoustic_detection" WHERE $timeFilter ORDER BY time DES
 
 아래 API는 아직 구현 대상이 아니다. AWS Hub/Risk Twin 및 1번 Data / Dashboard VPC 단계에서 다시 검토한다.
 
-Dashboard API는 Spoke K3s, ArgoCD, Control / Management VPC의 EKS API, Tailscale 관리망을 직접 호출하지 않는다. processed data와 latest status store를 조회한다.
+Dashboard API는 Spoke K3s, ArgoCD, Control / Management VPC의 EKS API, Tailscale 관리망을 직접 호출하지 않는다. DynamoDB LATEST/HISTORY와 S3 processed를 조회한다.
 
 ```text
 GET /api/factories/summary
@@ -54,7 +54,7 @@ GET /api/pipeline/status
 예상 접근 경로:
 
 ```text
-Route53 -> ALB -> WAF/Auth -> Dashboard API -> latest status store / S3 processed
+Route53 -> ALB -> WAF/Auth -> Dashboard API -> DynamoDB LATEST/HISTORY / S3 processed
 ```
 
 목표 반영 지연:

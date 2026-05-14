@@ -150,10 +150,10 @@ LAN 제거 테스트에서는 10초 bucket 기준 명확한 데이터 공백은 
 ### M4 후 검증
 
 - IoT Core -> S3 적재 확인
-- 정규화/판단 -> Risk Score 처리 확인
+- Lambda data processor -> Risk Score 처리 확인
 - `pipeline_status` 반영 확인
-- `system_status`, `device_status`, `workload_status`, `pipeline_heartbeat` 적재 확인
-- latest status store 반영 확인
+- `factory_state`, `infra_state` 적재 확인
+- DynamoDB LATEST/HISTORY 반영 확인
 
 ### M5 후 검증
 
@@ -165,7 +165,7 @@ LAN 제거 테스트에서는 10초 bucket 기준 명확한 데이터 공백은 
 
 - Risk Score 변화가 관제 화면에 반영되는지 확인
 - 상태 카드 / 이상 목록 / 로그 패널 동작 확인
-- Data / Dashboard VPC Web/API가 latest status store와 S3 processed를 조회하는지 확인
+- Data / Dashboard VPC Web/API가 DynamoDB LATEST/HISTORY와 S3 processed를 조회하는지 확인
 - 일반 상태 변화 10~35초, 장애 판정 40~60초 목표 범위 확인
 
 ### M7 후 검증

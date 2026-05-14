@@ -60,7 +60,7 @@ Dashboard VPC
   -> WAF
   -> Cognito or IdP auth
   -> Dashboard Web/API
-  -> read-only access to S3 processed + latest status store
+  -> read-only access to DynamoDB LATEST/HISTORY + S3 processed
 ```
 
 명시적으로 금지하는 경로:
@@ -319,7 +319,7 @@ dashboard refresh: 10초
 
 ```text
 M1:
-  Dashboard VPC, ALB, WAF, Auth, latest status store 후보를 설계에 포함
+  Dashboard VPC, ALB, WAF, Auth, DynamoDB LATEST/HISTORY 조회를 설계에 포함
 
 M4:
   Edge Agent가 sensor뿐 아니라 system_status, device_status, workload_status, heartbeat를 송신
@@ -335,7 +335,7 @@ M7:
 
 Dashboard VPC는 조회 전용 public access 영역이고, cloud-side data processing은 Lambda data processor와 managed storage 중심으로 둔다.
 
-두 VPC를 네트워크로 연결하지 않고, S3 processed와 latest status store를 IAM read-only로 조회하는 구조를 목표 확장안으로 둔다.
+두 VPC를 네트워크로 연결하지 않고, DynamoDB LATEST/HISTORY와 S3 processed를 IAM read-only로 조회하는 구조를 목표 확장안으로 둔다.
 
 ## 2026-05-14 수정 방향
 

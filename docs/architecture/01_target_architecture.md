@@ -122,7 +122,7 @@ aegis/factory-c/heartbeat
 
 사용자 대시보드는 Tailscale/VPN 의존 없이 ALB, WAF, Cognito 또는 사내 IdP 인증 뒤에 제공한다.
 
-Dashboard Web/API는 ArgoCD, Tailscale, EKS API 같은 제어 plane에 직접 접근하지 않는다. 데이터 조회는 1번 Data / Dashboard VPC의 processed data와 latest status store를 기준으로 한다.
+Dashboard Web/API는 ArgoCD, Tailscale, EKS API 같은 제어 plane에 직접 접근하지 않는다. 데이터 조회는 1번 Data / Dashboard VPC의 DynamoDB LATEST/HISTORY와 S3 processed를 기준으로 한다.
 
 ```text
 1번 Data / Dashboard VPC

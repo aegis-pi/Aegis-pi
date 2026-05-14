@@ -129,11 +129,11 @@ prometheus-agent=1
 | 화면 | 대상 사용자 | 접근 방식 | 데이터 |
 | --- | --- | --- | --- |
 | 내부 Grafana | 운영자/개발자 | EKS kubeconfig + port-forward 또는 Admin UI HTTPS Ingress | AMP 메트릭 |
-| Dashboard VPC Web/API | 본사 관리자 | Route53 -> ALB -> WAF/Auth -> Web/API | processed S3, latest status store |
+| Dashboard VPC Web/API | 본사 관리자 | Route53 -> ALB -> WAF/Auth -> Web/API | DynamoDB LATEST/HISTORY, S3 processed |
 
-MVP Admin Ingress는 ArgoCD/Grafana 운영 UI 접근 검증용이다. Dashboard VPC는 Grafana나 ArgoCD에 직접 접근하지 않고, processed/latest 계층을 read-only로 조회하는 최종 관리자 화면 방향을 유지한다.
+MVP Admin Ingress는 ArgoCD/Grafana 운영 UI 접근 검증용이다. Dashboard VPC는 Grafana나 ArgoCD에 직접 접근하지 않고, DynamoDB LATEST/HISTORY와 S3 processed를 read-only로 조회하는 최종 관리자 화면 방향을 유지한다.
 
-latest status store의 후보는 `latest/` S3 prefix와 DynamoDB다. MVP에서는 현재 foundation S3의 `latest/` prefix를 먼저 사용하고, Risk Twin에서 낮은 지연과 조건부 갱신이 필요해지면 DynamoDB를 추가한다.
+최신 상태 저장소의 최신 기준은 DynamoDB LATEST/HISTORY다. M1 당시 `latest/` S3 prefix 후보는 과거 검토안이며, S3는 raw/processed 이력 보존과 재처리 입력을 담당한다.
 
 ## 비용 기준
 

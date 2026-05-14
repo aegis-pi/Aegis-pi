@@ -7,7 +7,7 @@ hub_namespaces:
     role: Grafana, AMP 연동 메트릭 관제
   - name: risk
     component: risk
-    role: Hub 배포 검증용 또는 임시 risk workload. Risk Engine은 Data / Dashboard VPC 처리 영역으로 분리
+    role: M1 Hub 배포/IRSA 검증용 또는 임시 risk workload. 최신 MVP에서는 별도 Risk 계산 파드를 두지 않음
   - name: ops-support
     component: ops-support
     role: pipeline_status 집계 보조 기능

@@ -56,7 +56,7 @@ metadata:
     app.kubernetes.io/part-of: aegis-hub
     aegis.io/component: risk
   annotations:
-    aegis.io/role: Hub 배포 검증용 또는 임시 risk workload. Risk Engine은 Data / Dashboard VPC 처리 영역으로 분리
+    aegis.io/role: M1 Hub 배포/IRSA 검증용 또는 임시 risk workload. 최신 MVP에서는 별도 Risk 계산 파드를 두지 않음
 ---
 apiVersion: v1
 kind: LimitRange

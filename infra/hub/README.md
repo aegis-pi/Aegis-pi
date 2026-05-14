@@ -8,7 +8,7 @@
 
 후속 확장에서는 사용자 대시보드와 데이터 처리용 1번 Data / Dashboard VPC도 함께 설계한다.
 
-Data / Dashboard VPC는 Control / Management VPC와 직접 DB 접근이나 상시 private service 호출 없이 Route53, ALB, WAF, Auth, Dashboard Web/API를 제공하고, processed S3와 latest status store를 조회한다.
+Data / Dashboard VPC는 Control / Management VPC와 상시 private service 호출 없이 Route53, ALB, WAF, Auth, Dashboard Web/API를 제공하고, DynamoDB LATEST/HISTORY와 S3 processed를 조회한다.
 
 기준 문서:
 
@@ -150,8 +150,8 @@ Issue 2~3/7~10 기준 Hub namespace, ArgoCD, Prometheus Agent, Grafana, AWS Load
 | --- | --- | --- |
 | `argocd` | Hub에서 Spoke 배포 제어 | `scripts/ansible/files/hub-bootstrap.yaml` |
 | `observability` | Grafana, AMP 연동 메트릭 관제 | `scripts/ansible/files/hub-bootstrap.yaml` |
-| `risk` | Hub 배포 검증용 또는 임시 risk workload. Risk Engine은 Data / Dashboard VPC 처리 영역으로 분리 | `scripts/ansible/files/hub-bootstrap.yaml` |
-| `ops-support` | `pipeline_status` 집계 보조 기능 | `scripts/ansible/files/hub-bootstrap.yaml` |
+| `risk` | M1 Hub 배포/IRSA 검증용 또는 임시 risk workload. 최신 MVP에서는 별도 Risk 계산 파드를 두지 않음 | `scripts/ansible/files/hub-bootstrap.yaml` |
+| `ops-support` | M1 보조 namespace. 최신 목표에서는 `pipeline_status` 갱신을 Lambda data processor가 담당 | `scripts/ansible/files/hub-bootstrap.yaml` |
 
 M1 검증용 `risk/risk-normalizer`, `observability/prometheus-agent`, `observability/grafana`, `kube-system/aws-load-balancer-controller` ServiceAccount는 Hub bootstrap playbook이 생성하거나 확인하고 Terraform output의 IRSA role ARN으로 annotation한다.
 
