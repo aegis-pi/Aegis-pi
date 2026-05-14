@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-05-08
+기준일: 2026-05-14
 
 ## 목적
 
@@ -479,15 +479,15 @@ https://grafana.minsoo-tech.cloud
   - `latest/factory-a/` write 허용
   - `raw/factory-a/` write 거부
 
-남은 내용: 없음. 이후 M1 Issue 6~10/12와 M2 Issue 1/2는 완료됐고, M2 Issue 3은 EKS Hub Tailscale Operator 설치와 `factory-a-master` K3s API TCP reachability 검증까지 완료됐다.
+남은 내용: 없음. 이후 M1 Issue 6~10/12와 M2 Issue 1~6은 완료됐다. M2에서는 EKS Hub Tailscale Operator 설치, `factory-a-master` K3s API TCP reachability, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증까지 완료했다.
 
 ### 4. ArgoCD 접근 전략 유지
 
 현재 ArgoCD 접근 기준:
 
-- 지금은 사용자 로컬 PC에서 EKS kubeconfig를 설정한 뒤 `kubectl port-forward`로 접근한다.
-- M2에서 Tailscale을 구성할 때 ArgoCD 접근 경로를 private access로 함께 정리한다.
-- Tailscale 적용 후 EKS API endpoint public CIDR `0.0.0.0/0`를 축소한다.
+- Hub rebuild 후에는 ArgoCD/Grafana를 Tailscale UI Service 또는 로컬 fallback port-forward로 접근한다.
+- M2에서 ArgoCD/Grafana Tailscale IP 접근과 `factory-a` egress 경로를 검증했다.
+- EKS API endpoint public CIDR 축소는 M2 완료 조건에서 제외하고, 운영 보안 강화/설계 마무리 후 재검토한다.
 - ArgoCD 설정은 UI 클릭보다 Git/YAML/ApplicationSet으로 코드화한다.
 - ArgoCD public `LoadBalancer`는 만들지 않는다.
 
@@ -580,18 +580,18 @@ AWS 비용 기준은 `docs/ops/15_aws_cost_baseline.md`에 추가했고, AWS 리
 ## 최근 커밋
 
 ```text
-ba37522 Refresh session handoff docs
-4c2013b Update M1 tracker after S3 and IRSA validation
-95bc98c Add hub IRSA bootstrap for risk normalizer
-4da9e1c Add IoT rule S3 ingestion
-cc743b7 Update hub automation and destroy docs
+18fc7cb docs: add data-plane and vm-spoke validation criteria
+4a99c3e docs: justify CD pipeline with operational feedback loop
+a65216f docs: record mentoring-based MVP and architecture updates
+366aa8b config: normalize factory-a runtime profile labels
+7cd2284 docs: align control and data dashboard boundaries
 ```
 
 현재 세션 정리 내용:
 
 ```text
-2026-05-08 세션 저장 기준
-M1 Issue 1~12와 M2 Issue 1~6 검증 완료
+2026-05-14 세션 저장 기준
+M1 Issue 0~10/12와 M2 Issue 1~6 검증 완료
 scripts/build/build-all.sh --admin-ui 기준 Hub/Foundation/IoT/Admin UI 재생성 검증 완료
 scripts/destroy/destroy-all.sh 기준 K3s IoT Secret, IoT, Hub, foundation 전체 삭제 완료
 Hub EKS AEGIS-EKS deleted
@@ -625,6 +625,7 @@ M2 Issue 4 완료: factory-a kubeconfig Tailscale IP/tls-server-name 검증
 M2 Issue 5 완료: ArgoCD factory-a cluster 등록
 M2 Issue 6 완료: factory-a-podinfo-smoke Sync/Healthy, Tailscale egress 장애/복구 검증
 Build 자동화 완료: build-hub/build-all에서 Hub Tailscale 복구 기본 실행
+문서 최신화: README, docs README, project overview, implementation plan, session handoff의 M2 완료 범위와 다음 작업 기준 정합화
 다음 작업: M3 Issue 1 - GitHub 저장소 구조 설계
 주의: start_test 반복 점검 playbook은 scripts/ansible/playbooks/start_test.yml 기준으로 정리됨
 ```
