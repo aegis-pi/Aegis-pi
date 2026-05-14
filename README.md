@@ -227,14 +227,14 @@ AWS EKS Hub
 | --- | --- | --- |
 | Phase 0 | 문서 기준선 고정 | 완료 |
 | Phase 1 (M0) | `factory-a` Safe-Edge 기준선 구축 | 완료 |
-| Phase 2 (M1) | AWS EKS Hub 기준선 구성 | 진행 중, Issue 0~10/12 완료, Issue 11 보류 |
-| Phase 3 (M2) | Hub-Spoke 연결 | 진행 중, Issue 1~2 완료 |
+| Phase 2 (M1) | AWS EKS Hub 기준선 구성 | 핵심 완료, Issue 0~10/12 완료, Issue 11 보류 |
+| Phase 3 (M2) | Hub-Spoke 연결 | 완료, Issue 1~6 완료 |
 | Phase 4 (M3~M4) | Edge Agent, 배포/데이터 파이프라인 확장 | 대기 |
 | Phase 5 (M5) | `factory-b`, `factory-c` 테스트베드 확장 | 대기 |
 | Phase 6 (M6) | Risk Twin + Data / Dashboard VPC 관제 화면 | 대기 |
+| Phase 7 (M7) | 통합 검증 | 대기 |
 
 2026-05-13 멘토링 이후 Phase 6에는 MVP 최소 범위의 일일 운영 리포트 초안을 포함하는 방향을 검토한다. 이 리포트는 자동 재학습이나 자동 배포가 아니라, S3 raw/processed/latest와 사고 이미지, Risk 결과를 바탕으로 Edge AI 판단의 실패/불확실 사례와 모델/설정 업데이트 후보를 정리하는 용도다.
-| Phase 7 (M7) | 통합 검증 | 대기 |
 
 ## 문서 구조
 
@@ -317,4 +317,4 @@ infra/
 | `draft` | 방향은 있으나 세부값 미정 |
 | `candidate` | 후속 확장 또는 검토용 |
 
-기준일: 2026-05-04
+기준일: 2026-05-14

@@ -1,7 +1,7 @@
 # Aegis-Pi Docs
 
 상태: source of truth
-기준일: 2026-05-08
+기준일: 2026-05-14
 
 ## 목적
 

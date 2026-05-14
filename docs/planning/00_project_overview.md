@@ -1,7 +1,7 @@
 # 프로젝트 개요
 
 상태: source of truth
-기준일: 2026-05-08
+기준일: 2026-05-14
 
 ## 목적
 
@@ -21,8 +21,7 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - M1 Issue 10에서 ArgoCD/Grafana HTTPS Admin Ingress를 공유 Public ALB로 검증했다.
 - 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
-- M2 Issue 1에서 Tailnet/tag/Auth Key 정책 수립과 Tailnet 확인을 완료했다.
-- M2 Issue 2에서 `factory-a-master` Tailscale 참여, ACL tag 적용, Windows 운영자 PC의 ping/SSH 접근을 검증했다.
+- M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
 - 다음 작업은 M3 Issue 1 배포 파이프라인 GitHub 저장소 구조 설계다. M1 Issue 11 운영 보안 강화와 EKS API endpoint CIDR 축소는 MVP 설계 마무리 후 재검토한다.
 - `factory-b`, `factory-c`, Edge Agent, Risk Twin은 후속 확장 단계다.
 
