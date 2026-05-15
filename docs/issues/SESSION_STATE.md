@@ -61,8 +61,9 @@ M4 Issue 1 - [데이터/스키마] Raw/Processed 데이터 계약 확정
 
 ```text
 1. M4 Issue 1을 진행한다.
-   - Edge Agent가 보낼 raw message 계약 확인
-   - IoT Core -> S3 raw object 구조 확인
+   - factory-a-log-adapter가 만들 canonical JSON 계약 확인
+   - edge-iot-publisher가 읽을 local spool/outbox 계약 확인
+   - IoT Core -> S3 raw object 구조와 S3 적재 검증 기준 확인
    - processed/latest 데이터 계약 초안 정리
 ```
 
@@ -357,7 +358,7 @@ secret exists, DATA=4
 
 ### 1. 다음 시작 작업: M4 Issue 1
 
-M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. M3 Issue 1 GitOps 저장소 구조 설계, M3 Issue 2 ECR push/pull 검증, M3 Issue 3 GitHub Actions build-push workflow, M3 Issue 4 ApplicationSet 구성, M3 Issue 5 운영형 sync/rollback 정책은 완료했다. M3 Issue 6~8은 Edge Agent 실제 로직과 manifest update workflow 확정 전까지 보류하고 M7 최종 점검 전에 재확인한다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M4 Issue 1 Raw/Processed 데이터 계약 확정으로 이어간다.
+M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. M3 Issue 1 GitOps 저장소 구조 설계, M3 Issue 2 ECR push/pull 검증, M3 Issue 3 GitHub Actions build-push workflow, M3 Issue 4 ApplicationSet 구성, M3 Issue 5 운영형 sync/rollback 정책은 완료했다. M3 Issue 6~8은 실제 Edge data-plane 컴포넌트와 manifest update workflow 확정 전까지 보류하고 M7 최종 점검 전에 재확인한다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M4 Issue 1 Raw/Processed 데이터 계약 확정으로 이어간다.
 
 2026-05-15 기준 최근 검증 완료 전제:
 
@@ -391,9 +392,10 @@ M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 
 
 ```text
 M4 Issue 1:
-1. Raw message schema와 S3 key 계약 확인
+1. canonical JSON schema와 S3 key 계약 확인
 2. processed/latest 데이터 계약 초안 작성
-3. Edge Agent가 생성해야 할 최소 telemetry/status payload 정의
+3. factory-a-log-adapter와 edge-iot-publisher 사이 local spool/outbox 계약 정의
+4. S3 raw 적재 검증 acceptance를 기준으로 이후 구현 순서 확정
 
 Issue 11:
 1. WAF/Cognito/OIDC는 MVP 이후 운영 보안 강화 백로그로 보류
@@ -616,7 +618,7 @@ factory-a K3s smoke workload: aegis-spoke-system/aegis-spoke-smoke Deployment 1/
 M3 Issue 2 완료: ECR image push/pull 검증, Spoke K3s imagePullSecret 방식 확정
 M3 Issue 3 완료: Edge Agent Dockerfile, GitHub Actions build-push workflow, GitHub OIDC ECR push role 구성, Actions success, ECR sha tag 확인
 M3 Issue 5 완료: factory-a manual sync 정책, conservative RollingUpdate, bad image rollback 검증
-M3 Issue 6~8 보류: Edge Agent 실제 로직 확정 전까지 GitOps values tag 자동 갱신, 배포 검증 workflow, end-to-end 자동 검증은 도입하지 않음. M7 최종 점검 전 재확인
+M3 Issue 6~8 보류: 실제 Edge data-plane 컴포넌트 확정 전까지 GitOps values tag 자동 갱신, 배포 검증 workflow, end-to-end 자동 검증은 도입하지 않음. M7 최종 점검 전 재확인
 다음 작업: M4 Issue 1 - Raw/Processed 데이터 계약 확정
 ```
 

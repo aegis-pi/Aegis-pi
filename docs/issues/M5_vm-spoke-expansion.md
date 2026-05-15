@@ -2,7 +2,7 @@
 
 > **마일스톤 목표**: Mac mini(`factory-b`)와 Windows VM(`factory-c`)을 테스트베드형 Spoke로 추가한다.  
 > M3(배포 파이프라인)과 M4(데이터 플레인)가 `factory-a` 기준으로 검증된 후 진행한다.  
-> VM Spoke는 실센서/Longhorn/NFS 없이 Dummy Sensor 기반으로 동작한다.
+> VM Spoke는 실센서/Longhorn/NFS 없이 Dummy data generator 기반으로 동작한다.
 
 ---
 
@@ -135,16 +135,17 @@ M3에서 구성한 ApplicationSet에 `factory-b`, `factory-c` Spoke를 추가하
 
 ---
 
-## Issue 5 - [Spoke/Dummy Sensor] Dummy Sensor 모듈 구현 및 배포
+## Issue 5 - [Spoke/Dummy Generator] Dummy data generator 구현 및 배포
 
 ### 🎯 목표 (What & Why)
 
-VM 환경에서 실센서 없이 표준 입력 스키마에 맞는 더미 데이터를 생성하여 IoT Core로 전송하는 Dummy Sensor 모듈을 구현한다.  
+VM 환경에서 실센서 없이 표준 입력 스키마에 맞는 더미 canonical JSON을 생성하는 Dummy data generator를 구현한다.
+IoT Core 전송은 M4에서 만든 공통 `edge-iot-publisher`를 재사용한다.
 시나리오별(정상/주의/위험) 값 생성과 수동 전환이 가능해야 한다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] Dummy Sensor 모듈 구현
+- [ ] Dummy data generator 구현
   - 표준 입력 스키마 준수
   - `environment_type`: `vm-mac` / `vm-windows` 자동 설정
   - `input_module_type: dummy` 명시
@@ -154,14 +155,16 @@ VM 환경에서 실센서 없이 표준 입력 스키마에 맞는 더미 데이
   - `danger`: 위험 범위 값 생성
   - 구체 수치는 `docs/ops/03_test_checklist.md` 기반 테스트 후 보정
 - [ ] 시나리오 전환 방법 구현 (예: 환경변수, ConfigMap)
-- [ ] IoT Core 연결 및 메시지 전송 로직 (Edge Agent와 동일 방식)
+- [ ] 공통 `edge-iot-publisher`와 같은 local spool/outbox 계약 사용
+- [ ] IoT Core 연결 및 메시지 전송은 `edge-iot-publisher`로 처리
 - [ ] `factory-b`, `factory-c`에 각각 배포
 
 ### 🔍 Acceptance Criteria
 
-- `factory-b`, `factory-c` K3s에서 Dummy Sensor 파드 `Running`
+- `factory-b`, `factory-c` K3s에서 Dummy data generator 파드 `Running`
 - ArgoCD에서 `factory-b`, `factory-c` Application `Synced` + `Healthy` 확인
 - IoT Core에서 두 공장의 더미 메시지 수신 확인
+- S3 raw에서 `raw/factory-b/...`, `raw/factory-c/...` prefix 분리 적재 확인
 - 시나리오 전환 후 생성되는 값의 범위 변화 확인
 
 ---
@@ -195,7 +198,7 @@ VM 환경에서 실센서 없이 표준 입력 스키마에 맞는 더미 데이
 
 ### 🎯 목표 (What & Why)
 
-Dummy Sensor에서 생성된 데이터가 `factory-a`와 동일한 파이프라인으로  
+Dummy data generator에서 생성된 데이터가 `factory-a`와 동일한 파이프라인으로
 IoT Core → S3까지 흐르는지 확인한다.  
 3개 Spoke 모두 Hub에서 배포/수집 가능한 상태를 완성한다.
 
@@ -217,4 +220,4 @@ IoT Core → S3까지 흐르는지 확인한다.
 - S3 콘솔에서 `factory-a/`, `factory-b/`, `factory-c/` 경로에 각각 데이터 적재 확인
 - 3개 공장 `pipeline_status` 집계 결과 확인 가능
 - Grafana 또는 Hub 관제 기준에서 3개 공장 상태가 분리 표시됨
-- Dummy Sensor 중지 시 해당 공장 `pipeline_status` 이상 판정 확인
+- Dummy data generator 중지 시 해당 공장 `pipeline_status` 이상 판정 확인

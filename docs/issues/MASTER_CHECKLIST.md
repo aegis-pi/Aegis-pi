@@ -79,10 +79,10 @@
 
 원본: `docs/issues/M4_data-plane.md`
 
-- [ ] Issue 1 - [데이터/Schema] 표준 입력 스키마 확정
-- [ ] Issue 2 - [데이터/Edge Agent] `factory-a` Edge Agent 수집/변환 로직 구현
-- [ ] Issue 3 - [데이터/Container] `factory-a` Edge Agent 컨테이너화 및 K3s 배포 준비
-- [ ] Issue 4 - [데이터/IoT Core] Edge Agent -> IoT Core 연결 및 수신 확인
+- [ ] Issue 1 - [데이터/Schema] Raw/Processed 데이터 계약 확정
+- [ ] Issue 2 - [데이터/Adapter] `factory-a` raw/log -> JSON 변환 로직 구현
+- [ ] Issue 3 - [데이터/Publisher] JSON -> IoT Core 전송 로직 구현
+- [ ] Issue 4 - [데이터/Container/GitOps] adapter/publisher 이미지화 및 K3s 배포
 - [ ] Issue 5 - [데이터/S3] IoT Core -> S3 적재 확인 (경로 파티셔닝 포함)
 - [ ] Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
 - [ ] Issue 7 - [데이터/Pipeline] `pipeline_status` Lambda 처리 검증
@@ -96,7 +96,7 @@
 - [ ] Issue 2 - [Spoke/K3s] Windows VM K3s 구성 (`factory-c`)
 - [ ] Issue 3 - [Spoke/Tailscale] `factory-b`, `factory-c` Tailscale 참여 및 Hub 연결
 - [ ] Issue 4 - [배포/ArgoCD] ApplicationSet에 `factory-b`, `factory-c` 추가
-- [ ] Issue 5 - [Spoke/Dummy Sensor] Dummy Sensor 모듈 구현 및 배포
+- [ ] Issue 5 - [Spoke/Dummy Generator] Dummy data generator 구현 및 배포
 - [ ] Issue 6 - [배포/ArgoCD] 테스트베드형 동기화 정책 및 자동 롤백 적용
 - [ ] Issue 7 - [검증/데이터] `factory-b`, `factory-c` 데이터 플레인 연결 확인
 
