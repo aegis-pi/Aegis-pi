@@ -14,6 +14,7 @@
 | 2026-05-13 | rev-20260513-01 | 기존 배포 파이프라인 초안은 유지하고, CI/CD가 필요한 이유를 일일 리포트 기반 모델/설정 업데이트 피드백 루프로 보강 |
 | 2026-05-14 | rev-20260514-01 | M3 Issue 1 GitOps 저장소 구조, 공장별 values, smoke chart, manifest validation 완료 상태 반영 |
 | 2026-05-14 | rev-20260514-02 | M3 Issue 2 ECR 범위를 `edge-agent`로 확정하고 `infra/foundation` Terraform source를 추가 |
+| 2026-05-15 | rev-20260515-01 | M3 Issue 4 ApplicationSet을 Ansible bootstrap으로 적용하고 `factory-a` Sync/Healthy 검증 완료 상태 반영 |
 
 ---
 
@@ -152,7 +153,7 @@ M3 기준 컨테이너 registry는 Docker Hub가 아니라 AWS ECR이다. Docker
 - [ ] ECR 저장소 접근 IAM/인증 방식 설정
   - GitHub Actions -> ECR push role은 Issue 3에서 OIDC 기반으로 연결
   - Spoke K3s -> ECR pull은 EKS node role이 아니라 imagePullSecret 갱신 방식으로 연결
-- [ ] 이미지 스캔 설정 (선택)
+- [x] 이미지 스캔 설정 (선택)
   - Terraform source 기준 `scan_on_push = true`
 - [x] Terraform apply/destroy로 ECR repository 생성 절차 검증
 
@@ -222,7 +223,10 @@ Helm chart는 ECR image reference와 `imagePullSecrets`를 values로 받을 수 
 - `terraform apply -target=aws_ecr_repository.edge_agent -target=aws_ecr_lifecycle_policy.edge_agent`: 2 added
 - AWS CLI `describe-repositories`: `aegis/edge-agent`, `MUTABLE`, `scanOnPush=true`, `AES256` 확인
 - 사용자 요청에 따라 비용 정리 목적으로 `terraform destroy -target=aws_ecr_lifecycle_policy.edge_agent -target=aws_ecr_repository.edge_agent` 실행: 2 destroyed
-- 현재 AWS 상태: `aegis/edge-agent` ECR repository 없음 (`RepositoryNotFoundException` 확인)
+- 2026-05-15 `build-all.sh --admin-ui` 재실행으로 `aegis/edge-agent` ECR repository 재생성 확인
+- 현재 AWS 상태: `aegis/edge-agent` ECR repository active, `MUTABLE`, `scanOnPush=true`
+- 보조 스크립트: `scripts/ops/copy-public-image-to-ecr.py`는 Docker Hub public image를 ECR로 복사하는 임시 검증 경로이고, `scripts/ops/refresh-factory-a-ecr-pull-secret.sh`는 factory-a K3s의 ECR pull secret 갱신 경로다.
+- 남은 acceptance: 실제 image push, ECR image 확인, factory-a K3s image pull 성공
 
 ---
 
@@ -262,19 +266,38 @@ Helm chart는 ECR image reference와 `imagePullSecrets`를 values로 받을 수 
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] ArgoCD ApplicationSet 매니페스트 작성
+- [x] ArgoCD ApplicationSet 매니페스트 작성
   - Generator: `Git` 또는 `List` 기반 (공장별 values 경로 기준)
   - Template: 공통 베이스 차트 참조 + 공장별 values 경로 주입
-- [ ] `factory-a` ApplicationSet 적용 및 Application 자동 생성 확인
-- [ ] Application 이름 규칙 확정 (예: `aegis-spoke-factory-a`)
-- [ ] 기준 앱이 `factory-a` values 경로를 통해 실제 배포 대상으로 연결됨 확인
-- [ ] Sync 정책 설정 (운영형: 보수적 수동 Sync 또는 자동 Sync with Prune)
+- [x] `factory-a` ApplicationSet 적용 및 Application 자동 생성 확인
+- [x] Application 이름 규칙 확정: `aegis-spoke-factory-a`
+- [x] 기준 앱이 `factory-a` values 경로를 통해 실제 배포 대상으로 연결됨 확인
+- [x] Sync 정책 설정: 운영형 `factory-a`는 보수적 수동 Sync
 
 ### 🔍 Acceptance Criteria
 
 - ArgoCD UI에서 `aegis-spoke-factory-a` Application 자동 생성 확인
 - Application이 `factory-a` Spoke 클러스터를 대상으로 설정되어 있음
-- Sync 정책에 따라 자동/수동 Sync 동작 확인
+- 수동 Sync 동작 확인
+
+### 진행 기록
+
+- GitOps repo URL: `https://github.com/aegis-pi/aegis-pi-gitops.git`
+- GitOps source: `applicationsets/aegis-spoke-applicationset.yaml`, `charts/aegis-spoke`, `envs/factory-a/values.yaml`
+- Hub bootstrap source: `scripts/ansible/templates/aegis-spoke-applicationset.yaml.j2`
+- Hub bootstrap playbook: `scripts/ansible/playbooks/hub_aegis_spoke_applicationset_bootstrap.yml`
+- Hub verify playbook: `scripts/ansible/playbooks/hub_aegis_spoke_applicationset_verify.yml`
+- 기본 ApplicationSet scope는 `envs/factory-a/values.yaml`로 제한한다. `factory-b`, `factory-c` 확장 시 `AEGIS_GITOPS_APPSET_VALUES_GLOB='envs/*/values.yaml'`로 넓힌다.
+- 검증: `aegis-spoke-factory-a` Application 자동 생성, destination `factory-a / aegis-spoke-system`, Sync `Synced`, Health `Healthy`.
+- factory-a K3s 검증: `aegis-spoke-system` namespace에 `aegis-spoke-smoke` Deployment `1/1`, Pod `Running`, Service `ClusterIP`.
+
+### GitHub Issue Comment Draft
+
+- 상태: 완료
+- 진행 요약: Hub ArgoCD가 `https://github.com/aegis-pi/aegis-pi-gitops.git`를 source of truth로 읽도록 ApplicationSet을 Ansible bootstrap으로 적용했다. 기본 scope는 `factory-a`만 대상으로 제한했고, `aegis-spoke-factory-a` Application이 자동 생성되어 Tailscale 경유로 factory-a K3s에 smoke app을 배포했다.
+- 변경/확인: `scripts/ansible/inventory/group_vars/hub_eks.yml`, `scripts/ansible/templates/aegis-spoke-applicationset.yaml.j2`, `scripts/ansible/playbooks/hub_aegis_spoke_applicationset_bootstrap.yml`, `scripts/ansible/playbooks/hub_aegis_spoke_applicationset_verify.yml`
+- 검증: `hub_aegis_spoke_applicationset_verify.yml` 통과, ArgoCD `aegis-spoke-factory-a` `Synced` + `Healthy`, factory-a K3s `aegis-spoke-system/aegis-spoke-smoke` Pod `Running`
+- 후속: M3 Issue 2/3에서 ECR image push/pull과 GitHub Actions OIDC build/push 흐름을 연결한다.
 
 ---
 

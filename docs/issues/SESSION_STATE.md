@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-05-14
+기준일: 2026-05-15
 
 ## 목적
 
@@ -45,6 +45,9 @@
 | M2 | Issue 4 - kubeconfig Tailscale IP 기반 구성 | 완료 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
 | M2 | Issue 5 - ArgoCD factory-a cluster 등록 | 완료 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
 | M2 | Issue 6 - Hub -> factory-a Sync 확인 | 완료 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
+| M3 | Issue 1 - 배포/Helm GitOps 저장소 구조 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
+| M3 | Issue 2 - 배포/ECR 저장소 구성 및 이미지 태그 전략 | 진행 중 | `docs/issues/M3_deploy-pipeline.md` |
+| M3 | Issue 4 - 배포/ArgoCD ApplicationSet 구성 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
 
 현재 바로 이어서 할 이슈:
 
@@ -55,17 +58,12 @@ M3 Issue 2 - [배포/ECR] 저장소 구성 및 이미지 태그 전략
 다음 세션 최우선 실행 순서:
 
 ```text
-1. 클라우드 리소스 재생성
-   - Hub EKS/VPC/ArgoCD/Tailscale 경로를 다시 올린다.
-   - 기본 진입점: scripts/build/build-hub.sh
-   - 전체 재생성이 필요하면 scripts/build/build-all.sh 사용
+1. M3 Issue 2 남은 항목을 마무리한다.
+   - ECR `aegis/edge-agent` 실제 image push 확인
+   - factory-a K3s imagePullSecret 방식 확정
+   - factory-a K3s에서 ECR image pull 검증
 
-2. factory-a 연결을 UI로 먼저 확인
-   - ArgoCD UI에 접속한다.
-   - Clusters 화면에서 factory-a Connection Status가 Successful인지 확인한다.
-   - 필요하면 factory-a-podinfo-smoke 또는 aegis-spoke Application의 Synced/Healthy 상태를 확인한다.
-
-3. 위 두 항목이 확인된 뒤 M3 Issue 2 마무리 또는 Issue 3 이후 작업으로 넘어간다.
+2. 이후 M3 Issue 3으로 넘어가 GitHub Actions OIDC build/push workflow를 구성한다.
 ```
 
 ## 현재 큰 상태
@@ -73,8 +71,9 @@ M3 Issue 2 - [배포/ECR] 저장소 구성 및 이미지 태그 전략
 ```text
 현재 단계: M3 배포 파이프라인 준비
 완료: M3 Issue 1 GitOps 저장소 구조, 공장별 values, smoke chart, GitHub Actions manifest validation
-진행 중: M3 Issue 2 ECR 범위는 edge-agent로 확정, infra/foundation Terraform source 작성 및 ECR repository 생성/삭제 절차 검증 완료
-현재 AWS 상태: ECR `aegis/edge-agent`는 사용자 요청으로 destroy 완료
+완료: M3 Issue 4 ApplicationSet 구성, `aegis-spoke-factory-a` 자동 생성, 수동 Sync, factory-a K3s smoke Pod `Running`
+진행 중: M3 Issue 2 ECR 범위는 edge-agent로 확정, infra/foundation Terraform source 작성 및 ECR repository 생성/스캔 설정 검증 완료
+현재 AWS 상태: Hub/Foundation/IoT/Admin UI 리소스 재생성 완료. ECR `aegis/edge-agent` repository 활성 상태
 이미지 기준: Docker Hub가 아니라 ECR `611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent`를 표준 registry로 사용
 남음: GitHub Actions OIDC push role, Spoke K3s imagePullSecret 갱신 방식, 실제 image push/pull 검증
 후속 리팩토링: 문서 repo/code repo/GitOps repo 분리와 OIDC 기반 CI/CD/Destroy 고도화는 M7 Issue 0에서 최종 통합 검증 전 진행
@@ -101,9 +100,9 @@ M3 Issue 2 - [배포/ECR] 저장소 구성 및 이미지 태그 전략
 보류: EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 상태: 2026-05-08 `destroy-all.sh` 기준 전체 삭제 완료. Hub EKS/VPC/NAT/EIP/ALB, Route53/ACM, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/certificate, K3s IoT Secret 삭제 확인. AEGIS EKS KMS keys는 `PendingDeletion`
-Terraform state: infra/hub destroy 완료, infra/foundation destroy 완료
-다음 작업 우선순위: M3 Issue 3 이후로 넘어가기 전, 클라우드 리소스를 다시 올리고 ArgoCD UI에서 `factory-a` cluster 연결 상태를 먼저 확인한다.
+AWS 실제 리소스 상태: 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 재생성 완료. Hub EKS, foundation S3/AMP/ECR/IoT Rule, `factory-a` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태.
+Terraform state: infra/hub apply 완료, infra/foundation apply 완료
+다음 작업 우선순위: M3 Issue 2의 ECR image push/pull 검증과 Spoke K3s imagePullSecret 방식 확정.
 ```
 
 ## 지금까지 완료한 일
@@ -135,7 +134,7 @@ Terraform state: infra/hub destroy 완료, infra/foundation destroy 완료
 - WAF, Cognito, 외부 OIDC/SSO는 MVP 필수 범위에서 제외하고 운영 보안 강화 백로그인 M1 Issue 11로 분리했다.
 - 도메인은 `minsoo-tech.cloud` 기준으로 확정했다. Route53 Hosted Zone NS는 `ns-1079.awsdns-06.org`, `ns-1913.awsdns-47.co.uk`, `ns-7.awsdns-00.com`, `ns-872.awsdns-45.net`이다.
 - `scripts/build/build-hub.sh`는 Terraform apply 직후 `scripts/ops/admin-ui-nameservers.sh`를 실행해 `secret/admin-ui-nameservers.txt`를 갱신한다. Gabia에 입력할 NS는 재생성 후 이 파일을 다시 확인한다.
-- 현재 기본값은 `ADMIN_UI_INGRESS_ENABLED=false`지만, `scripts/build/build-all.sh --admin-ui`를 사용하면 기존 MFA/build 흐름 안에서 Admin UI Ingress까지 활성화한다. 2026-05-06에는 `ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh`로 shared ALB Ingress를 생성하고 HTTPS endpoint를 검증했고, 2026-05-08에는 Hub destroy로 ALB/Route53/ACM을 삭제했다.
+- 현재 기본값은 `ADMIN_UI_INGRESS_ENABLED=false`다. `scripts/build/build-all.sh`는 Admin UI용 Route53 Hosted Zone/ACM certificate와 NS 파일까지만 준비하고, Gabia NS 위임 뒤 `scripts/build/build-admin-ui-after-ns.sh`로 ACM `ISSUED` 대기와 Admin UI Ingress 활성화를 별도 실행한다. 이미 NS 위임과 ACM 발급이 끝난 상태에서 Hub만 다시 적용할 때는 `ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh`를 사용할 수 있다.
 - 현재 기본값은 `BUILD_TAILSCALE=true`이므로 `scripts/build/build-hub.sh`와 `scripts/build/build-all.sh`는 Hub bootstrap 이후 Tailscale Operator, factory-a egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD `factory-a` cluster Secret을 자동 복구/검증한다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 실패한다.
 
 ### AWS CLI MFA 및 Terraform 접근
@@ -230,19 +229,32 @@ Capacity: On-Demand
 
 ```text
 AWS 계정 연결: MFA 세션으로 확인 완료
-AWS 리소스 상태: 2026-05-08 destroy-all 실행 후 deleted
-Hub EKS: AEGIS-EKS deleted
-ArgoCD: deleted with EKS
-Foundation S3 bucket: aegis-bucket-data deleted
-AMP Workspace: AEGIS-AMP-hub deleted
-Last verified AMP Workspace ID before destroy: ws-762fb9c1-ad1f-433d-991b-20f768186759
-IoT Thing: AEGIS-IoTThing-factory-a deleted
-IoT Policy: AEGIS-IoTPolicy-factory-a deleted
-IoT Rule: AEGIS_IoTRule_factory_a_raw_s3 deleted
-IRSA Roles/ServiceAccounts: deleted with Hub
-K3s Secret: ai-apps/aws-iot-factory-a-cert deleted
-terraform state: infra/hub destroy complete
-terraform state: infra/foundation destroy complete
+AWS 리소스 상태: 2026-05-15 rebuild 후 active
+Hub EKS: AEGIS-EKS active, node 2 Ready
+Hub VPC: vpc-004036a95d486c2c3
+Private subnets: subnet-06e29617d5f8fa880, subnet-0887213fcdb8222d2
+Public subnets: subnet-0bd88736ba79c8bc1, subnet-0aeab1c105fff4ac9
+ArgoCD: argo-cd-9.5.11 / app v3.3.9, all pods Running
+Grafana: grafana-10.5.15 / app 12.3.1, pod Running
+Prometheus Agent: pod Running, AMP remote_write 검증 완료
+AWS Load Balancer Controller: 2 pods Running
+Foundation S3 bucket: aegis-bucket-data active
+AMP Workspace ID: ws-c46e6ad0-9259-4a06-9fa8-da92aa2891a8
+ECR repository: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent active, scanOnPush=true, MUTABLE
+IoT Thing: AEGIS-IoTThing-factory-a active
+IoT Policy: AEGIS-IoTPolicy-factory-a active
+IoT Rule: AEGIS_IoTRule_factory_a_raw_s3 active
+K3s Secret: factory-a ai-apps/aws-iot-factory-a-cert DATA=4
+Admin UI ACM: ISSUED
+Admin UI ALB: aegis-admin-ui-1594900970.ap-south-1.elb.amazonaws.com
+Admin UI HTTPS: https://argocd.minsoo-tech.cloud, https://grafana.minsoo-tech.cloud
+Tailscale UI: https://100.78.107.75/ for ArgoCD, http://100.117.77.36/ for Grafana
+ArgoCD cluster Secret: cluster-factory-a -> https://factory-a-master-tailnet.argocd.svc.cluster.local:6443
+GitOps Application: aegis-spoke-factory-a Synced + Healthy
+factory-a K3s: master/worker1/worker2 Ready
+factory-a smoke workload: aegis-spoke-system/aegis-spoke-smoke Deployment 1/1, Pod Running
+terraform state: infra/hub apply complete
+terraform state: infra/foundation apply complete
 ```
 
 주의:
@@ -250,10 +262,10 @@ terraform state: infra/foundation destroy complete
 - `terraform init`은 provider/module을 로컬에 내려받는 작업이라 AWS 리소스를 만들지 않는다.
 - AWS 리소스가 실제로 만들어지는 시점은 `terraform apply` 실행 시점이다.
 - 테스트가 끝나면 반드시 `scripts/destroy/destroy-hub.sh` 또는 `scripts/destroy/destroy-all.sh`로 EKS, NAT Gateway, node group을 제거한다.
-- 2026-05-06에는 foundation, Hub, IoT 전제를 재생성하고 IoT Rule -> S3 적재, AMP Workspace, Prometheus remote_write IRSA를 검증했다.
-- 2026-05-08에는 `destroy-all.sh`로 K3s IoT Secret, IoT, Hub, foundation을 삭제했고 active AEGIS AWS fixed-cost resource 0개 상태를 확인했다.
+- 2026-05-15에는 `scripts/build/build-all.sh --admin-ui` 이후 Gabia NS 위임, `scripts/build/build-admin-ui-after-ns.sh`, Tailscale/IoT/ApplicationSet 검증까지 완료했다.
+- `build-all.sh --admin-ui`는 이제 Admin UI Ingress를 즉시 켜지 않고 Route53/ACM/NS 출력까지만 준비한다. NS 위임 후 `build-admin-ui-after-ns.sh`를 실행한다.
 
-최근 검증 후 삭제된 주요 리소스:
+과거 2026-05-08 삭제 전 검증 기록:
 
 ```text
 Cluster: AEGIS-EKS
@@ -340,77 +352,25 @@ secret exists, DATA=4
 
 ### 1. 다음 시작 작업: M3 Issue 2
 
-M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. M3 Issue 1 GitOps 저장소 구조 설계는 `aegis-pi-gitops`에서 완료했다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M3 Issue 2 ECR 저장소 구성 및 이미지 태그 전략으로 이어간다.
+M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. M3 Issue 1 GitOps 저장소 구조 설계는 `aegis-pi-gitops`에서 완료했다. M3 Issue 4 ApplicationSet은 2026-05-15에 선행 완료했다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M3 Issue 2 ECR 저장소 구성 및 이미지 태그 전략의 남은 검증으로 이어간다.
 
-최근 검증 완료 전제:
+2026-05-15 기준 최근 검증 완료 전제:
 
-- Foundation S3 bucket `aegis-bucket-data` 검증 완료 후 destroy 완료
-- Hub EKS `AEGIS-EKS` build-all 검증 완료 후 destroy 완료
-- ArgoCD Helm release `argocd` 검증 완료 후 EKS destroy와 함께 삭제
-- IoT Thing `AEGIS-IoTThing-factory-a` 검증 완료 후 삭제
-- IoT certificate active/Thing attach 검증 완료 후 삭제
-- IoT Policy `AEGIS-IoTPolicy-factory-a` 검증 완료 후 삭제
-- IoT Rule `AEGIS_IoTRule_factory_a_raw_s3` 검증 완료 후 삭제
-- K3s Secret `ai-apps/aws-iot-factory-a-cert` 검증 완료 후 삭제
-- Test object `raw/factory-a/sensor/yyyy=2026/mm=05/dd=06/manual-20260506T014423Z-31668.json` 적재 확인
-- IRSA Role `AEGIS-IAMRole-IRSA-risk-normalizer` 검증 완료 후 삭제
-- ServiceAccount `risk/risk-normalizer` annotation 검증 완료
-- AMP Workspace `AEGIS-AMP-hub` 검증 완료 후 삭제
-- Last verified AMP Workspace ID before destroy `ws-762fb9c1-ad1f-433d-991b-20f768186759`
-- AMP remote_write endpoint before destroy `https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-762fb9c1-ad1f-433d-991b-20f768186759/api/v1/remote_write`
-- IRSA Role `AEGIS-IAMRole-IRSA-prometheus-remote-write` 검증 완료 후 삭제
-- ServiceAccount `observability/prometheus-agent` annotation 검증 완료
-- EKS 내부 AWS CLI pod에서 `AEGIS-IAMRole-IRSA-prometheus-remote-write` assume-role 확인
-- Hub Prometheus Agent pod `Running`, `1/1 Ready`
-- AMP Query API `up{cluster="AEGIS-EKS"}` 수신 확인
-- IRSA Role `AEGIS-IAMRole-IRSA-grafana-amp-query` 검증 완료 후 삭제
-- ServiceAccount `observability/grafana` annotation 검증 완료
-- Grafana Service `ClusterIP`
-- Grafana datasource `AEGIS-AMP` / `aegis-amp` 검증 완료
-- Grafana API proxy `up{cluster="AEGIS-EKS"}` query 성공
-- AWS Load Balancer Controller `kube-system/aws-load-balancer-controller` 설치/검증 완료
-- ACM certificate `ISSUED`
-- Admin UI ALB `aegis-admin-ui-1532265527.ap-south-1.elb.amazonaws.com` 검증 완료 후 삭제
-- ArgoCD HTTPS endpoint `https://argocd.minsoo-tech.cloud/` HTTP 200 검증 완료
-- Grafana HTTPS health endpoint `https://grafana.minsoo-tech.cloud/api/health` HTTP 200 검증 완료
-- Runtime config `configs/runtime/runtime-config.yaml` 작성 완료
-- `factory-a` real input, `factory-b` Mac UTM dummy, `factory-c` Windows VirtualBox dummy profile 작성 완료
-- 전역 risk weight 합계 `100`
-- EKS 내부 AWS CLI pod에서 `raw/factory-a/` read, `latest/factory-a/irsa-test.json` write 검증 완료
-- EKS 내부 AWS CLI pod에서 `raw/factory-a/irsa-denied.txt` write 거부 확인
-- Tailscale tag owner 정책 적용 완료
-- `factory-a-master` Tailscale `1.96.4` 설치 및 Tailnet 참여 완료
-- `factory-a-master` Tailscale IPv4 `100.117.40.125`
-- `factory-a-master` FQDN `factory-a-master.tailf83767.ts.net`
-- `factory-a-master` tag `tag:aegis-spoke-prod`, `tag:factory-a` 적용 완료
-- Windows 운영자 PC `minsoog14` Tailnet 참여 완료, Tailscale IPv4 `100.67.181.8`
-- Windows 운영자 PC에서 `100.117.40.125` ping 및 SSH 접근 성공
-- Tailscale OAuth client ID/secret 생성 완료, secret 파일은 `~/Aegis/.aegis/secrets/tailscale/operator.env`에서 관리
-- `tailscale-operator` Helm release 설치 완료, namespace `tailscale`, status `deployed`
-- `tailscale/operator` Pod `1/1 Running`, Deployment `1/1 Available`
-- `argocd/factory-a-master-tailnet` ExternalName egress Service 생성
-- egress proxy Pod `tailscale/ts-factory-a-master-tailnet-wp5c2-0` `1/1 Running`
-- EKS `argocd` namespace 임시 busybox Pod에서 `factory-a-master-tailnet:6443` TCP open 확인
-- Tailscale Admin Console에서 `tailscale-operator` (`tag:k8s-operator`)와 `argocd-factory-a-master-tailnet` (`tag:k8s`) Connected 확인
-- `factory-a` kubeconfig는 `~/Aegis/.aegis/secrets/kubeconfig/` 아래에 보관
-- Tailscale IP kubeconfig는 `server: https://100.117.40.125:6443`, `tls-server-name: 10.10.10.10` 조합으로 `kubectl get nodes` 성공
-- ArgoCD egress kubeconfig는 `server: https://factory-a-master-tailnet.argocd.svc.cluster.local:6443`, `tls-server-name: 10.10.10.10` 조합으로 EKS 내부 검증 성공
-- ArgoCD cluster `factory-a` 등록 완료, status `Successful`, version `v1.34.6`
-- `factory-a-podinfo-smoke` Application sync 성공, `Synced` + `Healthy`
-- `factory-a` K3s `aegis-m2-smoke` namespace에서 `podinfo` Pod 2개 `Running`
-- ArgoCD Tailscale UI `https://100.108.140.35/` HTTP 200 확인
-- Grafana Tailscale health `http://100.108.4.6/api/health` HTTP 200 확인
-- `argocd/factory-a-master-tailnet` Service 삭제 시 `factory-a-podinfo-smoke` sync가 `no such host`로 실패하는 것 확인
-- 동일 Service 재생성 후 Tailscale proxy pod, TCP `6443`, ArgoCD sync/health, cluster `Successful` 복구 확인
-- `scripts/build/build-hub.sh`에 Tailscale bootstrap/verify 자동 실행 추가
-- `hub_tailscale_bootstrap.yml`, `hub_tailscale_verify.yml` 실제 실행 통과
-- `scripts/ansible/playbooks/start_test.yml`에 라즈베리파이 재부팅 후 Tailscale daemon/self/IP 확인 추가
-- `aegis-pi-gitops` repository `origin/main`에 M3 GitOps MVP 구조 반영 완료
-- `aegis-pi-gitops/charts/aegis-spoke` Helm chart 작성 완료
-- `aegis-pi-gitops/envs/factory-a|b|c/values.yaml` 공장별 values 작성 완료
-- `aegis-pi-gitops/applicationsets/aegis-spoke-applicationset.yaml` ApplicationSet skeleton 작성 완료
-- `aegis-pi-gitops/.github/workflows/validate.yaml` manifest validation workflow 작성 및 Helm template 원본 파싱 오류 수정 완료
-- GitHub Actions `Validate GitOps Manifests` 통과 확인
+- Foundation S3 bucket `aegis-bucket-data` active
+- ECR repository `611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent` active
+- Hub EKS `AEGIS-EKS` node 2 Ready
+- ArgoCD Helm release `argocd` deployed, pods Running
+- Grafana and Prometheus Agent pods Running
+- AWS Load Balancer Controller pods Running
+- Admin UI ACM `ISSUED`, HTTPS endpoint verify 통과
+- IoT Thing `AEGIS-IoTThing-factory-a`, Policy, certificate, IoT Rule active
+- K3s Secret `ai-apps/aws-iot-factory-a-cert` DATA=4
+- Tailscale factory-a egress Service, ArgoCD/Grafana Tailscale UI, ArgoCD cluster Secret verify 통과
+- GitOps ApplicationSet `aegis-spoke` active
+- ArgoCD Application `aegis-spoke-factory-a` `Synced` + `Healthy`
+- factory-a K3s `aegis-spoke-system/aegis-spoke-smoke` Pod `Running`
+- Hub UI credential export: `secret/hub-ui-credentials.txt` 생성, 파일 권한 `0600`
+- 과거 M1/M2 상세 검증 로그는 이 파일의 이전 섹션과 각 이슈 문서에 유지한다.
 
 다음 구현 순서:
 
@@ -418,7 +378,9 @@ M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 
 M3 Issue 2:
 1. ECR 저장소 범위 확정
 2. 이미지 이름과 태그 규칙 확정
-3. GitHub Actions build/push에서 사용할 AWS 권한과 secret 기준 정리
+3. Spoke K3s pull secret 갱신 방식 확정 (`scripts/ops/refresh-factory-a-ecr-pull-secret.sh`)
+4. 실제 `edge-agent` 이미지 push/pull 검증
+5. GitHub Actions build/push에서 사용할 AWS 권한과 secret 기준 정리
 
 Issue 11:
 1. WAF/Cognito/OIDC는 MVP 이후 운영 보안 강화 백로그로 보류
@@ -430,7 +392,7 @@ Issue 11:
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
 kubectl get nodes
 ssh minsoo@10.10.10.10 'tailscale status --self; tailscale ip -4'
-scripts/build/build-all.sh --admin-ui
+scripts/build/build-all.sh
 aws eks describe-cluster --region ap-south-1 --name AEGIS-EKS
 ```
 
@@ -456,11 +418,11 @@ cd /home/vicbear/Aegis/git_clone/Aegis-pi
 scripts/build/build-all.sh
 ```
 
-Admin UI까지 켜는 전체 생성은 아래 진입점을 사용한다.
+Admin UI Ingress/ALB는 전체 생성과 분리해, Gabia NS 위임 뒤 아래 진입점을 사용한다.
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
-scripts/build/build-all.sh --admin-ui
+scripts/build/build-admin-ui-after-ns.sh
 ```
 
 ArgoCD UI 접근:
@@ -619,45 +581,25 @@ a65216f docs: record mentoring-based MVP and architecture updates
 현재 세션 정리 내용:
 
 ```text
-2026-05-14 세션 저장 기준
-M1 Issue 0~10/12와 M2 Issue 1~6 검증 완료
-scripts/build/build-all.sh --admin-ui 기준 Hub/Foundation/IoT/Admin UI 재생성 검증 완료
-scripts/destroy/destroy-all.sh 기준 K3s IoT Secret, IoT, Hub, foundation 전체 삭제 완료
-Hub EKS AEGIS-EKS deleted
-infra/hub destroy complete
-infra/foundation destroy complete
-Foundation S3 bucket aegis-bucket-data deleted
-AMP Workspace AEGIS-AMP-hub deleted
-Last verified AMP Workspace ID before destroy ws-762fb9c1-ad1f-433d-991b-20f768186759
-IoT Thing AEGIS-IoTThing-factory-a deleted
-IoT certificate deleted
-IoT Policy AEGIS-IoTPolicy-factory-a deleted
-IoT Rule AEGIS_IoTRule_factory_a_raw_s3 deleted
-K3s Secret ai-apps/aws-iot-factory-a-cert deleted
-Admin UI Route53 Hosted Zone minsoo-tech.cloud deleted
-Admin UI ACM certificate deleted
-Admin UI ALB deleted
-AEGIS IAM roles/policies for Hub/IRSA not found after destroy
-Latest EKS KMS key 775cd837-1961-4660-893f-f220d9f250be PendingDeletion, deletion date 2026-06-07
-Older AEGIS EKS KMS keys also PendingDeletion
-Current fixed AEGIS AWS cost baseline 0.0000 USD/hour
-destroy-all 로직 변경: DESTROY_IOT=true일 때 AWS MFA 전에 K3s IoT Secret을 먼저 삭제하고, 이후 IoT cleanup 단계에서는 Secret 삭제를 건너뜀
-SSH 비밀번호는 스크립트가 저장하지 않으며, 반복 프롬프트 회피는 SSH key 인증 구성으로 처리
-문서 최신화: 현재 AWS active 문구를 destroy 완료/rebuild 기준으로 갱신
-M1 Issue 9/10 완료: AWS Load Balancer Controller, ArgoCD/Grafana HTTPS Admin Ingress
-M1 Issue 11 보류: 운영 보안 강화 백로그
-M1 Issue 12 완료: runtime-config.yaml 구조 초안과 VM dummy data 추천값
-M2 Issue 1 완료: Tailnet/tag/Auth Key 정책 수립 및 Tailnet 확인
-M2 Issue 2 완료: factory-a-master Tailscale 참여, Windows 운영자 PC ping/SSH 검증
-M2 Issue 3 완료: EKS Hub Tailscale Operator, egress Service, ArgoCD/Grafana Tailscale IP UI 검증
-M2 Issue 4 완료: factory-a kubeconfig Tailscale IP/tls-server-name 검증
-M2 Issue 5 완료: ArgoCD factory-a cluster 등록
-M2 Issue 6 완료: factory-a-podinfo-smoke Sync/Healthy, Tailscale egress 장애/복구 검증
-Build 자동화 완료: build-hub/build-all에서 Hub Tailscale 복구 기본 실행
-문서 최신화: README, docs README, project overview, implementation plan, session handoff의 M2 완료 범위와 다음 작업 기준 정합화
-M3 Issue 1 완료: aegis-pi-gitops GitOps 저장소 구조, 공장별 values, smoke chart, ApplicationSet skeleton, manifest validation workflow
-다음 작업: M3 Issue 2 - ECR 저장소 구성 및 이미지 태그 전략
-주의: start_test 반복 점검 playbook은 scripts/ansible/playbooks/start_test.yml 기준으로 정리됨
+2026-05-15 세션 저장 기준
+Hub/Foundation/IoT/Admin UI 재생성 완료
+scripts/build/build-all.sh --admin-ui는 Route53/ACM/NS 준비까지만 수행하도록 변경
+Gabia NS 위임 후 scripts/build/build-admin-ui-after-ns.sh로 ACM ISSUED 대기와 Admin UI Ingress 활성화 완료
+Hub EKS AEGIS-EKS active, node 2 Ready
+ArgoCD/Grafana/Prometheus Agent/AWS Load Balancer Controller/Tailscale verify 통과
+Admin UI HTTPS endpoint verify 통과: https://argocd.minsoo-tech.cloud, https://grafana.minsoo-tech.cloud
+Hub UI credential 파일 생성: secret/hub-ui-credentials.txt, mode 0600
+Foundation ECR repository active: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent
+factory-a IoT Thing/Policy/certificate active, K3s Secret ai-apps/aws-iot-factory-a-cert DATA=4
+factory-a K3s master/worker1/worker2 Ready
+M3 Issue 4 완료: AEGIS Spoke ApplicationSet Ansible bootstrap/verify 추가
+GitOps repo URL: https://github.com/aegis-pi/aegis-pi-gitops.git
+ApplicationSet aegis-spoke active, 기본 scope envs/factory-a/values.yaml
+Application aegis-spoke-factory-a targets factory-a / aegis-spoke-system
+ArgoCD sync 완료: aegis-spoke-factory-a Synced + Healthy
+factory-a K3s smoke workload: aegis-spoke-system/aegis-spoke-smoke Deployment 1/1, Pod Running, Service ClusterIP
+다음 작업: M3 Issue 2 - ECR image push/pull 검증, Spoke K3s imagePullSecret 방식 확정
+그 다음 작업: M3 Issue 3 - GitHub Actions OIDC build/push workflow 구성
 ```
 
 ## 갱신 규칙
