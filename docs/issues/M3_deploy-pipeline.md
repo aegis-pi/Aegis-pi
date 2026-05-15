@@ -18,6 +18,7 @@
 | 2026-05-15 | rev-20260515-02 | M3 Issue 2 ECR image push/pull, factory-a imagePullSecret, GitOps ECR image rollout 검증 완료 상태 반영 |
 | 2026-05-15 | rev-20260515-03 | M3 Issue 3 기준 Edge Agent Dockerfile, GitHub Actions build-push workflow, OIDC ECR push role 구성 |
 | 2026-05-15 | rev-20260515-04 | M3 Issue 3 GitHub Actions run success와 ECR `sha-2ae3bd5` image push 검증 완료 |
+| 2026-05-15 | rev-20260515-05 | M3 Issue 5 manual sync, conservative RollingUpdate, bad image rollback 검증 완료 |
 
 ---
 
@@ -363,19 +364,65 @@ M3 Issue 3 완료.
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] 운영형 Spoke 동기화 정책 확정 및 적용
+- [x] 운영형 Spoke 동기화 정책 확정 및 적용
   - 자동 Sync with Prune 또는 수동 Sync 방식 결정
   - Self-heal 설정 여부 결정
-- [ ] 배포 실패 시 처리 원칙 적용
+- [x] 배포 실패 시 처리 원칙 적용
   - 운영형(`factory-a`): 실패 시 수동 확인 후 조치
-- [ ] RollingUpdate 전략 설정 (파드 교체 방식)
-- [ ] 정책 내용을 배포 파이프라인 관련 문서에 반영
+- [x] RollingUpdate 전략 설정 (파드 교체 방식)
+- [x] 정책 내용을 배포 파이프라인 관련 문서에 반영
 
 ### 🔍 Acceptance Criteria
 
 - 의도적으로 잘못된 이미지 태그 배포 시 기존 파드 유지 확인
 - ArgoCD에서 배포 실패 상태 명확히 표시
 - 수동으로 이전 values로 Sync 시 이전 버전 복구 확인
+
+### 진행 기록
+
+정책 결정:
+
+```text
+factory-a sync: manual
+prune: disabled
+self-heal: disabled
+rollback: GitOps values image tag를 이전 정상 태그로 되돌린 뒤 수동 Sync
+rollout: RollingUpdate, maxUnavailable=0, maxSurge=1, progressDeadlineSeconds=120
+```
+
+- GitOps policy commit: `56baf1f` (`Set conservative rollout policy for factory-a`)
+- 변경 파일: `aegis-pi-gitops/charts/aegis-spoke/values.yaml`, `charts/aegis-spoke/templates/deployment.yaml`, `README.md`
+- 검증: `helm lint charts/aegis-spoke -f envs/factory-a/values.yaml` 통과
+- ArgoCD sync: `aegis-spoke-factory-a` 수동 Sync 후 revision `56baf1f`, `Synced` + `Healthy`
+- factory-a Deployment 확인: `RollingUpdate`, `maxUnavailable=0`, `maxSurge=1`, `progressDeadlineSeconds=120`, image `sha-7a3cc07`, ready `1/1`
+
+실패/롤백 검증:
+
+- Bad tag test commit: `a298b91` (`test: use invalid factory-a image tag`)
+- Bad tag: `sha-bad-rollout-20260515`
+- ArgoCD bad tag sync 결과: Sync operation은 성공했지만 Application Health가 `Degraded`
+- Kubernetes rollout 결과: `deployment "aegis-spoke-smoke" exceeded its progress deadline`
+- 기존 정상 Pod 유지: `aegis-spoke-smoke-7d59bb75bd-4pd95` `Running`, image `sha-7a3cc07`
+- 신규 bad ReplicaSet: `aegis-spoke-smoke-5d4bcd7d7c` ready `0`, Pod `ImagePullBackOff`
+- Rollback commit: `0ebd1c3` (`revert: restore factory-a image tag`)
+- Rollback sync 결과: Application `Synced` + `Healthy`, bad ReplicaSet desired/current `0`, 정상 Pod `Running`
+
+GitHub Issue Comment Draft:
+
+```markdown
+M3 Issue 5 완료.
+
+- factory-a 운영형 정책: manual sync, prune disabled, self-heal disabled
+- Rollout 전략: `RollingUpdate`, `maxUnavailable=0`, `maxSurge=1`, `progressDeadlineSeconds=120`
+- 정책 commit: `56baf1f`
+- Bad tag 검증 commit: `a298b91`
+- Bad tag: `sha-bad-rollout-20260515`
+- 검증 결과: ArgoCD `Synced` + `Degraded`, Deployment progress deadline 초과, 기존 `sha-7a3cc07` Pod Running 유지
+- Rollback commit: `0ebd1c3`
+- 복구 결과: ArgoCD `Synced` + `Healthy`, bad ReplicaSet scale 0, 정상 Pod Running
+
+다음은 Issue 6 manifest tag update workflow 구성.
+```
 
 ---
 
