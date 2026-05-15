@@ -15,6 +15,8 @@
 | 2026-05-14 | rev-20260514-01 | M3 Issue 1 GitOps 저장소 구조, 공장별 values, smoke chart, manifest validation 완료 상태 반영 |
 | 2026-05-14 | rev-20260514-02 | M3 Issue 2 ECR 범위를 `edge-agent`로 확정하고 `infra/foundation` Terraform source를 추가 |
 | 2026-05-15 | rev-20260515-01 | M3 Issue 4 ApplicationSet을 Ansible bootstrap으로 적용하고 `factory-a` Sync/Healthy 검증 완료 상태 반영 |
+| 2026-05-15 | rev-20260515-02 | M3 Issue 2 ECR image push/pull, factory-a imagePullSecret, GitOps ECR image rollout 검증 완료 상태 반영 |
+| 2026-05-15 | rev-20260515-03 | M3 Issue 3 기준 Edge Agent Dockerfile, GitHub Actions build-push workflow, OIDC ECR push role 구성 |
 
 ---
 
@@ -150,7 +152,7 @@ M3 기준 컨테이너 registry는 Docker Hub가 아니라 AWS ECR이다. Docker
 - [x] 이미지 태그 전략 확정
   - 기본 태그: `git sha` (`sha-<7자리>`)
   - 보조 태그: `main`, `latest`
-- [ ] ECR 저장소 접근 IAM/인증 방식 설정
+- [x] ECR 저장소 접근 IAM/인증 방식 설정
   - GitHub Actions -> ECR push role은 Issue 3에서 OIDC 기반으로 연결
   - Spoke K3s -> ECR pull은 EKS node role이 아니라 imagePullSecret 갱신 방식으로 연결
 - [x] 이미지 스캔 설정 (선택)
@@ -178,9 +180,8 @@ M3 기준 컨테이너 registry는 Docker Hub가 아니라 AWS ECR이다. Docker
   - untagged image: 7일 후 만료
   - `sha-*`: 최신 50개 보존
 - 남은 작업:
-  - GitHub Actions OIDC push role 연결
-  - Spoke K3s `imagePullSecret` 갱신 방식 확정
-  - 실제 `edge-agent` 이미지 push/pull 검증
+  - GitHub Actions OIDC push role 연결은 Issue 3에서 처리
+  - ECR pull secret 자동 갱신 주기와 운영 보관 방식은 Issue 3/6에서 CI/CD 흐름과 함께 고도화
 
 ### 이미지 저장소 및 Pull 경계
 
@@ -226,7 +227,22 @@ Helm chart는 ECR image reference와 `imagePullSecrets`를 values로 받을 수 
 - 2026-05-15 `build-all.sh --admin-ui` 재실행으로 `aegis/edge-agent` ECR repository 재생성 확인
 - 현재 AWS 상태: `aegis/edge-agent` ECR repository active, `MUTABLE`, `scanOnPush=true`
 - 보조 스크립트: `scripts/ops/copy-public-image-to-ecr.py`는 Docker Hub public image를 ECR로 복사하는 임시 검증 경로이고, `scripts/ops/refresh-factory-a-ecr-pull-secret.sh`는 factory-a K3s의 ECR pull secret 갱신 경로다.
-- 남은 acceptance: 실제 image push, ECR image 확인, factory-a K3s image pull 성공
+- Docker Desktop WSL integration이 꺼진 상태라 Docker CLI push 대신 `scripts/ops/copy-public-image-to-ecr.py`로 Docker Hub public image의 `linux/arm64` manifest/blob을 ECR로 복제했다.
+- Push 검증 image: `nginxinc/nginx-unprivileged:stable-alpine` -> `611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent`
+- Push 검증 tag: `sha-7a3cc07`, `main`, `latest`
+- ECR `describe-images`: 세 tag가 digest `sha256:a865b6b1654643b1a0fc2614223181da6c9048a31752b5a6835948357f7da645`를 가리키는 것 확인
+- Spoke K3s pull secret: `scripts/ops/refresh-factory-a-ecr-pull-secret.sh`로 `aegis-spoke-system/ecr-registry` 생성, type `kubernetes.io/dockerconfigjson`
+- GitOps rollout: `aegis-pi-gitops/envs/factory-a/values.yaml`에 ECR image와 `imagePullSecrets` 반영 후 commit `40be92c`
+- ArgoCD sync: `aegis-spoke-factory-a` `Synced` + `Healthy`
+- factory-a K3s 검증: Deployment image `611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent:sha-7a3cc07`, `imagePullSecrets=ecr-registry`, Pod `Running`
+
+### GitHub Issue Comment Draft
+
+- 상태: 완료
+- 진행 요약: `aegis/edge-agent` ECR repository를 재생성하고, Docker Hub public ARM64 smoke image를 ECR로 복제해 `sha-7a3cc07`, `main`, `latest` 태그를 검증했다. factory-a K3s에는 ECR pull secret `aegis-spoke-system/ecr-registry`를 생성했고, GitOps values를 ECR image로 변경해 ArgoCD로 rollout했다.
+- 변경/확인: `scripts/ops/copy-public-image-to-ecr.py`, `scripts/ops/refresh-factory-a-ecr-pull-secret.sh`, `aegis-pi-gitops/envs/factory-a/values.yaml`
+- 검증: ECR `describe-images`에서 image tag 확인, ArgoCD `aegis-spoke-factory-a` `Synced` + `Healthy`, factory-a K3s `aegis-spoke-smoke` Pod `Running`, Deployment image가 ECR `sha-7a3cc07`로 교체됨 확인
+- 후속: M3 Issue 3에서 GitHub Actions OIDC 기반 build/push workflow를 구성해 수동 ECR 복제와 수동 values 변경을 자동화한다.
 
 ---
 
@@ -239,13 +255,13 @@ Helm chart는 ECR image reference와 `imagePullSecrets`를 values로 받을 수 
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] M3 배포 검증용 기준 앱 Dockerfile 및 빌드 대상 확정
-- [ ] `.github/workflows/build-push.yaml` 생성
-- [ ] 워크플로우 트리거 설정 (main 브랜치 push)
-- [ ] AWS 인증 설정 (OIDC 기반 역할 연동, 시크릿 없이)
-- [ ] Docker 빌드 및 ECR 푸시 스텝 구성
+- [x] M3 배포 검증용 기준 앱 Dockerfile 및 빌드 대상 확정
+- [x] `.github/workflows/build-push.yaml` 생성
+- [x] 워크플로우 트리거 설정 (main 브랜치 push)
+- [x] AWS 인증 설정 (OIDC 기반 역할 연동, 시크릿 없이)
+- [x] Docker 빌드 및 ECR 푸시 스텝 구성
   - `git sha` 태그 자동 적용
-- [ ] ARM64 빌드 지원 확인 (Raspberry Pi 대상 이미지)
+- [x] ARM64 빌드 지원 확인 (Raspberry Pi 대상 이미지)
 - [ ] 빌드 성공/실패 알림 설정 (선택)
 
 ### 🔍 Acceptance Criteria
@@ -254,6 +270,20 @@ Helm chart는 ECR image reference와 `imagePullSecrets`를 values로 받을 수 
 - ECR 저장소에 `sha-<커밋해시>` 태그 이미지 확인
 - 기준 앱 이미지가 실제로 빌드/푸시됨 확인
 - 빌드 로그에서 빌드/푸시 단계 정상 완료 확인
+
+### 진행 기록
+
+- 기준 앱: `apps/edge-agent/Dockerfile`, `apps/edge-agent/edge_agent.py`
+- 기준 동작: Python stdlib HTTP smoke server, port `8080`, `/`, `/healthz`, `/readyz`
+- Workflow: `.github/workflows/build-push.yaml`
+- Trigger: `main` branch push 중 `apps/edge-agent/**`, `.github/workflows/build-push.yaml` 변경
+- AWS auth: GitHub OIDC provider `arn:aws:iam::611058323802:oidc-provider/token.actions.githubusercontent.com`
+- ECR push role: `arn:aws:iam::611058323802:role/AEGIS-GitHubActions-ECRPush`
+- 권한 범위: `aegis/edge-agent` ECR repository push와 ECR authorization token 조회
+- Image tag: `sha-${GITHUB_SHA::7}`, `main`, `latest`
+- Platform: `linux/arm64`
+- 2026-05-15 `terraform -chdir=infra/foundation apply /tmp/aegis-foundation-oidc.tfplan` 결과: `3 added, 0 changed, 0 destroyed`
+- 남은 검증: GitHub push 후 Actions `Build and Push Edge Agent` 성공 확인 및 ECR `sha-<커밋해시>` tag 확인
 
 ---
 

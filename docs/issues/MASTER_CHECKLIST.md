@@ -67,7 +67,7 @@
 원본: `docs/issues/M3_deploy-pipeline.md`
 
 - [x] Issue 1 - [배포/Helm] GitHub 저장소 구조 설계 (베이스 + 공장별 values)
-- [ ] Issue 2 - [배포/ECR] 저장소 구성 및 이미지 태그 전략
+- [x] Issue 2 - [배포/ECR] 저장소 구성 및 이미지 태그 전략
 - [ ] Issue 3 - [배포/GitHub Actions] 빌드/푸시 워크플로우 구성
 - [x] Issue 4 - [배포/ArgoCD] ApplicationSet 구성 (`factory-a` 기준)
 - [ ] Issue 5 - [배포/ArgoCD] 운영형 동기화 정책 및 롤백 정책 적용

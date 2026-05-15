@@ -104,3 +104,21 @@ variable "ecr_edge_agent_expire_untagged_days" {
   type        = number
   default     = 7
 }
+
+variable "github_actions_oidc_thumbprints" {
+  description = "Thumbprints accepted by the GitHub Actions OIDC provider. AWS currently treats token.actions.githubusercontent.com as a trusted provider, but IAM still requires at least one value."
+  type        = list(string)
+  default     = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+}
+
+variable "github_actions_ecr_push_role_name" {
+  description = "IAM role name assumed by GitHub Actions to push edge-agent images to ECR."
+  type        = string
+  default     = "AEGIS-GitHubActions-ECRPush"
+}
+
+variable "github_actions_ecr_push_subjects" {
+  description = "Allowed GitHub OIDC sub claims for ECR push. Keep this scoped to the code repository main branch."
+  type        = list(string)
+  default     = ["repo:aegis-pi/Aegis-pi:ref:refs/heads/main"]
+}

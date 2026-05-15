@@ -10,6 +10,7 @@
 - IoT Rule -> S3 raw 적재: `AEGIS_IoTRule_factory_a_raw_s3`
 - AMP Workspace: `AEGIS-AMP-hub`
 - ECR repository: `aegis/edge-agent`
+- GitHub Actions OIDC provider와 ECR push role: `AEGIS-GitHubActions-ECRPush`
 
 2026-05-08 기준 위 리소스는 검증 후 비용 정리를 위해 `scripts/destroy/destroy-all.sh`로 삭제했다. 이 디렉터리는 다음 rebuild 때 같은 기준으로 foundation 리소스를 다시 생성하는 Terraform source of truth다.
 
@@ -37,6 +38,20 @@ M3 Issue 2 기준 ECR 대상은 `edge-agent` 하나다. Lambda data processor는
 ArgoCD가 배포할 Helm values는 `sha-<7자리>` 태그를 배포 기준으로 삼는다. `main`과 `latest`는 빌드 확인과 수동 디버깅을 위한 이동 태그로만 사용한다.
 
 Spoke K3s는 EKS managed node가 아니므로 EKS node role의 ECR pull 권한으로는 이미지를 받을 수 없다. M3 Issue 3~4에서 GitHub Actions push role과 Spoke K3s `imagePullSecret` 갱신 방식을 별도 연결한다.
+
+## GitHub Actions OIDC / ECR Push Role
+
+M3 Issue 3 기준 code repository의 GitHub Actions는 장기 AWS access key를 저장하지 않고 GitHub OIDC로 AWS role을 assume한다.
+
+```text
+OIDC provider: arn:aws:iam::611058323802:oidc-provider/token.actions.githubusercontent.com
+role: arn:aws:iam::611058323802:role/AEGIS-GitHubActions-ECRPush
+allowed repository subject: repo:aegis-pi/Aegis-pi:ref:refs/heads/main
+allowed ECR repository: arn:aws:ecr:ap-south-1:611058323802:repository/aegis/edge-agent
+workflow: .github/workflows/build-push.yaml
+```
+
+Role policy는 ECR authorization token 조회와 `aegis/edge-agent` repository image push에 필요한 권한만 허용한다. GitHub Actions가 Spoke K3s 또는 Hub EKS에 직접 `kubectl apply`하지 않는다는 CD 경계는 유지한다.
 
 검증 결과:
 

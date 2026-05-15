@@ -90,3 +90,13 @@ output "edge_agent_image_tag_strategy" {
     moving_tags    = ["main", "latest"]
   }
 }
+
+output "github_actions_oidc_provider_arn" {
+  description = "IAM OIDC provider ARN trusted by GitHub Actions."
+  value       = aws_iam_openid_connect_provider.github_actions.arn
+}
+
+output "github_actions_ecr_push_role_arn" {
+  description = "IAM role ARN assumed by GitHub Actions to push edge-agent images to ECR."
+  value       = aws_iam_role.github_actions_ecr_push.arn
+}
