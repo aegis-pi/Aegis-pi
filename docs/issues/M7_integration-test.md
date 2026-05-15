@@ -211,6 +211,7 @@ moving tags: main, latest
 - [ ] CD workflow는 main 병합 후 `apply`를 수행하도록 정리
 - [ ] Destroy workflow는 `workflow_dispatch`와 environment protection만 허용하도록 정리
 - [ ] `aegis-pi-gitops` validation workflow와 image tag update 흐름 정리
+- [ ] Edge Agent 실제 로직 확정 여부를 확인한 뒤 M3 Issue 6 image tag update workflow 도입 여부 결정
 - [ ] 리팩토링 후 M7 Issue 1~6 최종 통합 검증을 시작할 수 있는 상태 확인
 
 ### 🔍 Acceptance Criteria

@@ -19,6 +19,7 @@
 | 2026-05-15 | rev-20260515-03 | M3 Issue 3 기준 Edge Agent Dockerfile, GitHub Actions build-push workflow, OIDC ECR push role 구성 |
 | 2026-05-15 | rev-20260515-04 | M3 Issue 3 GitHub Actions run success와 ECR `sha-2ae3bd5` image push 검증 완료 |
 | 2026-05-15 | rev-20260515-05 | M3 Issue 5 manual sync, conservative RollingUpdate, bad image rollback 검증 완료 |
+| 2026-05-15 | rev-20260515-06 | M3 Issue 6 manifest 자동 갱신은 Edge Agent 로직 확정 전 보류하고 M7 최종 점검 항목으로 이관 |
 
 ---
 
@@ -428,6 +429,9 @@ M3 Issue 5 완료.
 
 ## Issue 6 - [배포/GitHub Actions] manifest 갱신 워크플로우 구성
 
+> 상태: 보류
+> 사유: 현재 `apps/edge-agent`는 실제 Edge Agent 로직이 아니라 ECR/GitHub Actions 검증용 smoke image다. 이 상태에서 image tag 자동 갱신을 붙이면 아직 확정되지 않은 앱 이미지를 배포 후보로 계속 올리는 구조가 되어 운영 의미가 약하다. Edge Agent 수집/상태송신 로직이 확정된 뒤, 또는 M7 최종 통합 점검 전에 재개한다.
+
 ### 🎯 목표 (What & Why)
 
 빌드된 이미지 태그를 Helm values 파일에 자동으로 반영하는 워크플로우를 구성한다.  
@@ -454,6 +458,20 @@ M3 Issue 5 완료.
 - 갱신된 커밋이 저장소 히스토리에 기록
 - 자동 커밋 후 동일 워크플로우가 무한 반복되지 않음
 - ArgoCD가 변경된 values 파일 감지 후 `OutOfSync` 상태 전환
+
+### 재개 조건
+
+- `apps/edge-agent`가 smoke HTTP server가 아니라 실제 Edge Agent 로직을 포함한다.
+- 새 image tag가 `factory-a` 배포 후보로 올라가도 되는 수준의 기능/헬스체크 기준이 확정되어 있다.
+- GitOps repo write 권한 방식이 정해져 있다.
+  - 후보: fine-grained PAT, GitHub App token, 또는 repository dispatch 기반 분리
+- Issue 5 정책에 따라 `factory-a`는 자동 Sync하지 않고 `OutOfSync`까지만 자동화한다는 경계를 유지한다.
+
+### 최종 점검 전 확인 항목
+
+- M7 Issue 0에서 image tag update workflow 도입 여부를 다시 결정한다.
+- 도입 시 첫 버전은 `workflow_dispatch` 기반 수동 승인형으로 시작한다.
+- Edge Agent가 충분히 안정된 뒤 `build-push` 성공 후 자동 연결로 확장한다.
 
 ---
 
