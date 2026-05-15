@@ -132,14 +132,14 @@
 - 역할:
   - 주요 기술 선택과 대안 보류 이유 정리
 - 핵심 내용:
-  - K3s + Edge Agent + IoT Core 선택 이유
+  - K3s + Edge data-plane + IoT Core 선택 이유
   - Greengrass, Lambda, 직접 HTTP API, Custom Dashboard 보류 이유
   - ArgoCD/ApplicationSet, Dashboard VPC/DynamoDB LATEST-HISTORY, Ansible 자동화 선택 이유
 
 ### 6. `docs/planning/06_edge_agent_deployment_plan.md`
 
 - 역할:
-  - 클라우드 송신용 `edge-agent` 이미지와 K3s 배포 기준 정리
+  - 클라우드 송신용 adapter/publisher 이미지와 K3s 배포 기준 정리
 - 핵심 내용:
   - 예상 CPU/Memory
   - worker2 preferred / worker1 failover / master avoid 배치

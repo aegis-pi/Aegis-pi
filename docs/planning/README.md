@@ -12,7 +12,7 @@
 | `03_evaluation_plan.md` | 평가와 검증 계획 |
 | `04_document_creation_priority.md` | 문서 작성 우선순위 |
 | `05_decision_rationale.md` | 주요 기술 선택의 이유와 대안 검토 |
-| `06_edge_agent_deployment_plan.md` | Edge Agent 구현과 K3s 배포 계획 |
+| `06_edge_agent_deployment_plan.md` | Edge data-plane adapter/publisher 구현과 K3s 배포 계획 |
 | `07_dashboard_vpc_extension_plan.md` | Dashboard VPC 기반 관리자 관제 구조 |
 | `08_aws_cli_mfa_terraform_access.md` | AWS CLI MFA와 Terraform 접근 준비 |
 | `09_m1_eks_vpc_decision_record.md` | M1 EKS/VPC 설계 결정과 적용 결과 |

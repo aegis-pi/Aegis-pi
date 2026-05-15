@@ -293,7 +293,7 @@ kubectl -n monitoring exec deploy/influxdb -- \
 - 진행 요약: BME280 센서 데이터를 InfluxDB `environment_data` measurement에 적재하고 Grafana에서 온도/습도/기압을 확인하는 흐름을 구성했다.
 - 변경/확인: `safe-edge/safe-edge-config-main/monitoring/bme280-sensor.yaml`과 Grafana/InfluxDB 운영 문서를 확인했다.
 - 검증: InfluxDB query로 최신 `environment_data` 적재 상태를 확인하는 기준을 남겼다.
-- 후속: 중앙 수집용 표준 스키마와 Edge Agent 송신은 M4에서 진행한다.
+- 후속: 중앙 수집용 표준 스키마와 Edge data-plane 송신은 M4에서 진행한다.
 
 ### Issue 10 - [Safe-Edge/AI] 통합 AI + Audio 파드 배포
 
@@ -368,7 +368,7 @@ worker2 NotReady -> worker1 전체 Running: 약 32초
 - 진행 요약: worker2 장애 시 AI/Audio/BME 워크로드가 worker1로 넘어가고, worker2 복구 후 master OS cron 기반 failback으로 되돌아오는 정책을 검증했다.
 - 변경/확인: `safe-edge/scripts/safe-edge-failback.sh`, `safe-edge/scripts/safe-edge-preflight-repair.sh`, `docs/changes/0002-failback-cron-instead-of-k8s-cronjob.md`를 확인했다.
 - 검증: LAN 제거, `k3s-agent` 중지, 전원 제거 테스트에서 failover/failback 성공과 Longhorn Multi-Attach 재발 없음 기준을 확인했다.
-- 후속: Hub에 장애 상태를 송신하는 Edge Agent/pipeline status 검증은 M4/M7에서 진행한다.
+- 후속: Hub에 장애 상태를 송신하는 Edge data-plane/pipeline status 검증은 M4/M7에서 진행한다.
 
 ### Issue 12 - [자동화] Ansible / Hot-Cold Tiering
 

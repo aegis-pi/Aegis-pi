@@ -12,7 +12,7 @@
 | `M1_hub-cloud.md` | AWS Hub, EKS, IoT Core, S3, AMP 기준 작업 |
 | `M2_mesh-vpn-hub-spoke.md` | Tailscale 기반 Hub-Spoke 연결 작업 |
 | `M3_deploy-pipeline.md` | GitHub Actions, ECR, ArgoCD 기반 배포 파이프라인 |
-| `M4_data-plane.md` | Edge Agent, IoT Core, S3 데이터 플레인 |
+| `M4_data-plane.md` | Edge data-plane adapter/publisher, IoT Core, S3 데이터 플레인 |
 | `M5_vm-spoke-expansion.md` | `factory-b`, `factory-c` VM Spoke 확장 |
 | `M6_risk-twin-dashboard.md` | Lambda Risk 계산 로직과 관제 화면 |
 | `M7_integration-test.md` | 전체 통합 검증 시나리오 |

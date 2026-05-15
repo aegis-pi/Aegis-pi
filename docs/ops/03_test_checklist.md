@@ -204,23 +204,24 @@ failback acoustic_detection 최대 2초
 [ ] Grafana에서 장애 시간대 공백/스파이크 시각 확인
 ```
 
-## Edge Agent 배포 후 추가 검증
+## Edge data-plane 배포 후 추가 검증
 
-`edge-agent`는 아직 현재 운영 workload가 아니다. 배포 후에는 `docs/planning/06_edge_agent_deployment_plan.md`의 기준을 따라 아래 항목을 추가로 확인한다.
+Edge data-plane은 아직 현재 운영 workload가 아니다. 배포 후에는 `docs/planning/06_edge_agent_deployment_plan.md`의 기준을 따라 아래 항목을 추가로 확인한다.
 
 ```text
-[ ] edge-agent Pod가 ai-apps namespace에서 Running
-[ ] edge-agent가 worker2에 우선 배치됨
+[ ] factory-a-log-adapter Pod가 ai-apps namespace에서 Running
+[ ] edge-iot-publisher Pod가 ai-apps namespace에서 Running
+[ ] data-plane workload가 worker2에 우선 배치됨
 [ ] resource request 50m / 128Mi, limit 200m / 256Mi 반영
-[ ] AWS IoT Core MQTT test client에서 aegis/factory-a/sensor 수신
-[ ] AWS IoT Core MQTT test client에서 aegis/factory-a/system_status 수신
+[ ] AWS IoT Core MQTT test client에서 aegis/factory-a/factory_state 수신
+[ ] AWS IoT Core MQTT test client에서 aegis/factory-a/infra_state 수신
 [ ] payload에 message_id, factory_id, node_id, source_type, source_timestamp, published_at 포함
-[ ] edge-agent 재시작 후 checkpoint 기준으로 중복 송신이 제한됨
+[ ] edge-iot-publisher 재시작 후 checkpoint 기준으로 중복 송신이 제한됨
 [ ] AWS IoT Core 연결 단절 후 backoff 재연결 확인
 [ ] ServiceAccount/RBAC가 최소 읽기 권한으로 제한됨
 [ ] AWS IoT 인증서 private key가 Git repo에 포함되지 않음
-[ ] worker2 장애 시 edge-agent가 worker1로 재스케줄
-[ ] 재스케줄 후 system_status 또는 pipeline 관련 상태 송신 유지
+[ ] worker2 장애 시 data-plane workload가 worker1로 재스케줄
+[ ] 재스케줄 후 infra_state 또는 pipeline 관련 상태 송신 유지
 [ ] 평상시 메모리 150Mi 이하
 [ ] 피크 메모리 200Mi 이하
 ```

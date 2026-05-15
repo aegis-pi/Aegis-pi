@@ -15,11 +15,11 @@
 
 | 문서 | 관련 내용 |
 | --- | --- |
-| `docs/planning/05_decision_rationale.md` | K3s + Edge Agent + IoT Core, S3 raw data lake, Lambda data processor, Dashboard 방향 같은 주요 선택 이유 |
+| `docs/planning/05_decision_rationale.md` | K3s + Edge data-plane + IoT Core, S3 raw data lake, Lambda data processor, Dashboard 방향 같은 주요 선택 이유 |
 | `docs/planning/07_dashboard_vpc_extension_plan.md` | Dashboard VPC와 Processing VPC 분리, Dashboard가 Tailscale/ArgoCD/EKS API에 직접 접근하지 않는 기준 |
 | `docs/planning/09_m1_eks_vpc_decision_record.md` | 기존 Hub EKS/VPC MVP 기준, public/private subnet, EKS endpoint, Terraform root 분리 |
 | `docs/planning/12_two_vpc_mvp_architecture_decision.md` | 1번 Data/Dashboard VPC, 2번 Control/Management VPC 배치 합의 |
-| `docs/issues/edit.md` | 기존 issue 문서에 나중에 반영할 데이터 플레인/Edge Agent 수정 후보 |
+| `docs/issues/edit.md` | 기존 issue 문서에 나중에 반영할 데이터 플레인 수정 후보 |
 
 ## ADR 후보 목록
 
@@ -260,7 +260,7 @@ Grafana Admin UI 외부 접근 방식을 어떻게 제한할지
 
 공장 내부에는 이미 `factory-a` 로컬 자율 운영을 위한 ArgoCD가 있다. 이 ArgoCD는 기존 Safe-Edge 기준선의 GitOps 배포를 담당한다.
 
-EKS Hub에도 ArgoCD를 둔다. Hub ArgoCD는 중앙에서 Edge Agent 같은 클라우드 연동 컴포넌트와 후속 멀티 factory 공통 spoke component를 배포하기 위한 역할이다.
+EKS Hub에도 ArgoCD를 둔다. Hub ArgoCD는 중앙에서 Edge data-plane 같은 클라우드 연동 컴포넌트와 후속 멀티 factory 공통 spoke component를 배포하기 위한 역할이다.
 
 ```text
 factory-a local ArgoCD
@@ -269,7 +269,7 @@ factory-a local ArgoCD
   - Hub / Tailscale 장애와 무관하게 공장 내부 운영 유지
 
 EKS Hub ArgoCD
-  - Edge Agent 같은 클라우드 연동 컴포넌트 배포
+  - Edge data-plane 같은 클라우드 연동 컴포넌트 배포
   - factory-a/b/c로 확장될 공통 spoke component 관리
   - Tailscale 경유로 spoke K3s cluster 접근
 ```
@@ -288,8 +288,9 @@ factory-a local ArgoCD owns:
   - factory-a 로컬 생존형 운영 기준
 
 EKS Hub ArgoCD owns:
-  - edge-agent
-  - cloud telemetry sender
+  - factory-a-log-adapter
+  - edge-iot-publisher
+  - dummy-data-generator
   - dummy/testbed workload
   - 후속 factory-b/c 공통 spoke component
   - 중앙 배포 파이프라인 검증용 앱
@@ -321,7 +322,7 @@ safe-edge-config-main:
 
 aegis-pi 또는 별도 deploy repo:
   - Hub ArgoCD source
-  - edge-agent / spoke components / ApplicationSet
+  - Edge data-plane / spoke components / ApplicationSet
 ```
 
 AZ별 독립 ArgoCD를 두는 DR 구조는 별도 문제다. 이 후보의 핵심은 factory-a local ArgoCD와 Hub ArgoCD의 ownership 분리였다.
@@ -510,7 +511,7 @@ local ArgoCD와 Hub ArgoCD 상태 동시 확인
 
 따라서 실무 운영 기준으로는 Hub ArgoCD 중심 구조가 더 단순하다.
 
-다만 `factory-a` local ArgoCD는 이미 검증된 운영 구성 요소이므로 즉시 제거하지 않고, 신규 Edge Agent부터 Hub ArgoCD로 관리한 뒤 기존 Safe-Edge baseline을 단계적으로 이관하는 방향이 안전하다.
+다만 `factory-a` local ArgoCD는 이미 검증된 운영 구성 요소이므로 즉시 제거하지 않고, 신규 Edge data-plane부터 Hub ArgoCD로 관리한 뒤 기존 Safe-Edge baseline을 단계적으로 이관하는 방향이 안전하다.
 
 ### 관련 계획 문서
 

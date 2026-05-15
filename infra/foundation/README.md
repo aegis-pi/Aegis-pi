@@ -33,7 +33,9 @@ untagged image expiration: 7 days
 sha-* image retention: latest 50 images
 ```
 
-M3 Issue 2 기준 ECR 대상은 `edge-agent` 하나다. Lambda data processor는 zip 배포를 기본으로 하며, `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` repository는 만들지 않는다.
+M3 Issue 2 기준 ECR 대상은 smoke image 검증용 `edge-agent` 하나다. Lambda data processor는 zip 배포를 기본으로 하며, `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` repository는 만들지 않는다.
+
+M4에서 실제 데이터 플레인 이미지를 구현하면 `factory-a-log-adapter`, `edge-iot-publisher`, `dummy-data-generator`의 ECR repository naming과 lifecycle policy를 별도로 확정한다.
 
 ArgoCD가 배포할 Helm values는 `sha-<7자리>` 태그를 배포 기준으로 삼는다. `main`과 `latest`는 빌드 확인과 수동 디버깅을 위한 이동 태그로만 사용한다.
 

@@ -1,7 +1,7 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-05-08
+기준일: 2026-05-15
 
 ## 목적
 
@@ -13,7 +13,7 @@
 - AWS Hub는 M1 Issue 0~10에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3/AMP 권한, Prometheus Agent remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress를 검증했고 2026-05-08 `destroy-all.sh`로 삭제했다.
 - M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록, IoT Rule -> S3 raw 적재 검증을 완료했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
-- `factory-b`, `factory-c`, ECR, GitHub Actions, Dashboard VPC는 아직 구축 전이다. Tailscale Hub-Spoke 경로는 M2에서 검증했고 Hub destroy와 함께 EKS 내부 리소스는 삭제됐다.
+- `factory-b`, `factory-c`, Dashboard VPC는 아직 구축 전이다. ECR/GitHub Actions/Hub ArgoCD ApplicationSet은 M3 Issue 1~5에서 smoke image 기준으로 검증했다.
 - 이 문서는 현재 동작 중인 로컬 기준선과 rebuild 가능한 Hub 기준선을 함께 기록한다.
 
 ## 물리 / 클러스터 구조
@@ -123,7 +123,7 @@ BME280 / camera / mic / AI
     -> Grafana dashboard
 ```
 
-`edge-agent`는 현재 운영 workload가 아니다. 후속 클라우드 확장 단계에서 기존 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 추가될 송신 컴포넌트다. 초기 계획은 직접 장치 접근이 아니라 InfluxDB query와 Kubernetes API status query를 사용해 AWS IoT Core로 전송하는 방식이다.
+현재 실제 데이터 플레인 workload는 아직 운영 중이 아니다. M4에서는 기존 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 `factory-a-log-adapter`와 `edge-iot-publisher`를 추가한다. 초기 계획은 직접 장치 접근이 아니라 InfluxDB query, Kubernetes API status query, 기존 workload 로그/상태를 canonical JSON으로 변환한 뒤 AWS IoT Core로 전송하는 방식이다.
 
 InfluxDB measurement:
 
@@ -274,7 +274,8 @@ GitHub Actions
 Lambda data processor / Risk calculation
 AMP
 ApplicationSet
-edge-agent
+factory-a-log-adapter
+edge-iot-publisher
 ```
 
 후속 구조는 `docs/architecture/01_target_architecture.md`에서 관리한다.

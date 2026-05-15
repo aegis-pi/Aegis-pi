@@ -47,9 +47,9 @@ Risk Score의 입력은 최소한 다음 항목을 포함하는 방향이 좋다
 - `sensor_freshness`
 - `workload_health`
 - `failover_state`
-- `pipeline_heartbeat`
+- `pipeline_status`
 - `data_gap_seconds`
-- `device_status`
+- `infra_state`
 - `edge_node_status`
 
 이 항목들을 조합해 `normal`, `warning`, `critical` 상태와 원인을 계산하면 "대시보드"가 아니라 "위험 판단 시스템"으로 보인다.
@@ -82,7 +82,7 @@ K3s, EKS, ArgoCD, Longhorn, Grafana, IoT Core를 썼다는 사실 자체보다, 
 
 1. `factory-a`에서 장애 발생 시 워크로드가 살아남는지 검증한다.
 2. 장애 동안 발생한 데이터 공백을 측정한다.
-3. Edge Agent가 공장 상태를 표준 이벤트로 Hub에 보낸다.
+3. Edge data-plane이 공장 상태를 표준 이벤트로 Hub에 보낸다.
 4. Lambda data processor가 상태를 `normal`, `warning`, `critical`로 계산한다.
 5. 대시보드가 공장별 위험 원인을 보여준다.
 
@@ -93,13 +93,13 @@ K3s, EKS, ArgoCD, Longhorn, Grafana, IoT Core를 썼다는 사실 자체보다, 
 
 포트폴리오 설득력을 높이는 순서는 다음과 같다.
 
-1. Edge Agent 최소 구현
+1. `factory-a-log-adapter`와 `edge-iot-publisher` 최소 구현
 2. Lambda data processor Risk 계산 로직 최소 구현
 3. Risk 입력 스키마와 샘플 이벤트
 4. 단위 테스트와 smoke test
 5. 간단한 공장별 상태 대시보드
 6. IoT Core/S3 또는 대체 가능한 Hub 수집 경로
-7. `factory-b`, `factory-c` dummy mode 확장
+7. `factory-b`, `factory-c` `dummy-data-generator` 확장
 
 현재 문서와 운영 기록은 이미 충분히 많다.
 다음 단계에서는 더 많은 계획 문서보다, 작게라도 실행 가능한 코드와 테스트가 포트폴리오 가치를 더 크게 올린다.

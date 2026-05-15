@@ -28,7 +28,7 @@ Mac mini에서 UTM 기반 Linux VM을 만들고 `factory-b` 테스트베드형 S
 - 운영형 failover/failback 구성
 - Tailscale 연결
 - ArgoCD cluster 등록
-- Dummy mode `edge-agent` 또는 Dummy Sensor 배포
+- `dummy-data-generator`와 `edge-iot-publisher` 배포
 
 ## 권장 VM 기준
 
@@ -196,7 +196,7 @@ aegis.spoke-type=testbed
 - EKS Hub 또는 운영자 로컬에서 `factory-b.kubeconfig`로 `kubectl get nodes` 확인
 - ArgoCD에 `factory-b` cluster 등록
 - `envs/factory-b/values.yaml` 작성
-- Dummy mode `edge-agent` 또는 Dummy Sensor 배포
+- `dummy-data-generator`와 `edge-iot-publisher` 배포
 
 ## 완료 체크리스트
 

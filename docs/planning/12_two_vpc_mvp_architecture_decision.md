@@ -230,7 +230,7 @@ AI / analytics worker
 
 목표 구조는 Hub ArgoCD 중심이다.
 
-2번 Control / Management VPC의 EKS Hub 안에 Hub ArgoCD를 두고, 이 ArgoCD가 `factory-a`, `factory-b`, `factory-c`의 Edge Agent와 공통 spoke component 배포를 관리한다.
+2번 Control / Management VPC의 EKS Hub 안에 Hub ArgoCD를 두고, 이 ArgoCD가 `factory-a`, `factory-b`, `factory-c`의 Edge data-plane workload와 공통 spoke component 배포를 관리한다.
 
 기준:
 
@@ -249,7 +249,7 @@ Git repository와 Helm values를 source of truth로 유지
 
 ```text
 factory-a Local ArgoCD 유지
-신규 Edge Agent는 Hub ArgoCD로 배포
+신규 Edge data-plane은 Hub ArgoCD로 배포
 기존 workload를 단계적으로 Hub ArgoCD로 이관
 이관 완료 후 Local ArgoCD 제거 또는 비활성화
 ```

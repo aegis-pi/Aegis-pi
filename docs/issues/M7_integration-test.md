@@ -177,10 +177,10 @@ terraform destroy -auto-approve
 
 ### Image/GitOps 파이프라인 정리
 
-실제 `edge-agent` 코드가 구현된 뒤 아래 파이프라인을 정리한다.
+실제 Edge data-plane 코드가 구현된 뒤 아래 파이프라인을 정리한다.
 
 ```text
-apps/edge-agent change
+apps/factory-a-log-adapter 또는 apps/edge-iot-publisher change
   -> test / docker build
   -> ECR push
   -> aegis-pi-gitops values image tag update
@@ -211,7 +211,7 @@ moving tags: main, latest
 - [ ] CD workflow는 main 병합 후 `apply`를 수행하도록 정리
 - [ ] Destroy workflow는 `workflow_dispatch`와 environment protection만 허용하도록 정리
 - [ ] `aegis-pi-gitops` validation workflow와 image tag update 흐름 정리
-- [ ] Edge Agent 실제 로직 확정 여부를 확인한 뒤 M3 Issue 6 image tag update workflow 도입 여부 결정
+- [ ] Edge data-plane 실제 로직 확정 여부를 확인한 뒤 M3 Issue 6 image tag update workflow 도입 여부 결정
 - [ ] 리팩토링 후 M7 Issue 1~6 최종 통합 검증을 시작할 수 있는 상태 확인
 
 ### 🔍 Acceptance Criteria
@@ -230,7 +230,7 @@ moving tags: main, latest
 ### 🎯 목표 (What & Why)
 
 실제 센서와 라즈베리파이 환경에서 `factory-a`의 전체 운영 흐름을 검증한다.  
-실 데이터가 Edge Agent → IoT Core → S3 → Risk Score → 관제 화면까지 end-to-end로 흐르는 것을 확인한다.
+실 데이터가 `factory-a-log-adapter` → `edge-iot-publisher` → IoT Core → S3 → Risk Score → 관제 화면까지 end-to-end로 흐르는 것을 확인한다.
 
 > 실행 전 확인:
 > 정상 상태 baseline(센서값, 관제 화면, 주요 파드 상태)을 먼저 기록하고,
@@ -241,7 +241,7 @@ moving tags: main, latest
 - [ ] 정상 상태 baseline 기록
   - 센서값 / 주요 파드 상태 / 관제 화면 캡처 또는 로그 확보
 - [ ] 실제 센서값 수집 및 IoT Core 전송 확인 (온도/습도/카메라/마이크 상태)
-- [ ] S3 경로 분리 적재 확인 (`sensor`, `system_status`, `device_status`, `workload_status`, `pipeline_heartbeat`)
+- [ ] S3 경로 분리 적재 확인 (`factory_state`, `infra_state`)
 - [ ] Risk Score 계산 및 관제 화면 반영 확인
 - [ ] Data / Dashboard VPC 반영 지연 측정
   - 일반 상태 변화: 10~35초 목표
@@ -266,7 +266,7 @@ moving tags: main, latest
 
 ### 🎯 목표 (What & Why)
 
-Dummy Sensor를 사용하여 정상/주의/위험 상태 전환 시나리오를 검증한다.  
+`dummy-data-generator`를 사용하여 정상/주의/위험 상태 전환 시나리오를 검증한다.
 Hub 배포 및 데이터 플레인 파이프라인이 VM 환경에서도 정상 동작하는지 확인한다.
 
 ### ✅ 완료 조건 (Definition of Done)
@@ -277,10 +277,10 @@ Hub 배포 및 데이터 플레인 파이프라인이 VM 환경에서도 정상 
   - `danger` → `normal` 복구: Score 감소 및 관제 화면 정상화 확인
 - [ ] `factory-c` 동일 시나리오 반복 검증
 - [ ] 시스템 상태 변화 시나리오
-  - Edge Agent 파드 강제 종료 → `edge_agent_down` 판정 → 관제 반영
+  - `edge-iot-publisher` 파드 강제 종료 → `data_plane_down` 판정 → 관제 반영
   - 파드 재기동 → 자동 복구 확인
 - [ ] 파이프라인 상태 변화 시나리오
-  - Dummy Sensor 중지 → `pipeline_delay` 또는 `pipeline_no_data` 판정 확인
+  - `dummy-data-generator` 중지 → `pipeline_delay` 또는 `pipeline_no_data` 판정 확인
   - 재시작 후 정상화 확인
 
 ### 🔍 Acceptance Criteria

@@ -6,7 +6,7 @@
 
 | 경로 | 역할 |
 | --- | --- |
-| `runtime/` | Risk Engine, Edge Agent, Dashboard가 참조할 런타임 설정 구조 |
+| `runtime/` | Lambda data processor, Edge data-plane, Dashboard가 참조할 런타임 설정 구조 |
 
 ## 기준
 

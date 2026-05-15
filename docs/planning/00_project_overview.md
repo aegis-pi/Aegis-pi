@@ -1,7 +1,7 @@
 # 프로젝트 개요
 
 상태: source of truth
-기준일: 2026-05-14
+기준일: 2026-05-15
 
 ## 목적
 
@@ -9,7 +9,7 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 
 ## 현재 상태
 
-- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트, M1 Hub Issue 0~10/12, M2 Issue 1~6이다.
+- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5이다.
 - `factory-a`는 로컬 K3s 3노드, ArgoCD, Helm, Longhorn, InfluxDB, Grafana, AI 앱 failover/failback 기준선을 갖는다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
 - AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/AMP, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 2026-05-06~2026-05-07 `build-all --admin-ui` 및 `build-hub`로 검증했고, 2026-05-08 비용 정리를 위해 `destroy-all.sh`로 삭제했다.
@@ -22,8 +22,8 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
-- 다음 작업은 M3 Issue 2 ECR 저장소 구성 및 이미지 태그 전략이다. M1 Issue 11 운영 보안 강화와 EKS API endpoint CIDR 축소는 MVP 설계 마무리 후 재검토한다.
-- `factory-b`, `factory-c`, Edge Agent, Risk Twin은 후속 확장 단계다.
+- 다음 작업은 M4 Issue 1 Raw/Processed 데이터 계약 확정이다. M3 Issue 6~8은 실제 Edge data-plane image가 확정된 뒤 재개한다.
+- `factory-b`, `factory-c`, Risk Twin은 후속 확장 단계다.
 
 ## 프로젝트명
 
@@ -50,6 +50,8 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 - Grafana는 InfluxDB 센서/AI 결과와 Prometheus 노드 상태를 함께 보여준다.
 - `factory-b`, `factory-c`를 테스트베드형 Spoke로 추가한다.
 - AWS EKS Hub에서 여러 Spoke를 중앙 배포한다.
+- `factory-a-log-adapter`가 실제 raw/log/status 데이터를 canonical JSON으로 변환하고, `edge-iot-publisher`가 이를 IoT Core로 송신한다.
+- `factory-b/c`는 `dummy-data-generator`가 canonical JSON 형식의 가데이터를 생성하고, 공통 `edge-iot-publisher`가 송신한다.
 - IoT Core -> IoT Rule/S3 raw와 IoT Core -> Lambda data processor -> DynamoDB/S3 processed 흐름으로 공장별 위험 상태를 만든다.
 - 관리자 대시보드는 Tailscale에 의존하지 않는 Dashboard VPC에서 Route53/ALB/WAF/Auth 뒤에 제공하고, DynamoDB LATEST/HISTORY와 S3 processed를 read-only로 조회한다.
 
@@ -94,10 +96,11 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 | 이미지 prepull | 완료 | `safe-edge-image-prepull` DaemonSet |
 | InfluxDB 1일 보존 | 완료 | retention policy 기준 |
 | AI snapshot 1일 보존 | 완료 | `/app/snapshots` cleanup sidecar |
-| AWS Hub | 완료/현재 삭제 | M1 Issue 0~10/12와 M2 Issue 3~6 검증 완료, 2026-05-08 비용 정리를 위해 destroy 완료, Issue 11 보류 |
-| Foundation S3 | 완료/현재 삭제 | `aegis-bucket-data`와 IoT Rule raw 적재 검증 완료 후 destroy 완료 |
-| AMP/Grafana | 완료/현재 삭제 | `AEGIS-AMP-hub`, `observability/prometheus-agent` remote_write 수신, Grafana datasource query와 HTTPS Admin UI 검증 완료 후 destroy 완료 |
-| IoT Core | 완료/현재 삭제 | `factory-a` Thing/certificate/policy, K3s Secret, IoT Rule/S3 적재 검증 완료 후 destroy 완료 |
+| AWS Hub | 완료/재생성 검증 | M1 Issue 0~10/12와 M2 Issue 3~6 검증 완료. 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 재생성 및 M3 ApplicationSet 검증 완료, Issue 11 보류 |
+| Foundation S3 | 완료/재생성 검증 | `aegis-bucket-data`와 IoT Rule raw 적재 검증 완료 |
+| AMP/Grafana | 완료/재생성 검증 | `AEGIS-AMP-hub`, `observability/prometheus-agent` remote_write 수신, Grafana datasource query와 HTTPS Admin UI 검증 완료 |
+| IoT Core | 완료/재생성 검증 | `factory-a` Thing/certificate/policy, K3s Secret, IoT Rule/S3 적재 검증 완료 |
+| M3 배포 기준선 | 완료/일부 보류 | ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a` 보수적 rollout/rollback 완료. Manifest 자동 갱신은 M4 이미지 확정 후 재개 |
 | AWS 비용 기준 | 완료 | `docs/ops/15_aws_cost_baseline.md`, destroy 이후 `$0.0000/hour` |
 | `factory-b`, `factory-c` | 후속 | 테스트베드형 Spoke |
 | Risk Twin | 후속 | M6 이후 |
@@ -118,7 +121,7 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 - Dashboard VPC 기반 관리자 관제 접근
 - GitHub Actions/ECR 이미지 빌드 파이프라인
 - `runtime-config.yaml` 구조 초안
-- Edge Agent 기반 IoT Core/S3 데이터 플레인 확장
+- Edge data-plane 기반 IoT Core/S3 데이터 플레인 확장
 - `factory-b`, `factory-c` 테스트베드형 Spoke
 - Risk Twin 상태 카드와 공장별 위험도
 - LLM 기반 일일 보고서/후처리

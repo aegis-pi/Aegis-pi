@@ -96,4 +96,4 @@ k3s-agent 중지 장애 테스트
 1. 계획과 실제 구현이 달라진 항목은 `docs/changes/`에 Change Record로 남긴다.
 2. `README.md`, `docs/README.md`, architecture 문서를 현재 `factory-a` 기준으로 유지한다.
 3. Grafana/dashboard 스펙을 실제 InfluxDB + Prometheus 기준으로 유지한다.
-4. M1 Issue 9 AWS Load Balancer Controller, M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress, M1 Issue 12 `runtime-config.yaml` 구조 초안, M3 Issue 1 GitOps 저장소 구조 설계는 완료됐다. 다음 작업은 M3 Issue 2 ECR 저장소 구성 및 이미지 태그 전략이다.
+4. M1 Issue 9 AWS Load Balancer Controller, M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress, M1 Issue 12 `runtime-config.yaml` 구조 초안, M3 Issue 1~5 배포 기준선은 완료됐다. 다음 작업은 M4 Issue 1 Raw/Processed 데이터 계약 확정이다.

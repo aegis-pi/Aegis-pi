@@ -1,7 +1,7 @@
 # Data Storage Pipeline and Formats
 
 상태: source of truth
-기준일: 2026-05-14
+기준일: 2026-05-15
 
 ## 목적
 
@@ -23,7 +23,9 @@ DynamoDB HISTORY
 최종 MVP 데이터 처리 흐름은 아래 구조를 기준으로 한다.
 
 ```text
-Edge Agent
+factory-a-log-adapter / dummy-data-generator
+  -> local spool/outbox
+  -> edge-iot-publisher
   -> AWS IoT Core
       -> IoT Rule
           -> S3 raw
@@ -31,7 +33,10 @@ Edge Agent
           -> DynamoDB LATEST
           -> DynamoDB HISTORY
           -> S3 processed
-      -> Dashboard API/Web
+
+Dashboard API/Web
+  -> DynamoDB LATEST/HISTORY
+  -> S3 processed
 ```
 
 역할:
@@ -43,14 +48,14 @@ Edge Agent
 | Lambda | 메시지 정규화, Risk 계산, latest/history/processed 저장 |
 | DynamoDB LATEST | Dashboard 카드와 현재 상태 조회 |
 | DynamoDB HISTORY | 최근 1시간/2시간 그래프 조회 |
-| S3 raw | Edge Agent 원본 JSON 장기 보존 |
+| S3 raw | Edge data-plane 원본 JSON 장기 보존 |
 | S3 processed | Lambda 계산 결과와 상태 요약 이력 보존 |
 
 ## 저장 계층 구분
 
 | 계층 | 저장 내용 | 조회 목적 | 보존 방식 |
 | --- | --- | --- | --- |
-| `S3 raw` | Edge Agent 원본 `factory_state`, `infra_state` | 감사, 재처리, 원본 확인 | 장기 보존 |
+| `S3 raw` | Edge data-plane 원본 `factory_state`, `infra_state` | 감사, 재처리, 원본 확인 | 장기 보존 |
 | `S3 processed` | Lambda가 계산한 Risk 결과, pipeline summary, status summary | 리포트, 장기 이력, 재처리 비교 | 장기 보존 |
 | `DynamoDB LATEST` | 공장별 현재 상태 1건 | 대시보드 상단 카드, 현재 노드 상태 | 계속 overwrite |
 | `DynamoDB HISTORY` | 최근 그래프용 short-term 시계열 | 최근 1h/2h 그래프 | TTL로 최근 N시간/일만 보존 |

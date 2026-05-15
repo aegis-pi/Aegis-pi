@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-05-14
+기준일: 2026-05-15
 
 ## 목적
 
@@ -15,7 +15,8 @@
 - Hub AWS 리소스와 foundation S3/AMP/Admin UI는 2026-05-06~2026-05-07 `build-all --admin-ui`와 `build-hub`로 재생성/검증했고, 2026-05-08 비용 정리를 위해 `destroy-all.sh`로 삭제했다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
-- 현재 다음 단계는 M3 Issue 2 ECR 저장소 구성 및 이미지 태그 전략이다.
+- M3는 Issue 1~5 범위를 완료했다. Issue 6 manifest 자동 갱신, Issue 7 배포 검증 workflow, Issue 8 end-to-end 배포 검증은 실제 Edge data-plane 이미지가 확정된 뒤 재개한다.
+- 현재 다음 단계는 M4 Issue 1 Raw/Processed 데이터 계약 확정이다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
@@ -177,37 +178,41 @@ Hub 생성 순서:
 - ECR 저장소 및 이미지 태그 전략
 - GitHub Actions 기반 CI, 이미지 빌드/테스트/ECR push
 - GitHub repository와 ArgoCD ApplicationSet 기반 CD
-- manifest 갱신 워크플로우
-- 배포 검증 워크플로우
+- manifest 갱신 워크플로우는 실제 Edge data-plane 이미지가 확정된 뒤 재개
+- 배포 검증 워크플로우는 M4의 `factory-a-log-adapter`, `edge-iot-publisher` 기준으로 재개
 
 완료 조건:
 
-- push -> 이미지 갱신 -> ArgoCD Sync -> `factory-a` 롤아웃 확인
+- 현재 완료 범위: ECR, GitHub Actions build/push, Hub ArgoCD ApplicationSet, `factory-a` 보수적 rollout/rollback 검증
+- 후속 완료 범위: 실제 data-plane image push -> manifest/value 갱신 -> ArgoCD Sync -> `factory-a` 롤아웃 확인
 - 이미지 prepull 정책과 최신 태그 유지 방식 정리
 
 ### Phase 5. M4 데이터 플레인 - `factory-a` 단일 Spoke 기준
 
 선행 조건:
 
-- Phase 3, 4 완료
-- `factory-a` Edge Agent 구현 준비
+- Phase 3 완료
+- M3 현재 완료 범위인 ECR/GitHub Actions/Hub ArgoCD ApplicationSet 검증 완료
+- M3 Issue 6~8은 M4 image 확정 후 재개
 
 주요 작업:
 
-- 표준 입력 스키마 확정
-- Edge Agent 구현 / 컨테이너화
-- `docs/planning/06_edge_agent_deployment_plan.md` 기준으로 `factory-a` real mode와 `factory-b/c` dummy mode를 분리
-- 초기 데이터 수집은 직접 장치 접근이 아니라 InfluxDB query와 Kubernetes API status query로 구현
-- Edge Agent가 `system_status`, `device_status`, `workload_status`, `pipeline_heartbeat`를 함께 송신해 Dashboard VPC가 Spoke에 직접 붙지 않아도 현장 상태를 볼 수 있게 한다.
-- IoT Core 연결
-- S3 적재
-- 정규화/판단 서비스
+- Raw/Processed 데이터 계약 확정
+- `factory-a-log-adapter` 구현: `factory-a`의 실제 raw/log/status 데이터를 표준 JSON으로 변환
+- local spool/outbox 계약 확정
+- `edge-iot-publisher` 구현: canonical JSON을 AWS IoT Core로 MQTT publish
+- 두 컴포넌트를 이미지화하고 Hub ArgoCD가 `factory-a` K3s에 배포
+- IoT Core -> S3 raw object 적재 검증
+- Lambda data processor와 DynamoDB/S3 processed 연계 준비
 - `pipeline_status` 집계 및 latest status 저장소 반영
 
 완료 조건:
 
-- `factory-a` 데이터가 S3까지 실제 적재되고 Hub에서 처리 가능
-- worker2 장애 시 edge-agent가 worker1로 재스케줄되고 `system_status` 또는 pipeline 관련 상태를 계속 송신
+- `factory-a` 실제 데이터가 canonical JSON으로 변환됨
+- IoT Core 수신 메시지와 S3 raw object body가 같은 계약을 만족함
+- S3 raw prefix가 `factory_id/source_type/yyyy/mm/dd` 기준으로 확인됨
+- Hub ArgoCD가 두 data-plane workload를 `factory-a` K3s에 배포/복구할 수 있음
+- worker2 장애 시 data-plane workload가 worker1로 재스케줄되고 pipeline 관련 상태가 계속 송신
 
 ### Phase 6. M5 VM Spoke 확장 - `factory-b`, `factory-c`
 
@@ -222,7 +227,8 @@ Hub 생성 순서:
 - `factory-c` K3s
 - 두 VM의 Tailscale 참여
 - ApplicationSet 확장
-- Dummy Sensor 구현 / 배포
+- `dummy-data-generator` 구현 / 배포
+- `factory-b/c`는 canonical JSON 형식의 가데이터를 생성하고, 공통 `edge-iot-publisher`가 IoT Core 송신을 담당
 - 테스트베드형 자동 롤백 정책 적용
 - 두 VM의 S3 적재 및 `pipeline_status` 확인
 
@@ -278,8 +284,8 @@ Hub 생성 순서:
 | Phase 1 (M0) | 완료 | `factory-a` Safe-Edge 기준선 |
 | Phase 2 (M1) | 핵심 완료, Issue 0~10/12 완료, Issue 11 보류 | Hub 핵심 서비스 |
 | Phase 3 (M2) | 완료, Issue 1~6 완료 | Mesh 기반 `factory-a` 연결 |
-| Phase 4 (M3) | 후속 | 배포 파이프라인 |
-| Phase 5 (M4) | 후속 | `factory-a` 중앙 데이터 플레인 |
+| Phase 4 (M3) | Issue 1~5 완료, Issue 6~8 보류 | ECR/GitHub Actions/Hub ArgoCD 배포 기준선 |
+| Phase 5 (M4) | 다음 진행 | `factory-a` adapter/publisher 데이터 플레인 |
 | Phase 6 (M5) | 후속 | VM Spoke 확장 |
 | Phase 7 (M6) | 후속 | Risk Twin + Dashboard VPC 관제 |
 | Phase 8 (M7) | 후속 | 통합 검증 + 문서 보정 |
@@ -290,7 +296,7 @@ Hub 생성 순서:
 - IoT Core -> S3 적재 지연
 - Risk Score 가중치
 - source_type별 지연 기준
-- Dummy 시나리오 값
+- dummy data generator 시나리오 값
 - `pipeline_status` 주기 집계 간격
 - 배포 지연 시간 수치
 - null 허용 정책 세부값

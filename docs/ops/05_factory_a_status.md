@@ -66,10 +66,10 @@ argocd:
 후속 planned workload:
 
 ```text
-edge-agent: not deployed
+edge data-plane: not deployed
 planned namespace: ai-apps
 planned placement: worker2 preferred, worker1 failover, master avoid
-planned role: InfluxDB/Kubernetes API 기반 상태 수집 후 AWS IoT Core 송신
+planned role: factory-a-log-adapter가 InfluxDB/Kubernetes API 기반 상태를 canonical JSON으로 변환하고 edge-iot-publisher가 AWS IoT Core로 송신
 ```
 
 ## 저장소

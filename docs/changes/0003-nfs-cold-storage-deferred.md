@@ -22,7 +22,7 @@ AI snapshot cleanup: 24h
 AI snapshot daily purge: every day 03:00 KST
 ```
 
-장기 보존은 후속 edge-agent, IoT Core, S3 데이터 플레인에서 다룬다.
+장기 보존은 후속 Edge data-plane, IoT Core, S3 데이터 플레인에서 다룬다.
 
 ## 변경 이유
 

@@ -238,9 +238,9 @@ notifications-controller:
   limits:   200m / 256Mi
 ```
 
-## Edge Agent 배치 계획
+## Edge data-plane 배치 계획
 
-`edge-agent`는 현재 운영 중인 workload가 아니라 후속 클라우드 송신 컴포넌트다. 초기에는 기존 Safe-Edge workload를 대체하지 않고 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 추가한다.
+Edge data-plane은 현재 운영 중인 workload가 아니라 후속 클라우드 송신 컴포넌트다. 초기에는 기존 Safe-Edge workload를 대체하지 않고 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 `factory-a-log-adapter`와 `edge-iot-publisher`를 추가한다.
 
 배치 기준:
 
@@ -265,9 +265,13 @@ strategy: Recreate for MVP
 초기 데이터 수집 방식:
 
 ```text
-edge-agent
+factory-a-log-adapter
   -> InfluxDB query
   -> Kubernetes API status query
+  -> local spool/outbox
+
+edge-iot-publisher
+  -> local spool/outbox
   -> AWS IoT Core MQTT publish
 ```
 

@@ -41,8 +41,9 @@ factory-a local ArgoCD
   -> 기존 Safe-Edge baseline
 
 EKS Hub ArgoCD
-  -> edge-agent
-  -> cloud telemetry sender
+  -> factory-a-log-adapter
+  -> edge-iot-publisher
+  -> dummy-data-generator
   -> factory-a/b/c 공통 spoke component
 ```
 
@@ -79,7 +80,7 @@ Edge AI 추론 / 센서 이벤트
 ```text
 EKS Hub ArgoCD
   -> factory-a Safe-Edge baseline
-  -> factory-a edge-agent
+  -> factory-a Edge data-plane
   -> factory-b testbed workload
   -> factory-c testbed workload
   -> 공통 spoke component
@@ -201,7 +202,7 @@ Local ArgoCD를 즉시 제거하지 않는다.
 ```text
 1단계: 병행 준비
   - factory-a local ArgoCD는 기존 baseline 유지
-  - Hub ArgoCD는 신규 edge-agent 또는 영향 적은 workload부터 관리
+  - Hub ArgoCD는 신규 Edge data-plane 또는 영향 적은 workload부터 관리
 
 2단계: Hub 관리 범위 확대
   - Hub ArgoCD에서 factory-a 기존 workload diff 확인
@@ -253,7 +254,7 @@ local ArgoCD와 ownership 충돌 확인
 ### Day 3: 부분 이관
 
 ```text
-edge-agent 또는 영향 적은 workload부터 Hub ArgoCD sync
+factory-a-log-adapter / edge-iot-publisher 또는 영향 적은 workload부터 Hub ArgoCD sync
 기존 workload 이관 후보 검토
 Pod 재생성 여부 확인
 Service IP / PVC / Secret 영향 확인

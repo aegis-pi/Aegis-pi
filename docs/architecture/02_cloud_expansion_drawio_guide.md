@@ -60,8 +60,8 @@ Operator / Admin
 | Factory | 유형 | 현재 기준 | 클라우드 확장 후 역할 |
 | --- | --- | --- | --- |
 | `factory-a` | 운영형 Spoke | M0 완료 | 실제 센서/AI/Audio 입력을 Hub로 전송 |
-| `factory-b` | 테스트베드형 Spoke | 후속 | Dummy Sensor 기반 VM Spoke |
-| `factory-c` | 테스트베드형 Spoke | 후속 | Dummy Sensor 기반 VM Spoke |
+| `factory-b` | 테스트베드형 Spoke | 후속 | dummy-data-generator 기반 VM Spoke |
+| `factory-c` | 테스트베드형 Spoke | 후속 | dummy-data-generator 기반 VM Spoke |
 
 ### 공통 라벨
 
@@ -136,7 +136,7 @@ factory-b / factory-c
 +----------------+ +----------------+ +----------------+
 | factory-a      | | factory-b      | | factory-c      |
 | RPi K3s        | | Mac VM K3s     | | Windows VM K3s |
-| sensor/AI/audio| | dummy sensor   | | dummy sensor   |
+| sensor/AI/audio| | dummy generator| | dummy generator|
 +----------------+ +----------------+ +----------------+
 ```
 
@@ -169,9 +169,9 @@ Data / Dashboard VPC 경계 안에는 아래 리소스를 둔다.
 
 | Spoke | 포함 리소스 |
 | --- | --- |
-| `factory-a` | K3s, BME280, camera, mic, Edge Agent, 기존 monitoring/ai-apps, Longhorn |
-| `factory-b` | VM K3s, Dummy Sensor, Edge Agent 또는 Dummy 송신 모듈 |
-| `factory-c` | VM K3s, Dummy Sensor, Edge Agent 또는 Dummy 송신 모듈 |
+| `factory-a` | K3s, BME280, camera, mic, `factory-a-log-adapter`, `edge-iot-publisher`, 기존 monitoring/ai-apps, Longhorn |
+| `factory-b` | VM K3s, `dummy-data-generator`, `edge-iot-publisher` |
+| `factory-c` | VM K3s, `dummy-data-generator`, `edge-iot-publisher` |
 
 ### 주요 관계
 
@@ -182,7 +182,7 @@ Data / Dashboard VPC 경계 안에는 아래 리소스를 둔다.
 | GitHub Actions | GitHub manifests | 이미지 태그를 values에 반영 |
 | ArgoCD | GitHub manifests | ApplicationSet이 chart/values를 감시 |
 | ArgoCD | Spoke K3s | Tailscale 경유 Kubernetes API sync |
-| Spoke Edge Agent | IoT Core | MQTT publish |
+| Spoke edge-iot-publisher | IoT Core | MQTT publish |
 | IoT Core | S3 raw | IoT Rule 기반 원본 JSON 적재 |
 | IoT Core | Lambda data processor | IoT Rule 또는 Lambda action으로 수신 메시지 전달 |
 | Lambda data processor normalization step | Lambda data processor risk logic | 정규화 결과 전달 |
@@ -213,7 +213,9 @@ Data / Dashboard VPC 경계 안에는 아래 리소스를 둔다.
 
 ```text
 factory-a real input
-    -> Edge Agent
+    -> factory-a-log-adapter
+    -> local spool/outbox
+    -> edge-iot-publisher
     -> AWS IoT Core
         -> IoT Rule -> S3 raw data
         -> Lambda data processor
@@ -222,7 +224,9 @@ factory-a real input
     -> Dashboard Web/API
 
 factory-b / factory-c dummy input
-    -> Dummy Sensor
+    -> dummy-data-generator
+    -> local spool/outbox
+    -> edge-iot-publisher
     -> AWS IoT Core
         -> IoT Rule -> S3 raw data
         -> Lambda data processor
@@ -240,14 +244,14 @@ BME280
 camera
 mic
 node status
-edge agent status
+edge data-plane status
 input module status
 device status
 workload status
 pipeline heartbeat
 ```
 
-`factory-b`, `factory-c`는 Dummy Sensor를 사용한다.
+`factory-b`, `factory-c`는 `dummy-data-generator`를 사용한다.
 
 ```text
 normal
@@ -288,8 +292,8 @@ payload
 
 | source_type | 생성 위치 | Hub 처리 |
 | --- | --- | --- |
-| `factory_state` | Edge Agent | Lambda 처리 후 DynamoDB/S3 processed 저장 |
-| `infra_state` | Edge Agent | Lambda 처리 후 DynamoDB/S3 processed 저장 |
+| `factory_state` | `factory-a-log-adapter` 또는 `dummy-data-generator` | Lambda 처리 후 DynamoDB/S3 processed 저장 |
+| `infra_state` | `factory-a-log-adapter` 또는 `dummy-data-generator` | Lambda 처리 후 DynamoDB/S3 processed 저장 |
 | `pipeline_status` | Lambda data processor | IoT/S3 상태를 집계해 DynamoDB LATEST/HISTORY에 저장 |
 | `event` | 구조만 예약 | MVP에서는 점수 반영 제외 |
 
@@ -533,7 +537,9 @@ envs/factory-c/values.yaml
 ECR에는 서비스별 repository를 둔다.
 
 ```text
-edge-agent
+factory-a-log-adapter
+edge-iot-publisher
+dummy-data-generator
 # Lambda를 container image로 배포할 때만 후속으로 aegis-data-processor 추가
 ```
 
@@ -547,9 +553,9 @@ sha-<7 chars>
 
 | values 파일 | 대상 | 주요 값 |
 | --- | --- | --- |
-| `envs/factory-a/values.yaml` | `factory-a` | `factory_id=factory-a`, `environment_type=physical-rpi`, `input_module_type=sensor` |
-| `envs/factory-b/values.yaml` | `factory-b` | `factory_id=factory-b`, `environment_type=vm-mac`, `input_module_type=dummy` |
-| `envs/factory-c/values.yaml` | `factory-c` | `factory_id=factory-c`, `environment_type=vm-windows`, `input_module_type=dummy` |
+| `envs/factory-a/values.yaml` | `factory-a` | `factory_id=factory-a`, `environment_type=physical-rpi`, `adapter=factory-a-log-adapter` |
+| `envs/factory-b/values.yaml` | `factory-b` | `factory_id=factory-b`, `environment_type=vm-mac`, `generator=dummy-data-generator` |
+| `envs/factory-c/values.yaml` | `factory-c` | `factory_id=factory-c`, `environment_type=vm-windows`, `generator=dummy-data-generator` |
 
 ### CI/CD 관계
 
@@ -710,7 +716,7 @@ Data flow: 실선
 Control flow: 점선
 ```
 
-## 2026-05-14 수정 방향
+## 2026-05-15 수정 방향
 
 이 다이어그램 가이드는 Lambda/DynamoDB 최신 데이터 처리 기준을 따른다.
 
@@ -719,7 +725,9 @@ Control flow: 점선
 최신 데이터 흐름:
 
 ```text
-Edge Agent
+factory-a-log-adapter 또는 dummy-data-generator
+  -> local spool/outbox
+  -> edge-iot-publisher
   -> IoT Core
       -> IoT Rule -> S3 raw
       -> Lambda data processor

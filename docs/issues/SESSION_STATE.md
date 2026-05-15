@@ -70,18 +70,18 @@ M4 Issue 1 - [데이터/스키마] Raw/Processed 데이터 계약 확정
 ## 현재 큰 상태
 
 ```text
-현재 단계: M3 배포 파이프라인 준비
+현재 단계: M4 데이터 플레인 준비
 완료: M3 Issue 1 GitOps 저장소 구조, 공장별 values, smoke chart, GitHub Actions manifest validation
 완료: M3 Issue 2 ECR repository active, smoke image push, factory-a imagePullSecret, ECR image pull 검증
 완료: M3 Issue 3 GitHub Actions OIDC build-push workflow, ARM64 ECR image push 검증
 완료: M3 Issue 4 ApplicationSet 구성, `aegis-spoke-factory-a` 자동 생성, 수동 Sync, factory-a K3s smoke Pod `Running`
 완료: M3 Issue 5 ArgoCD manual sync, conservative RollingUpdate, bad image rollback 검증
-보류: M3 Issue 6 manifest tag update workflow는 Edge Agent 실제 로직 확정 전까지 미룸
+보류: M3 Issue 6 manifest tag update workflow는 Edge data-plane 실제 로직 확정 전까지 미룸
 보류: M3 Issue 7/8은 Issue 6 재개 이후 진행
 다음: M4 데이터 플레인
 현재 AWS 상태: Hub/Foundation/IoT/Admin UI 리소스 재생성 완료. ECR `aegis/edge-agent` repository 활성 상태
 이미지 기준: Docker Hub가 아니라 ECR `611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent`를 표준 registry로 사용
-남음: M4 데이터 플레인, M5/M6 후속, Edge Agent 확정 후 M3 Issue 6~8 재개
+남음: M4 데이터 플레인, M5/M6 후속, Edge data-plane 확정 후 M3 Issue 6~8 재개
 후속 리팩토링: 문서 repo/code repo/GitOps repo 분리와 OIDC 기반 CI/CD/Destroy 고도화는 M7 Issue 0에서 최종 통합 검증 전 진행
 완료: M0 factory-a Safe-Edge 기준선
 완료: M1 Issue 0 AWS CLI MFA 및 Terraform 접근 설정
@@ -129,7 +129,7 @@ Terraform state: infra/hub apply 완료, infra/foundation apply 완료
 - 최신 확정 클라우드 아키텍처는 `docs/planning/15_cloud_architecture_final.md`를 기준으로 한다.
 - 사용자 대시보드는 Tailscale에 직접 의존하지 않는 1번 Data / Dashboard VPC 방향으로 정리
 - Dashboard Web/API는 ArgoCD, Tailscale, EKS API, Spoke K3s API에 직접 접근하지 않는 방향 확정
-- Edge Agent가 센서/시스템/장치/워크로드/pipeline heartbeat 상태를 함께 보내야 한다는 기준 반영
+- Edge data-plane이 `factory_state`, `infra_state` 안에 센서/시스템/장치/워크로드/heartbeat 상태를 함께 보내야 한다는 기준 반영
 - 관련 문서: `docs/planning/07_dashboard_vpc_extension_plan.md`
 
 ### Admin UI HTTPS Ingress 방향
@@ -616,7 +616,7 @@ Application aegis-spoke-factory-a targets factory-a / aegis-spoke-system
 ArgoCD sync 완료: aegis-spoke-factory-a Synced + Healthy, GitOps commit 40be92c
 factory-a K3s smoke workload: aegis-spoke-system/aegis-spoke-smoke Deployment 1/1, Pod Running, image ECR sha-7a3cc07, Service ClusterIP
 M3 Issue 2 완료: ECR image push/pull 검증, Spoke K3s imagePullSecret 방식 확정
-M3 Issue 3 완료: Edge Agent Dockerfile, GitHub Actions build-push workflow, GitHub OIDC ECR push role 구성, Actions success, ECR sha tag 확인
+M3 Issue 3 완료: `apps/edge-agent` smoke Dockerfile, GitHub Actions build-push workflow, GitHub OIDC ECR push role 구성, Actions success, ECR sha tag 확인
 M3 Issue 5 완료: factory-a manual sync 정책, conservative RollingUpdate, bad image rollback 검증
 M3 Issue 6~8 보류: 실제 Edge data-plane 컴포넌트 확정 전까지 GitOps values tag 자동 갱신, 배포 검증 workflow, end-to-end 자동 검증은 도입하지 않음. M7 최종 점검 전 재확인
 다음 작업: M4 Issue 1 - Raw/Processed 데이터 계약 확정

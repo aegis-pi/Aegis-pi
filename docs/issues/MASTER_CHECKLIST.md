@@ -71,7 +71,7 @@
 - [x] Issue 3 - [배포/GitHub Actions] 빌드/푸시 워크플로우 구성
 - [x] Issue 4 - [배포/ArgoCD] ApplicationSet 구성 (`factory-a` 기준)
 - [x] Issue 5 - [배포/ArgoCD] 운영형 동기화 정책 및 롤백 정책 적용
-- [ ] Issue 6 - [배포/GitHub Actions] manifest 갱신 워크플로우 구성 (보류: Edge Agent 로직 확정 후)
+- [ ] Issue 6 - [배포/GitHub Actions] manifest 갱신 워크플로우 구성 (보류: Edge data-plane 로직 확정 후)
 - [ ] Issue 7 - [배포/GitHub Actions] 배포 검증 워크플로우 구성 (보류: Issue 6 재개 후)
 - [ ] Issue 8 - [검증/ArgoCD] `factory-a` end-to-end 배포 검증 (보류: Issue 6 재개 후)
 

@@ -80,7 +80,8 @@ factory-a
   - ai-apps
   - InfluxDB
   - local workload
-  - Edge Agent 배포 대상
+  - factory-a-log-adapter 배포 대상
+  - edge-iot-publisher 배포 대상
 ```
 
 ### factory-b
@@ -91,8 +92,8 @@ factory-a
 factory-b
   - Mac mini VM K3s
   - 테스트베드 Spoke
-  - dummy input
-  - Edge Agent 배포 대상
+  - dummy-data-generator
+  - edge-iot-publisher 배포 대상
 ```
 
 ### factory-c
@@ -103,8 +104,8 @@ factory-b
 factory-c
   - Windows VM K3s
   - 테스트베드 Spoke
-  - dummy input
-  - Edge Agent 배포 대상
+  - dummy-data-generator
+  - edge-iot-publisher 배포 대상
 ```
 
 ## ArgoCD 배치
@@ -116,7 +117,7 @@ EKS Hub ArgoCD
   - factory-a 배포 관리
   - factory-b 배포 관리
   - factory-c 배포 관리
-  - Edge Agent 배포
+  - Edge data-plane 배포
   - 공통 spoke component 배포
   - ApplicationSet 기반 factory별 배포
 ```
@@ -128,7 +129,7 @@ EKS Hub ArgoCD
 ```text
 전환 기간
   - factory-a Local ArgoCD 유지
-  - 신규 Edge Agent는 Hub ArgoCD로 배포
+  - 신규 Edge data-plane은 Hub ArgoCD로 배포
   - 기존 workload를 단계적으로 Hub ArgoCD로 이관
   - 이관 완료 후 Local ArgoCD 제거 또는 비활성화
 ```
@@ -186,7 +187,7 @@ Grafana 관측 대상
   - Kubernetes API server
   - EKS node
   - Hub 내부 Pod
-  - 필요 시 Edge Agent metrics
+  - 필요 시 Edge data-plane metrics
 ```
 
 ## 1번 VPC: Data / Dashboard VPC
@@ -261,7 +262,8 @@ Dashboard Web/API
 Factory-a
   - Raspberry Pi K3s
   - Safe-Edge workload
-  - Edge Agent
+  - factory-a-log-adapter
+  - edge-iot-publisher
 ```
 
 ### Factory-b
@@ -269,8 +271,8 @@ Factory-a
 ```text
 Factory-b
   - Mac mini VM K3s
-  - dummy workload
-  - Edge Agent
+  - dummy-data-generator
+  - edge-iot-publisher
 ```
 
 ### Factory-c
@@ -278,8 +280,8 @@ Factory-b
 ```text
 Factory-c
   - Windows VM K3s
-  - dummy workload
-  - Edge Agent
+  - dummy-data-generator
+  - edge-iot-publisher
 ```
 
 ### Control / Management VPC
@@ -336,7 +338,7 @@ factory-a/b/c
 ### 관측 흐름
 
 ```text
-Hub EKS / Prometheus Agent / Edge Agent metrics
+Hub EKS / Prometheus Agent / Edge data-plane metrics
   -> AMP
   -> Grafana
 ```
@@ -350,7 +352,9 @@ Hub EKS / Prometheus Agent / Edge Agent metrics
 MVP 최신 흐름은 아래와 같다.
 
 ```text
-Edge Agent
+factory-a-log-adapter 또는 dummy-data-generator
+  -> local spool/outbox
+  -> edge-iot-publisher
   -> AWS IoT Core
       -> IoT Rule -> S3 raw
       -> Lambda data processor

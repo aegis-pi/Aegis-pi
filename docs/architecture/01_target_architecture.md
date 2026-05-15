@@ -1,7 +1,7 @@
 # 목표 확장 아키텍처
 
 상태: draft
-기준일: 2026-05-04
+기준일: 2026-05-15
 
 ## 목적
 
@@ -83,7 +83,9 @@ GitHub Push
 Edge input
     -> local Safe-Edge workloads
     -> InfluxDB / Kubernetes API
-    -> Edge Agent
+    -> factory-a-log-adapter 또는 dummy-data-generator
+    -> local spool/outbox
+    -> edge-iot-publisher
     -> AWS IoT Core
         -> IoT Rule -> S3 raw
         -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed
@@ -93,29 +95,22 @@ Edge input
 확장 조건:
 
 - 현재 InfluxDB 기반 로컬 관제에서 표준 input schema를 분리할 것
-- `edge-agent` 이미지를 만들고 `factory-a`에서는 real mode, `factory-b/c`에서는 dummy mode로 공통 송신 로직을 재사용할 것
+- `factory-a`에서는 실제 raw/log/status를 canonical JSON으로 변환하는 `factory-a-log-adapter`를 구현할 것
+- `factory-b/c`에서는 canonical JSON 형식의 가데이터를 생성하는 `dummy-data-generator`를 구현할 것
+- IoT Core 송신은 공통 `edge-iot-publisher`가 담당할 것
 - IoT Core topic과 S3 partition 규칙을 확정할 것
 - `factory_id`, `source_type`, timestamp 기준을 고정할 것
-- Dashboard Web/API가 Spoke K3s, ArgoCD, Control / Management VPC의 EKS API, Tailscale 관리망에 직접 붙지 않도록, Edge Agent가 `system_status`, `device_status`, `workload_status`, `pipeline_heartbeat`까지 송신할 것
+- Dashboard Web/API가 Spoke K3s, ArgoCD, Control / Management VPC의 EKS API, Tailscale 관리망에 직접 붙지 않도록, Edge data-plane이 `infra_state` 안에 heartbeat, node, device, workload 상태를 포함해 송신할 것
 
 초기 topic 기준:
 
 ```text
-aegis/factory-a/sensor
-aegis/factory-a/system_status
-aegis/factory-a/device_status
-aegis/factory-a/workload_status
-aegis/factory-a/heartbeat
-aegis/factory-b/sensor
-aegis/factory-b/system_status
-aegis/factory-b/device_status
-aegis/factory-b/workload_status
-aegis/factory-b/heartbeat
-aegis/factory-c/sensor
-aegis/factory-c/system_status
-aegis/factory-c/device_status
-aegis/factory-c/workload_status
-aegis/factory-c/heartbeat
+aegis/factory-a/factory_state
+aegis/factory-a/infra_state
+aegis/factory-b/factory_state
+aegis/factory-b/infra_state
+aegis/factory-c/factory_state
+aegis/factory-c/infra_state
 ```
 
 ## 목표 Data / Dashboard VPC
@@ -182,8 +177,8 @@ ops-support
 목표 입력:
 
 ```text
-sensor
-system_status
+factory_state
+infra_state
 pipeline_status
 event
 ```
@@ -197,7 +192,7 @@ event
 3. Hub ArgoCD Ansible bootstrap
 4. Tailscale 또는 동등한 Hub-Spoke 연결 방식 확정
 5. GitHub Actions / ECR / ArgoCD ApplicationSet 구성
-6. Edge Agent 구현 및 IoT Core / S3 데이터 수집 경로 구성
+6. Edge data-plane adapter/publisher 구현 및 IoT Core / S3 데이터 수집 경로 구성
 7. 1번 Data / Dashboard VPC, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 및 dashboard 구현
 8. `factory-b`, `factory-c` 테스트베드 확장
 
