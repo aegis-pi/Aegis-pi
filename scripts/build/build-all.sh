@@ -4,22 +4,28 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 OTP=""
-ENABLE_ADMIN_UI=false
+REQUEST_ADMIN_UI=false
+ENABLE_ADMIN_UI_INGRESS=false
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/build/build-all.sh [--admin-ui] [MFA_OTP]
+Usage: scripts/build/build-all.sh [--admin-ui] [--admin-ui-ingress] [MFA_OTP]
 
 Options:
-  --admin-ui  Enable Admin UI HTTPS Ingress/ALB during the Hub build.
-  -h, --help  Show this help.
+  --admin-ui          Prepare Admin UI Route53/ACM outputs only. Ingress is enabled later.
+  --admin-ui-ingress  Enable Admin UI HTTPS Ingress/ALB during the Hub build.
+                      Use only after domain NS delegation and ACM ISSUED.
+  -h, --help          Show this help.
 USAGE
 }
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --admin-ui)
-      ENABLE_ADMIN_UI=true
+      REQUEST_ADMIN_UI=true
+      ;;
+    --admin-ui-ingress)
+      ENABLE_ADMIN_UI_INGRESS=true
       ;;
     -h|--help)
       usage
@@ -60,7 +66,12 @@ BUILD_IOT="${BUILD_IOT:-true}"
 FACTORY_ID="${FACTORY_ID:-${AEGIS_FACTORY_ID}}"
 IOT_CERT_METADATA="${REPO_ROOT}/secret/iot/${FACTORY_ID}/certificate-arn.txt"
 
-if [[ "${ENABLE_ADMIN_UI}" == "true" ]]; then
+if [[ "${REQUEST_ADMIN_UI}" == "true" ]]; then
+  echo "--admin-ui now prepares Admin UI Route53/ACM outputs only."
+  echo "After setting the printed NS records at the registrar, run scripts/build/build-admin-ui-after-ns.sh."
+fi
+
+if [[ "${ENABLE_ADMIN_UI_INGRESS}" == "true" ]]; then
   export ADMIN_UI_INGRESS_ENABLED=true
 fi
 

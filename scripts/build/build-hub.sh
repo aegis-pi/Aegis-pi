@@ -35,6 +35,7 @@ ansible-playbook \
   playbooks/hub_grafana_bootstrap.yml \
   -e "grafana_force_upgrade=${FORCE_GRAFANA_UPGRADE}"
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_grafana_verify.yml
+"${REPO_ROOT}/scripts/ops/export-hub-ui-credentials.sh" "${OTP}"
 ansible-playbook \
   -i inventory/hub_eks_dynamic.sh \
   playbooks/hub_aws_load_balancer_controller_bootstrap.yml \

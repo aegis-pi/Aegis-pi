@@ -39,7 +39,7 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_ver
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_verify.yml
 ```
 
-Admin UI Ingress는 기본값에서 비활성화된다. Gabia에서 `minsoo-tech.cloud`를 Route53 NS로 위임하고 ACM certificate가 `ISSUED`가 된 뒤 전체 build에서는 `scripts/build/build-all.sh --admin-ui`, Hub 단독 적용에서는 `ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh`로 활성화한다.
+Admin UI Ingress는 기본값에서 비활성화된다. Gabia에서 `minsoo-tech.cloud`를 Route53 NS로 위임하고 ACM certificate가 `ISSUED`가 된 뒤 `scripts/build/build-admin-ui-after-ns.sh`로 활성화한다. 이미 NS 위임과 ACM 발급이 끝난 상태에서 Hub만 다시 적용할 때는 `ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh`를 사용할 수 있다.
 
 초기 admin 비밀번호를 명시적으로 출력해야 할 때만 아래처럼 실행한다. 비밀번호 값은 문서에 기록하지 않는다.
 

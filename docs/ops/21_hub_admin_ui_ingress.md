@@ -68,13 +68,13 @@ aws acm describe-certificate \
   --output text
 ```
 
-3. 인증서가 `ISSUED`가 된 뒤 Admin Ingress를 활성화해 전체 build를 실행한다.
+3. 인증서가 `ISSUED`가 된 뒤 Admin Ingress만 별도로 활성화한다.
 
 ```bash
-scripts/build/build-all.sh --admin-ui
+scripts/build/build-admin-ui-after-ns.sh
 ```
 
-Hub만 다시 적용할 때는 아래처럼 실행한다.
+이미 NS 위임과 ACM 발급이 끝난 상태에서 Hub 전체를 다시 적용해야 할 때만 아래처럼 실행한다.
 
 ```bash
 ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh

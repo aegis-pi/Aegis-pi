@@ -32,7 +32,7 @@ aws acm describe-certificate \
 ```
 
 ```bash
-scripts/build/build-all.sh --admin-ui
+scripts/build/build-admin-ui-after-ns.sh
 ```
 
 Hub만 다시 적용할 때는 아래처럼 실행한다.

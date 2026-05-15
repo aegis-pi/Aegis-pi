@@ -147,7 +147,7 @@ Hub bootstrap roots:
 - scripts/ansible: namespace/LimitRange/ArgoCD/Prometheus Agent/Grafana/AWS Load Balancer Controller/Admin UI Ingress bootstrap
 - infra/foundation: S3 data bucket, AMP Workspace, IoT Rule, and future durable resources
 Build entrypoint: scripts/build/build-all.sh
-Admin UI build entrypoint: scripts/build/build-all.sh --admin-ui
+Admin UI post-NS entrypoint: scripts/build/build-admin-ui-after-ns.sh
 Hub UI entrypoint after rebuild: https://argocd.minsoo-tech.cloud and https://grafana.minsoo-tech.cloud
 Local fallback UI entrypoint: scripts/ops/argocd-port-forward.sh, scripts/ops/grafana-port-forward.sh
 Hub destroy entrypoint: scripts/destroy/destroy-hub.sh

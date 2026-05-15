@@ -665,7 +665,7 @@ ArgoCD와 Grafana는 계속 EKS 내부 Pod/Service로 실행한다. Service는 `
 - 상태: 완료
 - 진행 요약: `minsoo-tech.cloud` 기준 Route53 Hosted Zone, ACM public certificate, shared ALB Ingress template, bootstrap/verify/cleanup playbook을 구성하고 실제 Admin Ingress를 활성화했다.
 - 변경/확인: `infra/hub/admin_ui_dns.tf`, `scripts/ansible/templates/admin-ui-ingress.yaml.j2`, `scripts/ansible/playbooks/hub_admin_ingress_bootstrap.yml`, `scripts/ansible/playbooks/hub_admin_ingress_verify.yml`, `scripts/ansible/playbooks/hub_admin_ingress_cleanup.yml`, `docs/ops/21_hub_admin_ui_ingress.md`를 추가했다.
-- 검증: ACM status `ISSUED`, shared ALB `aegis-admin-ui-1532265527.ap-south-1.elb.amazonaws.com`, `https://argocd.minsoo-tech.cloud/` HTTP 200, `https://grafana.minsoo-tech.cloud/api/health` HTTP 200, ArgoCD/Grafana Service `ClusterIP` 유지 확인. 재생성 시에는 `scripts/build/build-all.sh --admin-ui`로 기존 MFA/build 흐름 안에서 Admin UI까지 활성화한다.
+- 검증: ACM status `ISSUED`, shared ALB `aegis-admin-ui-1532265527.ap-south-1.elb.amazonaws.com`, `https://argocd.minsoo-tech.cloud/` HTTP 200, `https://grafana.minsoo-tech.cloud/api/health` HTTP 200, ArgoCD/Grafana Service `ClusterIP` 유지 확인. 재생성 시에는 `scripts/build/build-all.sh`로 Route53/ACM/NS 파일까지 준비하고, Gabia NS 위임 뒤 `scripts/build/build-admin-ui-after-ns.sh`로 Admin UI Ingress를 활성화한다.
 - 후속: MVP 이후 운영 노출 기준이 필요해지면 Issue 11에서 WAF/Cognito/OIDC 또는 관리자 IP 제한을 적용한다.
 
 ---
