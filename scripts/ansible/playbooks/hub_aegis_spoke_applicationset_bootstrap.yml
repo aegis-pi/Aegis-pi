@@ -1,0 +1,57 @@
+---
+- name: Bootstrap AEGIS Spoke ApplicationSet
+  hosts: hub_eks
+  gather_facts: false
+
+  vars:
+    gitops_applicationset_file: /tmp/aegis-spoke-applicationset.yaml
+
+  tasks:
+    - name: Check required local commands
+      ansible.builtin.shell: "command -v {{ item }}"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      loop:
+        - aws
+        - kubectl
+
+    - name: Update kubeconfig for Hub EKS
+      ansible.builtin.command:
+        cmd: "{{ update_kubeconfig_command }}"
+      changed_when: true
+
+    - name: Render AEGIS Spoke ApplicationSet
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/aegis-spoke-applicationset.yaml.j2"
+        dest: "{{ gitops_applicationset_file }}"
+        mode: "0600"
+
+    - name: Apply AEGIS Spoke ApplicationSet
+      ansible.builtin.command:
+        cmd: "kubectl apply -f {{ gitops_applicationset_file }}"
+      register: gitops_applicationset_apply
+      changed_when: "'created' in gitops_applicationset_apply.stdout or 'configured' in gitops_applicationset_apply.stdout"
+
+    - name: Wait for factory-a Application to be generated
+      ansible.builtin.shell: |
+        set -euo pipefail
+        for _ in $(seq 1 72); do
+          if kubectl -n {{ argocd_namespace }} get application {{ gitops_factory_a_application_name }} >/dev/null 2>&1; then
+            exit 0
+          fi
+          sleep 5
+        done
+        exit 1
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Print ApplicationSet summary
+      ansible.builtin.debug:
+        msg:
+          - "ApplicationSet: {{ argocd_namespace }}/{{ gitops_applicationset_name }}"
+          - "Repo URL: {{ gitops_repo_url }}"
+          - "Revision: {{ gitops_repo_revision }}"
+          - "Values files: {{ gitops_applicationset_values_file_glob }}"
+          - "Generated Application: {{ gitops_factory_a_application_name }}"

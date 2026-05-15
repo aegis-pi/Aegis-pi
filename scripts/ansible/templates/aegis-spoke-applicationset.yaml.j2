@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: {{ gitops_applicationset_name }}
+  namespace: {{ argocd_namespace }}
+spec:
+  generators:
+    - git:
+        repoURL: {{ gitops_repo_url }}
+        revision: {{ gitops_repo_revision }}
+        files:
+          - path: {{ gitops_applicationset_values_file_glob }}
+  template:
+    metadata:
+      name: 'aegis-spoke-{% raw %}{{factory.id}}{% endraw %}'
+      labels:
+        aegis.factory/id: '{% raw %}{{factory.id}}{% endraw %}'
+    spec:
+      project: default
+      destination:
+        name: '{% raw %}{{factory.id}}{% endraw %}'
+        namespace: {{ gitops_applicationset_destination_namespace }}
+      sources:
+        - repoURL: {{ gitops_repo_url }}
+          targetRevision: {{ gitops_repo_revision }}
+          path: {{ gitops_applicationset_chart_path }}
+          helm:
+            releaseName: aegis-spoke
+            valueFiles:
+              - $values/envs/{% raw %}{{factory.id}}{% endraw %}/values.yaml
+        - repoURL: {{ gitops_repo_url }}
+          targetRevision: {{ gitops_repo_revision }}
+          ref: values
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
