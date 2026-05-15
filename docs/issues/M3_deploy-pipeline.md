@@ -17,6 +17,7 @@
 | 2026-05-15 | rev-20260515-01 | M3 Issue 4 ApplicationSet을 Ansible bootstrap으로 적용하고 `factory-a` Sync/Healthy 검증 완료 상태 반영 |
 | 2026-05-15 | rev-20260515-02 | M3 Issue 2 ECR image push/pull, factory-a imagePullSecret, GitOps ECR image rollout 검증 완료 상태 반영 |
 | 2026-05-15 | rev-20260515-03 | M3 Issue 3 기준 Edge Agent Dockerfile, GitHub Actions build-push workflow, OIDC ECR push role 구성 |
+| 2026-05-15 | rev-20260515-04 | M3 Issue 3 GitHub Actions run success와 ECR `sha-2ae3bd5` image push 검증 완료 |
 
 ---
 
@@ -262,7 +263,7 @@ Helm chart는 ECR image reference와 `imagePullSecrets`를 values로 받을 수 
 - [x] Docker 빌드 및 ECR 푸시 스텝 구성
   - `git sha` 태그 자동 적용
 - [x] ARM64 빌드 지원 확인 (Raspberry Pi 대상 이미지)
-- [ ] 빌드 성공/실패 알림 설정 (선택)
+- [x] 빌드 성공/실패 알림 설정 (선택, GitHub Actions 기본 run/check 상태 사용)
 
 ### 🔍 Acceptance Criteria
 
@@ -283,7 +284,29 @@ Helm chart는 ECR image reference와 `imagePullSecrets`를 values로 받을 수 
 - Image tag: `sha-${GITHUB_SHA::7}`, `main`, `latest`
 - Platform: `linux/arm64`
 - 2026-05-15 `terraform -chdir=infra/foundation apply /tmp/aegis-foundation-oidc.tfplan` 결과: `3 added, 0 changed, 0 destroyed`
-- 남은 검증: GitHub push 후 Actions `Build and Push Edge Agent` 성공 확인 및 ECR `sha-<커밋해시>` tag 확인
+- 검증 commit: `2ae3bd5d2bd19e77b26f3654ad8d08cbe96063f1`
+- GitHub Actions: `Build and Push Edge Agent` run `25898860562` `completed` / `success`
+- Run URL: https://github.com/aegis-pi/Aegis-pi/actions/runs/25898860562
+- ECR `describe-images`: `sha-2ae3bd5`, `main`, `latest` tag가 digest `sha256:b1ecc476fcd21bcca2ccab2d2aa3fb5382549178e8a931c12d0122d2c6c7ee75`를 가리키는 것 확인
+- Pushed at: `2026-05-15T12:38:28.706000+09:00`
+- Size: `17307840`
+
+GitHub Issue Comment Draft:
+
+```markdown
+M3 Issue 3 완료.
+
+- 기준 앱: `apps/edge-agent` HTTP smoke image
+- Workflow: `.github/workflows/build-push.yaml`
+- AWS auth: GitHub OIDC -> `arn:aws:iam::611058323802:role/AEGIS-GitHubActions-ECRPush`
+- Platform: `linux/arm64`
+- Commit: `2ae3bd5d2bd19e77b26f3654ad8d08cbe96063f1`
+- GitHub Actions run: https://github.com/aegis-pi/Aegis-pi/actions/runs/25898860562 (`success`)
+- ECR tags: `sha-2ae3bd5`, `main`, `latest`
+- ECR digest: `sha256:b1ecc476fcd21bcca2ccab2d2aa3fb5382549178e8a931c12d0122d2c6c7ee75`
+
+다음은 Issue 5 운영형 sync/rollback 정책 정리.
+```
 
 ---
 

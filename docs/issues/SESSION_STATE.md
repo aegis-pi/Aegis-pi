@@ -47,21 +47,22 @@
 | M2 | Issue 6 - Hub -> factory-a Sync 확인 | 완료 | `docs/issues/M2_mesh-vpn-hub-spoke.md` |
 | M3 | Issue 1 - 배포/Helm GitOps 저장소 구조 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
 | M3 | Issue 2 - 배포/ECR 저장소 구성 및 이미지 태그 전략 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
+| M3 | Issue 3 - 배포/GitHub Actions 빌드/푸시 워크플로우 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
 | M3 | Issue 4 - 배포/ArgoCD ApplicationSet 구성 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
 
 현재 바로 이어서 할 이슈:
 
 ```text
-M3 Issue 3 - [배포/GitHub Actions] 빌드/푸시 워크플로우 구성
+M3 Issue 5 - [배포/ArgoCD] 운영형 동기화 정책 및 롤백 정책 적용
 ```
 
 다음 세션 최우선 실행 순서:
 
 ```text
-1. M3 Issue 3 검증을 마무리한다.
-   - code repo 변경 push
-   - GitHub Actions build-push workflow 성공 확인
-   - ECR sha/main/latest tag 확인
+1. M3 Issue 5를 진행한다.
+   - factory-a 운영형 manual sync 기준 문서화
+   - rollback 기준과 이전 image tag 복구 방식 정리
+   - ArgoCD sync/prune/self-heal 정책 확인
 ```
 
 ## 현재 큰 상태
@@ -70,11 +71,12 @@ M3 Issue 3 - [배포/GitHub Actions] 빌드/푸시 워크플로우 구성
 현재 단계: M3 배포 파이프라인 준비
 완료: M3 Issue 1 GitOps 저장소 구조, 공장별 values, smoke chart, GitHub Actions manifest validation
 완료: M3 Issue 2 ECR repository active, smoke image push, factory-a imagePullSecret, ECR image pull 검증
+완료: M3 Issue 3 GitHub Actions OIDC build-push workflow, ARM64 ECR image push 검증
 완료: M3 Issue 4 ApplicationSet 구성, `aegis-spoke-factory-a` 자동 생성, 수동 Sync, factory-a K3s smoke Pod `Running`
-진행 중: M3 Issue 3 GitHub Actions OIDC role, ARM64 build-push workflow 구성 완료. GitHub Actions/ECR tag 확인 남음
+다음: M3 Issue 5 ArgoCD 운영형 동기화 정책 및 롤백 정책 적용
 현재 AWS 상태: Hub/Foundation/IoT/Admin UI 리소스 재생성 완료. ECR `aegis/edge-agent` repository 활성 상태
 이미지 기준: Docker Hub가 아니라 ECR `611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent`를 표준 registry로 사용
-남음: GitHub Actions run success 확인, ECR `sha-<커밋해시>` image 확인, GitOps values tag update workflow
+남음: ArgoCD sync/rollback 정책, GitOps values tag update workflow, 배포 검증 workflow
 후속 리팩토링: 문서 repo/code repo/GitOps repo 분리와 OIDC 기반 CI/CD/Destroy 고도화는 M7 Issue 0에서 최종 통합 검증 전 진행
 완료: M0 factory-a Safe-Edge 기준선
 완료: M1 Issue 0 AWS CLI MFA 및 Terraform 접근 설정
@@ -101,7 +103,7 @@ M3 Issue 3 - [배포/GitHub Actions] 빌드/푸시 워크플로우 구성
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
 AWS 실제 리소스 상태: 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 재생성 완료. Hub EKS, foundation S3/AMP/ECR/IoT Rule, `factory-a` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태.
 Terraform state: infra/hub apply 완료, infra/foundation apply 완료
-다음 작업 우선순위: M3 Issue 3의 GitHub Actions build-push run/ECR tag 검증.
+다음 작업 우선순위: M3 Issue 5의 ArgoCD 운영형 sync/rollback 정책 적용.
 ```
 
 ## 지금까지 완료한 일
@@ -349,9 +351,9 @@ secret exists, DATA=4
 
 ## 다음에 할 일
 
-### 1. 다음 시작 작업: M3 Issue 3 검증 마무리
+### 1. 다음 시작 작업: M3 Issue 5
 
-M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. M3 Issue 1 GitOps 저장소 구조 설계, M3 Issue 2 ECR push/pull 검증, M3 Issue 4 ApplicationSet 구성은 완료했다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. M3 Issue 3은 기준 Edge Agent Dockerfile, GitHub Actions build-push workflow, OIDC ECR push role 구성을 완료했고 GitHub Actions 실행/ECR tag 확인을 마무리한다.
+M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. M3 Issue 1 GitOps 저장소 구조 설계, M3 Issue 2 ECR push/pull 검증, M3 Issue 3 GitHub Actions build-push workflow, M3 Issue 4 ApplicationSet 구성은 완료했다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M3 Issue 5 ArgoCD 운영형 동기화 정책 및 롤백 정책 적용으로 이어간다.
 
 2026-05-15 기준 최근 검증 완료 전제:
 
@@ -373,17 +375,18 @@ M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 
 - GitHub Actions OIDC provider `arn:aws:iam::611058323802:oidc-provider/token.actions.githubusercontent.com` active
 - GitHub Actions ECR push role `arn:aws:iam::611058323802:role/AEGIS-GitHubActions-ECRPush` active
 - code repo workflow `.github/workflows/build-push.yaml` added for `linux/arm64` ECR image push
+- GitHub Actions run `25898860562` success for commit `2ae3bd5`
+- ECR image tags `sha-2ae3bd5`, `main`, `latest` pushed, digest `sha256:b1ecc476fcd21bcca2ccab2d2aa3fb5382549178e8a931c12d0122d2c6c7ee75`
 - Hub UI credential export: `secret/hub-ui-credentials.txt` 생성, 파일 권한 `0600`
 - 과거 M1/M2 상세 검증 로그는 이 파일의 이전 섹션과 각 이슈 문서에 유지한다.
 
 다음 구현 순서:
 
 ```text
-M3 Issue 3:
-1. code repo 변경 push
-2. GitHub Actions `Build and Push Edge Agent` 성공 확인
-3. ECR `sha-<커밋해시>`, `main`, `latest` tag 확인
-4. Issue 3 완료 처리 후 Issue 5로 이동
+M3 Issue 5:
+1. factory-a Application sync policy 현재값 확인
+2. manual sync / prune / self-heal / rollback 기준 문서화
+3. GitOps values image tag rollback 절차 검증 범위 결정
 
 Issue 11:
 1. WAF/Cognito/OIDC는 MVP 이후 운영 보안 강화 백로그로 보류
@@ -604,8 +607,8 @@ Application aegis-spoke-factory-a targets factory-a / aegis-spoke-system
 ArgoCD sync 완료: aegis-spoke-factory-a Synced + Healthy, GitOps commit 40be92c
 factory-a K3s smoke workload: aegis-spoke-system/aegis-spoke-smoke Deployment 1/1, Pod Running, image ECR sha-7a3cc07, Service ClusterIP
 M3 Issue 2 완료: ECR image push/pull 검증, Spoke K3s imagePullSecret 방식 확정
-M3 Issue 3 진행 중: Edge Agent Dockerfile, GitHub Actions build-push workflow, GitHub OIDC ECR push role 구성 완료
-다음 작업: GitHub Actions build-push run 성공과 ECR sha tag 확인
+M3 Issue 3 완료: Edge Agent Dockerfile, GitHub Actions build-push workflow, GitHub OIDC ECR push role 구성, Actions success, ECR sha tag 확인
+다음 작업: M3 Issue 5 - ArgoCD 운영형 동기화 정책 및 롤백 정책 적용
 ```
 
 ## 갱신 규칙
