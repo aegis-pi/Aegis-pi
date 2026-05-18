@@ -53,42 +53,36 @@
 | M4 | Issue 1 - Raw/Processed 데이터 계약 확정 | 완료 | `docs/issues/M4_data-plane.md` |
 | M4 | Issue 2 - factory-a-log-adapter 구현 | 완료 | `docs/issues/M4_data-plane.md` |
 | M4 | Issue 3 - edge-iot-publisher 구현 | 완료 | `docs/issues/M4_data-plane.md` |
-| M4 | Issue 4 - 이미지화 및 K3s 배포 | 진행 중 | `docs/issues/M4_data-plane.md` |
-| M4 | Issue 5 - IoT Core -> S3 적재 확인 | 미완료 | `docs/issues/M4_data-plane.md` |
+| M4 | Issue 4 - 이미지화 및 K3s 배포 | 완료 | `docs/issues/M4_data-plane.md` |
+| M4 | Issue 5 - IoT Core -> S3 적재 확인 | 완료 | `docs/issues/M4_data-plane.md` |
 
 현재 바로 이어서 할 이슈:
 
 ```text
-M4 Issue 4 완료 — GitHub Actions 버그 픽스 이미지(sha-e635c1f) 빌드 완료 확인 후:
-  1. envs/factory-a/values.yaml image tag를 sha-e635c1f로 갱신
-  2. factory-a K3s 재배포 (helm template | kubectl apply)
-  3. Pod Running 및 adapter/publisher 로그 확인
-  4. S3 raw factory_state/infra_state object 실적재 확인 (M4 Issue 5)
+M4 Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
 ```
 
 ## 현재 큰 상태
 
 ```text
-현재 단계: M4 Issue 4 완료 직전 (버그 픽스 이미지 빌드 대기 중)
+현재 단계: M4 Issue 5 완료 — S3 raw 적재 end-to-end 검증 완료 (2026-05-18)
 
 완료: M3 Issue 1~5 배포 파이프라인 전체
-완료: M4 Issue 1 canonical JSON 계약 확정
-완료: M4 Issue 2 factory-a-log-adapter 구현 (factory_state 3s, infra_state 20s, --loop 모드)
-완료: M4 Issue 3 edge-iot-publisher 구현 (outbox scan -> MQTT publish -> file delete)
-완료: infra/foundation ECR repo 2개 (aegis/factory-a-log-adapter, aegis/edge-iot-publisher) terraform apply
-완료: GitHub Actions matrix build 3개 이미지 ARM64 ECR push (sha-53019d4)
-완료: aegis-spoke Helm chart 생성 (imagePullSecrets, fsGroup securityContext 포함)
-완료: envs/factory-a/values.yaml 작성 (worker2 nodeSelector, longhorn PVC, ai-apps namespace)
-완료: IoT Rule -> S3 sanity test 통과 (factory_state source_type 기준)
-진행 중: 버그 픽스 이미지 빌드 (sha-e635c1f)
-  - fix 1: factory-a-log-adapter Dockerfile CMD --once -> --loop
-  - fix 2: edge-iot-publisher endpoint Secret 값 trailing newline strip
-미완료: adapter -> publisher -> IoT -> S3 실제 데이터 플레인 end-to-end 검증
+완료: M4 Issue 1~5 데이터 플레인
+  - factory-a-log-adapter: factory_state 3s, infra_state 20s 주기 outbox write (--loop)
+  - edge-iot-publisher: outbox scan -> MQTT -> IoT Core -> S3 raw
+  - 배포 이미지: sha-f71a104 (stable, factory-a K3s Running)
+  - S3 확인: raw/factory-a/factory_state/, raw/factory-a/infra_state/ 실적재 확인
+  - canonical JSON 필수 필드 모두 채워짐 (published_at, data_plane_instance_id 포함)
 
-현재 AWS 상태: Foundation/IoT/ECR 리소스 활성. factory-a K3s Pod 배포됨 (이미지 교체 대기 중)
-이미지: ECR 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/{factory-a-log-adapter,edge-iot-publisher}
-현재 배포 이미지: sha-53019d4 (버그 있음)
-버그 픽스 이미지: sha-e635c1f (GitHub Actions 빌드 중)
+버그 수정 이력 (이번 세션):
+  - fix 1: factory-a-log-adapter CMD --once -> --loop
+  - fix 2: edge-iot-publisher endpoint Secret trailing newline strip
+  - fix 3: factory-a-log-adapter outbox 파일 chmod 0o640 (NamedTemporaryFile 기본 600)
+
+현재 AWS 상태: Foundation/IoT/ECR 리소스 활성
+이미지: ECR 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/{factory-a-log-adapter,edge-iot-publisher}:sha-f71a104
+다음: M4 Issue 6 Lambda data processor 구현
 보류: M3 Issue 6~8, M5~M7 전체
 후속 리팩토링: M7 Issue 0에서 repo 분리 및 OIDC CI/CD 고도화
 
