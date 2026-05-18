@@ -118,7 +118,7 @@ class EdgeIotPublisher:
         self.mqtt_client = mqtt_client or self._build_mqtt_client()
 
     def _build_mqtt_client(self) -> MqttClient:
-        endpoint = os.getenv("AEGIS_IOT_ENDPOINT")
+        endpoint = (os.getenv("AEGIS_IOT_ENDPOINT") or "").strip() or None
         ca_file = os.getenv("AEGIS_IOT_CA_FILE")
         cert_file = os.getenv("AEGIS_IOT_CERT_FILE")
         key_file = os.getenv("AEGIS_IOT_KEY_FILE")
