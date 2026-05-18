@@ -79,7 +79,7 @@
 
 원본: `docs/issues/M4_data-plane.md`
 
-- [ ] Issue 1 - [데이터/Schema] Raw/Processed 데이터 계약 확정
+- [x] Issue 1 - [데이터/Schema] Raw/Processed 데이터 계약 확정
 - [ ] Issue 2 - [데이터/Adapter] `factory-a` raw/log -> JSON 변환 로직 구현
 - [ ] Issue 3 - [데이터/Publisher] JSON -> IoT Core 전송 로직 구현
 - [ ] Issue 4 - [데이터/Container/GitOps] adapter/publisher 이미지화 및 K3s 배포

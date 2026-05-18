@@ -62,6 +62,49 @@ GitHub Actions는 Spoke K3s에 직접 `kubectl apply`하지 않는다. Hub ArgoC
 6. IoT Core Rule이 S3 raw prefix에 object를 생성하는지 확인한다.
 7. S3 object body가 canonical JSON 계약과 일치하는지 검증한다.
 
+## M4 Adapter 입력 기준
+
+`factory-a-log-adapter`는 MVP에서 장치를 직접 잡지 않는다. 기존 Safe-Edge workload가 이미 쓰고 있는 `/dev/i2c-1`, camera, mic 접근을 adapter가 공유하면 하드웨어 충돌과 rollout 위험이 커지기 때문이다.
+
+초기 입력 source:
+
+```text
+factory_state:
+  InfluxDB safe_edge_db
+  URL: http://influxdb-svc.monitoring.svc.cluster.local:8086
+
+infra_state:
+  Kubernetes API
+```
+
+수집 기준:
+
+| 구분 | Source | 비고 |
+| --- | --- | --- |
+| BME280 온도/습도/기압 | InfluxDB `environment_data` | 최근 3초 평균 |
+| AI fire/fall/bend score | InfluxDB `ai_detection` | 최근 3초 평균 |
+| 이상소음 | InfluxDB `acoustic_detection` | 최근 3초 집계. `sum(is_danger) > 0`이면 대표 `event_type`, 아니면 `"none"` |
+| 노드 Ready | Kubernetes API Node status | `infra_state.nodes[]` |
+| 워크로드 상태 | Kubernetes API Pod/Deployment status | `restart_count`, `node_id` 포함 |
+| 장치 summary | 워크로드 상태 + 최근 InfluxDB write timestamp | 직접 장치 접근 없음 |
+| CPU/memory/disk usage | metrics API 또는 Prometheus 후속 확인 | 미확정 시 `null` |
+
+adapter 환경변수:
+
+```text
+AEGIS_INFLUXDB_URL=http://influxdb-svc.monitoring.svc.cluster.local:8086
+AEGIS_INFLUXDB_DATABASE=safe_edge_db
+AEGIS_OUTBOX_DIR=/var/lib/aegis/outbox
+```
+
+대안 source 판단:
+
+| 방식 | 판단 |
+| --- | --- |
+| Pod logs | fallback/debug only. 로그 포맷 변경에 취약하므로 primary source로 쓰지 않는다. |
+| 기존 workload shared output | future candidate. structured JSON file, shared volume, HTTP endpoint 방식은 후속 개선으로 검토한다. |
+| direct device access | out of scope. 기존 BME/AI/audio workload와 장치 충돌 가능성이 있어 M4에서 제외한다. |
+
 ## M5 확장 순서
 
 `factory-b/c`는 실제 센서가 없으므로 `dummy-data-generator`가 canonical JSON을 만든다. IoT Core 송신은 `factory-a`와 같은 `edge-iot-publisher`를 사용한다.

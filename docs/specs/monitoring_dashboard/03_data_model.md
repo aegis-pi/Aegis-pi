@@ -75,13 +75,23 @@ Grafana 표시:
 Fields:
 
 ```text
+confidence
 is_danger
 ```
 
 값:
 
 ```text
-0 또는 1
+confidence: float
+is_danger: 0 또는 1
+```
+
+Tags:
+
+```text
+event_type
+location
+node
 ```
 
 Grafana 표시:

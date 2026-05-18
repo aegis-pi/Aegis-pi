@@ -22,7 +22,7 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
-- 다음 작업은 M4 Issue 1 Raw/Processed 데이터 계약 확정이다. M3 Issue 6~8은 실제 Edge data-plane image가 확정된 뒤 재개한다.
+- M4 Issue 1 Raw/Processed 데이터 계약 확정은 완료했다. 다음 작업은 M4 Issue 2 `factory-a-log-adapter` 구현이다. M3 Issue 6~8은 실제 Edge data-plane image가 확정된 뒤 재개한다.
 - `factory-b`, `factory-c`, Risk Twin은 후속 확장 단계다.
 
 ## 프로젝트명

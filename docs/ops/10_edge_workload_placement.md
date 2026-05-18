@@ -266,7 +266,7 @@ strategy: Recreate for MVP
 
 ```text
 factory-a-log-adapter
-  -> InfluxDB query
+  -> InfluxDB query via Service DNS
   -> Kubernetes API status query
   -> local spool/outbox
 
@@ -275,7 +275,28 @@ edge-iot-publisher
   -> AWS IoT Core MQTT publish
 ```
 
+InfluxDB 접근 기준:
+
+```text
+service DNS: http://influxdb-svc.monitoring.svc.cluster.local:8086
+database: safe_edge_db
+adapter namespace: ai-apps
+```
+
+adapter는 ClusterIP를 고정하지 않고 Kubernetes Service DNS를 사용한다. Service 이름은 현재 Safe-Edge 기준 `influxdb-svc`다.
+
 초기에는 `/dev/i2c-1`, camera, mic 같은 장치를 직접 잡지 않는다. 따라서 AI/audio/BME처럼 하드웨어 충돌 때문에 `Recreate`가 필수인 것은 아니지만, 중복 publish를 피하기 위해 MVP에서는 1 replica를 유지하고 rolling update 동작은 별도 검증 후 확정한다.
+
+Source 선택 기준:
+
+| 방식 | M4 기준 |
+| --- | --- |
+| InfluxDB + Kubernetes API | primary |
+| Pod logs | fallback/debug only |
+| 기존 workload shared output | future candidate |
+| direct device access | out of scope |
+
+Pod log parsing은 운영 진단에는 쓸 수 있지만 로그 포맷 변경에 취약하므로 canonical JSON 생성의 기본 경로로 사용하지 않는다. 기존 workload가 shared volume이나 HTTP endpoint로 structured output을 제공하는 방식은 후속 개선 후보로 둔다.
 
 송신 안정성 기준:
 

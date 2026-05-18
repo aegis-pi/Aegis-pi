@@ -16,7 +16,7 @@
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
 - M3는 Issue 1~5 범위를 완료했다. Issue 6 manifest 자동 갱신, Issue 7 배포 검증 workflow, Issue 8 end-to-end 배포 검증은 실제 Edge data-plane 이미지가 확정된 뒤 재개한다.
-- 현재 다음 단계는 M4 Issue 1 Raw/Processed 데이터 계약 확정이다.
+- M4 Issue 1 Raw/Processed 데이터 계약 확정은 완료했다. 현재 다음 단계는 M4 Issue 2 `factory-a-log-adapter` 구현이다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.

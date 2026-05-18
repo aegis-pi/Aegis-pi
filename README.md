@@ -11,9 +11,9 @@ Aegis-Pi는 이 기준선을 먼저 `factory-a`로 복구하고, 이후 AWS Hub�
 | --- | --- |
 | 프로젝트명 | Aegis-Pi Risk Twin |
 | 현재 단계 | M4 데이터 플레인 준비 |
-| 현재 완료 범위 | M0 `factory-a`, M1 Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5 완료. EKS Hub Tailscale Operator, `factory-a-master` K3s API TCP reachability, ArgoCD/Grafana Tailscale IP UI 접근, ArgoCD `factory-a` cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증 완료. IoT Rule -> S3 raw 적재, IRSA S3/AMP 권한, Hub Prometheus Agent -> AMP remote_write, 내부 Grafana -> AMP query, AWS Load Balancer Controller, Admin UI HTTPS Ingress, `factory-a-master` Tailnet 참여와 Windows 운영자 PC SSH 검증, `aegis-pi-gitops` GitOps 저장소 구조와 manifest validation, ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a` 보수적 rollout/rollback 검증 완료 |
+| 현재 완료 범위 | M0 `factory-a`, M1 Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5, M4 Issue 1 완료. EKS Hub Tailscale Operator, `factory-a-master` K3s API TCP reachability, ArgoCD/Grafana Tailscale IP UI 접근, ArgoCD `factory-a` cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증 완료. IoT Rule -> S3 raw 적재, IRSA S3/AMP 권한, Hub Prometheus Agent -> AMP remote_write, 내부 Grafana -> AMP query, AWS Load Balancer Controller, Admin UI HTTPS Ingress, `factory-a-master` Tailnet 참여와 Windows 운영자 PC SSH 검증, `aegis-pi-gitops` GitOps 저장소 구조와 manifest validation, ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a` 보수적 rollout/rollback, Raw/Processed 데이터 계약 확정 완료 |
 | 현재 AWS 상태 | 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 리소스 재생성 검증 완료. ECR `aegis/edge-agent`는 M3 smoke image 검증용 repository로 사용 중 |
-| 다음 작업 | M4 Issue 1: Raw/Processed 데이터 계약 확정. M3 Issue 6~8은 실제 Edge data-plane image 확정 후 재개 |
+| 다음 작업 | M4 Issue 2: `factory-a-log-adapter` raw/log -> canonical JSON 변환 구현. M3 Issue 6~8은 실제 Edge data-plane image 확정 후 재개 |
 | 비용 기준 | 현재 active AEGIS AWS fixed-cost resource는 0개 기준. Hub를 다시 켜면 Admin UI ALB 포함 고정 비용은 `~$0.36/hour`로 계산한다. 상세 기준은 `docs/ops/15_aws_cost_baseline.md` |
 
 ## 현재 완료된 Factory-A 기준선

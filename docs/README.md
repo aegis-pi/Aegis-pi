@@ -28,7 +28,7 @@
 - M2 Issue 4/5에서 `tls-server-name: 10.10.10.10` 기반 `factory-a` kubeconfig와 ArgoCD cluster 등록을 완료했고, cluster status `Successful`을 확인했다.
 - M2 Issue 6에서 `factory-a-podinfo-smoke` Application을 `factory-a`에 Sync해 `Synced` + `Healthy`, Pod 2개 `Running`을 확인했고, Tailscale egress Service 삭제 시 sync failure 및 재생성 후 복구를 검증했다.
 - M3 Issue 1에서 `aegis-pi-gitops` GitOps 저장소 구조, `aegis-spoke` Helm chart, 공장별 values, ApplicationSet skeleton, manifest validation workflow를 완료했다.
-- 다음 작업은 M4 Issue 1 Raw/Processed 데이터 계약 확정이다. M3 Issue 6~8은 실제 Edge data-plane image가 확정된 뒤 재개한다.
+- M4 Issue 1에서 Raw/Processed 데이터 계약을 확정했다. 다음 작업은 M4 Issue 2 `factory-a-log-adapter` 구현이다. M3 Issue 6~8은 실제 Edge data-plane image가 확정된 뒤 재개한다.
 - `factory-b`, `factory-c`, Risk Twin Dashboard는 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.

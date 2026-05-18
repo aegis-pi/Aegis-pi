@@ -267,7 +267,7 @@ sk = LATEST
 | 화재 score | `factory_state.ai_result.fire_score` | Y | `0.00` |
 | 넘어짐 score | `factory_state.ai_result.fall_score` | Y | `0.67` |
 | 굽힘 score | `factory_state.ai_result.bend_score` | Y | `0.20` |
-| 이상소음 | `factory_state.ai_result.abnormal_sound` | N | text |
+| 이상소음 | `factory_state.ai_result.abnormal_sound` | N | `"none"` 또는 `acoustic_detection.event_type` 대표 라벨 |
 | Workload 요약 | `infra_state.workload_summary.running`, `infra_state.workload_summary.total` | Y | `3/3 Running` |
 | 장치 요약 | `infra_state.device_summary.*_available` | Y | 정상/확인 필요 |
 
@@ -295,7 +295,7 @@ sk = LATEST
     "fire_score": 0.0,
     "fall_score": 0.67,
     "bend_score": 0.2,
-    "abnormal_sound": "impact"
+    "abnormal_sound": "none"
   },
   "current_infra": {
     "node_ready": 3,

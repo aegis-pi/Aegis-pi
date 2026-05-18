@@ -1,7 +1,7 @@
 # Data Storage Pipeline and Formats
 
 상태: source of truth
-기준일: 2026-05-15
+기준일: 2026-05-18
 
 ## 목적
 
@@ -17,6 +17,8 @@ DynamoDB HISTORY
 ```
 
 전송 데이터 포맷 자체는 `docs/specs/iot_data_format.md`를 따른다. 이 문서는 해당 메시지를 cloud-side에서 어떻게 저장하고 Dashboard가 어떻게 조회하는지를 정의한다.
+
+MVP 기준 Dashboard의 현재 상태 조회는 S3 `latest/` 객체가 아니라 DynamoDB LATEST item을 기준으로 한다. S3는 raw 원본 보존과 processed 장기 이력 저장소로 사용한다.
 
 ## 전체 데이터 흐름
 
@@ -81,8 +83,15 @@ raw/factory-a/infra_state/yyyy=2026/mm=05/dd=14/factory-a:infra_state:cluster:20
 
 저장 내용:
 
-- `factory_state`: 온도, 습도, 기압, AI score, 이상소음 원본 요약
+- `factory_state`: 온도, 습도, 기압, AI score, 이상소음 대표 라벨
 - `infra_state`: heartbeat, node, workload, device 상태 원본 요약
+
+Object body 기준:
+
+- S3 raw object body는 Edge data-plane이 publish한 canonical JSON과 동일한 payload를 저장한다.
+- 검증 기준은 `schema_version`, `message_id`, `factory_id`, `node_id`, `source_type`, `source_timestamp`, `published_at`, `data_plane_instance_id`, `payload`다.
+- IoT Rule SQL은 `SELECT *`만 사용하고 raw body에 `received_at` 같은 보조 필드를 추가하지 않는다.
+- `message_id`는 local outbox 파일명, MQTT payload, S3 raw object key, Lambda 처리 결과의 `source_message_id`를 연결하는 idempotency key다.
 
 ## S3 Processed Path
 
@@ -114,6 +123,15 @@ processed/infra-state/factory-a/yyyy=2026/mm=05/dd=14/hh=12/factory-a:infra_stat
 ```
 
 `S3 processed`는 장기 이력과 재처리 비교를 위한 저장소다. Dashboard의 기본 현재 상태와 최근 그래프는 DynamoDB를 먼저 조회한다.
+
+Processed object body 기준:
+
+- Lambda data processor가 정규화한 입력, Risk 계산 결과, pipeline summary, dashboard summary를 저장한다.
+- `source_message_id`에는 원본 canonical JSON의 `message_id`를 저장한다.
+- `processed/risk-score/`는 `factory_state` 처리 결과와 Risk 계산 결과를 담는다.
+- `processed/factory-state/`는 Dashboard 환경 상태 조회에 필요한 정규화 결과를 담는다.
+- `processed/infra-state/`는 인프라 상태와 pipeline status 계산 결과를 담는다.
+- S3 processed는 장기 이력과 재처리 비교용이며, Dashboard current state의 1차 조회 대상은 아니다.
 
 ## DynamoDB Table
 
@@ -157,6 +175,8 @@ sk = LATEST
 - `infra_state` 수신 시 `LATEST.infra_state`와 `LATEST.pipeline_status` 갱신
 - 같은 `pk/sk` item을 계속 overwrite/update 한다
 - 과거 이력은 `LATEST`에 남기지 않는다
+- `LATEST.source_message_id`는 마지막으로 처리한 메시지 ID를 저장한다
+- 중복 `message_id`가 들어오면 같은 처리 결과로 간주하고 item을 중복 증가시키지 않는다
 
 Dashboard 사용처:
 
@@ -211,7 +231,7 @@ Dashboard 사용처:
       "fire_score": 0.0,
       "fall_score": 0.67,
       "bend_score": 0.2,
-      "abnormal_sound": "impact"
+      "abnormal_sound": "none"
     }
   },
   "infra_state": {
@@ -511,6 +531,7 @@ GET /factories/{factory_id}/infra-history?window=1h
 - Lambda는 `message_id` 기준으로 idempotent하게 처리한다.
 - `S3 raw` 저장은 IoT Rule이 담당한다.
 - Lambda는 `DynamoDB LATEST`, `DynamoDB HISTORY`, `S3 processed`를 담당한다.
+- Dashboard current state는 S3 `latest/` prefix가 아니라 DynamoDB LATEST를 기준으로 조회한다.
 - `factory_state`와 `risk_result` history는 30초 last-value downsample을 사용한다.
 - `infra_state` history는 downsample하지 않고 20초 수신값을 그대로 저장한다.
 - `DynamoDB HISTORY`에는 TTL을 적용한다.

@@ -1,7 +1,7 @@
 # IoT Core Data Format
 
 상태: source of truth
-기준일: 2026-05-15
+기준일: 2026-05-18
 
 ## 목적
 
@@ -121,7 +121,7 @@ raw/factory-a/infra_state/yyyy=2026/mm=05/dd=14/factory-a:infra_state:cluster:20
   "source_type": "factory_state",
   "source_timestamp": "2026-05-14T01:00:00Z",
   "published_at": "2026-05-14T01:00:01Z",
-  "agent_instance_id": "edge-iot-publisher-7f8c9d",
+  "data_plane_instance_id": "edge-iot-publisher-7f8c9d",
   "payload": {}
 }
 ```
@@ -139,8 +139,38 @@ raw/factory-a/infra_state/yyyy=2026/mm=05/dd=14/factory-a:infra_state:cluster:20
 | `source_type` | `factory_state` 또는 `infra_state` |
 | `source_timestamp` | 원본 데이터 기준 시각, UTC ISO 8601 |
 | `published_at` | IoT Core publish 시각, UTC ISO 8601 |
-| `agent_instance_id` | Edge data-plane component 인스턴스 식별자. M4에서 필드명을 `data_plane_instance_id`로 바꿀지 재검토 |
+| `data_plane_instance_id` | 메시지를 최종 작성 또는 publish한 Edge data-plane component 인스턴스 식별자 |
 | `payload` | source type별 본문 |
+
+### Envelope Contract
+
+M4 구현에서는 위 envelope 필드를 모두 필수로 보낸다. 필드가 없으면 Lambda data processor는 해당 메시지를 처리 실패로 기록하고 DynamoDB LATEST/HISTORY에는 반영하지 않는다.
+
+허용값:
+
+| 필드 | 허용값 |
+| --- | --- |
+| `schema_version` | `0.1.0` |
+| `factory_id` | `factory-a`, `factory-b`, `factory-c` |
+| `node_id` | `master`, `worker1`, `worker2`, `cluster`, 또는 VM 단일 노드 ID |
+| `environment_type` | `physical-rpi`, `vm-mac`, `vm-windows` |
+| `input_module_type` | `sensor`, `dummy` |
+| `source_type` | `factory_state`, `infra_state` |
+
+`message_id` 형식은 아래 기준을 따른다.
+
+```text
+{factory_id}:{source_type}:{node_id}:{source_timestamp}
+```
+
+예시:
+
+```text
+factory-a:factory_state:worker2:2026-05-14T01:00:00Z
+factory-a:infra_state:cluster:2026-05-14T01:00:00Z
+```
+
+`factory-a-log-adapter` 또는 `dummy-data-generator`가 `message_id`, `source_timestamp`, `factory_id`, `node_id`, `environment_type`, `input_module_type`, `source_type`, `payload`를 만든다. `edge-iot-publisher`는 IoT Core publish 직전에 `published_at`과 `data_plane_instance_id`를 채워 보낸다. 이미 값이 있더라도 실제 publish 시각 기준으로 `published_at`은 publisher가 덮어쓴다.
 
 ## factory_state
 
@@ -160,7 +190,7 @@ raw/factory-a/infra_state/yyyy=2026/mm=05/dd=14/factory-a:infra_state:cluster:20
 - 화재 score
 - 넘어짐 score
 - 굽힘 score
-- 이상소음 대표 텍스트
+- 이상소음 대표 라벨
 
 센서값은 최근 3초 또는 최근 N개 샘플 평균값으로 보낸다. AI 결과는 최근 N개 추론 결과의 평균값으로 보낸다.
 
@@ -171,6 +201,10 @@ fall_score = 0.6667
 ```
 
 Edge data-plane은 `fall_detected = 1` 같은 최종 판정을 만들지 않는다. 최종 threshold와 위험 등급은 Lambda data processor의 Risk 계산 로직이 결정한다.
+
+`abnormal_sound`는 M4 Issue 2 초기 구현에서 기존 스키마 호환성을 위해 문자열 필드로 유지한다. 실제 `factory-a` InfluxDB의 `acoustic_detection` measurement는 `confidence`/`is_danger` field와 `event_type`/`location`/`node` tag를 가진다.
+
+adapter는 최근 3초 window에서 `acoustic_detection`을 집계한다. `sum(is_danger) > 0`이면 대표 `event_type`을 `abnormal_sound`에 넣고, 대표 라벨이 없거나 `None`이면 `"abnormal_sound"`를 넣는다. `sum(is_danger) == 0`이거나 샘플이 없으면 `"none"`을 넣는다. `confidence`는 현재 canonical schema에 별도 필드로 보내지 않고, 후속 스키마 보정 시 `audio_result` 같은 구조로 확장할 수 있다.
 
 예시 메시지:
 
@@ -185,7 +219,7 @@ Edge data-plane은 `fall_detected = 1` 같은 최종 판정을 만들지 않는�
   "source_type": "factory_state",
   "source_timestamp": "2026-05-14T01:00:00Z",
   "published_at": "2026-05-14T01:00:01Z",
-  "agent_instance_id": "edge-iot-publisher-7f8c9d",
+  "data_plane_instance_id": "edge-iot-publisher-7f8c9d",
   "payload": {
     "aggregation_window_seconds": 3,
     "sensor": {
@@ -199,7 +233,7 @@ Edge data-plane은 `fall_detected = 1` 같은 최종 판정을 만들지 않는�
       "fire_score": 0.0,
       "fall_score": 0.6667,
       "bend_score": 0.3333,
-      "abnormal_sound": "intermittent impact sound"
+      "abnormal_sound": "none"
     }
   }
 }
@@ -262,7 +296,7 @@ abnormal_sound_risk = sound_rule_or_score * sound_weight
   "source_type": "infra_state",
   "source_timestamp": "2026-05-14T01:00:00Z",
   "published_at": "2026-05-14T01:00:01Z",
-  "agent_instance_id": "edge-iot-publisher-7f8c9d",
+  "data_plane_instance_id": "edge-iot-publisher-7f8c9d",
   "payload": {
     "heartbeat": {
       "agent_status": "alive",
@@ -383,11 +417,70 @@ Cloud-side Lambda data processor는 아래 입력을 바탕으로 `pipeline_stat
 
 MVP 기준 원칙:
 
-- 필수 필드는 가능한 한 항상 보낸다.
-- 센서/AI/상태 값을 읽지 못한 경우에는 해당 하위 객체에 `sample_count: 0`과 함께 값을 `null`로 둘 수 있다.
-- 장치가 없거나 비활성인 경우에는 `available: false`와 `last_seen_at`을 함께 보낸다.
-- `abnormal_sound`가 없으면 빈 문자열 `""`을 보낸다.
-- 필드 삭제보다 명시적 `null` 또는 false 상태를 선호한다.
+- envelope 필드는 모두 필수이며 `null`을 허용하지 않는다.
+- `payload` 하위 객체는 가능한 한 구조를 유지한다. 수집 실패 때문에 객체 자체를 삭제하지 않는다.
+- 센서 값을 읽지 못한 경우에는 `payload.sensor.sample_count: 0`을 보내고 `temperature_celsius_avg`, `humidity_percent_avg`, `pressure_hpa_avg`는 `null`로 둔다.
+- AI 값을 읽지 못한 경우에는 `payload.ai_result.sample_count: 0`을 보내고 `fire_score`, `fall_score`, `bend_score`는 `null`로 둔다.
+- `abnormal_sound`는 정상/미감지 상태에서 `"none"`을 보낸다. acoustic event label이 감지되면 해당 `event_type` 대표 라벨을 보내고, 위험 감지는 있지만 label이 없으면 `"abnormal_sound"`를 보낸다.
+- 장치가 없거나 비활성인 경우에는 `available: false`와 `last_seen_at: null`을 함께 보낸다.
+- `nodes`, `workloads` 같은 배열은 조회 실패 시 빈 배열 `[]`을 보낼 수 있다.
+- 개별 노드나 워크로드의 수치형 상태를 읽지 못한 경우에는 해당 값을 `null`로 둔다.
+- 상태 문자열을 알 수 없으면 임의 값을 만들지 않고 `unknown`을 사용한다.
+- 필드 삭제보다 명시적 `null`, `false`, `unknown`, 빈 배열을 선호한다.
+
+## Local Spool/Outbox Contract
+
+`factory-a-log-adapter`와 `dummy-data-generator`는 IoT Core에 직접 publish하지 않고 local spool/outbox에 canonical JSON 파일을 남긴다. `edge-iot-publisher`는 이 파일을 읽어 IoT Core로 publish한다.
+
+기본 경로:
+
+```text
+/var/lib/aegis/outbox
+/var/lib/aegis/outbox/tmp
+/var/lib/aegis/outbox/quarantine
+```
+
+파일 계약:
+
+| 항목 | 기준 |
+| --- | --- |
+| 파일 내용 | canonical JSON 한 건 |
+| 파일명 | `{message_id}.json` |
+| 임시 파일 | `{message_id}.json.tmp` |
+| 문자 인코딩 | UTF-8 |
+| JSON 형식 | compact 또는 pretty 모두 허용. 의미가 같아야 함 |
+
+쓰기 원칙:
+
+1. adapter/generator는 먼저 `tmp/`에 `{message_id}.json.tmp`로 쓴다.
+2. 파일 쓰기와 flush가 끝나면 같은 filesystem 안에서 `{message_id}.json`으로 atomic rename 한다.
+3. publisher는 `.json` 파일만 publish 대상으로 본다.
+4. publisher는 IoT Core publish 성공을 확인한 뒤 원본 `.json` 파일을 삭제한다.
+5. publish 실패, 네트워크 실패, 인증 실패가 발생하면 파일을 삭제하지 않고 다음 scan에서 재시도한다.
+6. JSON parse 실패나 필수 envelope 누락은 publish하지 않고 `quarantine/`으로 이동한다.
+
+재시도 기준:
+
+| 상황 | 처리 |
+| --- | --- |
+| 일시적 네트워크 실패 | 파일 유지, exponential backoff 후 재시도 |
+| IoT Core 인증 실패 | 파일 유지, 에러 로그 기록, 다음 health check에서 계속 실패 상태 노출 |
+| schema validation 실패 | `quarantine/` 이동 |
+| 중복 파일명 | 같은 `message_id`로 보고 새 파일을 덮어쓰지 않음 |
+
+MVP에서는 별도 ack 파일을 만들지 않는다. 성공 기준은 IoT Core publish 성공 후 outbox 파일 삭제다. 중복 publish가 발생할 수 있으므로 cloud-side Lambda data processor는 `message_id` 기준으로 idempotent하게 처리한다.
+
+## S3 Raw Body Contract
+
+S3 raw object body는 IoT Core로 publish된 canonical JSON과 동일한 payload를 저장한다. IoT Rule SQL은 body에 `received_at` 같은 보조 필드를 추가하지 않고 `SELECT *`만 사용한다. 수신 시각은 필요하면 Lambda 처리 시각 또는 S3 object metadata를 기준으로 별도 계산한다.
+
+S3 raw key와 object body는 아래 기준으로 연결한다.
+
+```text
+raw/{factory_id}/{source_type}/yyyy={YYYY}/mm={MM}/dd={DD}/{message_id}.json
+```
+
+`message_id`는 local outbox 파일명, MQTT payload envelope, S3 raw object key, Lambda/DynamoDB `source_message_id`를 잇는 추적 키다.
 
 ## 보류한 선택지
 

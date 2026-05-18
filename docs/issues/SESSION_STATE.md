@@ -50,21 +50,22 @@
 | M3 | Issue 3 - 배포/GitHub Actions 빌드/푸시 워크플로우 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
 | M3 | Issue 4 - 배포/ArgoCD ApplicationSet 구성 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
 | M3 | Issue 5 - 배포/ArgoCD 운영형 동기화 정책 및 롤백 정책 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
+| M4 | Issue 1 - Raw/Processed 데이터 계약 확정 | 완료 | `docs/issues/M4_data-plane.md` |
 
 현재 바로 이어서 할 이슈:
 
 ```text
-M4 Issue 1 - [데이터/스키마] Raw/Processed 데이터 계약 확정
+M4 Issue 2 - [데이터/Adapter] factory-a raw/log -> JSON 변환 로직 구현
 ```
 
 다음 세션 최우선 실행 순서:
 
 ```text
-1. M4 Issue 1을 진행한다.
-   - factory-a-log-adapter가 만들 canonical JSON 계약 확인
-   - edge-iot-publisher가 읽을 local spool/outbox 계약 확인
-   - IoT Core -> S3 raw object 구조와 S3 적재 검증 기준 확인
-   - processed/latest 데이터 계약 초안 정리
+1. M4 Issue 2를 진행한다.
+   - apps/factory-a-log-adapter/ 구현 디렉터리 생성
+   - factory-a 실제 입력 source 위치 확정
+   - canonical JSON factory_state/infra_state 생성 로직 구현
+   - /var/lib/aegis/outbox에 {message_id}.json 파일을 쓰는 로컬 검증
 ```
 
 ## 현재 큰 상태
@@ -76,6 +77,7 @@ M4 Issue 1 - [데이터/스키마] Raw/Processed 데이터 계약 확정
 완료: M3 Issue 3 GitHub Actions OIDC build-push workflow, ARM64 ECR image push 검증
 완료: M3 Issue 4 ApplicationSet 구성, `aegis-spoke-factory-a` 자동 생성, 수동 Sync, factory-a K3s smoke Pod `Running`
 완료: M3 Issue 5 ArgoCD manual sync, conservative RollingUpdate, bad image rollback 검증
+완료: M4 Issue 1 canonical JSON, null policy, local spool/outbox, S3 raw body, DynamoDB LATEST/HISTORY, S3 processed 계약 확정
 보류: M3 Issue 6 manifest tag update workflow는 Edge data-plane 실제 로직 확정 전까지 미룸
 보류: M3 Issue 7/8은 Issue 6 재개 이후 진행
 다음: M4 데이터 플레인
@@ -108,7 +110,7 @@ M4 Issue 1 - [데이터/스키마] Raw/Processed 데이터 계약 확정
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
 AWS 실제 리소스 상태: 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 재생성 완료. Hub EKS, foundation S3/AMP/ECR/IoT Rule, `factory-a` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태.
 Terraform state: infra/hub apply 완료, infra/foundation apply 완료
-다음 작업 우선순위: M4 Issue 1 Raw/Processed 데이터 계약 확정.
+다음 작업 우선순위: M4 Issue 2 factory-a-log-adapter 구현.
 ```
 
 ## 지금까지 완료한 일
@@ -356,9 +358,9 @@ secret exists, DATA=4
 
 ## 다음에 할 일
 
-### 1. 다음 시작 작업: M4 Issue 1
+### 1. 다음 시작 작업: M4 Issue 2
 
-M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. M3 Issue 1 GitOps 저장소 구조 설계, M3 Issue 2 ECR push/pull 검증, M3 Issue 3 GitHub Actions build-push workflow, M3 Issue 4 ApplicationSet 구성, M3 Issue 5 운영형 sync/rollback 정책은 완료했다. M3 Issue 6~8은 실제 Edge data-plane 컴포넌트와 manifest update workflow 확정 전까지 보류하고 M7 최종 점검 전에 재확인한다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M4 Issue 1 Raw/Processed 데이터 계약 확정으로 이어간다.
+M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. M3 Issue 1 GitOps 저장소 구조 설계, M3 Issue 2 ECR push/pull 검증, M3 Issue 3 GitHub Actions build-push workflow, M3 Issue 4 ApplicationSet 구성, M3 Issue 5 운영형 sync/rollback 정책은 완료했다. M4 Issue 1 Raw/Processed 데이터 계약도 완료했다. M3 Issue 6~8은 실제 Edge data-plane 컴포넌트와 manifest update workflow 확정 전까지 보류하고 M7 최종 점검 전에 재확인한다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M4 Issue 2 `factory-a-log-adapter` 구현으로 이어간다.
 
 2026-05-15 기준 최근 검증 완료 전제:
 
@@ -391,11 +393,11 @@ M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 
 다음 구현 순서:
 
 ```text
-M4 Issue 1:
-1. canonical JSON schema와 S3 key 계약 확인
-2. processed/latest 데이터 계약 초안 작성
-3. factory-a-log-adapter와 edge-iot-publisher 사이 local spool/outbox 계약 정의
-4. S3 raw 적재 검증 acceptance를 기준으로 이후 구현 순서 확정
+M4 Issue 2:
+1. apps/factory-a-log-adapter/ 디렉터리와 최소 실행 구조 생성
+2. factory-a 실제 입력 source 위치 확인
+3. factory_state, infra_state canonical JSON 생성 로직 구현
+4. /var/lib/aegis/outbox에 {message_id}.json 파일 생성 검증
 
 Issue 11:
 1. WAF/Cognito/OIDC는 MVP 이후 운영 보안 강화 백로그로 보류
@@ -619,7 +621,8 @@ M3 Issue 2 완료: ECR image push/pull 검증, Spoke K3s imagePullSecret 방식 
 M3 Issue 3 완료: `apps/edge-agent` smoke Dockerfile, GitHub Actions build-push workflow, GitHub OIDC ECR push role 구성, Actions success, ECR sha tag 확인
 M3 Issue 5 완료: factory-a manual sync 정책, conservative RollingUpdate, bad image rollback 검증
 M3 Issue 6~8 보류: 실제 Edge data-plane 컴포넌트 확정 전까지 GitOps values tag 자동 갱신, 배포 검증 workflow, end-to-end 자동 검증은 도입하지 않음. M7 최종 점검 전 재확인
-다음 작업: M4 Issue 1 - Raw/Processed 데이터 계약 확정
+M4 Issue 1 완료: canonical JSON, null policy, local spool/outbox, S3 raw body, DynamoDB LATEST/HISTORY, S3 processed 계약 확정
+다음 작업: M4 Issue 2 - factory-a-log-adapter 구현
 ```
 
 ## 갱신 규칙

@@ -88,6 +88,17 @@ factory-a K3s에서 실행:
 - M5의 `factory-b/c`는 실제 로그 adapter 대신 dummy generator가 같은 표준 JSON을 생성하고, `edge-iot-publisher`는 공통으로 재사용한다.
 - M4 완료 판정에는 S3 raw object 실제 적재와 body schema 검증이 반드시 포함된다.
 
+## 2026-05-18 수정 방향: Issue 1 데이터 계약 확정
+
+M4 Issue 1에서는 현재 문서 구조를 유지하되 구현자가 바로 사용할 수 있도록 계약을 명확히 닫는다.
+
+- canonical JSON source of truth는 `docs/specs/iot_data_format.md`로 둔다.
+- 저장 계약 source of truth는 `docs/specs/data_storage_pipeline.md`로 둔다.
+- Edge data-plane 인스턴스 식별 필드는 legacy `agent_instance_id`가 아니라 `data_plane_instance_id`를 사용한다.
+- S3 raw object body는 canonical JSON과 같은 계약을 따른다.
+- Dashboard current state는 S3 `latest/`가 아니라 DynamoDB LATEST/HISTORY를 기준으로 한다.
+- 정식 JSON Schema 기반 기계 검증은 adapter/publisher 샘플 payload가 안정화된 뒤 추가한다.
+
 ---
 
 ## Issue 1 - [데이터/Schema] Raw/Processed 데이터 계약 확정
@@ -98,12 +109,12 @@ factory-a K3s에서 실행:
 이 스키마가 확정되어야 `factory-a-log-adapter`, `dummy-data-generator`, `edge-iot-publisher`, Lambda data processor가 모두 같은 포맷을 기준으로 구현된다.
 라즈베리파이와 VM의 입력 차이는 이 스키마 안에서 `input_module_type`으로만 구분한다.
 
-2026-05-14 기준 표준 입력 스키마 source of truth는 `docs/specs/iot_data_format.md`다.
+2026-05-18 기준 표준 입력 스키마 source of truth는 `docs/specs/iot_data_format.md`다.
 최종 source type은 `factory_state`, `infra_state` 두 개로 단순화한다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] 필수 공통 필드 확정
+- [x] 필수 공통 필드 확정
   - `factory_id` (string)
   - `node_id` (string: `master` / `worker1` / `worker2` / `cluster`)
   - `source_timestamp` (ISO 8601 UTC)
@@ -111,18 +122,18 @@ factory-a K3s에서 실행:
   - `message_id` (idempotency key)
   - `source_type` (`factory_state` / `infra_state`)
   - `environment_type` (`physical-rpi` / `vm-mac` / `vm-windows`)
-- [ ] source_type별 payload 구조 확정 및 샘플 작성
+- [x] source_type별 payload 구조 확정 및 샘플 작성
   - `factory_state`: 3초 주기, 온도/습도/기압 평균과 AI score 평균
   - `infra_state`: 20초 주기, heartbeat, cluster, nodes, workloads, devices
   - `pipeline_status`: Hub derived 상태 (Edge가 직접 보내지 않음)
-- [ ] 선택 필드 `null` 허용 원칙 명시
-- [ ] 스키마 예시 JSON 작성 및 관련 입력/데이터 모델 문서에 반영
-- [ ] local spool/outbox file 계약 확정
+- [x] 선택 필드 `null` 허용 원칙 명시
+- [x] 스키마 예시 JSON 작성 및 관련 입력/데이터 모델 문서에 반영
+- [x] local spool/outbox file 계약 확정
   - file content는 canonical JSON 한 건
   - 파일명은 `message_id` 기반
   - publisher 성공 시 ack/delete 원칙 정의
-- [ ] S3 raw object body가 canonical JSON과 동일한지 여부 확정
-- [ ] S3 processed/latest 계약 초안 작성
+- [x] S3 raw object body가 canonical JSON과 동일한지 여부 확정
+- [x] S3 processed/latest 계약 초안 작성
 
 ```json
 {
@@ -135,7 +146,7 @@ factory-a K3s에서 실행:
   "source_type": "factory_state",
   "source_timestamp": "2026-05-14T01:00:00Z",
   "published_at": "2026-05-14T01:00:01Z",
-  "agent_instance_id": "edge-iot-publisher-7f8c9d",
+  "data_plane_instance_id": "edge-iot-publisher-7f8c9d",
   "payload": {
     "aggregation_window_seconds": 3,
     "sensor": {
@@ -149,7 +160,7 @@ factory-a K3s에서 실행:
       "fire_score": 0.0,
       "fall_score": 0.6667,
       "bend_score": 0.3333,
-      "abnormal_sound": "intermittent impact sound"
+      "abnormal_sound": "none"
     }
   }
 }
@@ -162,6 +173,25 @@ factory-a K3s에서 실행:
 - `pipeline_status`가 Hub derived임이 명확히 구분됨
 - S3 raw key와 object body의 추적 기준이 `message_id`로 연결됨
 
+### 확정 결과
+
+- `factory_state`, `infra_state` 두 source type만 Edge에서 publish한다.
+- envelope 필드는 모두 필수이며, payload 하위 수집 실패는 명시적 `null`, `false`, `unknown`, 빈 배열로 표현한다.
+- local spool/outbox 기본 경로는 `/var/lib/aegis/outbox`이며 파일명은 `{message_id}.json`이다.
+- adapter/generator는 임시 파일 작성 후 atomic rename으로 outbox에 넣고, publisher는 IoT Core publish 성공 후 파일을 삭제한다.
+- publish 실패 시 파일은 유지하며 재시도한다. schema validation 실패 파일은 `quarantine/`으로 이동한다.
+- S3 raw object body는 canonical JSON과 같은 계약을 따른다.
+- Lambda data processor는 DynamoDB LATEST/HISTORY와 S3 processed를 갱신한다.
+- Dashboard current state는 DynamoDB LATEST/HISTORY를 기준으로 조회한다.
+
+### GitHub Issue Comment Draft
+
+- 상태: 완료
+- 진행 요약: `factory_state`/`infra_state` canonical JSON 계약, null 처리, local spool/outbox handoff, S3 raw body, DynamoDB LATEST/HISTORY와 S3 processed 저장 계약을 확정했다.
+- 변경/확인: `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md`, `infra/foundation/iot_rule.tf`, `infra/foundation/README.md`, `docs/issues/M4_data-plane.md`
+- 검증: `terraform fmt -check`, `terraform validate`. 실제 adapter/publisher/Lambda 동작 검증은 M4 Issue 2~8에서 진행한다.
+- 후속: M4 Issue 2에서 `factory-a-log-adapter` 구현을 시작하고, canonical JSON 파일을 outbox에 생성하는 로컬 검증을 진행한다.
+
 ---
 
 ## Issue 2 - [데이터/Adapter] `factory-a` raw/log -> JSON 변환 로직 구현
@@ -173,21 +203,23 @@ factory-a K3s에서 실행:
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] adapter 구현 언어/프레임워크 결정 (Python 권장, 라즈베리파이 ARM64 호환)
-- [ ] factory-a 실제 입력 source 확정
-  - 센서 raw/log 파일 또는 기존 AI/audio/BME output 위치
-  - 시스템/워크로드 상태 조회 방식
-- [ ] 수집 대상 구현
+- [x] adapter 구현 언어/프레임워크 결정 (Python 표준 라이브러리 기반, 라즈베리파이 ARM64 호환)
+- [x] factory-a 실제 입력 source 확정
+  - `factory_state`: InfluxDB `safe_edge_db` query
+  - `infra_state`: Kubernetes API status query
+  - InfluxDB 접근: `http://influxdb-svc.monitoring.svc.cluster.local:8086`
+  - database: `safe_edge_db`
+- [x] 수집 대상 구현
   - BME280 온도/습도/기압 평균 (`factory_state`)
   - AI fire/fall/bend 최근 window 평균 score (`factory_state`)
-  - 이상소음 대표 텍스트 (`factory_state`)
+  - 이상소음 대표 라벨 (`factory_state`)
   - 노드 상태, CPU/memory/disk usage (`infra_state`)
   - BME280, 카메라, 마이크 장치 상태 (`infra_state`)
   - AI/audio/BME Pod 상태와 restart count (`infra_state`)
   - adapter heartbeat와 마지막 spool write 결과 (`infra_state`)
-- [ ] 수집 데이터 → 표준 입력 스키마 변환 로직
-- [ ] canonical JSON file을 local spool/outbox에 쓰는 로직
-- [ ] 수집 주기 설정 (주기값은 `docs/ops/03_test_checklist.md` 기반 테스트 후 확정)
+- [x] 수집 데이터 → 표준 입력 스키마 변환 로직
+- [x] canonical JSON file을 local spool/outbox에 쓰는 로직
+- [x] 수집 주기 설정
   - 확정 초기값: `factory_state` 3초, `infra_state` 20초
 
 ### 🔍 Acceptance Criteria
@@ -196,6 +228,90 @@ factory-a K3s에서 실행:
 - 표준 스키마 형식의 JSON file 생성 확인
 - 센서값/시스템 상태가 source_type별로 올바르게 분리됨 확인
 - IoT Core 연결 없이도 spool/outbox에 publish 후보 JSON이 쌓임 확인
+
+### 입력 Source 확정
+
+M4 Issue 2의 adapter는 기존 Safe-Edge workload를 대체하지 않고 읽기 전용으로 동작한다.
+
+```text
+factory_state:
+  InfluxDB Service DNS -> safe_edge_db
+  environment_data 최근 3초 평균
+  ai_detection 최근 3초 평균
+  acoustic_detection 최근 3초 요약
+
+infra_state:
+  Kubernetes API
+  node Ready 상태
+  monitoring/ai-apps workload Running/Ready/restart_count/node_id
+  device summary는 관련 workload 상태와 최근 InfluxDB write timestamp로 추론
+```
+
+adapter Pod 환경변수 기본값:
+
+```text
+AEGIS_FACTORY_ID=factory-a
+AEGIS_ENVIRONMENT_TYPE=physical-rpi
+AEGIS_INPUT_MODULE_TYPE=sensor
+AEGIS_INFLUXDB_URL=http://influxdb-svc.monitoring.svc.cluster.local:8086
+AEGIS_INFLUXDB_DATABASE=safe_edge_db
+AEGIS_OUTBOX_DIR=/var/lib/aegis/outbox
+```
+
+`acoustic_detection`은 2026-05-18 실제 `factory-a` InfluxDB 확인 기준으로 아래 구조를 사용한다.
+
+```text
+measurement: acoustic_detection
+fields:
+  confidence: float
+  is_danger: integer
+tags:
+  event_type
+  location
+  node
+```
+
+M4 Issue 2에서는 스키마 호환성을 위해 `payload.ai_result.abnormal_sound` 문자열 필드를 유지한다. adapter는 최근 3초 window에서 `acoustic_detection`을 집계하고, `sum(is_danger) > 0`이면 대표 `event_type`을 `abnormal_sound`에 넣는다. 대표 `event_type`이 비어 있거나 `None`이면 `"abnormal_sound"`를 넣는다. `sum(is_danger) == 0`이거나 샘플이 없으면 `"none"`을 넣는다. `confidence` 평균/최댓값은 초기 canonical JSON에는 별도 필드로 싣지 않고, 후속 스키마 보정에서 `audio_result` 확장 후보로 둔다.
+
+초기 구현에서는 `/dev/i2c-1`, camera, microphone 장치에 직접 접근하지 않는다. 장치 직접 접근은 기존 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio`와 충돌할 수 있으므로 M4 MVP 범위에서 제외한다.
+
+CPU, memory, disk usage는 Kubernetes metrics API 또는 Prometheus 연동이 확인되기 전까지 `null` 허용 정책을 따른다.
+
+### 보조/후속 Source 기준
+
+M4 Issue 2의 primary source는 InfluxDB + Kubernetes API다. 다른 방식은 아래처럼 범위를 제한한다.
+
+| 방식 | M4 기준 | 이유 |
+| --- | --- | --- |
+| Pod logs | fallback/debug only | 로그 포맷 변경에 취약하므로 canonical JSON의 primary source로 쓰지 않는다. 수집 실패 원인 진단에만 사용한다. |
+| 기존 workload shared output | future candidate | 앱이 structured JSON file, shared volume, HTTP endpoint를 제공하도록 바꾸는 방식은 좋지만 기존 Safe-Edge workload 변경이 필요하므로 M4 초기 구현에서는 제외한다. |
+| direct device access | out of scope | `/dev/i2c-1`, camera, microphone을 adapter가 직접 잡으면 기존 BME/AI/audio Pod와 충돌할 수 있다. |
+
+따라서 adapter 구현은 먼저 InfluxDB query, Kubernetes API query, outbox write에 집중한다. fallback log parsing이나 기존 workload 수정은 M4 Issue 2 완료 조건에 포함하지 않는다.
+
+### 2026-05-18 구현 메모
+
+- 구현 위치: `apps/factory-a-log-adapter/`
+- entrypoint: `factory_a_log_adapter.py`
+- 실행 형태: `--once factory_state`, `--once infra_state`, `--once all`, `--loop`
+- InfluxDB 접근: HTTP `/query` API 직접 호출
+- Kubernetes 접근: in-cluster ServiceAccount API 우선, 로컬 개발 시 `kubectl` fallback
+- outbox write: `outbox/tmp` 임시 파일 작성 후 `{message_id}.json`으로 atomic rename
+- `--loop` 기본 주기: `factory_state` 3초, `infra_state` 20초
+- master host 직접 검증 시 InfluxDB Service DNS 대신 NodePort `AEGIS_INFLUXDB_URL=http://127.0.0.1:30086` 사용
+- 실제 검증 결과:
+  - `factory_state` JSON 생성 확인
+  - `abnormal_sound`가 현재 acoustic 정상 상태에서 `"none"`으로 생성됨 확인
+  - `infra_state` JSON 생성 확인
+  - `/tmp/aegis-outbox-test`에 `factory_state`, `infra_state` outbox 파일 생성 확인
+
+남은 작업:
+
+- 실제 K3s 배포용 RBAC/Config/volume 요구사항을 M4 Issue 4에서 chart에 반영
+
+검증:
+
+- `python3 -m unittest discover -s apps/factory-a-log-adapter/tests`
 
 ---
 
@@ -208,14 +324,14 @@ Issue 2의 adapter가 만든 canonical JSON을 local spool/outbox에서 읽어 A
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] local spool/outbox scan 로직 구현
-- [ ] AWS IoT Core MQTT publish 구현
+- [x] local spool/outbox scan 로직 구현
+- [x] AWS IoT Core MQTT publish 구현
   - topic: `aegis/{factory_id}/{source_type}`
   - mTLS certificate/key/CA file 사용
-- [ ] publish 성공 시 ack/delete 처리
-- [ ] publish 실패 시 retry/backoff 처리
-- [ ] 중복 publish 가능성 및 `message_id` idempotency 기준 문서화
-- [ ] publisher heartbeat/logging 구현
+- [x] publish 성공 시 ack/delete 처리
+- [x] publish 실패 시 retry/backoff 처리
+- [x] 중복 publish 가능성 및 `message_id` idempotency 기준 문서화
+- [x] publisher heartbeat/logging 구현
 
 ### 🔍 Acceptance Criteria
 
@@ -223,6 +339,29 @@ Issue 2의 adapter가 만든 canonical JSON을 local spool/outbox에서 읽어 A
 - publish 성공 후 spool file이 ack/delete됨
 - IoT Core 장애 또는 인증 실패 시 file이 삭제되지 않고 재시도 대상으로 남음
 - publisher는 factory별 인증서 Secret만 바꾸면 재사용 가능
+
+### 2026-05-18 구현 메모
+
+- 구현 위치: `apps/edge-iot-publisher/`
+- entrypoint: `edge_iot_publisher.py`
+- MQTT 구현: Python 표준 라이브러리 기반 MQTT 3.1.1 QoS0 over TLS/mTLS
+- topic: `aegis/{factory_id}/{source_type}`
+- outbox scan: outbox root의 `*.json`만 대상으로 하며 `tmp/`, `quarantine/` 하위 파일은 무시
+- publish 직전 `published_at`, `data_plane_instance_id`는 publisher가 덮어씀
+- 성공 시 local outbox file 삭제
+- publish 실패 시 파일 유지 후 loop mode에서 backoff 재시도
+- invalid JSON/schema file은 `outbox/quarantine/`으로 이동
+- idempotency 기준은 canonical JSON의 `message_id`; publish 실패와 프로세스 재시작 사이에는 QoS0 특성상 중복 publish 가능성이 있으므로 cloud-side Lambda/DynamoDB/S3 처리에서 `message_id` 기준 중복 처리를 유지한다.
+- logging/heartbeat: loop 실행 중 publish 성공/실패 로그를 stdout/stderr에 출력한다. 별도 heartbeat message는 `infra_state.payload.heartbeat`에 포함하는 계약을 유지한다.
+
+검증:
+
+- `python3 -m unittest discover -s apps/edge-iot-publisher/tests`
+
+남은 실제 환경 검증:
+
+- factory-a IoT 인증서 Secret 마운트 후 실제 AWS IoT Core topic publish 확인
+- publish 성공 후 S3 raw object 적재 확인은 Issue 5에서 수행
 
 ---
 
@@ -234,17 +373,17 @@ Issue 2의 adapter가 만든 canonical JSON을 local spool/outbox에서 읽어 A
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] `factory-a-log-adapter` ARM64 Docker image 빌드 가능
-- [ ] `edge-iot-publisher` ARM64 Docker image 빌드 가능
-- [ ] ECR repository/tag 전략 확정
-  - 후보: `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`
-- [ ] GitOps chart/values 확장
+- [x] `factory-a-log-adapter` ARM64 Docker image 빌드 가능
+- [x] `edge-iot-publisher` ARM64 Docker image 빌드 가능
+- [x] ECR repository/tag 전략 확정
+  - `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`
+- [x] GitOps chart/values 확장
   - factory-a: adapter enabled, publisher enabled
   - shared spool volume mount
   - IoT certificate Secret mount
 - [ ] Hub EKS ArgoCD ApplicationSet이 factory-a K3s에 두 파드를 배포
-- [ ] `worker-2` 또는 대상 node 배치 기준 정리
-- [ ] 필요한 Secret / Config / volume / device mount 요구사항 정리
+- [x] `worker-2` 또는 대상 node 배치 기준 정리
+- [x] 필요한 Secret / Config / volume / device mount 요구사항 정리
 
 ### 🔍 Acceptance Criteria
 
@@ -252,6 +391,48 @@ Issue 2의 adapter가 만든 canonical JSON을 local spool/outbox에서 읽어 A
 - ArgoCD `aegis-spoke-factory-a` Application이 두 workload를 관리함
 - factory-a K3s에서 adapter/publisher Pod가 `Running`
 - shared spool/outbox volume을 통해 adapter -> publisher handoff가 가능
+
+### 2026-05-18 구현 메모
+
+- Helm chart: `charts/aegis-spoke`
+- factory-a values: `envs/factory-a/values.yaml`
+- 배포 namespace: 기존 IoT Secret 재사용을 위해 `ai-apps`
+- workload:
+  - `aegis-spoke-factory-a-log-adapter`
+  - `aegis-spoke-edge-iot-publisher`
+- shared outbox: Longhorn PVC `aegis-spoke-outbox`, mount path `/var/lib/aegis/outbox`
+- placement: `kubernetes.io/hostname=worker2`
+- IoT Secret: `aws-iot-factory-a-cert`
+  - files: `certificate.pem.crt`, `private.pem.key`, `AmazonRootCA1.pem`
+  - endpoint: `endpoint.txt`
+- RBAC: adapter가 Kubernetes node/pod status를 읽을 수 있도록 ServiceAccount + ClusterRole/ClusterRoleBinding 추가
+- Docker/CI:
+  - `apps/factory-a-log-adapter/Dockerfile`
+  - `apps/edge-iot-publisher/Dockerfile`
+  - `.github/workflows/build-push.yaml` matrix로 ARM64 image build/push
+- ECR:
+  - `aegis/factory-a-log-adapter`
+  - `aegis/edge-iot-publisher`
+  - deployment tag는 `sha-<7-char-git-sha>`, `main`/`latest`는 moving debug tag
+
+검증:
+
+- `helm lint charts/aegis-spoke -f envs/factory-a/values.yaml`
+- `helm template aegis-spoke charts/aegis-spoke --namespace ai-apps -f envs/factory-a/values.yaml`
+- `terraform -chdir=infra/foundation fmt -check`
+
+제약:
+
+- 현재 로컬 Docker Desktop WSL integration이 비활성화되어 있어 실제 `docker buildx build`는 실행하지 못했다.
+- `terraform validate`는 로컬 AWS provider plugin handshake 실패로 완료하지 못했다. 수정한 Terraform 파일은 `fmt -check`까지 확인했다.
+- `kubectl apply --dry-run=client`는 현재 kubeconfig의 EKS API DNS 조회가 sandbox에서 차단되어 완료하지 못했다. Helm lint/template은 통과했다.
+
+남은 실제 환경 검증:
+
+- foundation Terraform apply로 신규 ECR repository 생성
+- GitHub Actions로 두 image push
+- values의 `sha-placeholder`를 실제 `sha-...` tag로 갱신
+- Hub ArgoCD ApplicationSet sync 후 factory-a K3s에서 두 Pod `Running` 확인
 
 ---
 

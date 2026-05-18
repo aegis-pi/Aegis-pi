@@ -123,7 +123,7 @@ BME280 / camera / mic / AI
     -> Grafana dashboard
 ```
 
-현재 실제 데이터 플레인 workload는 아직 운영 중이 아니다. M4에서는 기존 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 `factory-a-log-adapter`와 `edge-iot-publisher`를 추가한다. 초기 계획은 직접 장치 접근이 아니라 InfluxDB query, Kubernetes API status query, 기존 workload 로그/상태를 canonical JSON으로 변환한 뒤 AWS IoT Core로 전송하는 방식이다.
+현재 실제 데이터 플레인 workload는 아직 운영 중이 아니다. M4에서는 기존 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 `factory-a-log-adapter`와 `edge-iot-publisher`를 추가한다. 초기 계획은 직접 장치 접근이 아니라 InfluxDB Service DNS(`http://influxdb-svc.monitoring.svc.cluster.local:8086`)와 Kubernetes API status query를 사용해 canonical JSON으로 변환한 뒤 AWS IoT Core로 전송하는 방식이다.
 
 InfluxDB measurement:
 
