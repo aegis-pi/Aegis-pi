@@ -445,16 +445,16 @@ Issue 2의 adapter가 만든 canonical JSON을 local spool/outbox에서 읽어 A
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] factory-a K3s publisher가 IoT Core topic으로 메시지 publish
-- [ ] IoT Rule Action이 S3에 메시지 적재하는 것 확인
-- [ ] 경로 파티셔닝 규칙 적용 확인
-  - `s3://bucket/raw/factory-a/factory_state/yyyy=2026/mm=05/dd=14/<message_id>.json`
-  - `s3://bucket/raw/factory-a/infra_state/yyyy=2026/mm=05/dd=14/<message_id>.json`
+- [x] factory-a K3s publisher가 IoT Core topic으로 메시지 publish
+- [x] IoT Rule Action이 S3에 메시지 적재하는 것 확인
+- [x] 경로 파티셔닝 규칙 적용 확인
+  - `s3://aegis-bucket-data/raw/factory-a/factory_state/yyyy=2026/mm=05/dd=18/<message_id>.json`
+  - `s3://aegis-bucket-data/raw/factory-a/infra_state/yyyy=2026/mm=05/dd=18/<message_id>.json`
   - 현재 Terraform IoT Rule은 MQTT topic `aegis/factory-a/{source_type}`의 세 번째 segment를 `source_type`으로 사용한다.
-- [ ] `source_type`별 경로가 올바르게 분리되어 적재되는지 확인
-- [ ] S3 object body가 canonical JSON schema와 일치하는지 확인
-- [ ] `message_id`로 spool file, MQTT publish, S3 object를 추적할 수 있는지 확인
-- [ ] S3 적재 실패 시 IoT Rule 오류 로그 확인 방법 정의
+- [x] `source_type`별 경로가 올바르게 분리되어 적재되는지 확인
+- [x] S3 object body가 canonical JSON schema와 일치하는지 확인
+- [x] `message_id`로 spool file, MQTT publish, S3 object를 추적할 수 있는지 확인
+- [x] S3 적재 실패 시 IoT Rule 오류 로그 확인 방법 정의
 
 ### 🔍 Acceptance Criteria
 
@@ -463,6 +463,25 @@ Issue 2의 adapter가 만든 canonical JSON을 local spool/outbox에서 읽어 A
 - 두 `source_type` 경로에 파일이 분리 적재됨
 - `aws s3api get-object` 또는 동등한 명령으로 object body JSON 필수 필드를 확인
 - 최소 1건 이상의 실제 factory-a generated message가 S3 raw에 적재됨
+
+### 2026-05-18 검증 결과
+
+- 검증 날짜: 2026-05-18
+- image: `sha-f71a104`
+- 배포: `helm template | kubectl apply` 직접 배포 (ai-apps namespace, worker2)
+- 결과:
+  - `factory_state`, `infra_state` 양쪽 S3 경로에 파일 적재 확인
+  - canonical JSON 필수 필드 전부 확인 (envelope + payload.ai_result 포함)
+  - `ai_result`는 실제 InfluxDB 데이터 기반 (fire/fall/bend 모두 0.0, abnormal_sound: "none")
+  - IoT Rule 경로 파티셔닝: `yyyy=2026/mm=05/dd=18` 정상 적용
+
+### GitHub Issue Comment Draft
+
+- 상태: 완료
+- 진행 요약: factory-a K3s에서 `factory-a-log-adapter`와 `edge-iot-publisher`를 배포하고 S3 raw 경로에 `factory_state`, `infra_state` 데이터가 실제 적재되는 것을 검증했다.
+- 변경/확인: `apps/factory-a-log-adapter/`, `apps/edge-iot-publisher/`, `charts/aegis-spoke/`, `envs/factory-a/values.yaml`, `infra/foundation/ecr.tf`, `.github/workflows/build-push.yaml`
+- 검증: S3 object body canonical JSON 필드 일치, 경로 파티셔닝 정상
+- 후속: M4 Issue 6 Lambda data processor 구현 시작
 
 ---
 

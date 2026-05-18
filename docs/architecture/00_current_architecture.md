@@ -1,7 +1,7 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-05-15
+기준일: 2026-05-18
 
 ## 목적
 
@@ -123,7 +123,21 @@ BME280 / camera / mic / AI
     -> Grafana dashboard
 ```
 
-현재 실제 데이터 플레인 workload는 아직 운영 중이 아니다. M4에서는 기존 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 `factory-a-log-adapter`와 `edge-iot-publisher`를 추가한다. 초기 계획은 직접 장치 접근이 아니라 InfluxDB Service DNS(`http://influxdb-svc.monitoring.svc.cluster.local:8086`)와 Kubernetes API status query를 사용해 canonical JSON으로 변환한 뒤 AWS IoT Core로 전송하는 방식이다.
+M4 Issues 2~5에서 `factory-a-log-adapter`와 `edge-iot-publisher`를 구현하고 S3 raw 적재까지 검증했다(2026-05-18). 두 컴포넌트는 현재 검증 후 정리 상태이며, ECR 이미지(`sha-f71a104`)는 유지된다. Hub ArgoCD 재구성 시 ApplicationSet을 통해 재배포한다.
+
+실제 데이터 흐름 (검증 완료):
+
+```text
+InfluxDB safe_edge_db / Kubernetes API
+  -> factory-a-log-adapter (ai-apps, worker2)
+  -> /var/lib/aegis/outbox (Longhorn PVC 공유)
+  -> edge-iot-publisher (ai-apps, worker2)
+  -> AWS IoT Core MQTT
+  -> IoT Rule
+  -> S3 raw (aegis-bucket-data)
+```
+
+수집 주기: `factory_state` 3초, `infra_state` 20초
 
 InfluxDB measurement:
 
@@ -267,15 +281,20 @@ LAN 제거 InfluxDB 공백:
 AWS EKS Hub
 factory-b / factory-c
 Tailscale Hub-Spoke 연결
-IoT Core
-S3
-ECR
-GitHub Actions
 Lambda data processor / Risk calculation
 AMP
 ApplicationSet
-factory-a-log-adapter
-edge-iot-publisher
+```
+
+2026-05-18 M4 검증 완료로 아래 항목은 구조에 포함됐다.
+
+```text
+IoT Core         Thing/certificate/policy/Rule (검증 완료)
+S3               aegis-bucket-data raw 적재 (검증 완료)
+ECR              aegis/factory-a-log-adapter, aegis/edge-iot-publisher (sha-f71a104)
+GitHub Actions   ARM64 matrix 빌드 (검증 완료)
+factory-a-log-adapter  ECR 이미지 존재, 직접 배포 검증 완료
+edge-iot-publisher     ECR 이미지 존재, 직접 배포 검증 완료
 ```
 
 후속 구조는 `docs/architecture/01_target_architecture.md`에서 관리한다.

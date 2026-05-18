@@ -1,7 +1,7 @@
 # Edge Workload Placement
 
 상태: source of truth
-기준일: 2026-04-29
+기준일: 2026-05-18
 
 ## 목적
 
@@ -238,18 +238,23 @@ notifications-controller:
   limits:   200m / 256Mi
 ```
 
-## Edge data-plane 배치 계획
+## Edge data-plane 배치
 
-Edge data-plane은 현재 운영 중인 workload가 아니라 후속 클라우드 송신 컴포넌트다. 초기에는 기존 Safe-Edge workload를 대체하지 않고 `bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio` 옆에 `factory-a-log-adapter`와 `edge-iot-publisher`를 추가한다.
+2026-05-18 M4 검증 완료. `factory-a-log-adapter`와 `edge-iot-publisher`를 factory-a K3s에 배포하고 S3 raw 적재까지 검증했다. 현재는 검증 후 정리 상태이며 ECR 이미지(`sha-f71a104`)가 유지된다.
+
+기존 Safe-Edge workload(`bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio`)와 동일 namespace/node에 공존하며, 장치를 직접 잡지 않는다.
+
+### 실제 배포 결과 (2026-05-18)
 
 배치 기준:
 
 ```text
 namespace: ai-apps
 replicas: 1
-preferred: worker2
-failover: worker1
-avoid: master
+nodeSelector: kubernetes.io/hostname=worker2
+storageClass: longhorn (outbox PVC 1Gi, RWO)
+imagePullSecrets: ecr-registry
+podSecurityContext.fsGroup: 10001
 ```
 
 Resource 기준:
@@ -309,7 +314,8 @@ cluster-admin 금지, 최소 RBAC 사용
 AWS IoT certificate/private key는 Kubernetes Secret으로만 주입
 ```
 
-상세 계획은 `docs/planning/06_edge_agent_deployment_plan.md`를 기준으로 한다.
+배포 기록은 `docs/planning/16_m4_edge_data_plane_implementation.md`에서 확인한다.
+Hub ArgoCD 재구성 시 ApplicationSet을 통해 GitOps 배포로 전환한다.
 
 ## 검증
 
