@@ -16,4 +16,4 @@ ENV AEGIS_FACTORY_ID=factory-a \
 
 USER aegis
 
-CMD ["python", "/app/factory_a_log_adapter.py", "--once", "all"]
+CMD ["python", "/app/factory_a_log_adapter.py", "--loop"]

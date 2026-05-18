@@ -11,6 +11,9 @@ serviceAccount:
 
 imagePullSecrets: []
 
+podSecurityContext:
+  fsGroup: 10001
+
 outbox:
   path: /var/lib/aegis/outbox
   storage:

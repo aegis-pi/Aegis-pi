@@ -27,6 +27,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        fsGroup: {{ .Values.podSecurityContext.fsGroup }}
       {{- with .Values.placement.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
