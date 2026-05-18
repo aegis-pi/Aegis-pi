@@ -1,0 +1,35 @@
+factory:
+  id: factory-a
+  environmentType: physical-rpi
+  inputModuleType: sensor
+
+namespaceOverride: ai-apps
+
+outbox:
+  path: /var/lib/aegis/outbox
+  storage:
+    size: 1Gi
+    accessModes:
+      - ReadWriteOnce
+    storageClassName: longhorn
+
+placement:
+  nodeSelector:
+    kubernetes.io/hostname: worker2
+
+factoryALogAdapter:
+  enabled: true
+  image:
+    repository: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/factory-a-log-adapter
+    tag: sha-placeholder
+  influxdb:
+    url: http://influxdb-svc.monitoring.svc.cluster.local:8086
+    database: safe_edge_db
+
+edgeIotPublisher:
+  enabled: true
+  image:
+    repository: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-iot-publisher
+    tag: sha-placeholder
+  iot:
+    secretName: aws-iot-factory-a-cert
