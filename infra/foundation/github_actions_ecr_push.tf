@@ -40,7 +40,7 @@ data "aws_iam_policy_document" "github_actions_ecr_push" {
   }
 
   statement {
-    sid = "PushEdgeAgentImage"
+    sid = "PushAegisImages"
     actions = [
       "ecr:BatchCheckLayerAvailability",
       "ecr:BatchGetImage",
@@ -52,7 +52,11 @@ data "aws_iam_policy_document" "github_actions_ecr_push" {
       "ecr:PutImage",
       "ecr:UploadLayerPart",
     ]
-    resources = [aws_ecr_repository.edge_agent.arn]
+    resources = [
+      aws_ecr_repository.edge_agent.arn,
+      aws_ecr_repository.factory_a_log_adapter.arn,
+      aws_ecr_repository.edge_iot_publisher.arn,
+    ]
   }
 }
 
@@ -61,4 +65,3 @@ resource "aws_iam_role_policy" "github_actions_ecr_push" {
   role   = aws_iam_role.github_actions_ecr_push.id
   policy = data.aws_iam_policy_document.github_actions_ecr_push.json
 }
-

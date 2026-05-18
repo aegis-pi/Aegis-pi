@@ -45,3 +45,99 @@ resource "aws_ecr_lifecycle_policy" "edge_agent" {
     ]
   })
 }
+
+resource "aws_ecr_repository" "factory_a_log_adapter" {
+  name                 = var.ecr_factory_a_log_adapter_repository_name
+  image_tag_mutability = var.ecr_edge_agent_image_tag_mutability
+
+  image_scanning_configuration {
+    scan_on_push = var.ecr_edge_agent_scan_on_push
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "factory_a_log_adapter" {
+  repository = aws_ecr_repository.factory_a_log_adapter.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged factory-a-log-adapter images after ${var.ecr_edge_agent_expire_untagged_days} days"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = var.ecr_edge_agent_expire_untagged_days
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep the latest ${var.ecr_edge_agent_keep_sha_images} sha-tagged factory-a-log-adapter images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = var.ecr_edge_agent_keep_sha_images
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_ecr_repository" "edge_iot_publisher" {
+  name                 = var.ecr_edge_iot_publisher_repository_name
+  image_tag_mutability = var.ecr_edge_agent_image_tag_mutability
+
+  image_scanning_configuration {
+    scan_on_push = var.ecr_edge_agent_scan_on_push
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "edge_iot_publisher" {
+  repository = aws_ecr_repository.edge_iot_publisher.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged edge-iot-publisher images after ${var.ecr_edge_agent_expire_untagged_days} days"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = var.ecr_edge_agent_expire_untagged_days
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep the latest ${var.ecr_edge_agent_keep_sha_images} sha-tagged edge-iot-publisher images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = var.ecr_edge_agent_keep_sha_images
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}

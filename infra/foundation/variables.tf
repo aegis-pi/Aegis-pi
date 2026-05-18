@@ -105,6 +105,18 @@ variable "ecr_edge_agent_expire_untagged_days" {
   default     = 7
 }
 
+variable "ecr_factory_a_log_adapter_repository_name" {
+  description = "ECR repository name for the factory-a-log-adapter container image."
+  type        = string
+  default     = "aegis/factory-a-log-adapter"
+}
+
+variable "ecr_edge_iot_publisher_repository_name" {
+  description = "ECR repository name for the edge-iot-publisher container image."
+  type        = string
+  default     = "aegis/edge-iot-publisher"
+}
+
 variable "github_actions_oidc_thumbprints" {
   description = "Thumbprints accepted by the GitHub Actions OIDC provider. AWS currently treats token.actions.githubusercontent.com as a trusted provider, but IAM still requires at least one value."
   type        = list(string)

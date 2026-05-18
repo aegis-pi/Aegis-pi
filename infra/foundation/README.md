@@ -35,7 +35,16 @@ sha-* image retention: latest 50 images
 
 M3 Issue 2 기준 ECR 대상은 smoke image 검증용 `edge-agent` 하나다. Lambda data processor는 zip 배포를 기본으로 하며, `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` repository는 만들지 않는다.
 
-M4에서 실제 데이터 플레인 이미지를 구현하면 `factory-a-log-adapter`, `edge-iot-publisher`, `dummy-data-generator`의 ECR repository naming과 lifecycle policy를 별도로 확정한다.
+M4 데이터 플레인 기준 ECR repository는 `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`를 사용한다. 두 repository는 `edge-agent`와 같은 lifecycle 기준을 따른다.
+
+```text
+deployment tag: sha-<7-char-git-sha>
+moving tags: main, latest
+untagged image expiration: 7 days
+sha-* image retention: latest 50 images
+```
+
+M5에서 `dummy-data-generator`를 구현할 때 별도 repository를 추가한다.
 
 ArgoCD가 배포할 Helm values는 `sha-<7자리>` 태그를 배포 기준으로 삼는다. `main`과 `latest`는 빌드 확인과 수동 디버깅을 위한 이동 태그로만 사용한다.
 
@@ -96,28 +105,31 @@ Prefix 기준:
 
 ```text
 raw/{factory_id}/{source_type}/yyyy={YYYY}/mm={MM}/dd={DD}/{message_id}.json
-processed/{dataset}/{factory_id}/yyyy={YYYY}/mm={MM}/dd={DD}/{message_id}.json
-latest/{factory_id}/status.json
-latest/{factory_id}/risk-score.json
+processed/{dataset}/{factory_id}/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json
 ```
+
+MVP 기준 Dashboard의 현재 상태는 S3 `latest/` object가 아니라 DynamoDB LATEST/HISTORY에서 조회한다. 이 Terraform root에는 과거 초안의 `latest/` lifecycle rule이 남아 있지만, 현재 데이터 플레인 계약에서 `latest/`는 primary current-state 저장소가 아니다. 장기 이력과 재처리는 S3 `raw/`, `processed/`를 기준으로 하고, 화면 current state는 DynamoDB를 기준으로 한다.
 
 ## IoT Rule -> S3 raw 적재 기준
 
 ```text
 rule: AEGIS_IoTRule_factory_a_raw_s3
 topic filter: aegis/factory-a/+
+sql: SELECT * FROM 'aegis/factory-a/+'
 target bucket: aegis-bucket-data
 target key: raw/factory-a/${topic(3)}/yyyy=${parse_time("yyyy", timestamp(), "UTC")}/mm=${parse_time("MM", timestamp(), "UTC")}/dd=${parse_time("dd", timestamp(), "UTC")}/${get_or_default(message_id, newuuid())}.json
 role: AEGIS-IAMRole-IoTRule-S3
 policy scope: s3:PutObject to arn:aws:s3:::aegis-bucket-data/raw/factory-a/*
 ```
 
+IoT Rule SQL은 raw object body에 보조 필드를 추가하지 않는다. S3 raw body는 publisher가 보낸 canonical JSON과 동일해야 한다.
+
 검증 결과:
 
 ```text
-test topic: aegis/factory-a/sensor
+test topic: aegis/factory-a/factory_state 또는 aegis/factory-a/infra_state
 test message_id: manual-20260506T014423Z-31668
-test object: raw/factory-a/sensor/yyyy=2026/mm=05/dd=06/manual-20260506T014423Z-31668.json
+test object: raw/factory-a/factory_state/yyyy=2026/mm=05/dd=06/manual-20260506T014423Z-31668.json
 ```
 
 공장별 prefix를 분리한다. 이후 `factory-b`, `factory-c`가 추가되어도 권한, lifecycle, Athena/Glue partition, 장애 분석 기준을 독립적으로 다루기 쉽기 때문이다.
@@ -128,10 +140,10 @@ test object: raw/factory-a/sensor/yyyy=2026/mm=05/dd=06/manual-20260506T014423Z-
 | --- | --- |
 | `raw/` | 90일 후 Glacier Instant Retrieval 전환 |
 | `processed/` | 365일 후 Standard-IA 전환 |
-| `latest/` | current object 삭제 없음, noncurrent version은 30일 후 삭제 |
+| `latest/` | 현재 MVP primary 경로는 아님. 과거 초안 호환용 lifecycle만 유지 |
 | 전체 | incomplete multipart upload는 7일 후 중단 |
 
-`raw/` 원본은 재처리 근거이므로 바로 삭제하지 않는다. `processed/`는 대시보드와 분석 조회 가능성이 높아 더 오래 Standard에 둔다. `latest/`는 애플리케이션이 현재 상태 객체를 덮어쓰는 영역이므로 current object lifecycle 삭제를 걸지 않는다.
+`raw/` 원본은 재처리 근거이므로 바로 삭제하지 않는다. `processed/`는 대시보드와 분석 조회 가능성이 높아 더 오래 Standard에 둔다. DynamoDB LATEST/HISTORY가 현재 상태와 최근 그래프의 hot store 역할을 하므로 S3 `latest/`를 Dashboard current state 경로로 사용하지 않는다.
 
 ## Public access 기준
 

@@ -83,8 +83,30 @@ output "edge_agent_ecr_repository_arn" {
   value       = aws_ecr_repository.edge_agent.arn
 }
 
+output "factory_a_log_adapter_ecr_repository_url" {
+  description = "ECR repository URL for the factory-a-log-adapter image."
+  value       = aws_ecr_repository.factory_a_log_adapter.repository_url
+}
+
+output "edge_iot_publisher_ecr_repository_url" {
+  description = "ECR repository URL for the edge-iot-publisher image."
+  value       = aws_ecr_repository.edge_iot_publisher.repository_url
+}
+
+output "edge_data_plane_image_tag_strategy" {
+  description = "Image tag strategy for Edge data-plane deployment pipeline."
+  value = {
+    deployment_tag = "sha-<7-char-git-sha>"
+    moving_tags    = ["main", "latest"]
+    repositories = [
+      aws_ecr_repository.factory_a_log_adapter.name,
+      aws_ecr_repository.edge_iot_publisher.name,
+    ]
+  }
+}
+
 output "edge_agent_image_tag_strategy" {
-  description = "Image tag strategy for the edge-agent deployment pipeline."
+  description = "Image tag strategy for the legacy edge-agent smoke image."
   value = {
     deployment_tag = "sha-<7-char-git-sha>"
     moving_tags    = ["main", "latest"]

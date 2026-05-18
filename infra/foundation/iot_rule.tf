@@ -41,7 +41,7 @@ resource "aws_iot_topic_rule" "factory_raw_to_s3" {
   name        = local.iot_rule_name
   description = "Route ${var.iot_factory_id} IoT messages to the Aegis raw S3 prefix."
   enabled     = var.iot_rule_enabled
-  sql         = "SELECT *, topic(3) AS source_type, timestamp() AS received_at FROM '${local.iot_topic_prefix}/+'"
+  sql         = "SELECT * FROM '${local.iot_topic_prefix}/+'"
   sql_version = "2016-03-23"
 
   s3 {
