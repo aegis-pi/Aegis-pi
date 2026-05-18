@@ -9,9 +9,9 @@ OTP="${1:-}"
 source "${REPO_ROOT}/scripts/lib/config.sh"
 aegis_load_config "${REPO_ROOT}"
 
-DESTROY_IOT="${DESTROY_IOT:-true}"
+DESTROY_IOT="${DESTROY_IOT:-false}"
 DESTROY_HUB="${DESTROY_HUB:-true}"
-DESTROY_FOUNDATION="${DESTROY_FOUNDATION:-true}"
+DESTROY_FOUNDATION="${DESTROY_FOUNDATION:-false}"
 FOUNDATION_STATE="${REPO_ROOT}/infra/foundation/terraform.tfstate"
 export DESTROY_FOUNDATION
 

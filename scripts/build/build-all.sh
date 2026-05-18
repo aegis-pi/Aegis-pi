@@ -4,28 +4,39 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 OTP=""
-REQUEST_ADMIN_UI=false
-ENABLE_ADMIN_UI_INGRESS=false
+BUILD_ADMIN_UI_AFTER_NS="${BUILD_ADMIN_UI_AFTER_NS:-false}"
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/build/build-all.sh [--admin-ui] [--admin-ui-ingress] [MFA_OTP]
+Usage: scripts/build/build-all.sh [--foundation] [--admin-ui-after-ns] [--iot] [MFA_OTP]
 
 Options:
-  --admin-ui          Prepare Admin UI Route53/ACM outputs only. Ingress is enabled later.
-  --admin-ui-ingress  Enable Admin UI HTTPS Ingress/ALB during the Hub build.
-                      Use only after domain NS delegation and ACM ISSUED.
-  -h, --help          Show this help.
+  --foundation         Include foundation Terraform apply.
+  --admin-ui-after-ns  Enable Admin UI HTTPS Ingress/ALB after Gabia NS delegation.
+  --iot                Include factory-a IoT Thing/certificate and K3s Secret registration.
+  --admin-ui           Deprecated no-op; Hub build always creates Route53/ACM and prints NS.
+  --admin-ui-ingress   Deprecated alias for --admin-ui-after-ns.
+  -h, --help           Show this help.
 USAGE
 }
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
+    --foundation)
+      BUILD_FOUNDATION=true
+      ;;
     --admin-ui)
-      REQUEST_ADMIN_UI=true
+      echo "--admin-ui is now a no-op. Hub build always creates Route53/ACM and prints NS."
       ;;
     --admin-ui-ingress)
-      ENABLE_ADMIN_UI_INGRESS=true
+      echo "--admin-ui-ingress is deprecated; using --admin-ui-after-ns."
+      BUILD_ADMIN_UI_AFTER_NS=true
+      ;;
+    --admin-ui-after-ns)
+      BUILD_ADMIN_UI_AFTER_NS=true
+      ;;
+    --iot)
+      BUILD_IOT=true
       ;;
     -h|--help)
       usage
@@ -60,24 +71,19 @@ done
 source "${REPO_ROOT}/scripts/lib/config.sh"
 aegis_load_config "${REPO_ROOT}"
 
-BUILD_FOUNDATION="${BUILD_FOUNDATION:-true}"
+BUILD_FOUNDATION="${BUILD_FOUNDATION:-false}"
 BUILD_HUB="${BUILD_HUB:-true}"
-BUILD_IOT="${BUILD_IOT:-true}"
+BUILD_IOT="${BUILD_IOT:-false}"
+AEGIS_BUILD_PREFLIGHT="${AEGIS_BUILD_PREFLIGHT:-true}"
 FACTORY_ID="${FACTORY_ID:-${AEGIS_FACTORY_ID}}"
 IOT_CERT_METADATA="${REPO_ROOT}/secret/iot/${FACTORY_ID}/certificate-arn.txt"
 
-if [[ "${REQUEST_ADMIN_UI}" == "true" ]]; then
-  echo "--admin-ui now prepares Admin UI Route53/ACM outputs only."
-  echo "After setting the printed NS records at the registrar, run scripts/build/build-admin-ui-after-ns.sh."
-fi
-
-if [[ "${ENABLE_ADMIN_UI_INGRESS}" == "true" ]]; then
-  export ADMIN_UI_INGRESS_ENABLED=true
-fi
+export BUILD_FOUNDATION BUILD_HUB BUILD_ADMIN_UI_AFTER_NS BUILD_IOT
 
 cd "${REPO_ROOT}"
 
 if [[ "${BUILD_FOUNDATION}" == "true" || "${BUILD_HUB}" == "true" || \
+  "${BUILD_ADMIN_UI_AFTER_NS}" == "true" || \
   ( "${BUILD_IOT}" == "true" && ! -f "${IOT_CERT_METADATA}" ) ]]; then
   # shellcheck disable=SC1091
   source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"
@@ -86,10 +92,20 @@ fi
 
 if [[ "${BUILD_FOUNDATION}" == "true" ]]; then
   scripts/build/build-foundation.sh "${OTP}"
+  BUILD_FOUNDATION=false
+  export BUILD_FOUNDATION
+fi
+
+if [[ "${AEGIS_BUILD_PREFLIGHT}" == "true" ]]; then
+  scripts/build/preflight.sh
 fi
 
 if [[ "${BUILD_HUB}" == "true" ]]; then
   scripts/build/build-hub.sh "${OTP}"
+fi
+
+if [[ "${BUILD_ADMIN_UI_AFTER_NS}" == "true" ]]; then
+  scripts/build/build-admin-ui-after-ns.sh "${OTP}"
 fi
 
 if [[ "${BUILD_IOT}" == "true" ]]; then

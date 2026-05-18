@@ -1,7 +1,7 @@
 # Build Scripts
 
 상태: source of truth
-기준일: 2026-05-08
+기준일: 2026-05-18
 
 ## 목적
 
@@ -9,25 +9,47 @@
 
 새 리소스를 추가하거나 기존 리소스 생성 방식이 바뀌면 이 디렉터리의 스크립트와 문서를 함께 업데이트한다.
 
+## 레이어 구분
+
+리소스를 생애주기 기준으로 4개 레이어로 나눈다.
+
+```text
+Layer 0 │ Foundation   │ S3, AMP, ECR, IoT Rule, GitHub Actions OIDC
+        │              │ 영구 리소스. 최초 1회 생성 후 일반 빌드 흐름에서 제외.
+
+Layer 1 │ Hub Infra    │ VPC, NAT GW, EKS 클러스터, IRSA Role, Route53, ACM
+        │ (Terraform)  │ 비용 주요 발생원. 개발 중단 시 삭제, 재개 시 재생성.
+
+Layer 2 │ Hub Platform │ ArgoCD, Prometheus Agent, Grafana, AWS LB Controller,
+        │ (Ansible)    │ Admin Ingress(ALB), Tailscale Operator
+        │              │ Layer 1 위에 올라가는 K8s 워크로드.
+
+Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
+        │              │ factory-a 등록. 인증서 갱신 시 단독 재실행.
+```
+
 ## 생성 순서
 
 ```text
-1. foundation
+0. foundation (최초 1회만)
    - infra/foundation Terraform apply
-   - S3 data bucket, AMP Workspace, IoT Rule 같은 영속 리소스
+   - S3 data bucket, AMP Workspace, ECR, IoT Rule, GitHub Actions OIDC
 
-2. hub
+1. hub-infra
    - infra/hub Terraform apply
-   - EKS, VPC, node group
-   - Ansible Hub bootstrap
+   - VPC, subnet, NAT Gateway, EKS 클러스터, node group
+   - IRSA Role (LB Controller / Grafana / Prometheus / Risk Normalizer)
+   - Route53 Hosted Zone, ACM certificate
+
+2. hub-platform
+   - Ansible Hub bootstrap (EKS 위 K8s 워크로드)
    - ArgoCD install/verify
    - Prometheus Agent install/verify and AMP remote_write
    - internal Grafana install/verify and AMP datasource query
    - local secret/hub-ui-credentials.txt 출력
    - AWS Load Balancer Controller install/verify
-   - Admin UI Route53 name server file generation
-   - Admin UI HTTPS Ingress prepare/verify, disabled by default until ACM is issued
-   - Tailscale Operator, factory-a egress, ArgoCD/Grafana Tailscale UI, factory-a cluster Secret bootstrap/verify
+   - Admin UI HTTPS Ingress bootstrap/verify (ACM ISSUED 후 활성화)
+   - Tailscale Operator, ArgoCD/Grafana Tailscale UI, factory-a cluster Secret bootstrap/verify
 
 3. iot factory-a
    - IoT Thing / Policy / certificate 등록
@@ -35,76 +57,188 @@
    - K3s Secret 등록
 ```
 
+`build-all.sh`는 1 → 2 → 3 순서로 실행한다. 0(Foundation)은 기본값에서 제외되며 별도 실행한다.
+
 ## 파일
 
 | 파일 | 내용 |
 | --- | --- |
-| `build-all.sh` | 전체 생성 순서 실행 |
+| `build-all.sh` | 기본 hub-infra → hub-platform 실행. `--foundation`, `--admin-ui-after-ns`, `--iot`로 4단계 선택 실행. |
 | `build-admin-ui-after-ns.sh` | Gabia NS 위임 후 ACM 발급을 기다리고 Admin UI HTTPS Ingress 활성화 |
-| `build-foundation.sh` | `infra/foundation` Terraform apply |
-| `build-hub.sh` | `infra/hub` Terraform apply 후 Ansible bootstrap. 기본적으로 Tailscale Hub 복구까지 실행 |
+| `build-foundation.sh` | `infra/foundation` Terraform apply. 최초 1회 단독 실행. |
+| `build-hub-infra.sh` | `infra/hub` Terraform apply (VPC, EKS, IRSA, Route53, ACM) |
+| `build-hub-platform.sh` | Ansible bootstrap (ArgoCD, Prometheus, Grafana, LB Controller, Ingress, Tailscale) |
+| `build-hub.sh` | `build-hub-infra.sh` → `build-hub-platform.sh` 순서 실행 wrapper |
 | `build-iot-factory-a.sh` | `factory-a` IoT Thing/certificate 생성 및 K3s Secret 등록 |
 
 Hub build는 ArgoCD/Grafana 설치 검증 후 `secret/hub-ui-credentials.txt`를 갱신한다. 이 파일은 `.gitignore`의 `secret/` 규칙으로 Git에 들어가지 않으며, 파일 권한은 `0600`으로 설정된다.
 
-## 전체 생성
+## Foundation 생성 (최초 1회)
+
+Foundation은 영구 리소스이므로 최초 1회만 실행한다. `build-all.sh`의 기본 흐름에 포함되지 않는다.
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
-scripts/build/build-all.sh
+scripts/build/build-foundation.sh [MFA_OTP]
 ```
 
-MFA OTP를 인자로 넘길 수도 있다.
+## 일반 개발 사이클 (Hub)
+
+Foundation이 이미 존재하는 상태에서 Hub를 올린다. Hub Terraform은 이 단계에서 Route53 Hosted Zone, ACM Certificate, ACM validation record를 만들고 `secret/admin-ui-nameservers.txt`를 갱신한다. Admin UI Ingress/ALB는 기본 생성하지 않는다.
 
 ```bash
-scripts/build/build-all.sh <MFA_OTP>
+scripts/build/build-all.sh [MFA_OTP]
 ```
 
-Admin UI Route53/ACM 출력까지 함께 준비한다는 의도를 명시하려면 `--admin-ui`를 붙인다. 이 옵션은 Admin UI HTTPS Ingress/ALB를 켜지 않는다. Gabia NS 위임과 ACM 발급 이후 `build-admin-ui-after-ns.sh`를 별도로 실행한다.
+`build-all.sh`의 기본 동작:
+
+```text
+BUILD_FOUNDATION=false  ← Foundation은 기본 제외
+BUILD_HUB=true          ← hub-infra → hub-platform 순서 실행
+BUILD_ADMIN_UI_AFTER_NS=false
+BUILD_IOT=false
+```
+
+Foundation까지 포함해 최초 생성하려면 `--foundation`을 붙인다. 이 경우 Foundation을 먼저 생성한 뒤 Hub preflight와 Hub build를 실행한다.
 
 ```bash
-scripts/build/build-all.sh --admin-ui
+scripts/build/build-all.sh --foundation [MFA_OTP]
 ```
 
-MFA OTP를 함께 넘길 수도 있다.
+Gabia NS 위임이 끝난 뒤 Admin UI HTTPS Ingress까지 함께 올리려면 `--admin-ui-after-ns`를 사용한다.
 
 ```bash
-scripts/build/build-all.sh --admin-ui <MFA_OTP>
+scripts/build/build-all.sh --admin-ui-after-ns [MFA_OTP]
 ```
 
-이미 NS 위임과 ACM 발급이 끝난 상태에서 Hub build 중 Admin UI HTTPS Ingress까지 강제로 켜야 한다면 `--admin-ui-ingress`를 사용한다.
+IoT Thing/certificate와 K3s Secret 등록까지 포함하려면 `--iot`를 사용한다.
 
 ```bash
-scripts/build/build-all.sh --admin-ui-ingress
+scripts/build/build-all.sh --iot [MFA_OTP]
 ```
 
-## 일부만 생성
+`build-all.sh`는 실제 생성 전에 preflight를 실행한다. preflight는 로컬 CLI, AWS 인증, Hub가 참조하는 foundation state, Tailscale secret/kubeconfig, 기존 Hub Terraform state의 대표 AWS 리소스 조회 가능 여부를 먼저 확인한다.
 
-Foundation만:
+일시적으로 preflight만 건너뛰려면 아래처럼 실행한다. 디버깅 때만 사용한다.
 
 ```bash
-scripts/build/build-foundation.sh
+AEGIS_BUILD_PREFLIGHT=false scripts/build/build-all.sh
 ```
 
-Hub만:
+AWS state 조회만 건너뛰고 나머지 preflight는 유지하려면:
 
 ```bash
-scripts/build/build-hub.sh
+AEGIS_PREFLIGHT_AWS_STATE=false scripts/build/build-all.sh
 ```
 
-Hub ArgoCD Helm release가 이미 `deployed` 상태이고 chart version이 같으면 `build-hub.sh`와 `build-all.sh`는 Helm upgrade를 건너뛴다. values 변경이나 강제 재적용이 필요하면 아래처럼 실행한다.
+## Hub 재개 (개발 재시작)
+
+`destroy-all.sh` 또는 `destroy-hub.sh`로 Hub를 내린 뒤 개발을 재개할 때의 절차다.
+Foundation은 살아있으므로 Foundation 생성은 건너뛴다.
+
+### 케이스 1 — Hub만 내렸다가 올릴 때 (IoT 유지)
+
+`destroy-hub.sh`를 사용한 경우. IoT Thing/Certificate와 K3s Secret은 그대로 남아있다.
 
 ```bash
-FORCE_ARGOCD_UPGRADE=true scripts/build/build-all.sh
+scripts/build/build-hub.sh [MFA_OTP]
 ```
 
-AWS Load Balancer Controller도 이미 `deployed` 상태이고 chart version이 같으면 Helm upgrade를 건너뛴다. 강제 재적용이 필요하면 아래처럼 실행한다.
+Admin UI까지 다시 활성화하려면 Hub 생성 직후 출력된 NS를 Gabia와 비교하고, NS 위임과 ACM 발급이 끝난 뒤 후속 단계를 실행한다.
 
 ```bash
-FORCE_AWS_LB_CONTROLLER_UPGRADE=true scripts/build/build-hub.sh
+scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]
 ```
 
-Hub Tailscale bootstrap도 `BUILD_HUB=true`일 때 기본 실행된다. 이 단계는 아래 리소스가 이미 있으면 생성하지 않고 상태만 검증한다.
+### 케이스 2 — Hub + IoT를 모두 다시 올릴 때
+
+IoT Thing과 K3s Secret까지 재등록해야 하는 경우에만 `--iot`를 붙인다.
+
+```bash
+scripts/build/build-all.sh --iot [MFA_OTP]
+```
+
+Admin UI Ingress가 이미 활성화된 상태였다면:
+
+```bash
+scripts/build/build-all.sh --admin-ui-after-ns --iot [MFA_OTP]
+```
+
+### Admin UI NS 재확인
+
+Hub를 destroy하면 Route53 Hosted Zone과 ACM Certificate가 함께 삭제된다.
+Hub를 재생성하면 Hosted Zone이 새로 만들어지며 NS 값이 바뀔 수 있다.
+
+Hub 재생성 직후 반드시 NS 값을 확인하고 Gabia와 비교한다.
+
+```bash
+cat secret/admin-ui-nameservers.txt
+```
+
+NS 값이 이전과 다르면 Gabia 관리 콘솔에서 네임서버를 업데이트한 뒤 ACM 발급을 기다린다.
+
+```bash
+scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]
+```
+
+NS 값이 같으면 ACM 재검증이 빠르게 끝나거나 이미 ISSUED 상태일 수 있다.
+ACM 상태는 AWS 콘솔 또는 아래 명령으로 확인한다.
+
+```bash
+aws acm list-certificates --region ap-south-1 --query 'CertificateSummaryList[*].[DomainName,Status]' --output table
+```
+
+## 단계별 단독 실행
+
+### Hub 전체 (infra + platform)
+
+```bash
+scripts/build/build-hub.sh [MFA_OTP]
+```
+
+### Hub 인프라만 (Terraform)
+
+EKS 재생성이나 IRSA 변경 시 사용한다. Ansible은 실행하지 않는다.
+
+```bash
+scripts/build/build-hub-infra.sh [MFA_OTP]
+```
+
+### Hub 플랫폼만 (Ansible)
+
+EKS가 이미 실행 중인 상태에서 ArgoCD 재설치, Grafana 재설치 등 K8s 워크로드만 재적용할 때 사용한다.
+
+```bash
+scripts/build/build-hub-platform.sh [MFA_OTP]
+```
+
+특정 컴포넌트만 재실행하려면 Ansible을 직접 호출한다.
+
+```bash
+cd scripts/ansible
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
+```
+
+### IoT factory-a만
+
+```bash
+scripts/build/build-iot-factory-a.sh [MFA_OTP]
+```
+
+## 강제 재적용 옵션
+
+Hub Platform의 각 컴포넌트는 이미 `deployed` 상태이고 chart version이 같으면 Helm upgrade를 건너뛴다. 강제 재적용이 필요하면 환경변수를 사용한다.
+
+```bash
+FORCE_ARGOCD_UPGRADE=true scripts/build/build-hub-platform.sh
+FORCE_GRAFANA_UPGRADE=true scripts/build/build-hub-platform.sh
+FORCE_AWS_LB_CONTROLLER_UPGRADE=true scripts/build/build-hub-platform.sh
+FORCE_TAILSCALE_OPERATOR_UPGRADE=true scripts/build/build-hub-platform.sh
+```
+
+## Tailscale
+
+Hub Platform bootstrap은 기본적으로 Tailscale Operator까지 실행한다. 이 단계는 아래 리소스가 이미 있으면 생성하지 않고 상태만 검증한다.
 
 ```text
 tailscale/tailscale-operator Helm release
@@ -120,16 +254,23 @@ argocd/cluster-factory-a cluster Secret
 ~/Aegis/.aegis/secrets/tailscale/operator.env
 ```
 
-해당 파일에 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`이 없으면 Hub build는 실패한다. Tailscale만 임시로 건너뛰려면 아래처럼 실행한다.
+해당 파일에 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`이 없으면 Hub platform build는 실패한다. Tailscale만 임시로 건너뛰려면 아래처럼 실행한다.
 
 ```bash
-BUILD_TAILSCALE=false scripts/build/build-hub.sh
+BUILD_TAILSCALE=false scripts/build/build-hub-platform.sh
 ```
 
-Tailscale Operator Helm release 강제 재적용이 필요하면 아래처럼 실행한다.
+## 특정 단계 선택 실행
 
 ```bash
-FORCE_TAILSCALE_OPERATOR_UPGRADE=true scripts/build/build-hub.sh
+# Foundation만 실행
+BUILD_HUB=false BUILD_FOUNDATION=true scripts/build/build-all.sh
+
+# IoT까지 포함
+scripts/build/build-all.sh --iot
+
+# Hub만 건너뛰기
+BUILD_HUB=false scripts/build/build-all.sh
 ```
 
 ## Admin UI NS 위임 포함 재생성 순서
@@ -140,7 +281,7 @@ Hub build는 Terraform apply 직후 `secret/admin-ui-nameservers.txt`를 갱신�
 
 ### 1. 전체 리소스 1차 생성
 
-이 단계에서 foundation, Hub EKS, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, IoT `factory-a` 리소스를 생성하고, Admin UI용 Route53 Hosted Zone NS를 출력한다. `--admin-ui`를 붙여도 Ingress/ALB는 켜지지 않으며, Admin UI Route53/ACM 준비 의도만 명시한다.
+이 단계에서 Hub EKS, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller를 생성하고, Admin UI용 Route53 Hosted Zone NS를 출력한다. Foundation과 IoT까지 포함하려면 `--foundation`, `--iot`를 명시한다.
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
@@ -197,10 +338,10 @@ https://argocd.minsoo-tech.cloud
 https://grafana.minsoo-tech.cloud
 ```
 
-이미 NS 위임과 ACM 발급이 끝난 상태에서 Hub 전체를 다시 적용해야 한다면 아래처럼 직접 Admin UI Ingress를 활성화할 수도 있다.
+이미 NS 위임과 ACM 발급이 끝난 상태에서 Hub와 Admin UI를 한 번에 다시 적용해야 한다면 아래처럼 후속 단계를 포함한다.
 
 ```bash
-ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh
+scripts/build/build-all.sh --admin-ui-after-ns
 ```
 
 IoT `factory-a`만:
@@ -216,7 +357,7 @@ BUILD_HUB=false scripts/build/build-all.sh
 ```
 
 ```bash
-BUILD_FOUNDATION=false BUILD_HUB=false scripts/build/build-all.sh
+BUILD_HUB=false scripts/build/build-all.sh --iot
 ```
 
 ## 주의

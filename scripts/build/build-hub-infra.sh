@@ -10,7 +10,9 @@ source "${REPO_ROOT}/scripts/lib/config.sh"
 aegis_load_config "${REPO_ROOT}"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/lib/terraform.sh"
 aegis_ensure_aws_mfa "${OTP}"
 
-"${SCRIPT_DIR}/build-hub-infra.sh" "${OTP}"
-"${SCRIPT_DIR}/build-hub-platform.sh" "${OTP}"
+aegis_terraform_apply_root "${REPO_ROOT}/infra/hub"
+"${REPO_ROOT}/scripts/ops/admin-ui-nameservers.sh"
