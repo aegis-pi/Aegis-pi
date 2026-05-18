@@ -80,9 +80,9 @@
 원본: `docs/issues/M4_data-plane.md`
 
 - [x] Issue 1 - [데이터/Schema] Raw/Processed 데이터 계약 확정
-- [ ] Issue 2 - [데이터/Adapter] `factory-a` raw/log -> JSON 변환 로직 구현
-- [ ] Issue 3 - [데이터/Publisher] JSON -> IoT Core 전송 로직 구현
-- [ ] Issue 4 - [데이터/Container/GitOps] adapter/publisher 이미지화 및 K3s 배포
+- [x] Issue 2 - [데이터/Adapter] `factory-a` raw/log -> JSON 변환 로직 구현
+- [x] Issue 3 - [데이터/Publisher] JSON -> IoT Core 전송 로직 구현
+- [ ] Issue 4 - [데이터/Container/GitOps] adapter/publisher 이미지화 및 K3s 배포 (진행 중: 버그 픽스 이미지 빌드 중 — sha-e635c1f)
 - [ ] Issue 5 - [데이터/S3] IoT Core -> S3 적재 확인 (경로 파티셔닝 포함)
 - [ ] Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
 - [ ] Issue 7 - [데이터/Pipeline] `pipeline_status` Lambda 처리 검증

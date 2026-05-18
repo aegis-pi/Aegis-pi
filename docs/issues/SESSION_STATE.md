@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-05-15
+기준일: 2026-05-18
 
 ## 목적
 
@@ -51,40 +51,47 @@
 | M3 | Issue 4 - 배포/ArgoCD ApplicationSet 구성 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
 | M3 | Issue 5 - 배포/ArgoCD 운영형 동기화 정책 및 롤백 정책 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
 | M4 | Issue 1 - Raw/Processed 데이터 계약 확정 | 완료 | `docs/issues/M4_data-plane.md` |
+| M4 | Issue 2 - factory-a-log-adapter 구현 | 완료 | `docs/issues/M4_data-plane.md` |
+| M4 | Issue 3 - edge-iot-publisher 구현 | 완료 | `docs/issues/M4_data-plane.md` |
+| M4 | Issue 4 - 이미지화 및 K3s 배포 | 진행 중 | `docs/issues/M4_data-plane.md` |
+| M4 | Issue 5 - IoT Core -> S3 적재 확인 | 미완료 | `docs/issues/M4_data-plane.md` |
 
 현재 바로 이어서 할 이슈:
 
 ```text
-M4 Issue 2 - [데이터/Adapter] factory-a raw/log -> JSON 변환 로직 구현
-```
-
-다음 세션 최우선 실행 순서:
-
-```text
-1. M4 Issue 2를 진행한다.
-   - apps/factory-a-log-adapter/ 구현 디렉터리 생성
-   - factory-a 실제 입력 source 위치 확정
-   - canonical JSON factory_state/infra_state 생성 로직 구현
-   - /var/lib/aegis/outbox에 {message_id}.json 파일을 쓰는 로컬 검증
+M4 Issue 4 완료 — GitHub Actions 버그 픽스 이미지(sha-e635c1f) 빌드 완료 확인 후:
+  1. envs/factory-a/values.yaml image tag를 sha-e635c1f로 갱신
+  2. factory-a K3s 재배포 (helm template | kubectl apply)
+  3. Pod Running 및 adapter/publisher 로그 확인
+  4. S3 raw factory_state/infra_state object 실적재 확인 (M4 Issue 5)
 ```
 
 ## 현재 큰 상태
 
 ```text
-현재 단계: M4 데이터 플레인 준비
-완료: M3 Issue 1 GitOps 저장소 구조, 공장별 values, smoke chart, GitHub Actions manifest validation
-완료: M3 Issue 2 ECR repository active, smoke image push, factory-a imagePullSecret, ECR image pull 검증
-완료: M3 Issue 3 GitHub Actions OIDC build-push workflow, ARM64 ECR image push 검증
-완료: M3 Issue 4 ApplicationSet 구성, `aegis-spoke-factory-a` 자동 생성, 수동 Sync, factory-a K3s smoke Pod `Running`
-완료: M3 Issue 5 ArgoCD manual sync, conservative RollingUpdate, bad image rollback 검증
-완료: M4 Issue 1 canonical JSON, null policy, local spool/outbox, S3 raw body, DynamoDB LATEST/HISTORY, S3 processed 계약 확정
-보류: M3 Issue 6 manifest tag update workflow는 Edge data-plane 실제 로직 확정 전까지 미룸
-보류: M3 Issue 7/8은 Issue 6 재개 이후 진행
-다음: M4 데이터 플레인
-현재 AWS 상태: Hub/Foundation/IoT/Admin UI 리소스 재생성 완료. ECR `aegis/edge-agent` repository 활성 상태
-이미지 기준: Docker Hub가 아니라 ECR `611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent`를 표준 registry로 사용
-남음: M4 데이터 플레인, M5/M6 후속, Edge data-plane 확정 후 M3 Issue 6~8 재개
-후속 리팩토링: 문서 repo/code repo/GitOps repo 분리와 OIDC 기반 CI/CD/Destroy 고도화는 M7 Issue 0에서 최종 통합 검증 전 진행
+현재 단계: M4 Issue 4 완료 직전 (버그 픽스 이미지 빌드 대기 중)
+
+완료: M3 Issue 1~5 배포 파이프라인 전체
+완료: M4 Issue 1 canonical JSON 계약 확정
+완료: M4 Issue 2 factory-a-log-adapter 구현 (factory_state 3s, infra_state 20s, --loop 모드)
+완료: M4 Issue 3 edge-iot-publisher 구현 (outbox scan -> MQTT publish -> file delete)
+완료: infra/foundation ECR repo 2개 (aegis/factory-a-log-adapter, aegis/edge-iot-publisher) terraform apply
+완료: GitHub Actions matrix build 3개 이미지 ARM64 ECR push (sha-53019d4)
+완료: aegis-spoke Helm chart 생성 (imagePullSecrets, fsGroup securityContext 포함)
+완료: envs/factory-a/values.yaml 작성 (worker2 nodeSelector, longhorn PVC, ai-apps namespace)
+완료: IoT Rule -> S3 sanity test 통과 (factory_state source_type 기준)
+진행 중: 버그 픽스 이미지 빌드 (sha-e635c1f)
+  - fix 1: factory-a-log-adapter Dockerfile CMD --once -> --loop
+  - fix 2: edge-iot-publisher endpoint Secret 값 trailing newline strip
+미완료: adapter -> publisher -> IoT -> S3 실제 데이터 플레인 end-to-end 검증
+
+현재 AWS 상태: Foundation/IoT/ECR 리소스 활성. factory-a K3s Pod 배포됨 (이미지 교체 대기 중)
+이미지: ECR 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/{factory-a-log-adapter,edge-iot-publisher}
+현재 배포 이미지: sha-53019d4 (버그 있음)
+버그 픽스 이미지: sha-e635c1f (GitHub Actions 빌드 중)
+보류: M3 Issue 6~8, M5~M7 전체
+후속 리팩토링: M7 Issue 0에서 repo 분리 및 OIDC CI/CD 고도화
+
 완료: M0 factory-a Safe-Edge 기준선
 완료: M1 Issue 0 AWS CLI MFA 및 Terraform 접근 설정
 완료: M1 Issue 1 EKS/VPC Terraform apply 및 kubectl 접근 확인
