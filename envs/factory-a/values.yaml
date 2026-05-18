@@ -5,6 +5,9 @@ factory:
 
 namespaceOverride: ai-apps
 
+imagePullSecrets:
+  - name: ecr-registry
+
 outbox:
   path: /var/lib/aegis/outbox
   storage:
@@ -21,7 +24,7 @@ factoryALogAdapter:
   enabled: true
   image:
     repository: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/factory-a-log-adapter
-    tag: sha-placeholder
+    tag: sha-53019d4
   influxdb:
     url: http://influxdb-svc.monitoring.svc.cluster.local:8086
     database: safe_edge_db
@@ -30,6 +33,6 @@ edgeIotPublisher:
   enabled: true
   image:
     repository: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-iot-publisher
-    tag: sha-placeholder
+    tag: sha-53019d4
   iot:
     secretName: aws-iot-factory-a-cert

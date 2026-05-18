@@ -9,6 +9,8 @@ serviceAccount:
   create: true
   name: aegis-spoke-data-plane
 
+imagePullSecrets: []
+
 outbox:
   path: /var/lib/aegis/outbox
   storage:

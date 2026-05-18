@@ -23,6 +23,10 @@ spec:
         app.kubernetes.io/component: edge-iot-publisher
     spec:
       serviceAccountName: {{ include "aegis-spoke.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.placement.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
