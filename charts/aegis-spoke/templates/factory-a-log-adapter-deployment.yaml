@@ -1,0 +1,74 @@
+{{- if .Values.factoryALogAdapter.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aegis-spoke.fullname" . }}-factory-a-log-adapter
+  namespace: {{ include "aegis-spoke.namespace" . }}
+  labels:
+    {{- include "aegis-spoke.labels" . | nindent 4 }}
+    app.kubernetes.io/component: factory-a-log-adapter
+spec:
+  replicas: {{ .Values.factoryALogAdapter.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "aegis-spoke.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: factory-a-log-adapter
+  template:
+    metadata:
+      labels:
+        {{- include "aegis-spoke.labels" . | nindent 8 }}
+        app.kubernetes.io/component: factory-a-log-adapter
+    spec:
+      serviceAccountName: {{ include "aegis-spoke.serviceAccountName" . }}
+      {{- with .Values.placement.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: factory-a-log-adapter
+          image: "{{ .Values.factoryALogAdapter.image.repository }}:{{ .Values.factoryALogAdapter.image.tag }}"
+          imagePullPolicy: {{ .Values.factoryALogAdapter.image.pullPolicy }}
+          env:
+            - name: AEGIS_FACTORY_ID
+              value: {{ .Values.factory.id | quote }}
+            - name: AEGIS_ENVIRONMENT_TYPE
+              value: {{ .Values.factory.environmentType | quote }}
+            - name: AEGIS_INPUT_MODULE_TYPE
+              value: {{ .Values.factory.inputModuleType | quote }}
+            - name: AEGIS_INFLUXDB_URL
+              value: {{ .Values.factoryALogAdapter.influxdb.url | quote }}
+            - name: AEGIS_INFLUXDB_DATABASE
+              value: {{ .Values.factoryALogAdapter.influxdb.database | quote }}
+            - name: AEGIS_OUTBOX_DIR
+              value: {{ .Values.outbox.path | quote }}
+            - name: AEGIS_FACTORY_STATE_INTERVAL_SECONDS
+              value: {{ .Values.factoryALogAdapter.intervals.factoryStateSeconds | quote }}
+            - name: AEGIS_INFRA_STATE_INTERVAL_SECONDS
+              value: {{ .Values.factoryALogAdapter.intervals.infraStateSeconds | quote }}
+            - name: AEGIS_FACTORY_STATE_WINDOW_SECONDS
+              value: {{ .Values.factoryALogAdapter.intervals.factoryStateWindowSeconds | quote }}
+            - name: AEGIS_INFLUXDB_FALLBACK_SAMPLE_LIMIT
+              value: {{ .Values.factoryALogAdapter.fallbackSampleLimit | quote }}
+            - name: AEGIS_WORKLOADS
+              value: {{ join "," .Values.factoryALogAdapter.workloads | quote }}
+          volumeMounts:
+            - name: outbox
+              mountPath: {{ .Values.outbox.path | quote }}
+          resources:
+            {{- toYaml .Values.factoryALogAdapter.resources | nindent 12 }}
+      volumes:
+        - name: outbox
+          persistentVolumeClaim:
+            claimName: {{ include "aegis-spoke.fullname" . }}-outbox
+{{- end }}

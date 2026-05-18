@@ -1,0 +1,89 @@
+{{- if .Values.edgeIotPublisher.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aegis-spoke.fullname" . }}-edge-iot-publisher
+  namespace: {{ include "aegis-spoke.namespace" . }}
+  labels:
+    {{- include "aegis-spoke.labels" . | nindent 4 }}
+    app.kubernetes.io/component: edge-iot-publisher
+spec:
+  replicas: {{ .Values.edgeIotPublisher.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "aegis-spoke.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: edge-iot-publisher
+  template:
+    metadata:
+      labels:
+        {{- include "aegis-spoke.labels" . | nindent 8 }}
+        app.kubernetes.io/component: edge-iot-publisher
+    spec:
+      serviceAccountName: {{ include "aegis-spoke.serviceAccountName" . }}
+      {{- with .Values.placement.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: edge-iot-publisher
+          image: "{{ .Values.edgeIotPublisher.image.repository }}:{{ .Values.edgeIotPublisher.image.tag }}"
+          imagePullPolicy: {{ .Values.edgeIotPublisher.image.pullPolicy }}
+          env:
+            - name: AEGIS_OUTBOX_DIR
+              value: {{ .Values.outbox.path | quote }}
+            - name: AEGIS_DATA_PLANE_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: AEGIS_IOT_ENDPOINT
+              {{- if .Values.edgeIotPublisher.iot.endpoint }}
+              value: {{ .Values.edgeIotPublisher.iot.endpoint | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.edgeIotPublisher.iot.secretName | quote }}
+                  key: {{ .Values.edgeIotPublisher.iot.endpointKey | quote }}
+              {{- end }}
+            - name: AEGIS_IOT_PORT
+              value: {{ .Values.edgeIotPublisher.iot.port | quote }}
+            - name: AEGIS_IOT_CLIENT_ID
+              value: {{ default (printf "AEGIS-IoTThing-%s" .Values.factory.id) .Values.edgeIotPublisher.iot.clientId | quote }}
+            - name: AEGIS_IOT_CA_FILE
+              value: {{ printf "%s/%s" .Values.edgeIotPublisher.iot.mountPath .Values.edgeIotPublisher.iot.caFile | quote }}
+            - name: AEGIS_IOT_CERT_FILE
+              value: {{ printf "%s/%s" .Values.edgeIotPublisher.iot.mountPath .Values.edgeIotPublisher.iot.certFile | quote }}
+            - name: AEGIS_IOT_KEY_FILE
+              value: {{ printf "%s/%s" .Values.edgeIotPublisher.iot.mountPath .Values.edgeIotPublisher.iot.keyFile | quote }}
+            - name: AEGIS_IOT_TIMEOUT_SECONDS
+              value: {{ .Values.edgeIotPublisher.iot.timeoutSeconds | quote }}
+            - name: AEGIS_PUBLISHER_BACKOFF_SECONDS
+              value: {{ .Values.edgeIotPublisher.backoff.seconds | quote }}
+            - name: AEGIS_PUBLISHER_MAX_BACKOFF_SECONDS
+              value: {{ .Values.edgeIotPublisher.backoff.maxSeconds | quote }}
+          volumeMounts:
+            - name: outbox
+              mountPath: {{ .Values.outbox.path | quote }}
+            - name: iot-cert
+              mountPath: {{ .Values.edgeIotPublisher.iot.mountPath | quote }}
+              readOnly: true
+          resources:
+            {{- toYaml .Values.edgeIotPublisher.resources | nindent 12 }}
+      volumes:
+        - name: outbox
+          persistentVolumeClaim:
+            claimName: {{ include "aegis-spoke.fullname" . }}-outbox
+        - name: iot-cert
+          secret:
+            secretName: {{ .Values.edgeIotPublisher.iot.secretName | quote }}
+{{- end }}

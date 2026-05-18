@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "aegis-spoke.fullname" . }}-outbox
+  namespace: {{ include "aegis-spoke.namespace" . }}
+  labels:
+    {{- include "aegis-spoke.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.outbox.storage.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.outbox.storage.size | quote }}
+  {{- if .Values.outbox.storage.storageClassName }}
+  storageClassName: {{ .Values.outbox.storage.storageClassName | quote }}
+  {{- end }}
