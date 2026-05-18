@@ -59,30 +59,48 @@
 현재 바로 이어서 할 이슈:
 
 ```text
+[우선] Hub ArgoCD GitOps 배포 자동화
+  - Hub EKS ArgoCD에서 factory-a K3s로 aegis-spoke 배포하는 Ansible/sh 설정 파일 구성
+  - GitHub 연결 및 ApplicationSet 재연결 자동화 포함
+  - 현재 직접 배포(helm template | kubectl apply) -> GitOps 전환 목적
+
+M4 Issue 4 미완료 항목 (Hub 재구성 후):
+  - Hub EKS ArgoCD ApplicationSet이 factory-a K3s에 두 파드를 배포하는 것 검증
+
 M4 Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
 ```
 
 ## 현재 큰 상태
 
 ```text
-현재 단계: M4 Issue 5 완료 — S3 raw 적재 end-to-end 검증 완료 (2026-05-18)
+현재 단계: M4 Issue 5 완료 — S3 raw 적재 end-to-end 검증 완료, 문서 최신화 완료 (2026-05-18)
 
 완료: M3 Issue 1~5 배포 파이프라인 전체
 완료: M4 Issue 1~5 데이터 플레인
   - factory-a-log-adapter: factory_state 3s, infra_state 20s 주기 outbox write (--loop)
   - edge-iot-publisher: outbox scan -> MQTT -> IoT Core -> S3 raw
-  - 배포 이미지: sha-f71a104 (stable, factory-a K3s Running)
+  - 배포 이미지: sha-f71a104 (stable, ECR 유지 중, 파드는 검증 후 정리)
   - S3 확인: raw/factory-a/factory_state/, raw/factory-a/infra_state/ 실적재 확인
   - canonical JSON 필수 필드 모두 채워짐 (published_at, data_plane_instance_id 포함)
 
-버그 수정 이력 (이번 세션):
-  - fix 1: factory-a-log-adapter CMD --once -> --loop
-  - fix 2: edge-iot-publisher endpoint Secret trailing newline strip
-  - fix 3: factory-a-log-adapter outbox 파일 chmod 0o640 (NamedTemporaryFile 기본 600)
+버그 수정 이력 (2026-05-18 세션):
+  - fix 1: factory-a-log-adapter CMD --once -> --loop (CrashLoopBackOff)
+  - fix 2: edge-iot-publisher endpoint Secret trailing newline strip (DNS 조회 실패)
+  - fix 3: PVC fsGroup: 10001 pod securityContext 추가 (outbox 디렉토리 권한)
+  - fix 4: factory-a-log-adapter outbox 파일 chmod 0o640 (NamedTemporaryFile 기본 600 -> cross-user 읽기 불가)
 
-현재 AWS 상태: Foundation/IoT/ECR 리소스 활성
+현재 배포 방식: helm template | kubectl apply 직접 배포 (Hub ArgoCD가 아님)
+  - 이유: Hub EKS가 현재 삭제된 상태
+  - 목표: Hub 재구성 후 ApplicationSet GitOps 배포로 전환
+
+현재 AWS 상태: Foundation/IoT/ECR 리소스 활성, Hub EKS 삭제 상태
 이미지: ECR 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/{factory-a-log-adapter,edge-iot-publisher}:sha-f71a104
-다음: M4 Issue 6 Lambda data processor 구현
+IoT Secret: ai-apps/aws-iot-factory-a-cert 유지 중
+ECR pull secret: ai-apps/ecr-registry 유지 중
+Longhorn PVC: aegis-spoke-outbox 유지 중
+
+다음 우선: Hub ArgoCD 배포 자동화 (Ansible/sh) 구성 -> GitOps 배포 검증
+그 다음: M4 Issue 6 Lambda data processor 구현
 보류: M3 Issue 6~8, M5~M7 전체
 후속 리팩토링: M7 Issue 0에서 repo 분리 및 OIDC CI/CD 고도화
 
@@ -359,58 +377,49 @@ secret exists, DATA=4
 
 ## 다음에 할 일
 
-### 1. 다음 시작 작업: M4 Issue 2
+### 1. 다음 시작 작업: Hub ArgoCD GitOps 배포 자동화
 
-M1 Issue 12 `runtime-config.yaml` 구조 초안은 완료됐다. M1 Issue 11의 WAF/Cognito/OIDC 같은 운영 보안 강화는 MVP 이후로 보류했다. M2 Issue 1~6은 완료됐다. M3 Issue 1 GitOps 저장소 구조 설계, M3 Issue 2 ECR push/pull 검증, M3 Issue 3 GitHub Actions build-push workflow, M3 Issue 4 ApplicationSet 구성, M3 Issue 5 운영형 sync/rollback 정책은 완료했다. M4 Issue 1 Raw/Processed 데이터 계약도 완료했다. M3 Issue 6~8은 실제 Edge data-plane 컴포넌트와 manifest update workflow 확정 전까지 보류하고 M7 최종 점검 전에 재확인한다. EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토 대상으로 보류했다. 다음 세션은 M4 Issue 2 `factory-a-log-adapter` 구현으로 이어간다.
+M4 Issue 5까지 완료했다. 현재 factory-a 배포는 `helm template | kubectl apply` 직접 방식으로 검증됐으나, Hub EKS ArgoCD를 통한 GitOps 배포가 완성되지 않은 상태다(M4 Issue 4 미완료 항목).
 
-2026-05-15 기준 최근 검증 완료 전제:
-
-- Foundation S3 bucket `aegis-bucket-data` active
-- ECR repository `611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent` active
-- ECR smoke image tags `sha-7a3cc07`, `main`, `latest` pushed
-- factory-a K3s imagePullSecret `aegis-spoke-system/ecr-registry` active
-- Hub EKS `AEGIS-EKS` node 2 Ready
-- ArgoCD Helm release `argocd` deployed, pods Running
-- Grafana and Prometheus Agent pods Running
-- AWS Load Balancer Controller pods Running
-- Admin UI ACM `ISSUED`, HTTPS endpoint verify 통과
-- IoT Thing `AEGIS-IoTThing-factory-a`, Policy, certificate, IoT Rule active
-- K3s Secret `ai-apps/aws-iot-factory-a-cert` DATA=4
-- Tailscale factory-a egress Service, ArgoCD/Grafana Tailscale UI, ArgoCD cluster Secret verify 통과
-- GitOps ApplicationSet `aegis-spoke` active
-- ArgoCD Application `aegis-spoke-factory-a` `Synced` + `Healthy`
-- factory-a K3s `aegis-spoke-system/aegis-spoke-smoke` Pod `Running`, image `611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent:sha-7a3cc07`
-- GitHub Actions OIDC provider `arn:aws:iam::611058323802:oidc-provider/token.actions.githubusercontent.com` active
-- GitHub Actions ECR push role `arn:aws:iam::611058323802:role/AEGIS-GitHubActions-ECRPush` active
-- code repo workflow `.github/workflows/build-push.yaml` added for `linux/arm64` ECR image push
-- GitHub Actions run `25898860562` success for commit `2ae3bd5`
-- ECR image tags `sha-2ae3bd5`, `main`, `latest` pushed, digest `sha256:b1ecc476fcd21bcca2ccab2d2aa3fb5382549178e8a931c12d0122d2c6c7ee75`
-- M3 Issue 5 policy commit `56baf1f`: manual sync, prune disabled, self-heal disabled, RollingUpdate `maxUnavailable=0`, `maxSurge=1`
-- M3 Issue 5 bad tag commit `a298b91`: `sha-bad-rollout-20260515` sync 후 ArgoCD `Degraded`, 기존 `sha-7a3cc07` Pod `Running` 유지
-- M3 Issue 5 rollback commit `0ebd1c3`: values tag `sha-7a3cc07` 복구 후 ArgoCD `Synced` + `Healthy`
-- Hub UI credential export: `secret/hub-ui-credentials.txt` 생성, 파일 권한 `0600`
-- 과거 M1/M2 상세 검증 로그는 이 파일의 이전 섹션과 각 이슈 문서에 유지한다.
-
-다음 구현 순서:
+다음 세션에서 진행할 내용:
 
 ```text
-M4 Issue 2:
-1. apps/factory-a-log-adapter/ 디렉터리와 최소 실행 구조 생성
-2. factory-a 실제 입력 source 위치 확인
-3. factory_state, infra_state canonical JSON 생성 로직 구현
-4. /var/lib/aegis/outbox에 {message_id}.json 파일 생성 검증
+Hub ArgoCD GitOps 배포 자동화 구성
+  목적: Hub EKS ArgoCD -> GitHub 연결 -> factory-a K3s 배포를 자동화하는 설정 파일 작성
+  범위:
+    - Hub EKS ArgoCD에서 GitHub repo 연결 설정 (Ansible playbook 또는 sh)
+    - factory-a K3s cluster Secret 등록 자동화 (Tailscale IP 기반)
+    - aegis-spoke ApplicationSet 등록 자동화
+    - factory-a-log-adapter, edge-iot-publisher 두 파드가 ArgoCD GitOps로 배포되는 것 검증
 
-Issue 11:
-1. WAF/Cognito/OIDC는 MVP 이후 운영 보안 강화 백로그로 보류
+  사전 조건:
+    - Hub EKS 재구성 (scripts/build/build-all.sh)
+    - factory-a master Tailscale 참여 상태 유지 (현재 정상)
+    - ECR 이미지 sha-f71a104 유지 (현재 정상)
+    - IoT Secret, ECR pull secret ai-apps namespace에 존재 (현재 정상)
+
+  관련 기존 파일:
+    - scripts/ansible/playbooks/hub_argocd_bootstrap.yml
+    - scripts/ansible/playbooks/hub_argocd_verify.yml
+    - charts/aegis-spoke/
+    - envs/factory-a/values.yaml
+```
+
+그 이후:
+
+```text
+M4 Issue 6 Lambda data processor 구현
+  - IoT Core Rule -> Lambda 트리거
+  - 정규화, Risk Score 계산
+  - DynamoDB LATEST/HISTORY, S3 processed 저장
 ```
 
 로컬/재생성 후 확인할 명령:
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
-kubectl get nodes
-ssh minsoo@10.10.10.10 'tailscale status --self; tailscale ip -4'
 scripts/build/build-all.sh
+ssh minsoo@10.10.10.10 'tailscale status --self; tailscale ip -4'
 aws eks describe-cluster --region ap-south-1 --name AEGIS-EKS
 ```
 
@@ -418,7 +427,6 @@ aws eks describe-cluster --region ap-south-1 --name AEGIS-EKS
 
 - Secret 값, private key, SSH 비밀번호, MFA OTP는 문서에 기록하지 않는다.
 - 현재 local `secret/iot/factory-a/registration-summary.txt` 기준 Thing 이름은 `AEGIS-IoTThing-factory-a`다.
-- `scripts/config/defaults.sh`의 IoT Thing prefix도 실제 리소스 기준 `AEGIS-IoTThing`으로 맞춰 두었다.
 
 ### 2. Hub 재기동 순서
 
@@ -599,31 +607,29 @@ a65216f docs: record mentoring-based MVP and architecture updates
 현재 세션 정리 내용:
 
 ```text
-2026-05-15 세션 저장 기준
-Hub/Foundation/IoT/Admin UI 재생성 완료
-scripts/build/build-all.sh --admin-ui는 Route53/ACM/NS 준비까지만 수행하도록 변경
-Gabia NS 위임 후 scripts/build/build-admin-ui-after-ns.sh로 ACM ISSUED 대기와 Admin UI Ingress 활성화 완료
-Hub EKS AEGIS-EKS active, node 2 Ready
-ArgoCD/Grafana/Prometheus Agent/AWS Load Balancer Controller/Tailscale verify 통과
-Admin UI HTTPS endpoint verify 통과: https://argocd.minsoo-tech.cloud, https://grafana.minsoo-tech.cloud
-Hub UI credential 파일 생성: secret/hub-ui-credentials.txt, mode 0600
-Foundation ECR repository active: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent
-ECR smoke image push 완료: tags sha-7a3cc07, main, latest
-factory-a ECR imagePullSecret 생성 완료: aegis-spoke-system/ecr-registry
-factory-a IoT Thing/Policy/certificate active, K3s Secret ai-apps/aws-iot-factory-a-cert DATA=4
-factory-a K3s master/worker1/worker2 Ready
-M3 Issue 4 완료: AEGIS Spoke ApplicationSet Ansible bootstrap/verify 추가
-GitOps repo URL: https://github.com/aegis-pi/aegis-pi-gitops.git
-ApplicationSet aegis-spoke active, 기본 scope envs/factory-a/values.yaml
-Application aegis-spoke-factory-a targets factory-a / aegis-spoke-system
-ArgoCD sync 완료: aegis-spoke-factory-a Synced + Healthy, GitOps commit 40be92c
-factory-a K3s smoke workload: aegis-spoke-system/aegis-spoke-smoke Deployment 1/1, Pod Running, image ECR sha-7a3cc07, Service ClusterIP
-M3 Issue 2 완료: ECR image push/pull 검증, Spoke K3s imagePullSecret 방식 확정
-M3 Issue 3 완료: `apps/edge-agent` smoke Dockerfile, GitHub Actions build-push workflow, GitHub OIDC ECR push role 구성, Actions success, ECR sha tag 확인
-M3 Issue 5 완료: factory-a manual sync 정책, conservative RollingUpdate, bad image rollback 검증
-M3 Issue 6~8 보류: 실제 Edge data-plane 컴포넌트 확정 전까지 GitOps values tag 자동 갱신, 배포 검증 workflow, end-to-end 자동 검증은 도입하지 않음. M7 최종 점검 전 재확인
-M4 Issue 1 완료: canonical JSON, null policy, local spool/outbox, S3 raw body, DynamoDB LATEST/HISTORY, S3 processed 계약 확정
-다음 작업: M4 Issue 2 - factory-a-log-adapter 구현
+2026-05-18 세션 저장 기준
+
+M4 Issue 2~5 완료:
+  factory-a-log-adapter 구현, Dockerfile CMD --loop 수정, outbox chmod 0o640 수정
+  edge-iot-publisher 구현, endpoint strip() 수정
+  ECR 신규 repo 2개 Terraform apply: aegis/factory-a-log-adapter, aegis/edge-iot-publisher
+  GitHub Actions matrix 빌드 3종: edge-agent, factory-a-log-adapter, edge-iot-publisher
+  ECR 이미지 sha-f71a104 push 완료
+  Helm chart 확장: imagePullSecrets, fsGroup: 10001, Longhorn storageClass
+  helm template | kubectl apply 직접 배포 검증 (Hub EKS 없음)
+  S3 raw 적재 확인: raw/factory-a/factory_state/, raw/factory-a/infra_state/
+  검증 완료 후 파드 정리, ECR 이미지/PVC/IoT Secret은 유지
+
+문서 최신화:
+  docs/planning/16_m4_edge_data_plane_implementation.md 신규 생성
+  docs/architecture/00_current_architecture.md 갱신 (2026-05-18)
+  docs/issues/M4_data-plane.md Issue 5 완료 기록
+  docs/ops/10_edge_workload_placement.md 실제 결과 반영
+
+다음 세션 우선 작업:
+  Hub EKS 재구성 + Hub ArgoCD에서 GitHub 연결 및 factory-a K3s 배포 Ansible/sh 파일 구성
+  -> 현재 직접 배포를 GitOps로 전환하는 것이 목적
+  그 이후: M4 Issue 6 Lambda data processor 구현
 ```
 
 ## 갱신 규칙
