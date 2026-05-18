@@ -21,6 +21,8 @@ IoT Core 이후 정규화/Risk 계산/latest 저장은 별도 `risk-normalizer`,
 
 | 경로 | 역할 |
 | --- | --- |
+| `factory-a-log-adapter/` | M4 Issue 2 실제 구현. InfluxDB/Kubernetes 상태를 canonical JSON으로 변환해 local spool/outbox에 기록 |
+| `edge-iot-publisher/` | M4 Issue 3 실제 구현. local spool/outbox canonical JSON을 AWS IoT Core로 publish |
 | `edge-agent/` | M3 GitHub Actions/ECR 검증용 smoke image. 실제 Edge data-plane 로직은 M4에서 adapter/publisher로 분리 구현 |
 | `dummy-sensor/` | legacy 이름의 placeholder. M5에서는 `dummy-data-generator` 기준으로 정리 |
 | `risk-normalizer/` | legacy placeholder. 최신 기준에서는 Lambda data processor의 정규화 로직으로 대체 |
