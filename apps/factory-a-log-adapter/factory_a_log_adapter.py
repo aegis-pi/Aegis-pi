@@ -274,6 +274,7 @@ class Adapter:
             tmp_path = Path(handle.name)
 
         tmp_path.replace(target)
+        target.chmod(0o640)
         return target
 
     def run_loop(self, outbox_dir: Path) -> None:
