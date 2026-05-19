@@ -17,6 +17,7 @@ FORCE_GRAFANA_UPGRADE="${FORCE_GRAFANA_UPGRADE:-false}"
 FORCE_AWS_LB_CONTROLLER_UPGRADE="${FORCE_AWS_LB_CONTROLLER_UPGRADE:-false}"
 FORCE_TAILSCALE_OPERATOR_UPGRADE="${FORCE_TAILSCALE_OPERATOR_UPGRADE:-false}"
 BUILD_TAILSCALE="${BUILD_TAILSCALE:-true}"
+DEPLOY_SPOKES="${DEPLOY_SPOKES:-false}"
 export GODEBUG="${GODEBUG:-http2client=0}"
 
 cd "${REPO_ROOT}/scripts/ansible"
@@ -46,8 +47,13 @@ if [[ "${BUILD_TAILSCALE}" == "true" ]]; then
     playbooks/hub_tailscale_bootstrap.yml \
     -e "tailscale_operator_force_upgrade=${FORCE_TAILSCALE_OPERATOR_UPGRADE}"
   ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_verify.yml
+else
+  echo "Skipped Hub Tailscale bootstrap/verify. Set BUILD_TAILSCALE=true to enable it."
+fi
+
+if [[ "${DEPLOY_SPOKES}" == "true" ]]; then
   ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_applicationset_bootstrap.yml
   ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_applicationset_verify.yml
 else
-  echo "Skipped Hub Tailscale bootstrap/verify. Set BUILD_TAILSCALE=true to enable it."
+  echo "Skipped AEGIS Spoke ApplicationSet deploy. Set DEPLOY_SPOKES=true to enable it."
 fi
