@@ -85,6 +85,20 @@ tailscale_factory_a_argocd_manager_namespace: kube-system
 tailscale_factory_a_argocd_manager_service_account: argocd-manager
 tailscale_factory_a_argocd_manager_token_secret: argocd-manager-long-lived-token
 
+aegis_spokes:
+  - id: factory-a
+    enabled: true
+    master_tailnet_ip: "{{ tailscale_factory_a_master_ip }}"
+    kube_tls_server_name: "{{ tailscale_factory_a_kube_tls_server_name }}"
+    direct_kubeconfig: "{{ tailscale_factory_a_direct_kubeconfig }}"
+    egress_service_name: "{{ tailscale_factory_a_egress_service_name }}"
+    egress_server: "{{ tailscale_factory_a_egress_server }}"
+    argocd_cluster_secret_name: "{{ tailscale_factory_a_argocd_cluster_secret_name }}"
+    gitops_application_name: aegis-spoke-factory-a
+    argocd_manager_namespace: "{{ tailscale_factory_a_argocd_manager_namespace }}"
+    argocd_manager_service_account: "{{ tailscale_factory_a_argocd_manager_service_account }}"
+    argocd_manager_token_secret: "{{ tailscale_factory_a_argocd_manager_token_secret }}"
+
 tailscale_argocd_ui_service_name: argocd-server-tailscale
 tailscale_argocd_ui_hostname: argocd-aegis-hub
 tailscale_grafana_ui_service_name: grafana-tailscale

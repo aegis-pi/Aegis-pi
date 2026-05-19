@@ -25,16 +25,30 @@
       register: gitops_applicationset_json
       changed_when: false
 
-    - name: Read factory-a Application
-      ansible.builtin.command:
-        cmd: "kubectl -n {{ argocd_namespace }} get application {{ gitops_factory_a_application_name }} -o json"
-      register: gitops_factory_a_application_json
+    - name: Read Spoke Applications
+      ansible.builtin.shell: |
+        set -euo pipefail
+        app_name="{{ item.gitops_application_name | default('aegis-spoke-' ~ item.id) }}"
+        jq -cn \
+          --arg destinationName "$(kubectl -n {{ argocd_namespace }} get application "${app_name}" -o jsonpath='{.spec.destination.name}')" \
+          --arg destinationNamespace "$(kubectl -n {{ argocd_namespace }} get application "${app_name}" -o jsonpath='{.spec.destination.namespace}')" \
+          --arg sourceRepo "$(kubectl -n {{ argocd_namespace }} get application "${app_name}" -o jsonpath='{.spec.sources[0].repoURL}')" \
+          --arg sourcePath "$(kubectl -n {{ argocd_namespace }} get application "${app_name}" -o jsonpath='{.spec.sources[0].path}')" \
+          --arg valuesRepo "$(kubectl -n {{ argocd_namespace }} get application "${app_name}" -o jsonpath='{.spec.sources[1].repoURL}')" \
+          --arg syncStatus "$(kubectl -n {{ argocd_namespace }} get application "${app_name}" -o jsonpath='{.status.sync.status}')" \
+          --arg healthStatus "$(kubectl -n {{ argocd_namespace }} get application "${app_name}" -o jsonpath='{.status.health.status}')" \
+          '{destinationName: $destinationName, destinationNamespace: $destinationNamespace, sourceRepo: $sourceRepo, sourcePath: $sourcePath, valuesRepo: $valuesRepo, syncStatus: $syncStatus, healthStatus: $healthStatus}'
+      args:
+        executable: /bin/bash
+      register: gitops_spoke_application
       changed_when: false
+      loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
+      loop_control:
+        label: "{{ item.id }}"
 
     - name: Parse GitOps resources
       ansible.builtin.set_fact:
         gitops_applicationset: "{{ gitops_applicationset_json.stdout | from_json }}"
-        gitops_factory_a_application: "{{ gitops_factory_a_application_json.stdout | from_json }}"
 
     - name: Assert ApplicationSet source
       ansible.builtin.assert:
@@ -44,20 +58,28 @@
           - gitops_applicationset.spec.generators[0].git.files[0].path == gitops_applicationset_values_file_glob
         fail_msg: "ApplicationSet source does not match expected GitOps repo settings"
 
-    - name: Assert factory-a Application target
+    - name: Assert Spoke Application targets
       ansible.builtin.assert:
         that:
-          - gitops_factory_a_application.spec.destination.name == tailscale_factory_a_name
-          - gitops_factory_a_application.spec.destination.namespace == gitops_applicationset_destination_namespace
-          - gitops_factory_a_application.spec.sources[0].repoURL == gitops_repo_url
-          - gitops_factory_a_application.spec.sources[0].path == gitops_applicationset_chart_path
-          - gitops_factory_a_application.spec.sources[1].repoURL == gitops_repo_url
-        fail_msg: "factory-a Application does not point at the expected repo or destination"
+          - (item.stdout | from_json).destinationName == item.item.id
+          - (item.stdout | from_json).destinationNamespace == gitops_applicationset_destination_namespace
+          - (item.stdout | from_json).sourceRepo == gitops_repo_url
+          - (item.stdout | from_json).sourcePath == gitops_applicationset_chart_path
+          - (item.stdout | from_json).valuesRepo == gitops_repo_url
+        fail_msg: "{{ item.item.id }} Application does not point at the expected repo or destination"
+      loop: "{{ gitops_spoke_application.results }}"
+      loop_control:
+        label: "{{ item.item.id }}"
+
+    - name: Print Spoke Application statuses
+      ansible.builtin.debug:
+        msg: "{{ item.item.id }} sync={{ (item.stdout | from_json).syncStatus | default('unknown') }} health={{ (item.stdout | from_json).healthStatus | default('unknown') }}"
+      loop: "{{ gitops_spoke_application.results }}"
+      loop_control:
+        label: "{{ item.item.id }}"
 
     - name: Print ApplicationSet verification summary
       ansible.builtin.debug:
         msg:
           - "ApplicationSet {{ gitops_applicationset_name }} uses {{ gitops_repo_url }}@{{ gitops_repo_revision }}"
-          - "Application {{ gitops_factory_a_application_name }} targets cluster {{ gitops_factory_a_application.spec.destination.name }} namespace {{ gitops_factory_a_application.spec.destination.namespace }}"
-          - "Sync status: {{ gitops_factory_a_application.status.sync.status | default('unknown') }}"
-          - "Health status: {{ gitops_factory_a_application.status.health.status | default('unknown') }}"
+          - "Applications: {{ (aegis_spokes | selectattr('enabled') | map(attribute='gitops_application_name') | list) | join(', ') }}"

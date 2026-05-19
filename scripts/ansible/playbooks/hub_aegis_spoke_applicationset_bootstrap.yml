@@ -33,11 +33,11 @@
       register: gitops_applicationset_apply
       changed_when: "'created' in gitops_applicationset_apply.stdout or 'configured' in gitops_applicationset_apply.stdout"
 
-    - name: Wait for factory-a Application to be generated
+    - name: Wait for Spoke Applications to be generated
       ansible.builtin.shell: |
         set -euo pipefail
         for _ in $(seq 1 72); do
-          if kubectl -n {{ argocd_namespace }} get application {{ gitops_factory_a_application_name }} >/dev/null 2>&1; then
+          if kubectl -n {{ argocd_namespace }} get application {{ item.gitops_application_name | default('aegis-spoke-' ~ item.id) }} >/dev/null 2>&1; then
             exit 0
           fi
           sleep 5
@@ -46,6 +46,9 @@
       args:
         executable: /bin/bash
       changed_when: false
+      loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
+      loop_control:
+        label: "{{ item.id }}"
 
     - name: Print ApplicationSet summary
       ansible.builtin.debug:
@@ -54,4 +57,4 @@
           - "Repo URL: {{ gitops_repo_url }}"
           - "Revision: {{ gitops_repo_revision }}"
           - "Values files: {{ gitops_applicationset_values_file_glob }}"
-          - "Generated Application: {{ gitops_factory_a_application_name }}"
+          - "Generated Applications: {{ (aegis_spokes | selectattr('enabled') | map(attribute='gitops_application_name') | list) | join(', ') }}"

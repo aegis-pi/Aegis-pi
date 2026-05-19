@@ -127,16 +127,16 @@
         cmd: "kubectl -n {{ tailscale_namespace }} wait --for=condition=available --timeout=180s deployment/operator"
       changed_when: false
 
-    - name: Check factory-a Tailscale egress Service desired state
+    - name: Check Spoke Tailscale egress Service desired state
       ansible.builtin.shell: |
         set -euo pipefail
-        if ! kubectl -n {{ argocd_namespace }} get svc {{ tailscale_factory_a_egress_service_name }} >/dev/null 2>&1; then
+        if ! kubectl -n {{ argocd_namespace }} get svc {{ item.egress_service_name }} >/dev/null 2>&1; then
           echo apply
           exit 0
         fi
-        type="$(kubectl -n {{ argocd_namespace }} get svc {{ tailscale_factory_a_egress_service_name }} -o jsonpath='{.spec.type}')"
-        tailnet_ip="$(kubectl -n {{ argocd_namespace }} get svc {{ tailscale_factory_a_egress_service_name }} -o jsonpath='{.metadata.annotations.tailscale\.com/tailnet-ip}')"
-        if [[ "${type}" == "ExternalName" && "${tailnet_ip}" == "{{ tailscale_factory_a_master_ip }}" ]]; then
+        type="$(kubectl -n {{ argocd_namespace }} get svc {{ item.egress_service_name }} -o jsonpath='{.spec.type}')"
+        tailnet_ip="$(kubectl -n {{ argocd_namespace }} get svc {{ item.egress_service_name }} -o jsonpath='{.metadata.annotations.tailscale\.com/tailnet-ip}')"
+        if [[ "${type}" == "ExternalName" && "${tailnet_ip}" == "{{ item.master_tailnet_ip }}" ]]; then
           echo present
         else
           echo apply
@@ -145,18 +145,21 @@
         executable: /bin/bash
       register: tailscale_egress_apply_decision
       changed_when: false
+      loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
+      loop_control:
+        label: "{{ item.id }}"
 
-    - name: Apply factory-a Tailscale egress Service
+    - name: Apply Spoke Tailscale egress Service
       ansible.builtin.shell: |
         set -euo pipefail
         cat <<'YAML' | kubectl apply -f -
         apiVersion: v1
         kind: Service
         metadata:
-          name: {{ tailscale_factory_a_egress_service_name }}
+          name: {{ item.item.egress_service_name }}
           namespace: {{ argocd_namespace }}
           annotations:
-            tailscale.com/tailnet-ip: "{{ tailscale_factory_a_master_ip }}"
+            tailscale.com/tailnet-ip: "{{ item.item.master_tailnet_ip }}"
         spec:
           type: ExternalName
           externalName: placeholder
@@ -172,25 +175,31 @@
         executable: /bin/bash
       register: tailscale_egress_apply
       changed_when: "'created' in tailscale_egress_apply.stdout or 'configured' in tailscale_egress_apply.stdout"
-      when: tailscale_egress_apply_decision.stdout != "present"
+      when: item.stdout != "present"
+      loop: "{{ tailscale_egress_apply_decision.results }}"
+      loop_control:
+        label: "{{ item.item.id }}"
 
-    - name: Wait for factory-a Tailscale egress Service readiness
+    - name: Wait for Spoke Tailscale egress Service readiness
       ansible.builtin.shell: |
         set -euo pipefail
         for _ in $(seq 1 60); do
-          status="$(kubectl -n {{ argocd_namespace }} get svc {{ tailscale_factory_a_egress_service_name }} -o jsonpath='{.status.conditions[?(@.type=="TailscaleProxyReady")].status}' 2>/dev/null || true)"
+          status="$(kubectl -n {{ argocd_namespace }} get svc {{ item.egress_service_name }} -o jsonpath='{.status.conditions[?(@.type=="TailscaleProxyReady")].status}' 2>/dev/null || true)"
           if [[ "${status}" == "True" ]]; then
-            kubectl -n {{ argocd_namespace }} get svc {{ tailscale_factory_a_egress_service_name }} -o jsonpath='{.spec.externalName}'
+            kubectl -n {{ argocd_namespace }} get svc {{ item.egress_service_name }} -o jsonpath='{.spec.externalName}'
             exit 0
           fi
           sleep 5
         done
-        kubectl -n {{ argocd_namespace }} get svc {{ tailscale_factory_a_egress_service_name }} -o yaml
+        kubectl -n {{ argocd_namespace }} get svc {{ item.egress_service_name }} -o yaml
         exit 1
       args:
         executable: /bin/bash
       register: tailscale_egress_external_name
       changed_when: false
+      loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
+      loop_control:
+        label: "{{ item.id }}"
 
     - name: Apply ArgoCD Tailscale UI Service
       ansible.builtin.shell: |
@@ -276,16 +285,16 @@
       loop_control:
         label: "{{ item.namespace }}/{{ item.name }}"
 
-    - name: Bootstrap factory-a argocd-manager RBAC and token
+    - name: Bootstrap Spoke argocd-manager RBAC and token
       ansible.builtin.shell: |
         set -euo pipefail
-        test -f "{{ tailscale_factory_a_direct_kubeconfig }}"
-        cat <<'YAML' | kubectl --kubeconfig "{{ tailscale_factory_a_direct_kubeconfig }}" apply -f -
+        test -f "{{ item.direct_kubeconfig }}"
+        cat <<'YAML' | kubectl --kubeconfig "{{ item.direct_kubeconfig }}" apply -f -
         apiVersion: v1
         kind: ServiceAccount
         metadata:
-          name: {{ tailscale_factory_a_argocd_manager_service_account }}
-          namespace: {{ tailscale_factory_a_argocd_manager_namespace }}
+          name: {{ item.argocd_manager_service_account }}
+          namespace: {{ item.argocd_manager_namespace }}
         ---
         apiVersion: rbac.authorization.k8s.io/v1
         kind: ClusterRole
@@ -313,29 +322,32 @@
           name: argocd-manager-role
         subjects:
           - kind: ServiceAccount
-            name: {{ tailscale_factory_a_argocd_manager_service_account }}
-            namespace: {{ tailscale_factory_a_argocd_manager_namespace }}
+            name: {{ item.argocd_manager_service_account }}
+            namespace: {{ item.argocd_manager_namespace }}
         ---
         apiVersion: v1
         kind: Secret
         metadata:
-          name: {{ tailscale_factory_a_argocd_manager_token_secret }}
-          namespace: {{ tailscale_factory_a_argocd_manager_namespace }}
+          name: {{ item.argocd_manager_token_secret }}
+          namespace: {{ item.argocd_manager_namespace }}
           annotations:
-            kubernetes.io/service-account.name: {{ tailscale_factory_a_argocd_manager_service_account }}
+            kubernetes.io/service-account.name: {{ item.argocd_manager_service_account }}
         type: kubernetes.io/service-account-token
         YAML
       args:
         executable: /bin/bash
       register: tailscale_factory_a_rbac_apply
       changed_when: "'created' in tailscale_factory_a_rbac_apply.stdout or 'configured' in tailscale_factory_a_rbac_apply.stdout"
+      loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
+      loop_control:
+        label: "{{ item.id }}"
 
-    - name: Check ArgoCD factory-a cluster Secret desired state
+    - name: Check ArgoCD Spoke cluster Secret desired state
       ansible.builtin.shell: |
         set -euo pipefail
         token_b64=""
         for _ in $(seq 1 30); do
-          token_b64="$(kubectl --kubeconfig "{{ tailscale_factory_a_direct_kubeconfig }}" -n {{ tailscale_factory_a_argocd_manager_namespace }} get secret {{ tailscale_factory_a_argocd_manager_token_secret }} -o jsonpath='{.data.token}' 2>/dev/null || true)"
+          token_b64="$(kubectl --kubeconfig "{{ item.direct_kubeconfig }}" -n {{ item.argocd_manager_namespace }} get secret {{ item.argocd_manager_token_secret }} -o jsonpath='{.data.token}' 2>/dev/null || true)"
           if [[ -n "${token_b64}" ]]; then
             break
           fi
@@ -343,20 +355,20 @@
         done
         test -n "${token_b64}"
         token="$(printf '%s' "${token_b64}" | base64 -d)"
-        if ! kubectl -n {{ argocd_namespace }} get secret {{ tailscale_factory_a_argocd_cluster_secret_name }} >/dev/null 2>&1; then
+        if ! kubectl -n {{ argocd_namespace }} get secret {{ item.argocd_cluster_secret_name }} >/dev/null 2>&1; then
           echo apply
           exit 0
         fi
-        config="$(kubectl -n {{ argocd_namespace }} get secret {{ tailscale_factory_a_argocd_cluster_secret_name }} -o jsonpath='{.data.config}' | base64 -d)"
-        name="$(kubectl -n {{ argocd_namespace }} get secret {{ tailscale_factory_a_argocd_cluster_secret_name }} -o jsonpath='{.data.name}' | base64 -d)"
-        server="$(kubectl -n {{ argocd_namespace }} get secret {{ tailscale_factory_a_argocd_cluster_secret_name }} -o jsonpath='{.data.server}' | base64 -d)"
-        secret_type="$(kubectl -n {{ argocd_namespace }} get secret {{ tailscale_factory_a_argocd_cluster_secret_name }} -o jsonpath='{.metadata.labels.argocd\.argoproj\.io/secret-type}')"
+        config="$(kubectl -n {{ argocd_namespace }} get secret {{ item.argocd_cluster_secret_name }} -o jsonpath='{.data.config}' | base64 -d)"
+        name="$(kubectl -n {{ argocd_namespace }} get secret {{ item.argocd_cluster_secret_name }} -o jsonpath='{.data.name}' | base64 -d)"
+        server="$(kubectl -n {{ argocd_namespace }} get secret {{ item.argocd_cluster_secret_name }} -o jsonpath='{.data.server}' | base64 -d)"
+        secret_type="$(kubectl -n {{ argocd_namespace }} get secret {{ item.argocd_cluster_secret_name }} -o jsonpath='{.metadata.labels.argocd\.argoproj\.io/secret-type}')"
         server_name="$(jq -r '.tlsClientConfig.serverName // empty' <<<"${config}")"
         existing_token="$(jq -r '.bearerToken // empty' <<<"${config}")"
-        if [[ "${name}" == "{{ tailscale_factory_a_name }}" \
-          && "${server}" == "{{ tailscale_factory_a_egress_server }}" \
+        if [[ "${name}" == "{{ item.id }}" \
+          && "${server}" == "{{ item.egress_server }}" \
           && "${secret_type}" == "cluster" \
-          && "${server_name}" == "{{ tailscale_factory_a_kube_tls_server_name }}" \
+          && "${server_name}" == "{{ item.kube_tls_server_name }}" \
           && "${existing_token}" == "${token}" ]]; then
           echo present
         else
@@ -367,15 +379,18 @@
       register: tailscale_argocd_cluster_secret_apply_decision
       changed_when: false
       no_log: true
+      loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
+      loop_control:
+        label: "{{ item.id }}"
 
-    - name: Apply ArgoCD factory-a cluster Secret
+    - name: Apply ArgoCD Spoke cluster Secret
       ansible.builtin.shell: |
         set -euo pipefail
         token_b64=""
         ca_data=""
         for _ in $(seq 1 30); do
-          token_b64="$(kubectl --kubeconfig "{{ tailscale_factory_a_direct_kubeconfig }}" -n {{ tailscale_factory_a_argocd_manager_namespace }} get secret {{ tailscale_factory_a_argocd_manager_token_secret }} -o jsonpath='{.data.token}' 2>/dev/null || true)"
-          ca_data="$(kubectl --kubeconfig "{{ tailscale_factory_a_direct_kubeconfig }}" -n {{ tailscale_factory_a_argocd_manager_namespace }} get secret {{ tailscale_factory_a_argocd_manager_token_secret }} -o jsonpath='{.data.ca\.crt}' 2>/dev/null || true)"
+          token_b64="$(kubectl --kubeconfig "{{ item.item.direct_kubeconfig }}" -n {{ item.item.argocd_manager_namespace }} get secret {{ item.item.argocd_manager_token_secret }} -o jsonpath='{.data.token}' 2>/dev/null || true)"
+          ca_data="$(kubectl --kubeconfig "{{ item.item.direct_kubeconfig }}" -n {{ item.item.argocd_manager_namespace }} get secret {{ item.item.argocd_manager_token_secret }} -o jsonpath='{.data.ca\.crt}' 2>/dev/null || true)"
           if [[ -n "${token_b64}" && -n "${ca_data}" ]]; then
             break
           fi
@@ -387,25 +402,28 @@
         config_json="$(jq -cn \
           --arg token "${token}" \
           --arg caData "${ca_data}" \
-          --arg serverName "{{ tailscale_factory_a_kube_tls_server_name }}" \
+          --arg serverName "{{ item.item.kube_tls_server_name }}" \
           '{bearerToken: $token, tlsClientConfig: {insecure: false, caData: $caData, serverName: $serverName}}')"
-        kubectl -n {{ argocd_namespace }} create secret generic {{ tailscale_factory_a_argocd_cluster_secret_name }} \
-          --from-literal=name={{ tailscale_factory_a_name }} \
-          --from-literal=server={{ tailscale_factory_a_egress_server }} \
+        kubectl -n {{ argocd_namespace }} create secret generic {{ item.item.argocd_cluster_secret_name }} \
+          --from-literal=name={{ item.item.id }} \
+          --from-literal=server={{ item.item.egress_server }} \
           --from-literal=config="${config_json}" \
           --dry-run=client -o yaml | kubectl apply -f -
-        kubectl -n {{ argocd_namespace }} label secret {{ tailscale_factory_a_argocd_cluster_secret_name }} argocd.argoproj.io/secret-type=cluster --overwrite
+        kubectl -n {{ argocd_namespace }} label secret {{ item.item.argocd_cluster_secret_name }} argocd.argoproj.io/secret-type=cluster --overwrite
       args:
         executable: /bin/bash
       register: tailscale_argocd_cluster_secret_apply
       changed_when: "'created' in tailscale_argocd_cluster_secret_apply.stdout or 'configured' in tailscale_argocd_cluster_secret_apply.stdout or 'labeled' in tailscale_argocd_cluster_secret_apply.stdout"
       no_log: true
-      when: tailscale_argocd_cluster_secret_apply_decision.stdout != "present"
+      when: item.stdout != "present"
+      loop: "{{ tailscale_argocd_cluster_secret_apply_decision.results }}"
+      loop_control:
+        label: "{{ item.item.id }}"
 
     - name: Print Tailscale bootstrap summary
       ansible.builtin.debug:
         msg:
           - "Tailscale operator: {{ tailscale_release_name }} in {{ tailscale_namespace }}"
-          - "factory-a egress: {{ tailscale_factory_a_egress_server }} -> {{ tailscale_egress_external_name.stdout }}"
+          - "Spoke egress services: {{ (aegis_spokes | selectattr('enabled') | map(attribute='egress_service_name') | list) | join(', ') }}"
           - "ArgoCD UI service: {{ argocd_namespace }}/{{ tailscale_argocd_ui_service_name }}"
           - "Grafana UI service: {{ grafana_namespace }}/{{ tailscale_grafana_ui_service_name }}"
