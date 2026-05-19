@@ -1,13 +1,13 @@
 # ArgoCD GitOps 운영
 
 상태: source of truth
-기준일: 2026-04-29
+기준일: 2026-05-19
 
 ## 목적
 
-`factory-a`의 GitOps 배포 방식을 정리한다.
+`factory-a`의 로컬 GitOps와 Hub ArgoCD 기반 Spoke GitOps 배포 방식을 정리한다.
 
-## 현재 방식
+## 로컬 factory-a 방식
 
 ```text
 GitHub repo -> ArgoCD Application -> K3s cluster
@@ -114,4 +114,50 @@ kubectl -n ai-apps get pvc
 
 - 자동 sync가 켜져 있지 않으면 push만으로 클러스터가 바뀌지 않는다.
 - ArgoCD Application revision을 반드시 확인한다.
-- repo credential과 등록은 UI에서 관리한다.
+- 로컬 factory-a ArgoCD의 repo credential과 등록은 UI에서 관리한다.
+
+## Hub ArgoCD Spoke 방식
+
+Hub 재구성 이후 `factory-a` data-plane은 Hub EKS의 ArgoCD가 `aegis-pi-gitops` 저장소를 ApplicationSet으로 읽어 배포한다.
+
+```text
+GitHub repo aegis-pi-gitops
+  -> Hub ArgoCD ApplicationSet aegis-spoke
+  -> Application aegis-spoke-factory-a
+  -> destination cluster factory-a
+  -> namespace ai-apps
+```
+
+GitOps repo:
+
+```text
+https://github.com/aegis-pi/aegis-pi-gitops.git
+```
+
+기본 source:
+
+```text
+chart: charts/aegis-spoke
+values: envs/factory-a/values.yaml
+application: aegis-spoke-factory-a
+destination cluster: factory-a
+destination namespace: ai-apps
+```
+
+Hub ArgoCD cluster 등록은 `argocd cluster add` 수동 명령이 아니라 `hub_tailscale_bootstrap.yml`이 Kubernetes Secret을 직접 생성하는 방식이다.
+
+```text
+argocd/cluster-factory-a
+label: argocd.argoproj.io/secret-type=cluster
+server: https://factory-a-master-tailnet.argocd.svc.cluster.local:6443
+tls server name: 10.10.10.10
+```
+
+현재 build 순서에서는 `build-hub.sh`가 cluster 등록까지만 수행하고, `build-iot-factory-a.sh`가 IoT Secret 생성 후 ApplicationSet을 적용한다.
+
+```bash
+scripts/build/build-hub.sh
+scripts/build/build-admin-ui-after-ns.sh
+scripts/build/build-iot-factory-a.sh
+scripts/build/verify-complete.sh
+```

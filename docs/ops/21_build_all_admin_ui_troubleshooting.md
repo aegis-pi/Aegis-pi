@@ -1,7 +1,9 @@
 # build-all --admin-ui Troubleshooting
 
 Status: working note
-Date: 2026-05-18
+Date: 2026-05-19
+
+현재 표준 build 경로는 `build-hub.sh` -> `build-admin-ui-after-ns.sh` -> `build-iot-factory-a.sh` -> `verify-complete.sh`다. 이 문서는 과거 `build-all.sh --admin-ui` 실행 중 발생한 장애 기록이며, `--admin-ui` 옵션은 현재 no-op으로 남아 있다.
 
 ## Command
 

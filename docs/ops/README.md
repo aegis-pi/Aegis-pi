@@ -20,7 +20,7 @@
 | `11_ansible_test_automation.md` | Ansible 기반 반복 점검 자동화 계획 |
 | `12_iot_core_thing_secret_mount.md` | IoT Core Thing 등록과 K3s Secret mount 절차 |
 | `13_hub_namespace_baseline.md` | Hub EKS namespace 기준 |
-| `14_hub_run_commands.md` | Hub 실행 및 ArgoCD 초기 비밀번호 확인 명령어 |
+| `14_hub_run_commands.md` | Hub/Admin UI/IoT/Spoke 배포와 최종 검증 실행 명령어 |
 | `15_aws_cost_baseline.md` | AWS Hub 시간당 비용 기준과 갱신 규칙 |
 | `16_hub_prometheus_amp.md` | Hub Prometheus Agent와 AMP remote_write 운영 기준 |
 | `17_hub_grafana_amp.md` | Hub 내부 Grafana와 AMP datasource 운영 기준 |

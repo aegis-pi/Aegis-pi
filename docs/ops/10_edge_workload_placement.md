@@ -240,11 +240,11 @@ notifications-controller:
 
 ## Edge data-plane 배치
 
-2026-05-18 M4 검증 완료. `factory-a-log-adapter`와 `edge-iot-publisher`를 factory-a K3s에 배포하고 S3 raw 적재까지 검증했다. 현재는 검증 후 정리 상태이며 ECR 이미지(`sha-f71a104`)가 유지된다.
+2026-05-18 M4 직접 검증 완료. `factory-a-log-adapter`와 `edge-iot-publisher`를 factory-a K3s에 배포하고 S3 raw 적재까지 검증했다. 2026-05-19 기준 정식 배포 경로는 Hub ArgoCD ApplicationSet이며 ECR 이미지(`sha-f71a104`)를 사용한다.
 
 기존 Safe-Edge workload(`bme280-sensor`, `safe-edge-integrated-ai`, `safe-edge-audio`)와 동일 namespace/node에 공존하며, 장치를 직접 잡지 않는다.
 
-### 실제 배포 결과 (2026-05-18)
+### 실제 배포 결과 (2026-05-18 직접 검증, 2026-05-19 GitOps 경로 전환)
 
 배치 기준:
 
@@ -315,7 +315,7 @@ AWS IoT certificate/private key는 Kubernetes Secret으로만 주입
 ```
 
 배포 기록은 `docs/planning/16_m4_edge_data_plane_implementation.md`에서 확인한다.
-Hub ArgoCD 재구성 시 ApplicationSet을 통해 GitOps 배포로 전환한다.
+Hub ArgoCD ApplicationSet을 통해 GitOps 배포한다.
 
 ## 검증
 

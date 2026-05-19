@@ -1,7 +1,7 @@
 # Hub Prometheus Agent / AMP
 
 상태: source of truth
-기준일: 2026-05-08
+기준일: 2026-05-19
 
 ## 목적
 
@@ -9,11 +9,11 @@ Hub EKS의 `observability` 네임스페이스에서 Prometheus Agent를 실행�
 
 ## 현재 상태
 
-- `scripts/build/build-all.sh`를 실행하면 Hub ArgoCD 검증 뒤 Prometheus Agent bootstrap과 verify가 함께 실행된다.
+- `scripts/build/build-hub.sh`를 실행하면 Hub ArgoCD 검증 뒤 Prometheus Agent bootstrap과 verify가 함께 실행된다.
 - Prometheus Agent는 `observability/prometheus-agent` ServiceAccount를 사용한다.
 - ServiceAccount는 AMP remote_write용 IRSA role `AEGIS-IAMRole-IRSA-prometheus-remote-write`와 연결되어 있다.
 - AMP Workspace는 `AEGIS-AMP-hub`이다.
-- 2026-05-08 기준 Hub와 AMP Workspace는 비용 정리를 위해 destroy 완료 상태다.
+- 2026-05-19 기준 Hub Prometheus Agent는 `build-hub.sh`로 재설치/검증한다. AMP Workspace는 foundation 기준 리소스이며 Hub destroy와 분리된다.
 - 마지막 검증된 AMP Workspace ID는 `ws-762fb9c1-ad1f-433d-991b-20f768186759`이다.
 - 마지막 검증된 AMP remote_write endpoint는 `https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-762fb9c1-ad1f-433d-991b-20f768186759/api/v1/remote_write`이다.
 
@@ -51,7 +51,7 @@ environment = hub-mvp
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
-scripts/build/build-all.sh
+scripts/build/build-hub.sh
 ```
 
 Prometheus Agent만 재적용해야 할 때는 아래 playbook을 실행한다.
@@ -84,7 +84,7 @@ job=kubernetes-pods, pod=prometheus-agent-7ffb8d885d-vdtn7, value=1
 
 ## 비용 기준
 
-Prometheus Agent 자체는 EKS worker node 안에서 동작하므로 별도 고정 시간 비용을 만들지는 않는다. 현재 Hub/AMP는 삭제된 상태라 Agent/AMP 사용량 비용은 발생하지 않는다. rebuild 후 AMP는 ingest, storage, query 사용량 기반 비용이 발생할 수 있다. 수집 job, scrape interval, Pod annotation 대상이 늘어나면 `docs/ops/15_aws_cost_baseline.md`를 함께 갱신한다.
+Prometheus Agent 자체는 EKS worker node 안에서 동작하므로 별도 고정 시간 비용을 만들지는 않는다. Hub를 실행 중이면 AMP ingest, storage, query 사용량 기반 비용이 발생할 수 있다. 수집 job, scrape interval, Pod annotation 대상이 늘어나면 `docs/ops/15_aws_cost_baseline.md`를 함께 갱신한다.
 
 현재 scrape interval은 30초이며, 수집 대상은 Hub 기본 메트릭으로 제한한다.
 

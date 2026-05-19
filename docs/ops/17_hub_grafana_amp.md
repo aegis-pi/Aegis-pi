@@ -61,7 +61,7 @@ aps:GetLabels
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
-scripts/build/build-all.sh
+scripts/build/build-hub.sh
 ```
 
 Grafana만 재적용해야 할 때는 아래 playbook을 실행한다.
@@ -137,7 +137,7 @@ MVP Admin Ingress는 ArgoCD/Grafana 운영 UI 접근 검증용이다. Dashboard 
 
 ## 비용 기준
 
-Grafana Pod 자체는 기존 EKS worker node 위에서 실행되므로 별도 AWS 고정 시간 비용을 추가하지 않는다. 현재 Hub와 Admin UI HTTPS Ingress는 삭제된 상태라 공유 Public ALB, ALB LCU, public IPv4, Route53 hosted zone 비용은 발생하지 않는다. rebuild 후 Admin UI HTTPS Ingress를 다시 활성화하면 해당 비용이 다시 발생한다. 최신 비용 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.
+Grafana Pod 자체는 기존 EKS worker node 위에서 실행되므로 별도 AWS 고정 시간 비용을 추가하지 않는다. Hub와 Admin UI HTTPS Ingress를 실행 중이면 공유 Public ALB, ALB LCU, public IPv4, Route53 hosted zone 비용이 발생한다. 최신 비용 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.
 
 추가될 수 있는 비용은 아래 정도다.
 

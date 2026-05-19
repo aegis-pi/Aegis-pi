@@ -42,7 +42,7 @@ ns-7.awsdns-00.com
 ns-872.awsdns-45.net
 ```
 
-`build-hub.sh`와 `build-all.sh`는 Hub Terraform apply 직후 현재 Route53 Hosted Zone의 NS 목록을 아래 파일에 다시 쓴다. Hosted Zone을 destroy/recreate하면 NS가 바뀔 수 있으므로 Gabia에 입력하기 전에는 이 파일을 확인한다.
+`build-hub.sh`는 Hub Terraform apply 직후 현재 Route53 Hosted Zone의 NS 목록을 아래 파일에 다시 쓴다. Hosted Zone을 destroy/recreate하면 NS가 바뀔 수 있으므로 Gabia에 입력하기 전에는 이 파일을 확인한다.
 
 ```text
 secret/admin-ui-nameservers.txt
@@ -99,7 +99,7 @@ https://grafana.minsoo-tech.cloud
 
 ## 현재 검증 결과
 
-2026-05-06 기준 `ADMIN_UI_INGRESS_ENABLED=true`로 Admin Ingress를 활성화했고 아래 상태를 확인했다. 2026-05-08에는 비용 정리를 위해 Hub destroy로 Route53 Hosted Zone, ACM certificate, Ingress, ALB를 삭제했다.
+2026-05-19 기준 Admin Ingress는 `build-admin-ui-after-ns.sh`로 ACM `ISSUED` 확인 후 활성화한다. 검증 기준은 아래와 같다.
 
 ```text
 Shared ALB: aegis-admin-ui-1532265527.ap-south-1.elb.amazonaws.com
@@ -124,6 +124,6 @@ ACM certificate가 `ISSUED`가 되기 전에는 HTTPS listener가 정상 구성�
 
 ## 비용 기준
 
-현재 Admin Ingress와 Public ALB는 삭제된 상태라 해당 고정 비용은 발생하지 않는다. rebuild 후 Admin Ingress를 활성화하면 Public ALB 1개, ALB LCU, internet-facing ALB public IPv4 비용이 다시 발생한다. ACM public certificate는 비용이 없고, AWS Load Balancer Controller pod는 기존 EKS node 위에서 실행되므로 별도 고정 비용이 없다.
+Admin Ingress를 활성화하면 Public ALB 1개, ALB LCU, internet-facing ALB public IPv4 비용이 발생한다. ACM public certificate는 비용이 없고, AWS Load Balancer Controller pod는 기존 EKS node 위에서 실행되므로 별도 고정 비용이 없다.
 
 Admin Ingress를 비활성화하거나 Hub를 destroy하면 ALB 관련 비용을 줄일 수 있다. 최신 계산 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.

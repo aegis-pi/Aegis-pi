@@ -1,7 +1,7 @@
 # IoT Core Thing and K3s Secret Mount Runbook
 
 상태: source of truth
-기준일: 2026-05-15
+기준일: 2026-05-19
 
 ## 수정 버전
 
@@ -9,6 +9,7 @@
 | --- | --- |
 | 2026-05-04 | 실제 생성된 `factory-a` IoT Thing/Policy/K3s Secret 기준으로 Thing 이름, 저장 위치, 자동화 스크립트, SSH 대상, Secret 이름을 최신화 |
 | 2026-05-15 | 단일 `edge-agent` 기준을 `edge-iot-publisher` Secret mount 기준으로 변경 |
+| 2026-05-19 | `build-iot-factory-a.sh`가 IoT Secret 준비 후 ArgoCD ApplicationSet 배포까지 수행하는 현재 build 순서 반영 |
 
 ## 목적
 
@@ -48,18 +49,25 @@ factory-a K3s:
 
 ## 개발 순서
 
-권장 순서는 아래와 같다.
+현재 표준 build 순서는 아래와 같다.
 
 ```text
-1. IoT Core Thing / Certificate / Policy 생성
-2. IoT Core endpoint 확인
-3. 현재 PC에 인증서 파일 임시 저장
-4. Raspberry Pi master로 인증서 파일 전달
-5. master에서 K3s Secret 생성
-6. master의 임시 인증서 파일 삭제
-7. edge-iot-publisher 없이 테스트 publish 또는 MQTT test client로 인증 확인
-8. edge-iot-publisher 최소 구현 후 Secret mount 연결
-9. IoT Core Rule -> S3 적재 연결
+1. scripts/build/build-hub.sh
+   - Hub EKS/ArgoCD/Tailscale 구성
+   - ArgoCD에 factory cluster Secret 등록
+   - Spoke workload 배포는 아직 시작하지 않음
+2. scripts/build/build-admin-ui-after-ns.sh
+   - Admin UI HTTPS Ingress 활성화
+3. scripts/build/build-iot-factory-a.sh
+   - IoT Core Thing / Certificate / Policy 생성
+   - IoT Core endpoint 확인
+   - 현재 PC에 인증서 파일 저장
+   - Raspberry Pi master로 인증서 파일 전달
+   - master에서 K3s Secret 생성/갱신
+   - master의 임시 인증서 파일 삭제
+   - ArgoCD ApplicationSet 적용 및 factory-a workload 배포
+4. scripts/build/verify-complete.sh
+   - Hub, IoT, factory-a workload 전체 검증
 ```
 
 `edge-iot-publisher` 구현을 완료해야만 Thing을 만들 수 있는 것은 아니다. Thing과 인증서는 먼저 만들고, `edge-iot-publisher`는 이후 그 인증서를 사용하도록 붙인다.
@@ -107,10 +115,16 @@ aws sts get-caller-identity
 Thing을 생성한다.
 
 ```bash
-scripts/iot/register-thing.sh
+scripts/build/build-iot-factory-a.sh
 ```
 
-위 스크립트는 Thing, Policy, certificate/key, Root CA, endpoint를 생성해 `secret/iot/factory-a/`에 저장한다.
+위 build 스크립트는 내부에서 `scripts/iot/register-thing.sh`와 `scripts/iot/register-k3s-secret.sh`를 실행한다. Thing, Policy, certificate/key, Root CA, endpoint를 `secret/iot/factory-a/`에 저장하고, `ai-apps/aws-iot-factory-a-cert` Secret을 만든 뒤 ArgoCD ApplicationSet을 적용한다.
+
+IoT 리소스만 직접 생성해야 할 때는 아래 하위 스크립트를 사용한다.
+
+```bash
+scripts/iot/register-thing.sh
+```
 
 수동으로 생성해야 할 때 Thing 이름은 아래 기준을 따른다.
 
@@ -233,6 +247,8 @@ aws iot attach-policy \
 scripts/iot/register-k3s-secret.sh
 ```
 
+표준 경로에서는 이 명령을 직접 실행하지 않고 `scripts/build/build-iot-factory-a.sh`가 호출한다.
+
 수동으로 수행해야 할 때만 아래 명령을 사용한다.
 
 ```bash
@@ -352,6 +368,14 @@ K3s Secret: ai-apps/aws-iot-factory-a-cert exists
 edge-iot-publisher mount path: /etc/aegis/iot
 MQTT client id: AEGIS-IoTThing-factory-a
 Topic prefix: aegis/factory-a
+ArgoCD Application: aegis-spoke-factory-a Synced / Healthy
+Deployments: aegis-spoke-edge-iot-publisher, aegis-spoke-factory-a-log-adapter Available
+```
+
+전체 검증은 아래 명령으로 수행한다.
+
+```bash
+scripts/build/verify-complete.sh
 ```
 
 ## 보안 주의

@@ -1,7 +1,7 @@
 # Factory-A 현재 상태
 
 상태: source of truth
-기준일: 2026-04-29
+기준일: 2026-05-19
 
 ## 목적
 
@@ -63,13 +63,17 @@ argocd:
 - argocd components: worker1
 ```
 
-후속 planned workload:
+Hub 배포 data-plane workload:
 
 ```text
-edge data-plane: not deployed
-planned namespace: ai-apps
-planned placement: worker2 preferred, worker1 failover, master avoid
-planned role: factory-a-log-adapter가 InfluxDB/Kubernetes API 기반 상태를 canonical JSON으로 변환하고 edge-iot-publisher가 AWS IoT Core로 송신
+edge data-plane: aegis-pi-gitops ApplicationSet 기준 배포
+namespace: ai-apps
+placement: worker2 preferred, worker1 failover, master avoid
+role: factory-a-log-adapter가 InfluxDB/Kubernetes API 기반 상태를 canonical JSON으로 변환하고 edge-iot-publisher가 AWS IoT Core로 송신
+deployments:
+- aegis-spoke-factory-a-log-adapter
+- aegis-spoke-edge-iot-publisher
+shared outbox: /var/lib/aegis/outbox (Longhorn PVC aegis-spoke-outbox)
 ```
 
 ## 저장소
@@ -95,6 +99,11 @@ worker2 랜선 제거 -> AI/audio/BME worker1 failover 성공
 worker2 랜선 재연결 -> AI/audio/BME worker2 failback 성공
 Longhorn Multi-Attach 재발 없음
 InfluxDB 데이터 공백: 10초 bucket 기준 AI/audio 80초, BME 70초
+
+2026-05-19:
+Hub ArgoCD ApplicationSet -> factory-a data-plane 배포 기준 정리
+IoT Secret 준비 후 ApplicationSet 배포 순서로 build 흐름 변경
+verify-complete.sh로 Hub/IoT/factory-a workload 통합 검증 가능
 ```
 
 ## 시작 시 확인 명령
@@ -105,6 +114,8 @@ kubectl -n argocd get application
 kubectl -n monitoring get pod -o wide
 kubectl -n ai-apps get pod -o wide
 kubectl -n ai-apps get pvc
+kubectl -n ai-apps rollout status deployment/aegis-spoke-edge-iot-publisher
+kubectl -n ai-apps rollout status deployment/aegis-spoke-factory-a-log-adapter
 kubectl -n longhorn-system get volumes.longhorn.io -o wide
 ```
 

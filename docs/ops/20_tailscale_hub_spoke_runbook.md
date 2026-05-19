@@ -40,13 +40,11 @@ Tailscale은 관리자 대시보드 접근망이 아니다. Dashboard Web/API는
 - Hub EKS Tailscale operator 설치/검증
 - EKS 내부에서 `factory-a-master` Tailscale IP reachability 확인
 - Tailscale IP 기반 `factory-a` kubeconfig 생성
-- ArgoCD `factory-a` cluster 등록과 smoke app Sync/Healthy 검증
-- 2026-05-08 Hub destroy와 함께 EKS 내부 Tailscale operator/proxy 리소스 삭제
+- ArgoCD `factory-a` cluster 등록과 `aegis-spoke-factory-a` Application Sync/Healthy 검증
+- 2026-05-19 기준 `build-hub.sh`가 Tailscale Operator/egress/cluster Secret을 복구하고, `build-iot-factory-a.sh`가 Spoke ApplicationSet을 적용한다.
 
 아직 하지 않은 것:
 
-- Hub rebuild 후 Tailscale operator/proxy 재검증
-- ArgoCD `factory-a` cluster 등록
 - `factory-b`, `factory-c` Auth Key 발급 및 VM Spoke Tailnet 참여
 
 현재 확인된 Tailnet device:
@@ -124,7 +122,7 @@ Tailnet policy는 콘솔 validation을 통과한 뒤 저장한다. policy 원문
 
 Tailscale Admin Console에서 EKS operator용 OAuth client를 만든다.
 
-상태: 다음 작업
+상태: 완료
 
 설정:
 
@@ -331,7 +329,7 @@ proxy pod: tailscale/ts-factory-a-master-tailnet-wp5c2-0 1/1 Running
 tcp check: EKS argocd namespace 임시 busybox pod -> factory-a-master-tailnet:6443 open
 ```
 
-따라서 M2 Issue 3의 Hub -> `factory-a-master` K3s API network reachability는 통과로 본다. 다음 단계는 M2 Issue 4에서 kubeconfig server 주소, TLS/SAN, ArgoCD cluster 등록 방식을 검증하는 것이다.
+따라서 M2 Issue 3의 Hub -> `factory-a-master` K3s API network reachability는 통과로 본다. M5에서는 같은 방식을 `factory-b`, `factory-c`용 `aegis_spokes` 항목으로 확장한다.
 
 ## 6. `factory-a` Master Tailnet 참여
 
@@ -483,7 +481,7 @@ result: master, worker1, worker2 Ready
 
 M2 Issue 4의 kubeconfig 검증이 끝난 뒤 진행한다.
 
-`argocd cluster add`는 로컬 CLI가 먼저 target cluster에 접속해 `argocd-manager` ServiceAccount와 RBAC를 생성한다. 따라서 등록 bootstrap은 로컬에서 접근 가능한 kubeconfig로 수행하고, 최종 ArgoCD cluster secret은 EKS 내부 egress Service를 바라보게 구성한다.
+현재 운영 경로에서는 `argocd cluster add`를 직접 실행하지 않는다. `hub_tailscale_bootstrap.yml`이 로컬에서 접근 가능한 kubeconfig로 target cluster에 `argocd-manager` ServiceAccount/RBAC/token을 만들고, Hub EKS의 ArgoCD namespace에 cluster Secret을 직접 생성한다. 최종 ArgoCD cluster Secret은 EKS 내부 egress Service를 바라본다.
 
 현재는 `hub_tailscale_bootstrap.yml`이 이 작업을 자동화한다.
 
@@ -513,24 +511,33 @@ argocd-manager-role-binding ClusterRoleBinding
 kube-system/argocd-manager-long-lived-token Secret
 ```
 
-M5에서 VM Spoke를 추가할 때:
+M5에서 VM Spoke를 추가할 때는 `argocd cluster add` 대신 `scripts/ansible/inventory/group_vars/hub_eks.yml`의 `aegis_spokes`에 항목을 추가한다.
 
-```bash
-argocd cluster add factory-b --kubeconfig factory-b.kubeconfig
-argocd cluster add factory-c --kubeconfig factory-c.kubeconfig
+```yaml
+aegis_spokes:
+  - id: factory-b
+    enabled: true
+    master_tailnet_ip: "<factory-b-tailnet-ip>"
+    kube_tls_server_name: "<factory-b-k3s-cert-server-name>"
+    direct_kubeconfig: "<local factory-b kubeconfig path>"
+    egress_service_name: factory-b-master-tailnet
+    egress_server: "https://factory-b-master-tailnet.argocd.svc.cluster.local:6443"
+    argocd_cluster_secret_name: cluster-factory-b
 ```
 
 확인:
 
 ```bash
-argocd cluster list
+cd /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ansible
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_bootstrap.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_verify.yml
 ```
 
 ArgoCD UI에서 cluster connection status가 `Successful`인지 확인한다.
 
 ## 9-1. Test Application Sync
 
-M2 Issue 6 정상 경로 검증은 `factory-a-podinfo-smoke` Application으로 수행했다.
+M2 Issue 6 정상 경로 최초 검증은 `factory-a-podinfo-smoke` Application으로 수행했다. 현재 운영 검증은 `aegis-spoke-factory-a` Application과 data-plane workload를 기준으로 한다.
 
 ```text
 repo: https://github.com/stefanprodan/podinfo
@@ -547,6 +554,17 @@ Application sync status: Synced
 Application health: Healthy
 factory-a podinfo Deployment: 2/2 Available
 factory-a podinfo Pods: 2 Running
+```
+
+현재 검증 기준:
+
+```text
+ApplicationSet: argocd/aegis-spoke
+Application: aegis-spoke-factory-a
+destination: factory-a / ai-apps
+repo: https://github.com/aegis-pi/aegis-pi-gitops.git
+sync: Synced
+health: Healthy
 ```
 
 제외한 smoke 후보:

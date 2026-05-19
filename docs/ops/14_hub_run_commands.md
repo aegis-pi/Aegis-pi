@@ -1,16 +1,39 @@
 # Hub Run Commands
 
 상태: source of truth
-기준일: 2026-05-08
+기준일: 2026-05-19
 
-## 기본 실행
+## 표준 3단계 실행
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
-scripts/build/build-all.sh
 scripts/build/build-hub.sh
-scripts/ops/argocd-initial-password.sh
-scripts/ops/argocd-port-forward.sh
+scripts/build/build-admin-ui-after-ns.sh
+scripts/build/build-iot-factory-a.sh
+```
+
+현재 표준 순서는 Hub -> Admin UI -> IoT/Spoke deploy다.
+
+`build-hub.sh`는 Hub AWS 인프라와 Hub Kubernetes platform을 올리고, Tailscale을 통해 ArgoCD가 `factory-a` K3s에 접근할 수 있도록 cluster Secret까지 등록한다. 단, Spoke workload ApplicationSet 배포는 기본값에서 실행하지 않는다.
+
+`build-admin-ui-after-ns.sh`는 Gabia NS 위임 이후 ACM certificate가 `ISSUED`가 될 때까지 기다린 뒤 ArgoCD/Grafana HTTPS Ingress를 활성화한다.
+
+`build-iot-factory-a.sh`는 IoT Thing/Policy/certificate와 K3s Secret을 준비한 뒤 ArgoCD ApplicationSet을 적용해 `factory-a` data-plane workload 배포를 시작한다.
+
+## 최종 검증
+
+3단계를 모두 실행한 뒤 전체 설정을 확인한다.
+
+```bash
+scripts/build/verify-complete.sh
+```
+
+검증 범위:
+
+```text
+Hub: ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI Ingress, Tailscale, Spoke ApplicationSet
+AWS IoT: Thing, Policy, certificate ACTIVE, attachment
+factory-a K3s: IoT Secret, edge-iot-publisher rollout, factory-a-log-adapter rollout
 ```
 
 ## Admin UI HTTPS 준비
@@ -35,7 +58,7 @@ aws acm describe-certificate \
 scripts/build/build-admin-ui-after-ns.sh
 ```
 
-Hub만 다시 적용할 때는 아래처럼 실행한다.
+Hub와 Admin UI Ingress까지 한 번에 다시 적용해야 하는 예외 상황에서는 아래처럼 실행할 수 있다.
 
 ```bash
 ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh
@@ -50,6 +73,8 @@ ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh
 ```bash
 scripts/destroy/destroy-hub.sh
 ```
+
+`destroy-hub.sh`는 Hub EKS/VPC/NAT Gateway/node group과 EKS 내부 ArgoCD/Tailscale/ApplicationSet 리소스를 제거한다. Foundation S3/AMP/ECR/IoT 리소스와 `factory-a` K3s Secret은 별도 삭제 대상이다.
 
 ## 전체 삭제
 
