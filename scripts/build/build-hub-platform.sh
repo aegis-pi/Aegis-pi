@@ -46,6 +46,8 @@ if [[ "${BUILD_TAILSCALE}" == "true" ]]; then
     playbooks/hub_tailscale_bootstrap.yml \
     -e "tailscale_operator_force_upgrade=${FORCE_TAILSCALE_OPERATOR_UPGRADE}"
   ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_verify.yml
+  ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_applicationset_bootstrap.yml
+  ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_applicationset_verify.yml
 else
   echo "Skipped Hub Tailscale bootstrap/verify. Set BUILD_TAILSCALE=true to enable it."
 fi

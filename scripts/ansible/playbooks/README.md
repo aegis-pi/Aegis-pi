@@ -41,7 +41,8 @@
 - Admin Ingress는 `ADMIN_UI_INGRESS_ENABLED=true`일 때만 적용한다. 기본값은 인증서 발급 전 ALB 비용과 build 실패를 피하기 위해 비활성화다.
 - Hub Tailscale bootstrap은 `BUILD_TAILSCALE=true` 기본값으로 `build-hub.sh`에서 실행한다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 실패한다.
 - AEGIS Spoke ApplicationSet의 기본 GitOps repo URL은 `https://github.com/aegis-pi/aegis-pi-gitops.git`이다. 다른 URL이나 revision을 쓰려면 `AEGIS_GITOPS_REPO_URL`, `AEGIS_GITOPS_REPO_REVISION` 환경 변수로 override한다.
-- 현재 ApplicationSet 기본 scope는 `envs/factory-a/values.yaml`만 대상으로 한다. `factory-b`, `factory-c`까지 넓힐 때는 `AEGIS_GITOPS_APPSET_VALUES_GLOB='envs/*/values.yaml'`로 실행한다.
+- 현재 ApplicationSet 기본 scope는 `envs/factory-a/values.yaml`만 대상으로 하고, destination namespace는 `ai-apps`다. `factory-b`, `factory-c`까지 넓힐 때는 각 cluster Secret을 먼저 등록한 뒤 `AEGIS_GITOPS_APPSET_VALUES_GLOB='envs/*/values.yaml'`로 실행한다.
+- `BUILD_TAILSCALE=true` 기준 `build-hub-platform.sh`는 Tailscale bootstrap/verify 이후 `hub_aegis_spoke_applicationset_bootstrap.yml`과 `hub_aegis_spoke_applicationset_verify.yml`를 이어서 실행한다.
 
 ## factory-a OS baseline 실행
 

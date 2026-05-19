@@ -95,5 +95,5 @@ gitops_repo_revision: "{{ lookup('env', 'AEGIS_GITOPS_REPO_REVISION') | default(
 gitops_applicationset_name: aegis-spoke
 gitops_applicationset_values_file_glob: "{{ lookup('env', 'AEGIS_GITOPS_APPSET_VALUES_GLOB') | default('envs/factory-a/values.yaml', true) }}"
 gitops_applicationset_chart_path: charts/aegis-spoke
-gitops_applicationset_destination_namespace: aegis-spoke-system
+gitops_applicationset_destination_namespace: ai-apps
 gitops_factory_a_application_name: aegis-spoke-factory-a
