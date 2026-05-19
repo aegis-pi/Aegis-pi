@@ -1,7 +1,7 @@
 # Aegis-Pi Docs
 
 상태: source of truth
-기준일: 2026-05-15
+기준일: 2026-05-19
 
 ## 목적
 
@@ -9,12 +9,12 @@
 
 ## 현재 상태
 
-- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5이다.
+- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5, M4 Issue 1~5이다.
 - `factory-a`는 Raspberry Pi 3-node K3s 기반 운영형 Spoke다.
 - 2026-04-30 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
-- 2026-05-07 `build-hub`는 AWS Hub EKS/VPC/NAT/EIP, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI, Hub Tailscale Operator/egress/UI/cluster Secret 복구를 자동화한다.
-- 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 리소스는 재생성 검증했고, ECR/GitHub Actions/Hub ArgoCD ApplicationSet/`factory-a` 보수적 rollout 검증까지 완료했다.
+- 2026-05-19 기준 `build-hub.sh`는 AWS Hub EKS/VPC/NAT/EIP, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI bootstrap, Hub Tailscale Operator/egress/UI/cluster Secret 복구를 자동화한다. Spoke ApplicationSet 배포는 IoT Secret 준비 이후로 분리했다.
+- 2026-05-19 기준 표준 실행 순서는 `build-hub.sh` -> `build-admin-ui-after-ns.sh` -> `build-iot-factory-a.sh` -> `verify-complete.sh`다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 M1 검증용 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다. 최신 데이터 처리 방향은 Lambda data processor와 DynamoDB/S3 processed다.
 - M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 `up{cluster="AEGIS-EKS"}` 수신을 검증했다.
@@ -28,7 +28,7 @@
 - M2 Issue 4/5에서 `tls-server-name: 10.10.10.10` 기반 `factory-a` kubeconfig와 ArgoCD cluster 등록을 완료했고, cluster status `Successful`을 확인했다.
 - M2 Issue 6에서 `factory-a-podinfo-smoke` Application을 `factory-a`에 Sync해 `Synced` + `Healthy`, Pod 2개 `Running`을 확인했고, Tailscale egress Service 삭제 시 sync failure 및 재생성 후 복구를 검증했다.
 - M3 Issue 1에서 `aegis-pi-gitops` GitOps 저장소 구조, `aegis-spoke` Helm chart, 공장별 values, ApplicationSet skeleton, manifest validation workflow를 완료했다.
-- M4 Issue 1에서 Raw/Processed 데이터 계약을 확정했다. 다음 작업은 M4 Issue 2 `factory-a-log-adapter` 구현이다. M3 Issue 6~8은 실제 Edge data-plane image가 확정된 뒤 재개한다.
+- M4 Issue 1~5에서 Raw 데이터 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR 이미지, GitOps chart, IoT Core -> S3 raw 적재 검증을 완료했다. 다음 작업은 M4 Issue 6 Lambda data processor와 M5 factory 확장이다.
 - `factory-b`, `factory-c`, Risk Twin Dashboard는 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
@@ -64,8 +64,9 @@
 21. `ops/17_hub_grafana_amp.md`
 22. `ops/20_tailscale_hub_spoke_runbook.md`
 23. `ops/21_hub_admin_ui_ingress.md`
-24. `issues/M0_factory-a_safe-edge-baseline.md`
-25. `issues/M1_hub-cloud.md`
+24. `planning/16_m4_edge_data_plane_implementation.md`
+25. `issues/M0_factory-a_safe-edge-baseline.md`
+26. `issues/M1_hub-cloud.md`
 
 ## 문서 구조
 
@@ -141,13 +142,15 @@ Windows operator PC Tailscale IPv4: 100.67.181.8
 ## 현재 Hub 기준
 
 ```text
-AWS actual state: Hub/Foundation/IoT/Admin UI deleted after `scripts/destroy/destroy-all.sh`; AEGIS EKS KMS keys are `PendingDeletion`
+AWS actual state: Hub/Foundation/IoT/Admin UI are rebuildable through scripts/build; Hub destroy removes EKS-scoped resources, foundation/IoT/ECR are separate
 Hub bootstrap roots:
 - infra/hub: VPC/EKS/node group, Route53/ACM, IRSA
-- scripts/ansible: namespace/LimitRange/ArgoCD/Prometheus Agent/Grafana/AWS Load Balancer Controller/Admin UI Ingress bootstrap
+- scripts/ansible: namespace/LimitRange/ArgoCD/Prometheus Agent/Grafana/AWS Load Balancer Controller/Admin UI Ingress/Tailscale/Spoke ApplicationSet bootstrap
 - infra/foundation: S3 data bucket, AMP Workspace, IoT Rule, and future durable resources
-Build entrypoint: scripts/build/build-all.sh
+Build entrypoint: scripts/build/build-hub.sh
 Admin UI post-NS entrypoint: scripts/build/build-admin-ui-after-ns.sh
+IoT and Spoke deploy entrypoint: scripts/build/build-iot-factory-a.sh
+Complete verification entrypoint: scripts/build/verify-complete.sh
 Hub UI entrypoint after rebuild: https://argocd.minsoo-tech.cloud and https://grafana.minsoo-tech.cloud
 Local fallback UI entrypoint: scripts/ops/argocd-port-forward.sh, scripts/ops/grafana-port-forward.sh
 Hub destroy entrypoint: scripts/destroy/destroy-hub.sh

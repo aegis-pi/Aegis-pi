@@ -1,7 +1,7 @@
 # M4 Edge Data-Plane 구현 기록
 
 상태: 완료 기록
-기준일: 2026-05-18
+기준일: 2026-05-19
 
 ## 목적
 
@@ -74,8 +74,7 @@ RBAC: adapter가 Kubernetes API node/pod status를 조회하기 위한 ServiceAc
 
 ## 배포 방식
 
-M4 Issue 4 완료 조건의 Hub EKS ArgoCD ApplicationSet을 통한 배포는 Hub가 현재 삭제된 상태이므로 수행하지 못했다.
-대신 직접 배포 방식으로 검증을 완료했다.
+초기 M4 검증은 직접 배포 방식으로 완료했다.
 
 ```bash
 helm template aegis-spoke charts/aegis-spoke \
@@ -86,7 +85,29 @@ helm template aegis-spoke charts/aegis-spoke \
 
 factory-a master (10.10.10.10) SSH에서 실행. ECR pull secret `ecr-registry`는 별도로 ai-apps namespace에 사전 생성.
 
-Hub ArgoCD를 통한 정식 GitOps 배포는 M4 Issue 4 미완료 항목으로 남긴다. Hub 재구성 시 ApplicationSet sync로 전환한다.
+2026-05-19 기준 정식 배포 경로는 Hub ArgoCD ApplicationSet으로 전환했다.
+
+```text
+build-hub.sh
+  -> Hub ArgoCD 설치
+  -> Tailscale egress
+  -> argocd/cluster-factory-a 등록
+
+build-iot-factory-a.sh
+  -> AWS IoT Thing/Policy/certificate
+  -> factory-a K3s Secret
+  -> hub_aegis_spoke_applicationset_bootstrap.yml
+  -> aegis-spoke-factory-a Application
+```
+
+GitOps 기준:
+
+```text
+repo: https://github.com/aegis-pi/aegis-pi-gitops.git
+chart: charts/aegis-spoke
+values: envs/factory-a/values.yaml
+destination: factory-a / ai-apps
+```
 
 ---
 
@@ -187,15 +208,22 @@ s3://aegis-bucket-data/raw/factory-a/infra_state/yyyy=2026/mm=05/dd=18/<message_
 
 ---
 
-## 현재 상태 (2026-05-18 세션 종료 기준)
+## 현재 상태 (2026-05-19 기준)
 
-- 두 Pod는 검증 완료 후 정리(kubectl delete)했다.
-- Longhorn PVC(`aegis-spoke-outbox`)는 보존 상태다.
+- 두 Pod는 Hub ArgoCD ApplicationSet의 배포 대상이다.
+- Longhorn PVC(`aegis-spoke-outbox`)는 `ai-apps` namespace에서 outbox buffer로 사용한다.
 - ECR 이미지(`sha-f71a104`)는 유지된다. `destroy-hub.sh`는 ECR을 삭제하지 않는다.
 - IoT Certificate Secret(`aws-iot-factory-a-cert`)은 ai-apps namespace에 존재한다.
 - ECR pull secret(`ecr-registry`)은 ai-apps namespace에 존재한다.
 
-다음 구동 시 동일 명령으로 즉시 재배포 가능하다.
+표준 재배포는 아래 순서다.
+
+```bash
+scripts/build/build-hub.sh
+scripts/build/build-admin-ui-after-ns.sh
+scripts/build/build-iot-factory-a.sh
+scripts/build/verify-complete.sh
+```
 
 ---
 
@@ -208,5 +236,6 @@ Lambda data processor 구현:
 - S3 processed 저장
 
 Hub 재구성 시:
-- Hub ArgoCD ApplicationSet에 factory-a 추가
-- `helm template | kubectl apply` 직접 배포를 ArgoCD GitOps로 전환
+- `build-hub.sh`가 ArgoCD cluster Secret을 등록
+- `build-iot-factory-a.sh`가 IoT Secret 준비 후 ApplicationSet 배포
+- `verify-complete.sh`가 Hub/IoT/factory-a rollout을 통합 검증

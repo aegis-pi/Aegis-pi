@@ -141,7 +141,7 @@ mount path: /etc/aegis/iot
 
 Secret 값은 Git에 저장하지 않는다. 생성과 주입 절차는 `docs/ops/12_iot_core_thing_secret_mount.md`를 따른다.
 
-M4에서 data-plane workload namespace를 `aegis-spoke-system`으로 확정하면 동일 인증서를 해당 namespace Secret으로 재주입하거나 External Secrets/SealedSecrets 전환 기준을 별도로 정한다.
+M4 data-plane workload namespace는 `ai-apps`로 확정했다. 동일 인증서는 `ai-apps/aws-iot-factory-a-cert` Secret을 사용하며, 운영 단계에서는 External Secrets/SealedSecrets 전환 기준을 별도로 정한다.
 
 ## 검증 기준
 

@@ -55,19 +55,23 @@ ECR registry:
 
 Current repository:
   aegis/edge-agent
+  aegis/factory-a-log-adapter
+  aegis/edge-iot-publisher
 
 Deployment image:
   611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent:sha-<7-char-git-sha>
+  611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/factory-a-log-adapter:sha-<7-char-git-sha>
+  611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-iot-publisher:sha-<7-char-git-sha>
 ```
 
-`aegis/edge-agent`는 M3 smoke image 검증용 현재 repository다. M4에서 실제 데이터 플레인 이미지를 구현하면 `factory-a-log-adapter`, `edge-iot-publisher`, `dummy-data-generator` 별도 repository 또는 naming 정책을 다시 확정한다.
+`aegis/edge-agent`는 M3 smoke image 검증용 repository로 남긴다. M4 실제 데이터 플레인은 `factory-a-log-adapter`, `edge-iot-publisher` repository를 사용한다. M5 테스트베드 확장 시 `dummy-data-generator` naming 정책을 확정한다.
 
 Docker Hub는 초기 실습이나 임시 로컬 검증 경로로만 취급한다. GitOps 배포 기준 문서와 Helm values에는 ECR image reference를 기록한다.
 
 Raspberry Pi K3s Spoke는 EKS node가 아니므로 ECR pull 권한을 IAM node role로 상속받지 않는다. Spoke 배포 전 대상 namespace에 `kubernetes.io/dockerconfigjson` 타입의 `imagePullSecret`을 생성/갱신한다.
 
 ```text
-namespace: aegis-spoke-system
+namespace: ai-apps
 secret name: ecr-registry
 ```
 

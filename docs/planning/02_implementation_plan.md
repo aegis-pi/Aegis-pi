@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-05-15
+기준일: 2026-05-19
 
 ## 목적
 
@@ -12,11 +12,11 @@
 - Phase 0 문서 기준선 정리는 완료 상태로 유지 보수 중이다.
 - Phase 1 M0 `factory-a` Safe-Edge 기준선은 구축 및 실측 검증까지 완료됐다.
 - Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace, Hub ArgoCD, foundation S3/AMP, `factory-a` IoT Thing/Policy/K3s Secret, IoT Rule -> S3 raw 적재, IRSA S3 권한, Hub Prometheus Agent 설치, AMP remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Admin UI HTTPS Ingress 검증까지 진행했다.
-- Hub AWS 리소스와 foundation S3/AMP/Admin UI는 2026-05-06~2026-05-07 `build-all --admin-ui`와 `build-hub`로 재생성/검증했고, 2026-05-08 비용 정리를 위해 `destroy-all.sh`로 삭제했다.
+- Hub AWS 리소스와 foundation S3/AMP/Admin UI는 `build-hub.sh`, `build-admin-ui-after-ns.sh`, `build-iot-factory-a.sh` 기준으로 재생성/검증한다. Hub build는 cluster 등록까지만 수행하고, Spoke ApplicationSet 배포는 IoT Secret 준비 이후로 분리했다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
 - M3는 Issue 1~5 범위를 완료했다. Issue 6 manifest 자동 갱신, Issue 7 배포 검증 workflow, Issue 8 end-to-end 배포 검증은 실제 Edge data-plane 이미지가 확정된 뒤 재개한다.
-- M4 Issue 1 Raw/Processed 데이터 계약 확정은 완료했다. 현재 다음 단계는 M4 Issue 2 `factory-a-log-adapter` 구현이다.
+- M4 Issue 1~5 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, 이미지화/GitOps chart, IoT Core -> S3 raw 적재 검증은 완료했다. 현재 다음 단계는 M4 Issue 6 Lambda data processor와 M5 factory 확장이다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
@@ -127,7 +127,7 @@ ArgoCD 재생성 자동화 기준:
 - ArgoCD chart version은 현재 검증된 `argo-cd-9.5.11`, app version은 `v3.3.9`를 기준으로 고정한다.
 - `scripts/ansible/files/argocd-values.yaml`을 두고 `server.service.type=ClusterIP`를 명시한다.
 - `infra/hub terraform apply` 후 `ansible-playbook` 실행으로 namespace, LimitRange, ArgoCD Helm release가 재생성되게 한다.
-- repo, AppProject, Application, ApplicationSet은 이후 별도 GitOps bootstrap 디렉터리 또는 ArgoCD self-management 구조로 코드화한다.
+- Spoke ApplicationSet은 `aegis-pi-gitops` 저장소와 `hub_aegis_spoke_applicationset_bootstrap.yml`로 코드화한다. 기본 repo URL은 `https://github.com/aegis-pi/aegis-pi-gitops.git`이고, 기본 scope는 `envs/factory-a/values.yaml`이다.
 - 포트포워딩은 Terraform 리소스로 관리하지 않는다. 로컬에서 실행하는 운영 스크립트로 제공한다.
 - 포트포워딩 스크립트는 `scripts/ops/argocd-port-forward.sh`에 두고, 내부에서 `aws eks update-kubeconfig`, `kubectl -n argocd wait`, `kubectl -n argocd port-forward service/argocd-server 8080:443` 순서로 실행하게 한다.
 - 초기 admin 비밀번호 조회는 별도 명령 또는 `--print-password` 옵션처럼 명시적인 경우에만 수행하고, 문서나 로그에 저장하지 않는다.
@@ -137,7 +137,10 @@ Hub 생성 순서:
 - `scripts/build/build-hub.sh`를 실행해 VPC, NAT Gateway, EKS, node group을 생성한다.
 - 같은 실행 흐름에서 `aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS`로 로컬 kubeconfig를 갱신한다.
 - Ansible `hub_argocd_bootstrap.yml`이 namespace, LimitRange, ArgoCD Helm release를 생성한다.
-- ArgoCD UI가 필요하면 `scripts/ops/argocd-port-forward.sh`를 실행해 로컬 `https://127.0.0.1:8080`으로 접근한다.
+- Ansible `hub_tailscale_bootstrap.yml`이 Tailscale Operator, factory egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD cluster Secret을 생성/검증한다.
+- ArgoCD UI가 필요하면 `scripts/build/build-admin-ui-after-ns.sh`로 HTTPS Ingress를 활성화하거나 `scripts/ops/argocd-port-forward.sh`를 실행해 로컬 `https://127.0.0.1:8080`으로 접근한다.
+- IoT Secret 준비 후 `scripts/build/build-iot-factory-a.sh`가 `hub_aegis_spoke_applicationset_bootstrap.yml`과 verify를 실행해 Spoke workload 배포를 시작한다.
+- 전체 검증은 `scripts/build/verify-complete.sh`로 수행한다.
 
 ### Phase 3. M2 Mesh VPN + Hub-Spoke 연결
 
@@ -183,8 +186,8 @@ Hub 생성 순서:
 
 완료 조건:
 
-- 현재 완료 범위: ECR, GitHub Actions build/push, Hub ArgoCD ApplicationSet, `factory-a` 보수적 rollout/rollback 검증
-- 후속 완료 범위: 실제 data-plane image push -> manifest/value 갱신 -> ArgoCD Sync -> `factory-a` 롤아웃 확인
+- 현재 완료 범위: ECR, GitHub Actions build/push, Hub ArgoCD ApplicationSet, `factory-a` 보수적 rollout/rollback 검증, 실제 data-plane image 기준 GitOps chart 적용
+- 후속 완료 범위: manifest/value 자동 갱신 workflow와 최종 CI/CD hardening
 - 이미지 prepull 정책과 최신 태그 유지 방식 정리
 
 ### Phase 5. M4 데이터 플레인 - `factory-a` 단일 Spoke 기준
@@ -193,7 +196,7 @@ Hub 생성 순서:
 
 - Phase 3 완료
 - M3 현재 완료 범위인 ECR/GitHub Actions/Hub ArgoCD ApplicationSet 검증 완료
-- M3 Issue 6~8은 M4 image 확정 후 재개
+- M3 Issue 6~8은 M4 image 확정 후 재개 대상이지만, 현재 수동 값 갱신과 ApplicationSet 배포 경로는 검증됐다.
 
 주요 작업:
 

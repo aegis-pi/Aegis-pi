@@ -1,7 +1,7 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-05-18
+기준일: 2026-05-19
 
 ## 목적
 
@@ -9,11 +9,11 @@
 
 ## 현재 상태
 
-- 현재 운영 중인 구현 범위는 `factory-a` 단일 운영형 Spoke다. M1 Hub EKS/ArgoCD/Prometheus Agent/Grafana/Admin UI HTTPS 기준선은 검증 후 비용 정리를 위해 삭제했다.
-- AWS Hub는 M1 Issue 0~10에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3/AMP 권한, Prometheus Agent remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress를 검증했고 2026-05-08 `destroy-all.sh`로 삭제했다.
+- 현재 운영 중인 구현 범위는 `factory-a` 단일 운영형 Spoke다. Hub EKS/ArgoCD/Prometheus Agent/Grafana/Admin UI HTTPS 기준선은 `scripts/build/build-hub.sh`와 `scripts/build/build-admin-ui-after-ns.sh`로 재생성 가능하다.
+- AWS Hub는 M1 Issue 0~10에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3/AMP 권한, Prometheus Agent remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress를 검증했다. 2026-05-19 기준 build 흐름은 Hub cluster 등록과 Spoke workload 배포를 분리한다.
 - M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록, IoT Rule -> S3 raw 적재 검증을 완료했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
-- `factory-b`, `factory-c`, Dashboard VPC는 아직 구축 전이다. ECR/GitHub Actions/Hub ArgoCD ApplicationSet은 M3 Issue 1~5에서 smoke image 기준으로 검증했다.
+- `factory-b`, `factory-c`, Dashboard VPC는 아직 구축 전이다. ECR/GitHub Actions/Hub ArgoCD ApplicationSet은 `factory-a` data-plane 이미지 기준으로 재구성됐다.
 - 이 문서는 현재 동작 중인 로컬 기준선과 rebuild 가능한 Hub 기준선을 함께 기록한다.
 
 ## 물리 / 클러스터 구조
@@ -82,21 +82,21 @@ safe-edge-monitoring
 safe-edge-ai-apps
 ```
 
-현재는 GitHub Actions / ECR / ApplicationSet 기반 멀티 Spoke 배포가 아니라, GitHub repo와 ArgoCD Application을 이용한 로컬 `factory-a` GitOps 기준선이다.
+로컬 Safe-Edge 기준선은 `safe-edge-config-main`과 로컬 ArgoCD Application을 사용한다. Hub data-plane 배포 기준선은 별도 `aegis-pi-gitops` 저장소와 Hub ArgoCD ApplicationSet을 사용한다.
 
 ## 현재 Hub 상태
 
-M1 Hub 기준선은 Terraform과 Ansible로 생성/검증했으며 2026-05-08 비용 정리를 위해 삭제했다.
+M1 Hub 기준선은 Terraform과 Ansible로 생성/검증했고, 필요할 때 `scripts/build/build-hub.sh`로 재생성한다. Hub build는 ArgoCD cluster 등록까지만 수행하고, Spoke workload ApplicationSet은 IoT Secret 준비 후 `scripts/build/build-iot-factory-a.sh`에서 적용한다.
 
 ```text
-AWS actual state: Hub EKS, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI ALB, foundation S3/AMP/IoT deleted
-EKS: AEGIS-EKS deleted
+AWS actual state: Hub EKS is ephemeral/rebuildable; foundation S3/AMP/ECR/IoT are separate durable baseline resources
+EKS: AEGIS-EKS target
 VPC CIDR: 10.0.0.0/16 target on rebuild
 AZ: ap-south-1a, ap-south-1c
 Hub namespaces: recreated by Ansible bootstrap
-Prometheus Agent: observability/prometheus-agent remote_writes to AMP after rebuild
-Grafana: observability/grafana queries AMP through SigV4 + IRSA after rebuild
-Admin UI: https://argocd.minsoo-tech.cloud and https://grafana.minsoo-tech.cloud through shared Public ALB after rebuild and DNS/ACM readiness
+Prometheus Agent: observability/prometheus-agent remote_writes to AMP
+Grafana: observability/grafana queries AMP through SigV4 + IRSA
+Admin UI: https://argocd.minsoo-tech.cloud and https://grafana.minsoo-tech.cloud through shared Public ALB after DNS/ACM readiness
 ```
 
 Terraform root:
@@ -109,7 +109,7 @@ infra/foundation  S3/AMP/IoT Rule
 Hub Kubernetes bootstrap:
 
 ```text
-scripts/ansible  kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, Prometheus Agent remote_write, Grafana AMP datasource, AWS Load Balancer Controller, Admin UI Ingress
+scripts/ansible  kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, Prometheus Agent remote_write, Grafana AMP datasource, AWS Load Balancer Controller, Admin UI Ingress, Tailscale, ArgoCD cluster Secret, Spoke ApplicationSet
 ```
 
 ## 데이터 구조
@@ -123,7 +123,7 @@ BME280 / camera / mic / AI
     -> Grafana dashboard
 ```
 
-M4 Issues 2~5에서 `factory-a-log-adapter`와 `edge-iot-publisher`를 구현하고 S3 raw 적재까지 검증했다(2026-05-18). 두 컴포넌트는 현재 검증 후 정리 상태이며, ECR 이미지(`sha-f71a104`)는 유지된다. Hub ArgoCD 재구성 시 ApplicationSet을 통해 재배포한다.
+M4 Issues 2~5에서 `factory-a-log-adapter`와 `edge-iot-publisher`를 구현하고 S3 raw 적재까지 검증했다. 두 컴포넌트는 `aegis-pi-gitops`의 `charts/aegis-spoke`와 `envs/factory-a/values.yaml` 기준으로 Hub ArgoCD ApplicationSet 배포 대상이다.
 
 실제 데이터 흐름 (검증 완료):
 
@@ -278,23 +278,22 @@ LAN 제거 InfluxDB 공백:
 다음 항목은 현재 구조가 아니라 후속 목표 구조다.
 
 ```text
-AWS EKS Hub
 factory-b / factory-c
-Tailscale Hub-Spoke 연결
 Lambda data processor / Risk calculation
-AMP
-ApplicationSet
+Dashboard VPC / Risk Twin UI
 ```
 
-2026-05-18 M4 검증 완료로 아래 항목은 구조에 포함됐다.
+2026-05-19 기준 아래 항목은 구조에 포함됐다.
 
 ```text
 IoT Core         Thing/certificate/policy/Rule (검증 완료)
 S3               aegis-bucket-data raw 적재 (검증 완료)
 ECR              aegis/factory-a-log-adapter, aegis/edge-iot-publisher (sha-f71a104)
 GitHub Actions   ARM64 matrix 빌드 (검증 완료)
-factory-a-log-adapter  ECR 이미지 존재, 직접 배포 검증 완료
-edge-iot-publisher     ECR 이미지 존재, 직접 배포 검증 완료
+Tailscale        Hub -> factory-a K3s API egress 및 ArgoCD cluster Secret 자동화
+ApplicationSet   aegis-pi-gitops 기반 factory-a data-plane 배포
+factory-a-log-adapter  ECR 이미지 존재, GitOps 배포 대상
+edge-iot-publisher     ECR 이미지 존재, GitOps 배포 대상
 ```
 
 후속 구조는 `docs/architecture/01_target_architecture.md`에서 관리한다.

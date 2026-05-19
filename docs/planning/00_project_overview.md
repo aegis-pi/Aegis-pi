@@ -12,7 +12,7 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5이다.
 - `factory-a`는 로컬 K3s 3노드, ArgoCD, Helm, Longhorn, InfluxDB, Grafana, AI 앱 failover/failback 기준선을 갖는다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/AMP, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 2026-05-06~2026-05-07 `build-all --admin-ui` 및 `build-hub`로 검증했고, 2026-05-08 비용 정리를 위해 `destroy-all.sh`로 삭제했다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/AMP, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 현재 build 스크립트로 재생성/검증 가능하다. 표준 순서는 `build-hub.sh` -> `build-admin-ui-after-ns.sh` -> `build-iot-factory-a.sh` -> `verify-complete.sh`다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 M1 검증용 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다. 최신 데이터 처리 방향은 별도 risk-normalizer 파드가 아니라 Lambda data processor와 DynamoDB/S3 processed다.
 - M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 기본 메트릭 수신을 검증했다.
@@ -22,7 +22,7 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
-- M4 Issue 1 Raw/Processed 데이터 계약 확정은 완료했다. 다음 작업은 M4 Issue 2 `factory-a-log-adapter` 구현이다. M3 Issue 6~8은 실제 Edge data-plane image가 확정된 뒤 재개한다.
+- M4 Issue 1~5 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR image, Hub ArgoCD ApplicationSet 배포, IoT Core -> S3 raw 적재 검증을 완료했다. 다음 작업은 M4 Issue 6 Lambda data processor와 M5 factory 확장이다.
 - `factory-b`, `factory-c`, Risk Twin은 후속 확장 단계다.
 
 ## 프로젝트명
