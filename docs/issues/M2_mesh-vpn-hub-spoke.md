@@ -286,10 +286,8 @@ ArgoCD가 `factory-a` K3s 클러스터를 배포 대상으로 인식하게 한�
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [x] ArgoCD CLI로 `factory-a` 클러스터 등록
-  ```bash
-  argocd cluster add factory-a --kubeconfig factory-a.kubeconfig
-  ```
+- [x] Ansible로 `factory-a` 클러스터 등록
+  - `hub_tailscale_bootstrap.yml`이 `argocd-manager` RBAC/token과 `argocd/cluster-factory-a` Secret을 생성한다.
 - [x] ArgoCD UI에서 `factory-a` 클러스터 확인
 - [x] ArgoCD에서 `factory-a` 클러스터 상태 `Successful` 확인
 - [x] 클러스터 이름 및 레이블 규칙 기록 (추후 ApplicationSet 자동화 기반)
@@ -302,13 +300,11 @@ ArgoCD가 `factory-a` K3s 클러스터를 배포 대상으로 인식하게 한�
 
 ### 진행 기록
 
-2026-05-07 기준 ArgoCD에 `factory-a` cluster를 등록했다.
+2026-05-07에는 수동 검증을 위해 `argocd cluster add` 방식으로 `factory-a` cluster 등록을 확인했다. 2026-05-19 기준 운영 경로는 Ansible 자동화다.
 
 등록 방식:
 
-- `argocd cluster add`는 로컬 CLI가 target cluster에 먼저 접속해 `argocd-manager` ServiceAccount/RBAC/token을 만든다.
-- EKS 내부 Service DNS인 `factory-a-master-tailnet.argocd.svc.cluster.local` kubeconfig로는 로컬 CLI 단계가 실패하므로, 로컬 등록 단계는 `factory-a.tailscale-ip-tlsname.kubeconfig`로 수행했다.
-- `argocd cluster add`가 target cluster의 `kube-system/argocd-manager` ServiceAccount, ClusterRole, ClusterRoleBinding, long-lived token Secret 생성을 완료했다.
+- `hub_tailscale_bootstrap.yml`은 로컬에서 접근 가능한 `factory-a.tailscale-ip-tlsname.kubeconfig`로 target cluster의 `kube-system/argocd-manager` ServiceAccount, ClusterRole, ClusterRoleBinding, long-lived token Secret을 생성한다.
 - 최종 ArgoCD cluster secret은 EKS 내부 egress Service를 바라보도록 `argocd/cluster-factory-a` Secret으로 구성했다.
 
 등록 결과:

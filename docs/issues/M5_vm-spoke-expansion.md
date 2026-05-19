@@ -115,10 +115,9 @@ M3에서 구성한 ApplicationSet에 `factory-b`, `factory-c` Spoke를 추가하
 ### ✅ 완료 조건 (Definition of Done)
 
 - [ ] ArgoCD에 `factory-b`, `factory-c` 클러스터 등록
-  ```bash
-  argocd cluster add factory-b --kubeconfig factory-b.kubeconfig
-  argocd cluster add factory-c --kubeconfig factory-c.kubeconfig
-  ```
+  - `argocd cluster add` 수동 실행이 아니라 `scripts/ansible/inventory/group_vars/hub_eks.yml`의 `aegis_spokes`에 각 공장 항목을 추가한다.
+  - `hub_tailscale_bootstrap.yml`이 각 Spoke의 `argocd-manager` RBAC/token과 Hub ArgoCD cluster Secret을 생성한다.
+  - `hub_tailscale_verify.yml`로 egress Service와 cluster Secret을 검증한다.
 - [ ] `factory-b`, `factory-c` values 파일 준비 및 검증
   - `environment_type`, `input_module_type`, 이미지/배포 대상 경로 반영
 - [ ] ArgoCD ApplicationSet에 `factory-b`, `factory-c` values 경로 추가

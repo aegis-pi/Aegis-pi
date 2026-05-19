@@ -72,8 +72,8 @@
 - [x] Issue 4 - [배포/ArgoCD] ApplicationSet 구성 (`factory-a` 기준)
 - [x] Issue 5 - [배포/ArgoCD] 운영형 동기화 정책 및 롤백 정책 적용
 - [ ] Issue 6 - [배포/GitHub Actions] manifest 갱신 워크플로우 구성 (보류: Edge data-plane 로직 확정 후)
-- [ ] Issue 7 - [배포/GitHub Actions] 배포 검증 워크플로우 구성 (보류: Issue 6 재개 후)
-- [ ] Issue 8 - [검증/ArgoCD] `factory-a` end-to-end 배포 검증 (보류: Issue 6 재개 후)
+- [x] Issue 7 - [배포/GitHub Actions] 배포 검증 워크플로우 구성 (현재: build/Ansible `verify-complete.sh` 기준, GitHub Actions 고도화는 M7 Issue 0)
+- [x] Issue 8 - [검증/ArgoCD] `factory-a` end-to-end 배포 검증
 
 ## M4. 데이터 플레인 - `factory-a` 단일 Spoke 기준
 
@@ -86,7 +86,7 @@
 - [x] Issue 5 - [데이터/S3] IoT Core -> S3 적재 확인 (경로 파티셔닝 포함)
 - [ ] Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
 - [ ] Issue 7 - [데이터/Pipeline] `pipeline_status` Lambda 처리 검증
-- [ ] Issue 8 - [검증/데이터] `factory-a` 데이터 플레인 end-to-end 검증
+- [x] Issue 8 - [검증/데이터] `factory-a` 데이터 플레인 end-to-end 검증
 
 ## M5. VM Spoke 확장 - `factory-b`, `factory-c`
 

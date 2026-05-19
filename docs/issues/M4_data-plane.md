@@ -468,7 +468,7 @@ Issue 2의 adapter가 만든 canonical JSON을 local spool/outbox에서 읽어 A
 
 - 검증 날짜: 2026-05-18
 - image: `sha-f71a104`
-- 배포: `helm template | kubectl apply` 직접 배포 (ai-apps namespace, worker2)
+- 배포: 초기 검증은 `helm template | kubectl apply`로 수행했고, 2026-05-19 기준 정식 경로는 Hub ArgoCD ApplicationSet(`aegis-spoke-factory-a`) 배포다.
 - 결과:
   - `factory_state`, `infra_state` 양쪽 S3 경로에 파일 적재 확인
   - canonical JSON 필수 필드 전부 확인 (envelope + payload.ai_result 포함)

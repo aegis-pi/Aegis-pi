@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-05-18
+기준일: 2026-05-19
 
 ## 목적
 
@@ -50,38 +50,35 @@
 | M3 | Issue 3 - 배포/GitHub Actions 빌드/푸시 워크플로우 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
 | M3 | Issue 4 - 배포/ArgoCD ApplicationSet 구성 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
 | M3 | Issue 5 - 배포/ArgoCD 운영형 동기화 정책 및 롤백 정책 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
+| M3 | Issue 7 - 배포 검증 워크플로우 | 완료 | `scripts/build/verify-complete.sh` |
+| M3 | Issue 8 - factory-a end-to-end 배포 검증 | 완료 | `docs/issues/M3_deploy-pipeline.md` |
 | M4 | Issue 1 - Raw/Processed 데이터 계약 확정 | 완료 | `docs/issues/M4_data-plane.md` |
 | M4 | Issue 2 - factory-a-log-adapter 구현 | 완료 | `docs/issues/M4_data-plane.md` |
 | M4 | Issue 3 - edge-iot-publisher 구현 | 완료 | `docs/issues/M4_data-plane.md` |
 | M4 | Issue 4 - 이미지화 및 K3s 배포 | 완료 | `docs/issues/M4_data-plane.md` |
 | M4 | Issue 5 - IoT Core -> S3 적재 확인 | 완료 | `docs/issues/M4_data-plane.md` |
+| M4 | Issue 8 - factory-a 데이터 플레인 end-to-end 검증 | 완료 | `scripts/build/verify-complete.sh` |
 
 현재 바로 이어서 할 이슈:
 
 ```text
-[우선] Hub ArgoCD GitOps 배포 자동화
-  - Hub EKS ArgoCD에서 factory-a K3s로 aegis-spoke 배포하는 Ansible/sh 설정 파일 구성
-  - GitHub 연결 및 ApplicationSet 재연결 자동화 포함
-  - 현재 직접 배포(helm template | kubectl apply) -> GitOps 전환 목적
-
-M4 Issue 4 미완료 항목 (Hub 재구성 후):
-  - Hub EKS ArgoCD ApplicationSet이 factory-a K3s에 두 파드를 배포하는 것 검증
-
 M4 Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
+M5 Issue 1~4 - factory-b/c K3s, Tailscale, ArgoCD cluster/ApplicationSet 확장
 ```
 
 ## 현재 큰 상태
 
 ```text
-현재 단계: M4 Issue 5 완료 — S3 raw 적재 end-to-end 검증 완료, 문서 최신화 완료 (2026-05-18)
+현재 단계: M4 Issue 1~5 및 factory-a GitOps 배포 검증 완료, 문서 최신화 진행 (2026-05-19)
 
 완료: M3 Issue 1~5 배포 파이프라인 전체
 완료: M4 Issue 1~5 데이터 플레인
   - factory-a-log-adapter: factory_state 3s, infra_state 20s 주기 outbox write (--loop)
   - edge-iot-publisher: outbox scan -> MQTT -> IoT Core -> S3 raw
-  - 배포 이미지: sha-f71a104 (stable, ECR 유지 중, 파드는 검증 후 정리)
+  - 배포 이미지: sha-f71a104 (stable, ECR 유지 중)
   - S3 확인: raw/factory-a/factory_state/, raw/factory-a/infra_state/ 실적재 확인
   - canonical JSON 필수 필드 모두 채워짐 (published_at, data_plane_instance_id 포함)
+  - Hub ArgoCD ApplicationSet: aegis-spoke-factory-a -> factory-a/ai-apps Synced/Healthy 확인
 
 버그 수정 이력 (2026-05-18 세션):
   - fix 1: factory-a-log-adapter CMD --once -> --loop (CrashLoopBackOff)
@@ -89,18 +86,19 @@ M4 Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
   - fix 3: PVC fsGroup: 10001 pod securityContext 추가 (outbox 디렉토리 권한)
   - fix 4: factory-a-log-adapter outbox 파일 chmod 0o640 (NamedTemporaryFile 기본 600 -> cross-user 읽기 불가)
 
-현재 배포 방식: helm template | kubectl apply 직접 배포 (Hub ArgoCD가 아님)
-  - 이유: Hub EKS가 현재 삭제된 상태
-  - 목표: Hub 재구성 후 ApplicationSet GitOps 배포로 전환
+현재 배포 방식:
+  - build-hub.sh: Hub EKS/ArgoCD/Tailscale/cluster Secret 등록
+  - build-admin-ui-after-ns.sh: Admin UI HTTPS Ingress 활성화
+  - build-iot-factory-a.sh: IoT Secret 준비 후 ApplicationSet 배포
+  - verify-complete.sh: Hub/IoT/factory-a rollout 통합 검증
 
-현재 AWS 상태: Foundation/IoT/ECR 리소스 활성, Hub EKS 삭제 상태
+현재 AWS 상태: Foundation/IoT/ECR 리소스 활성, Hub EKS는 build/destroy로 반복 재생성 가능
 이미지: ECR 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/{factory-a-log-adapter,edge-iot-publisher}:sha-f71a104
 IoT Secret: ai-apps/aws-iot-factory-a-cert 유지 중
 ECR pull secret: ai-apps/ecr-registry 유지 중
 Longhorn PVC: aegis-spoke-outbox 유지 중
 
-다음 우선: Hub ArgoCD 배포 자동화 (Ansible/sh) 구성 -> GitOps 배포 검증
-그 다음: M4 Issue 6 Lambda data processor 구현
+다음 우선: M4 Issue 6 Lambda data processor 구현 또는 M5 factory-b/c 확장
 보류: M3 Issue 6~8, M5~M7 전체
 후속 리팩토링: M7 Issue 0에서 repo 분리 및 OIDC CI/CD 고도화
 
@@ -129,7 +127,7 @@ Longhorn PVC: aegis-spoke-outbox 유지 중
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
 AWS 실제 리소스 상태: 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 재생성 완료. Hub EKS, foundation S3/AMP/ECR/IoT Rule, `factory-a` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태.
 Terraform state: infra/hub apply 완료, infra/foundation apply 완료
-다음 작업 우선순위: M4 Issue 2 factory-a-log-adapter 구현.
+다음 작업 우선순위: M4 Issue 6 Lambda data processor 구현 또는 M5 factory-b/c 확장.
 ```
 
 ## 지금까지 완료한 일
@@ -161,8 +159,8 @@ Terraform state: infra/hub apply 완료, infra/foundation apply 완료
 - WAF, Cognito, 외부 OIDC/SSO는 MVP 필수 범위에서 제외하고 운영 보안 강화 백로그인 M1 Issue 11로 분리했다.
 - 도메인은 `minsoo-tech.cloud` 기준으로 확정했다. Route53 Hosted Zone NS는 `ns-1079.awsdns-06.org`, `ns-1913.awsdns-47.co.uk`, `ns-7.awsdns-00.com`, `ns-872.awsdns-45.net`이다.
 - `scripts/build/build-hub.sh`는 Terraform apply 직후 `scripts/ops/admin-ui-nameservers.sh`를 실행해 `secret/admin-ui-nameservers.txt`를 갱신한다. Gabia에 입력할 NS는 재생성 후 이 파일을 다시 확인한다.
-- 현재 기본값은 `ADMIN_UI_INGRESS_ENABLED=false`다. `scripts/build/build-all.sh`는 Admin UI용 Route53 Hosted Zone/ACM certificate와 NS 파일까지만 준비하고, Gabia NS 위임 뒤 `scripts/build/build-admin-ui-after-ns.sh`로 ACM `ISSUED` 대기와 Admin UI Ingress 활성화를 별도 실행한다. 이미 NS 위임과 ACM 발급이 끝난 상태에서 Hub만 다시 적용할 때는 `ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh`를 사용할 수 있다.
-- 현재 기본값은 `BUILD_TAILSCALE=true`이므로 `scripts/build/build-hub.sh`와 `scripts/build/build-all.sh`는 Hub bootstrap 이후 Tailscale Operator, factory-a egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD `factory-a` cluster Secret을 자동 복구/검증한다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 실패한다.
+- 현재 기본값은 `ADMIN_UI_INGRESS_ENABLED=false`다. `scripts/build/build-hub.sh`는 Admin UI용 Route53 Hosted Zone/ACM certificate와 NS 파일까지만 준비하고, Gabia NS 위임 뒤 `scripts/build/build-admin-ui-after-ns.sh`로 ACM `ISSUED` 대기와 Admin UI Ingress 활성화를 별도 실행한다.
+- 현재 기본값은 `BUILD_TAILSCALE=true`이므로 `scripts/build/build-hub.sh`는 Hub bootstrap 이후 Tailscale Operator, factory-a egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD `factory-a` cluster Secret을 자동 복구/검증한다. Spoke ApplicationSet 배포는 `build-iot-factory-a.sh`에서 IoT Secret 준비 후 수행한다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 실패한다.
 
 ### AWS CLI MFA 및 Terraform 접근
 
@@ -233,8 +231,7 @@ Capacity: On-Demand
 
 ### M1 Issue 3 Hub ArgoCD
 
-- 2026-05-06에 `scripts/build/build-all.sh` 기준으로 Hub EKS, ArgoCD, foundation S3, IoT Rule, IRSA 구성을 재생성하고 검증했다.
-- 2026-05-08에 `scripts/destroy/destroy-all.sh` 기준으로 Hub/Foundation/IoT/K3s Secret을 삭제했다.
+- 2026-05-19 기준 표준 생성 순서는 `build-hub.sh` -> `build-admin-ui-after-ns.sh` -> `build-iot-factory-a.sh` -> `verify-complete.sh`다.
 - `aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS` 완료.
 - `kubectl get nodes -o wide`에서 EKS worker node 2대 `Ready` 확인.
 - Hub namespace/LimitRange는 처음 Terraform으로 검증했고, 최종 기준은 Ansible bootstrap으로 전환했다.
@@ -267,7 +264,7 @@ Prometheus Agent: pod Running, AMP remote_write 검증 완료
 AWS Load Balancer Controller: 2 pods Running
 Foundation S3 bucket: aegis-bucket-data active
 AMP Workspace ID: ws-c46e6ad0-9259-4a06-9fa8-da92aa2891a8
-ECR repository: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/edge-agent active, scanOnPush=true, MUTABLE
+ECR repositories: aegis/edge-agent, aegis/factory-a-log-adapter, aegis/edge-iot-publisher active
 IoT Thing: AEGIS-IoTThing-factory-a active
 IoT Policy: AEGIS-IoTPolicy-factory-a active
 IoT Rule: AEGIS_IoTRule_factory_a_raw_s3 active
@@ -279,7 +276,7 @@ Tailscale UI: https://100.78.107.75/ for ArgoCD, http://100.117.77.36/ for Grafa
 ArgoCD cluster Secret: cluster-factory-a -> https://factory-a-master-tailnet.argocd.svc.cluster.local:6443
 GitOps Application: aegis-spoke-factory-a Synced + Healthy
 factory-a K3s: master/worker1/worker2 Ready
-factory-a smoke workload: aegis-spoke-system/aegis-spoke-smoke Deployment 1/1, Pod Running
+factory-a data-plane workloads: ai-apps/aegis-spoke-edge-iot-publisher, ai-apps/aegis-spoke-factory-a-log-adapter
 terraform state: infra/hub apply complete
 terraform state: infra/foundation apply complete
 ```
@@ -289,8 +286,7 @@ terraform state: infra/foundation apply complete
 - `terraform init`은 provider/module을 로컬에 내려받는 작업이라 AWS 리소스를 만들지 않는다.
 - AWS 리소스가 실제로 만들어지는 시점은 `terraform apply` 실행 시점이다.
 - 테스트가 끝나면 반드시 `scripts/destroy/destroy-hub.sh` 또는 `scripts/destroy/destroy-all.sh`로 EKS, NAT Gateway, node group을 제거한다.
-- 2026-05-15에는 `scripts/build/build-all.sh --admin-ui` 이후 Gabia NS 위임, `scripts/build/build-admin-ui-after-ns.sh`, Tailscale/IoT/ApplicationSet 검증까지 완료했다.
-- `build-all.sh --admin-ui`는 이제 Admin UI Ingress를 즉시 켜지 않고 Route53/ACM/NS 출력까지만 준비한다. NS 위임 후 `build-admin-ui-after-ns.sh`를 실행한다.
+- 2026-05-19에는 `build-hub.sh` 이후 Gabia NS 위임, `build-admin-ui-after-ns.sh`, `build-iot-factory-a.sh`, `verify-complete.sh` 기준으로 실행 순서를 재정렬했다.
 
 과거 2026-05-08 삭제 전 검증 기록:
 
@@ -379,7 +375,7 @@ secret exists, DATA=4
 
 ### 1. 다음 시작 작업: Hub ArgoCD GitOps 배포 자동화
 
-M4 Issue 5까지 완료했다. 현재 factory-a 배포는 `helm template | kubectl apply` 직접 방식으로 검증됐으나, Hub EKS ArgoCD를 통한 GitOps 배포가 완성되지 않은 상태다(M4 Issue 4 미완료 항목).
+M4 Issue 5까지 완료했고, 2026-05-19 기준 factory-a 배포는 Hub EKS ArgoCD ApplicationSet 경로로 전환했다.
 
 다음 세션에서 진행할 내용:
 
@@ -393,7 +389,7 @@ Hub ArgoCD GitOps 배포 자동화 구성
     - factory-a-log-adapter, edge-iot-publisher 두 파드가 ArgoCD GitOps로 배포되는 것 검증
 
   사전 조건:
-    - Hub EKS 재구성 (scripts/build/build-all.sh)
+    - Hub EKS 재구성 (scripts/build/build-hub.sh)
     - factory-a master Tailscale 참여 상태 유지 (현재 정상)
     - ECR 이미지 sha-f71a104 유지 (현재 정상)
     - IoT Secret, ECR pull secret ai-apps namespace에 존재 (현재 정상)
@@ -418,7 +414,7 @@ M4 Issue 6 Lambda data processor 구현
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
-scripts/build/build-all.sh
+scripts/build/build-hub.sh
 ssh minsoo@10.10.10.10 'tailscale status --self; tailscale ip -4'
 aws eks describe-cluster --region ap-south-1 --name AEGIS-EKS
 ```
@@ -441,7 +437,7 @@ scripts/build/build-hub.sh
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
-scripts/build/build-all.sh
+scripts/build/build-hub.sh
 ```
 
 Admin UI Ingress/ALB는 전체 생성과 분리해, Gabia NS 위임 뒤 아래 진입점을 사용한다.
@@ -616,7 +612,7 @@ M4 Issue 2~5 완료:
   GitHub Actions matrix 빌드 3종: edge-agent, factory-a-log-adapter, edge-iot-publisher
   ECR 이미지 sha-f71a104 push 완료
   Helm chart 확장: imagePullSecrets, fsGroup: 10001, Longhorn storageClass
-  helm template | kubectl apply 직접 배포 검증 (Hub EKS 없음)
+  초기 helm template | kubectl apply 직접 배포 검증 후 Hub ArgoCD ApplicationSet 배포 경로로 전환
   S3 raw 적재 확인: raw/factory-a/factory_state/, raw/factory-a/infra_state/
   검증 완료 후 파드 정리, ECR 이미지/PVC/IoT Secret은 유지
 
@@ -627,8 +623,8 @@ M4 Issue 2~5 완료:
   docs/ops/10_edge_workload_placement.md 실제 결과 반영
 
 다음 세션 우선 작업:
-  Hub EKS 재구성 + Hub ArgoCD에서 GitHub 연결 및 factory-a K3s 배포 Ansible/sh 파일 구성
-  -> 현재 직접 배포를 GitOps로 전환하는 것이 목적
+  Hub EKS 재구성 + Hub ArgoCD ApplicationSet 기반 factory-a K3s 배포 자동화 구성
+  -> 직접 배포 검증 이력을 GitOps 운영 경로로 전환 완료
   그 이후: M4 Issue 6 Lambda data processor 구현
 ```
 

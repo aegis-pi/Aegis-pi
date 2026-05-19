@@ -137,7 +137,7 @@ Aegis-Pi Hub의 실행 환경인 EKS 클러스터를 생성한다.
 - `kubectl cluster-info` 확인: control plane 및 CoreDNS endpoint 응답 정상
 - 최소 분리 구조: `infra/hub`는 VPC/EKS, `scripts/ansible`은 namespace/LimitRange/ArgoCD bootstrap, `infra/foundation`은 S3/AMP/IoT Rule 같은 영속 리소스
 - 이후 모든 신규 작업은 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD 기준으로 분류한다.
-- 2026-05-08 현재 `infra/hub`는 destroy 완료 상태이며, Hub EKS와 ArgoCD는 삭제됐다. rebuild 시 같은 Terraform/Ansible 기준으로 재생성한다.
+- 2026-05-19 현재 `infra/hub`는 `scripts/build/build-hub.sh`로 재생성한다. 같은 흐름에서 Hub EKS, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Tailscale cluster 등록까지 Ansible로 bootstrap한다.
 
 ### GitHub Issue Comment Draft
 

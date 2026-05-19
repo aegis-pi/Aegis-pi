@@ -22,6 +22,7 @@
 | 2026-05-15 | rev-20260515-06 | M3 Issue 6 manifest 자동 갱신은 실제 Edge data-plane 로직 확정 전 보류하고 M7 최종 점검 항목으로 이관 |
 | 2026-05-15 | rev-20260515-07 | M3 Issue 7/8은 Issue 6 재개 이후 진행하도록 보류하고 M4로 이동 결정 |
 | 2026-05-15 | rev-20260515-08 | M4에서 `factory-a-log-adapter`, `edge-iot-publisher`를 확정한 뒤 M3 Issue 6~8을 재개하는 순서로 정리 |
+| 2026-05-19 | rev-20260519-01 | smoke chart는 history로 남기고, 현재 ApplicationSet 배포 기준을 실제 data-plane chart와 `build-iot-factory-a.sh` 이후 배포 흐름으로 최신화 |
 
 ---
 
@@ -126,7 +127,7 @@ Edge AI / Sensor 이벤트
 ### GitHub Issue Comment Draft
 
 - 상태: 완료
-- 진행 요약: `aegis-pi-gitops` 저장소에 M3 GitOps source of truth 구조를 만들고, `charts/aegis-spoke` 공통 Helm chart와 `envs/factory-a|b|c/values.yaml` 공장별 override를 분리했다. MVP 배포 검증 대상은 기존 `factory-a` 운영 workload를 건드리지 않는 `aegis-spoke-smoke`로 정했다.
+- 진행 요약: `aegis-pi-gitops` 저장소에 M3 GitOps source of truth 구조를 만들고, `charts/aegis-spoke` 공통 Helm chart와 `envs/factory-a|b|c/values.yaml` 공장별 override를 분리했다. 초기 검증은 `aegis-spoke-smoke`로 수행했고, 2026-05-19 기준 현재 chart는 `factory-a-log-adapter`와 `edge-iot-publisher` data-plane 배포 기준이다.
 - 변경/확인: `/home/vicbear/Aegis/aegis-pi-gitops`의 `README.md`, `charts/aegis-spoke/`, `envs/factory-a/values.yaml`, `envs/factory-b/values.yaml`, `envs/factory-c/values.yaml`, `applicationsets/aegis-spoke-applicationset.yaml`, `.github/workflows/validate.yaml`
 - 검증: `helm lint charts/aegis-spoke -f envs/factory-a/values.yaml` 통과, `helm template aegis-spoke charts/aegis-spoke -f envs/factory-a|b|c/values.yaml` 렌더링 통과, GitHub Actions `Validate GitOps Manifests` 통과
 - 후속: M3 Issue 2에서 ECR 저장소 구성과 이미지 태그 전략을 확정한다.
@@ -351,7 +352,7 @@ M3 Issue 3 완료.
 ### GitHub Issue Comment Draft
 
 - 상태: 완료
-- 진행 요약: Hub ArgoCD가 `https://github.com/aegis-pi/aegis-pi-gitops.git`를 source of truth로 읽도록 ApplicationSet을 Ansible bootstrap으로 적용했다. 기본 scope는 `factory-a`만 대상으로 제한했고, `aegis-spoke-factory-a` Application이 자동 생성되어 Tailscale 경유로 factory-a K3s에 smoke app을 배포했다.
+- 진행 요약: Hub ArgoCD가 `https://github.com/aegis-pi/aegis-pi-gitops.git`를 source of truth로 읽도록 ApplicationSet을 Ansible bootstrap으로 적용했다. 기본 scope는 `factory-a`만 대상으로 제한했고, `aegis-spoke-factory-a` Application이 자동 생성되어 Tailscale 경유로 factory-a K3s에 배포한다. 초기에는 smoke app으로 검증했고, 현재는 data-plane chart로 전환했다.
 - 변경/확인: `scripts/ansible/inventory/group_vars/hub_eks.yml`, `scripts/ansible/templates/aegis-spoke-applicationset.yaml.j2`, `scripts/ansible/playbooks/hub_aegis_spoke_applicationset_bootstrap.yml`, `scripts/ansible/playbooks/hub_aegis_spoke_applicationset_verify.yml`
 - 검증: `hub_aegis_spoke_applicationset_verify.yml` 통과, ArgoCD `aegis-spoke-factory-a` `Synced` + `Healthy`, factory-a K3s `aegis-spoke-system/aegis-spoke-smoke` Pod `Running`
 - 후속: M3 Issue 2/3에서 ECR image push/pull과 GitHub Actions OIDC build/push 흐름을 연결한다.
