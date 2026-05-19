@@ -1,7 +1,7 @@
 # AWS Cost Baseline
 
 상태: source of truth
-기준일: 2026-05-08
+기준일: 2026-05-19
 리전: `ap-south-1` / Asia Pacific (Mumbai)
 
 ## 목적
@@ -12,108 +12,171 @@
 
 ## 현재 Aegis 리소스 상태
 
-2026-05-08 `scripts/destroy/destroy-all.sh` 실행 후 확인 결과다. Hub active 비용 산정은 아래 "Hub active 시 비용" 섹션에 별도로 유지한다.
+2026-05-19 기준 Hub/Foundation 재생성 후 실행 중인 상태다. `kubectl get nodes` 및 Terraform 상태로 검증했다. ALB는 현재 비활성이며 UI 접근은 Tailscale을 통해 이루어진다.
 
 | 영역 | 리소스 | 수량/크기 | 상태 |
 | --- | --- | ---: | --- |
-| EKS | `AEGIS-EKS` control plane | 0 | deleted |
-| EC2 | `AEGIS-EKS-node` | 0 | previous instances terminated |
-| EBS | EKS node root volume | 0 | deleted/not found |
-| VPC/Subnet | `AEGIS-VPC` and subnets | 0 | deleted |
-| NAT Gateway | `AEGIS-NAT-public-Azone`, `AEGIS-NAT-public-Czone` | 0 | deleted |
-| Public IPv4 | NAT Gateway Elastic IP / ALB public IPv4 | 0 | released with deleted resources |
-| S3 | `aegis-bucket-data` | 0 | bucket deleted |
-| IoT Core | `AEGIS_IoTRule_factory_a_raw_s3` | 0 | deleted with foundation |
-| IoT Core | `AEGIS-IoTThing-factory-a` / `AEGIS-IoTPolicy-factory-a` / certificate | 0 | deleted |
-| AMP | `AEGIS-AMP-hub` | 0 | workspace deleted |
-| EKS workload | `observability/grafana` | 0 | deleted with EKS |
-| EKS workload | `kube-system/aws-load-balancer-controller` | 0 | deleted with EKS |
-| Route53 | public hosted zone `minsoo-tech.cloud` | 0 | deleted |
-| ACM | public certificate for `minsoo-tech.cloud`, `argocd.minsoo-tech.cloud`, `grafana.minsoo-tech.cloud` | 0 | deleted |
-| ALB | `aegis-admin-ui` | 0 | deleted |
-| KMS | AEGIS EKS customer managed keys | 0 active | current and historical keys are `PendingDeletion` |
-| CloudWatch Logs | `/aws/eks/AEGIS-EKS/cluster` | 0 active EKS cluster | log group cost should be rechecked if retained outside Terraform |
+| EKS | `AEGIS-EKS` control plane (K8s v1.34) | 1 | running |
+| EC2 | `AEGIS-EKS-node` t3.medium | 2 | running (ap-south-1a, 1c) |
+| EBS | EKS node root volume gp3 20 GiB × 2 | 40 GiB | attached |
+| VPC/Subnet | `AEGIS-VPC` (10.0.0.0/16), public/private × 2 AZ | 1 VPC / 4 subnet | active |
+| NAT Gateway | `AEGIS-NAT-public-Azone`, `AEGIS-NAT-public-Czone` | 2 | active |
+| Elastic IP | NAT Gateway용 | 2 | in-use |
+| S3 | `aegis-bucket-data` | 1 | active |
+| IoT Core | `AEGIS_IoTRule_factory_a_raw_s3` / Thing / cert | 1 set | active |
+| AMP | `AEGIS-AMP-hub` workspace | 1 | active (usage-based) |
+| ECR | `aegis/edge-agent`, `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher` | 3 repo | active |
+| Route53 | public hosted zone `minsoo-tech.cloud` | 1 | active |
+| ACM | `minsoo-tech.cloud` + SAN 2개 | 1 | issued (no charge) |
+| KMS | AEGIS EKS cluster encryption key | 1 | active |
+| ALB | `aegis-admin-ui` | **0** | **not created** (Tailscale 접근 중) |
+| EKS workload | ArgoCD (7 pod), Grafana, Prometheus Agent | active | observability/argocd ns |
+| EKS workload | AWS LB Controller × 2, Tailscale Operator + 3 proxy | active | kube-system/tailscale ns |
+| CloudWatch Logs | `/aws/eks/AEGIS-EKS/cluster` | 1 | 보존 여부 별도 확인 필요 |
 
-현재 확인된 비활성 또는 미생성 항목:
+2026-05-08 destroy 이후 KMS key `775cd837-1961-4660-893f-f220d9f250be` 등 이전 키는 `PendingDeletion` 상태(삭제 예정일 2026-06-07)이며 대기 기간 동안 monthly key storage charge는 없다.
 
-- NLB 없음
-- ECR repository 없음
-- Dashboard VPC 없음
-- Resource Groups Tagging API는 삭제 직후 terminated/deleted 리소스나 `PendingDeletion` KMS key를 한동안 반환할 수 있다.
-- EKS managed node group Auto Scaling Group은 직접 비용 리소스가 아니므로 EC2/EBS/NAT/EKS 기준으로 비용 계산
+EKS managed node group Auto Scaling Group은 직접 비용 리소스가 아니므로 EC2/EBS/NAT/EKS 기준으로 비용 계산한다.
 
 ## 시간당 비용 계산
 
-### Hub active 시 비용
+### Hub active 시 고정 비용 (현재 상태: ALB 없음, Tailscale 접근)
+
+2026-05-19 기준 실제 running 리소스를 `kubectl describe nodes` 및 Terraform 상태로 확인한 결과다.
 
 | 비용 항목 | 수량 | 단가 | 계산 | 시간당 비용 |
 | --- | ---: | ---: | --- | ---: |
 | EKS standard cluster | 1 | `$0.1000 / hour` | `1 * 0.1000` | `$0.1000` |
 | EC2 Linux `t3.medium` | 2 | `$0.0448 / hour` | `2 * 0.0448` | `$0.0896` |
 | NAT Gateway hourly | 2 | `$0.0560 / hour` | `2 * 0.0560` | `$0.1120` |
-| Public IPv4 in-use | 2 | `$0.0050 / hour` | `2 * 0.0050` | `$0.0100` |
+| Elastic IP in-use (NAT) | 2 | `$0.0050 / hour` | `2 * 0.0050` | `$0.0100` |
 | EBS gp3 storage | 40 GiB | `$0.0912 / GB-month` | `40 * 0.0912 / 730` | `$0.0050` |
 | KMS customer managed key | 1 | `$1.00 / month` | `1 / 730` | `$0.0014` |
 | Route53 public hosted zone | 1 | `$0.50 / month` | `0.50 / 730` | `$0.0007` |
-| Application Load Balancer | 1 | `$0.0239 / hour` | `1 * 0.0239` | `$0.0239` |
-| ALB LCU | 최소 사용량 기준 1 LCU 가정 | `$0.0080 / LCU-hour` | `1 * 0.0080` | `$0.0080` |
-| Public IPv4 for internet-facing ALB | 2개 추정 | `$0.0050 / IP-hour` | `2 * 0.0050` | `$0.0100` |
-| S3 Standard storage | 366 bytes | `$0.025 / GB-month` | negligible | `~$0.0000` |
-| AMP workspace | 1 | usage-based | ingest/storage/query 사용량 기준. 고정 시간 비용에는 미포함 | `usage-based` |
-
-Hub active + Admin UI Ingress 기준 고정 시간 비용:
+| S3 Standard storage | ~negligible | `$0.025 / GB-month` | negligible | `~$0.0000` |
+| **고정 합계 (ALB 없음)** | | | | **`$0.3187 / hour`** |
 
 ```text
-0.1000 + 0.0896 + 0.1120 + 0.0100 + 0.0050 + 0.0014 + 0.0007 + 0.0239 + 0.0080 + 0.0100 = 0.3606 USD/hour
+0.1000 + 0.0896 + 0.1120 + 0.0100 + 0.0050 + 0.0014 + 0.0007 = 0.3187 USD/hour
 ```
 
-환산:
-
-| 기간 | 예상 비용 |
+| 기간 | 고정 비용 |
 | --- | ---: |
-| 1시간 | `~$0.36` |
-| 24시간 | `~$8.65` |
-| 730시간 | `~$263.24` |
+| 1시간 | `~$0.32` |
+| 24시간 | `~$7.65` |
+| 730시간 (1개월 상시) | `~$232.7` |
 
-위 계산은 세금, 크레딧, Free Tier, Savings Plans, Reserved Instances, 환율을 반영하지 않은 온디맨드 기준이다. AMP ingest/storage/query 비용은 사용량 기반이라 위 고정 시간 비용 합계에는 포함하지 않는다. AWS Load Balancer Controller pod 자체는 EKS node 위에서 실행되므로 현재 고정 시간 비용을 별도로 늘리지 않는다.
+위 계산은 세금, 크레딧, Free Tier, Savings Plans, Reserved Instances, 환율을 반영하지 않은 온디맨드 기준이다. AMP ingest/storage/query 비용은 사용량 기반이라 아래 별도 섹션에서 계산한다. AWS Load Balancer Controller pod 자체는 EKS node 위에서 실행되므로 고정 시간 비용에 별도 항목이 없다.
 
-### Admin UI Ingress 비활성화 시 절감 비용
+### Admin UI Ingress 활성화 시 추가 비용
 
-`scripts/destroy/destroy-hub.sh`를 실행하거나 Admin UI Ingress를 삭제하면 Public ALB 1개가 제거된다. 2026-05-06 AWS Pricing API 기준 `ap-south-1` Application Load Balancer 단가는 `$0.0239 / hour`, LCU는 `$0.008 / LCU-hour`다.
+`hub_admin_ingress_bootstrap.yml` Ansible playbook으로 Admin UI Ingress를 활성화하면 Public ALB 1개가 추가된다. 현재는 비활성이다.
 
 | 비용 항목 | 수량 | 단가 | 계산 | 시간당 비용 |
 | --- | ---: | ---: | --- | ---: |
 | Application Load Balancer | 1 | `$0.0239 / hour` | `1 * 0.0239` | `$0.0239` |
 | ALB LCU | 최소 사용량 기준 1 LCU 가정 | `$0.0080 / LCU-hour` | `1 * 0.0080` | `$0.0080` |
 | Public IPv4 for internet-facing ALB | 2개 추정 | `$0.0050 / IP-hour` | `2 * 0.0050` | `$0.0100` |
+| **ALB 추가 합계** | | | | **`$0.0419 / hour`** |
 
-Admin UI Ingress가 만드는 추가 고정성 비용 추정:
+ALB 포함 시 고정 시간 비용: `0.3187 + 0.0419 = 0.3606 USD/hour` (~$263.2/month 상시)
 
-```text
-0.0239 + 0.0080 + 0.0100 = 0.0419 USD/hour
-```
-
-Admin UI Ingress를 끄면 위 비용, 약 `0.0419 USD/hour`를 줄일 수 있다. 실제 LCU와 public IPv4 수는 트래픽, AZ, ALB 동작 상태에 따라 달라질 수 있으므로 `aws elbv2 describe-load-balancers`, Cost Explorer, Public IP Insights로 다시 확인한다.
+실제 LCU와 public IPv4 수는 트래픽, AZ, ALB 동작 상태에 따라 달라질 수 있으므로 `aws elbv2 describe-load-balancers`, Cost Explorer, Public IP Insights로 다시 확인한다.
 
 ## 사용량 기반 추가 비용
 
-아래 항목은 켜져 있다는 사실만으로 큰 비용이 발생하지 않거나, 트래픽/요청량에 따라 비용이 달라진다.
+### AMP (Amazon Managed Prometheus) — 주요 사용량 비용
+
+AMP는 현재 구성에서 **가장 큰 사용량 기반 비용**이다. 2026-05-19 기준 실제 running 중인 Prometheus Agent scrape 설정(`scripts/ansible/templates/prometheus-agent.yaml.j2`)을 기반으로 계산했다.
+
+**scrape_interval: 30초 기준 활성 시계열 추정:**
+
+| Scrape Job | 대상 | 추정 활성 시계열 |
+| --- | --- | ---: |
+| `kubernetes-apiservers` | K8s API 서버 메트릭 엔드포인트 | ~400–600 |
+| `kubernetes-nodes` | kubelet /metrics × 2 노드 | ~300–500 |
+| `prometheus-agent` | 자기 자신 (self-scrape) | ~80–150 |
+| `kubernetes-pods` | `prometheus.io/scrape: "true"` annotation 파드만 | ~50–100 |
+| **합계** | | **~830–1,350** |
+
+**월간 샘플 수 및 AMP 인제스트 비용 ($0.90 / million samples):**
+
+| 시계열 수 | 월간 샘플 수 | 인제스트 비용 |
+| ---: | ---: | ---: |
+| 830 (하한) | 71.6M | ~$64 |
+| 1,100 (중간) | 95.0M | **~$86** |
+| 1,350 (상한) | 116.6M | ~$105 |
+
+월간 샘플 수 계산식: `시계열 수 × 2회/분 × 43,200분/월`
+
+**AMP 스토리지 및 쿼리:**
+
+| 항목 | 단가 | 추정 월 비용 |
+| --- | --- | ---: |
+| 스토리지 | $0.03 / million sample-hour | ~$2–5 |
+| Grafana 쿼리 (30초 refresh) | $0.01 / 1,000 query samples | ~$0.5–2 |
+
+**AMP 월 소계: ~$66–112** (중간값 기준 ~$89)
+
+**AMP 비용 절감 방법:** `prometheus-agent.yaml.j2`의 `scrape_interval`을 30s → 60s로 변경하면 샘플이 절반으로 줄어 약 **$43/월** 절감 가능하다. 데모/포트폴리오 환경에서 60초 간격은 운영상 문제없다.
+
+### NAT Gateway 데이터 처리
+
+| 트래픽 원인 | 추정량 | 비고 |
+| --- | --- | --- |
+| ArgoCD git polling (3분 간격) | ~100 MB/일 | GitHub API + git fetch |
+| Prometheus Agent → AMP remote_write | ~200–400 MB/일 | 압축 전송 |
+| AWS API 호출 (EKS, IAM 등) | ~50 MB/일 | |
+| ECR 이미지 pull | ~500 MB/회 | 배포 시 일회성 |
+
+추정 NAT 데이터량: **10–15 GB/월** → 비용: **~$0.56–0.84/월** (데모 수준에서 무시 가능)
+
+### 기타 사용량 기반 항목
 
 | 항목 | 기준 | 현재 판단 |
 | --- | --- | --- |
-| NAT Gateway data processing | `$0.056 / GB` | EKS node가 인터넷/AWS public endpoint로 나가는 트래픽이 늘면 증가 |
 | EC2 data transfer | 방향/리전/AZ에 따라 다름 | 현재 별도 대량 전송 없음 |
 | t3 unlimited CPU credit | surplus credit 사용 시 과금 | 2026-05-06 확인 결과 `CPUSurplusCreditsCharged = 0` |
-| S3 request/transfer | request 수와 data transfer 기준 | 현재 객체 2개, 366 bytes라 무시 가능 |
-| IoT Core messaging/rules | 메시지와 rule action 사용량 기준 | 현재 IoT 리소스는 삭제됨. rebuild 후 테스트 메시지 수준부터 재검증 |
-| AMP ingest/storage/query | ingested samples, stored metrics, query samples 기준 | 현재 AMP workspace는 삭제됨. rebuild 후 Prometheus Agent remote_write가 시작되면 사용량 기반 비용 발생 가능 |
-| Grafana AMP query | AMP query samples 기준 | 현재 Hub Grafana는 삭제됨. rebuild 후 dashboard/Explore 사용량에 따라 AMP query 비용 증가 가능 |
-| Grafana image/chart pull | NAT Gateway data processing 기준 | build/upgrade 시 container image와 chart pull 트래픽이 발생할 수 있음 |
+| S3 request/transfer | request 수와 data transfer 기준 | factory_state/infra_state raw 적재가 시작되면 PUT request가 주 비용 변수 |
+| IoT Core messaging/rules | 메시지와 rule action 사용량 기준 | `build-iot-factory-a.sh` 이후 publisher 송신량에 따라 증가 |
+| ECR storage | $0.10 / GB-month (50GB 초과분) | 현재 이미지 용량 기준 free tier 이내 |
+| Route53 DNS queries | query 수 기준 | Hosted Zone 고정 비용 외 소량 |
+| KMS API requests | 월 20,000 request free tier 이후 과금 | Hub EKS 실행 중 secret 암호화 수준 |
+| CloudWatch Logs ingest/storage | ingest bytes와 저장량 기준 | active EKS cluster 로그 보존 여부 별도 확인 필요 |
 | ACM public certificate | public certificate 기준 | ALB에 연결하는 public ACM certificate 자체는 과금 없음 |
-| Route53 DNS queries | query 수 기준 | Hosted Zone 고정 비용 외 DNS query가 늘면 사용량 기반 비용 발생 |
-| ALB LCU | new connections, active connections, processed bytes, rule evaluations 기준 | Admin UI Ingress를 켠 뒤 관리자 접속량이 늘면 증가 |
-| KMS API requests | request 수 기준, 월 20,000 request free tier 이후 과금 | active EKS key 없음. AEGIS keys는 scheduled deletion 상태 |
-| CloudWatch Logs ingest/storage | ingest bytes와 저장량 기준 | active EKS cluster 없음. retained log group이 있으면 별도 확인 필요 |
+| ALB LCU | new connections, processed bytes 기준 | Admin UI Ingress 활성화 후 접속량에 따라 증가 |
+
+## 주요 비용 원인 분석 (2026-05-19 기준)
+
+현재 상태(ALB 없음)에서 월 30일 상시 운영 가정 시 비용 구조:
+
+| 순위 | 항목 | 월 비용 | 전체 비중 | 비고 |
+| ---: | --- | ---: | ---: | --- |
+| 1 | AMP 인제스트 | ~$86 | ~27% | scrape_interval 조정으로 절감 가능 |
+| 2 | NAT Gateway (hourly × 2) | $81.8 | ~26% | AZ당 1개 필수 구조 |
+| 3 | EKS control plane | $73.0 | ~23% | 고정 비용 |
+| 4 | EC2 t3.medium × 2 | $65.4 | ~21% | 인스턴스 타입 조정 가능 |
+| 5 | 기타 (EBS, Route53, KMS, NAT 데이터 등) | ~$12 | ~4% | |
+| | **합계** | **~$318** | 100% | |
+
+**고정 비용 합계 (ALB 없음): ~$232.7/월**
+**사용량 기반 합계 (AMP 중간값 + NAT 데이터): ~$87/월**
+**총합 (상시 운영): ~$319/월**
+
+Admin UI ALB 추가 시: +$30.5/월 → **~$350/월**
+
+## 실제 사용 패턴별 월 비용
+
+이 프로젝트처럼 작업 시에만 Hub를 재생성하고 사용 후 destroy하는 패턴 기준이다.
+
+| 사용 패턴 | 월 가동 시간 | 고정 비용 | AMP 비용 | 합계 |
+| --- | ---: | ---: | ---: | ---: |
+| 하루 4시간 × 20일 | 80시간 | ~$25.5 | ~$9.5 | **~$35** |
+| 하루 8시간 × 20일 | 160시간 | ~$51.0 | ~$19 | **~$70** |
+| 하루 8시간 × 30일 | 240시간 | ~$76.5 | ~$29 | **~$106** |
+| 상시 운영 | 730시간 | ~$232.7 | ~$87 | **~$319** |
+
+`destroy-all.sh` 후 고정 비용과 AMP/S3/IoT 사용량 비용 모두 $0이 된다.
 
 ### Destroy 이후 비용 기준
 
@@ -197,7 +260,7 @@ scripts/destroy/destroy-hub.sh
 
 ## 가격 출처
 
-2026-05-06 기준 AWS Pricing API와 공식 가격 문서를 함께 확인했고, 현재 리소스 상태는 2026-05-08 destroy 검증 결과로 갱신했다.
+2026-05-06 기준 AWS Pricing API와 공식 가격 문서를 함께 확인했고, 현재 리소스 상태는 2026-05-19 `kubectl describe nodes` 및 Terraform 상태 검증 결과로 갱신했다.
 
 - Amazon EKS pricing: https://aws.amazon.com/eks/pricing/
 - Amazon EC2 On-Demand pricing: https://aws.amazon.com/ec2/pricing/on-demand/
@@ -209,3 +272,4 @@ scripts/destroy/destroy-hub.sh
 - Elastic Load Balancing pricing: https://aws.amazon.com/elasticloadbalancing/pricing/
 - Amazon Route53 pricing: https://aws.amazon.com/route53/pricing/
 - AWS Certificate Manager pricing: https://aws.amazon.com/certificate-manager/pricing/
+- Amazon Managed Service for Prometheus pricing: https://aws.amazon.com/prometheus/pricing/
