@@ -1,7 +1,7 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-05-19
+기준일: 2026-05-20
 
 ## 목적
 
@@ -9,11 +9,11 @@
 
 ## 현재 상태
 
-- 현재 운영 중인 구현 범위는 `factory-a` 단일 운영형 Spoke다. Hub EKS/ArgoCD/Prometheus Agent/Grafana/Admin UI HTTPS 기준선은 `scripts/build/build-hub.sh`와 `scripts/build/build-admin-ui-after-ns.sh`로 재생성 가능하다.
-- AWS Hub는 M1 Issue 0~10에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3/AMP 권한, Prometheus Agent remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress를 검증했다. 2026-05-19 기준 build 흐름은 Hub cluster 등록과 Spoke workload 배포를 분리한다.
+- 현재 운영형 구현 범위는 `factory-a` 단일 Spoke이며, 테스트베드 Spoke인 `factory-b/c`는 Hub ArgoCD cluster/Application 등록까지 완료됐다. Hub EKS/ArgoCD/Prometheus Agent/Grafana/Admin UI HTTPS 기준선은 `scripts/build/build-hub.sh`와 `scripts/build/build-admin-ui-after-ns.sh`로 재생성 가능하다.
+- AWS Hub는 M1 Issue 0~10에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3/AMP 권한, Prometheus Agent remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress를 검증했다. 2026-05-20 기준 build 흐름은 Hub platform, Spoke cluster 등록, Spoke workload 배포를 분리한다.
 - M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록, IoT Rule -> S3 raw 적재 검증을 완료했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
-- `factory-b`, `factory-c`, Dashboard VPC는 아직 구축 전이다. ECR/GitHub Actions/Hub ArgoCD ApplicationSet은 `factory-a` data-plane 이미지 기준으로 재구성됐다.
+- `factory-b`, `factory-c`는 VM K3s/Tailnet/ArgoCD cluster/Application 등록까지 완료했고, GitOps chart/values는 worker `hostPath` outbox 기준으로 전환했다. 다음 단계는 VM worker outbox 디렉터리 준비, 로컬 dummy generator, IoT Secret, `edge-iot-publisher` 활성화다. Dashboard VPC는 아직 구축 전이다.
 - 이 문서는 현재 동작 중인 로컬 기준선과 rebuild 가능한 Hub 기준선을 함께 기록한다.
 
 ## 물리 / 클러스터 구조
@@ -86,7 +86,7 @@ safe-edge-ai-apps
 
 ## 현재 Hub 상태
 
-M1 Hub 기준선은 Terraform과 Ansible로 생성/검증했고, 필요할 때 `scripts/build/build-hub.sh`로 재생성한다. Hub build는 ArgoCD cluster 등록까지만 수행하고, Spoke workload ApplicationSet은 IoT Secret 준비 후 `scripts/build/build-iot-factory-a.sh`에서 적용한다.
+M1 Hub 기준선은 Terraform과 Ansible로 생성/검증했고, 필요할 때 `scripts/build/build-hub.sh`로 재생성한다. Hub build는 Hub 내부 platform까지만 수행하고, Spoke cluster 등록과 Spoke workload ApplicationSet은 IoT/Spoke 등록 단계에서 적용한다.
 
 ```text
 AWS actual state: Hub EKS is ephemeral/rebuildable; foundation S3/AMP/ECR/IoT are separate durable baseline resources
@@ -109,7 +109,7 @@ infra/foundation  S3/AMP/IoT Rule
 Hub Kubernetes bootstrap:
 
 ```text
-scripts/ansible  kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, Prometheus Agent remote_write, Grafana AMP datasource, AWS Load Balancer Controller, Admin UI Ingress, Tailscale, ArgoCD cluster Secret, Spoke ApplicationSet
+scripts/ansible  kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, Prometheus Agent remote_write, Grafana AMP datasource, AWS Load Balancer Controller, Admin UI Ingress, Tailscale, ArgoCD cluster Secret, Spoke ApplicationSet. 기본 Hub build는 ArgoCD/Prometheus/Grafana/LB Controller까지만 실행하고, Admin UI와 factory-a/b/c K3s 의존 단계는 별도 entrypoint 또는 playbook에서 실행한다.
 ```
 
 ## 데이터 구조
@@ -138,6 +138,19 @@ InfluxDB safe_edge_db / Kubernetes API
 ```
 
 수집 주기: `factory_state` 3초, `infra_state` 20초
+
+`factory-b/c` 목표 데이터 흐름:
+
+```text
+VM local dummy generator
+  -> /var/lib/aegis/outbox (worker hostPath)
+  -> edge-iot-publisher (ai-apps, worker)
+  -> AWS IoT Core MQTT
+  -> IoT Rule
+  -> S3 raw (aegis-bucket-data)
+```
+
+`factory-b/c`에서는 dummy generator를 Kubernetes Deployment로 배포하지 않는다. 각 VM 담당자가 로컬 script 또는 systemd service로 실행하고, Hub ArgoCD는 publisher와 Kubernetes 리소스만 관리한다.
 
 InfluxDB measurement:
 

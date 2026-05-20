@@ -1,7 +1,7 @@
 # Edge Data-Plane 배포 계획
 
 상태: draft
-기준일: 2026-05-15
+기준일: 2026-05-20
 
 ## 목적
 
@@ -18,8 +18,8 @@ factory-a:
     -> AWS IoT Core
 
 factory-b/c:
-  dummy-data-generator
-    -> local spool/outbox
+  VM-local dummy-data-generator
+    -> worker hostPath outbox
     -> edge-iot-publisher
     -> AWS IoT Core
 ```
@@ -29,7 +29,7 @@ factory-b/c:
 | 컴포넌트 | 배포 위치 | 역할 |
 | --- | --- | --- |
 | `factory-a-log-adapter` | `factory-a` K3s | 실제 Safe-Edge raw/log/status 데이터를 canonical JSON으로 변환 |
-| `dummy-data-generator` | `factory-b/c` K3s | canonical JSON 형식의 가데이터 생성 |
+| `dummy-data-generator` | `factory-b/c` VM 로컬 script/systemd service | canonical JSON 형식의 가데이터 생성 |
 | `edge-iot-publisher` | `factory-a/b/c` K3s | local spool/outbox의 JSON을 AWS IoT Core로 MQTT publish |
 
 `apps/edge-agent`는 M3 GitHub Actions/ECR 검증용 smoke image로 남긴다. 실제 데이터 플레인 구현은 M4/M5에서 위 컴포넌트 이름으로 추가한다.
@@ -47,7 +47,8 @@ GitHub Actions
   -> image build/test/push
 
 GitOps repo + Hub ArgoCD
-  -> factory-a/b/c K3s workload 배포와 drift 관리
+  -> factory-a K3s adapter/publisher 배포와 drift 관리
+  -> factory-b/c K3s publisher 배포와 drift 관리
 ```
 
 GitHub Actions는 Spoke K3s에 직접 `kubectl apply`하지 않는다. Hub ArgoCD가 Tailscale 경로로 각 Spoke cluster에 배포한다.
@@ -107,15 +108,21 @@ AEGIS_OUTBOX_DIR=/var/lib/aegis/outbox
 
 ## M5 확장 순서
 
-`factory-b/c`는 실제 센서가 없으므로 `dummy-data-generator`가 canonical JSON을 만든다. IoT Core 송신은 `factory-a`와 같은 `edge-iot-publisher`를 사용한다.
+`factory-b/c`는 실제 센서가 없으므로 VM 로컬 `dummy-data-generator`가 canonical JSON을 만든다. IoT Core 송신은 `factory-a`와 같은 `edge-iot-publisher`를 사용한다.
 
 ```text
-factory-b/c K3s
-  dummy-data-generator
+factory-b/c VM worker
+  local dummy-data-generator
+    -> /var/lib/aegis/outbox
+
+factory-b/c K3s worker
   edge-iot-publisher
+    -> hostPath /var/lib/aegis/outbox
 ```
 
 이 구조를 통해 테스트베드 공장도 실제 데이터 플레인과 같은 IoT Core/S3/Lambda/Dashboard 경로를 탄다.
+
+dummy generator를 Kubernetes Deployment로 배포하지 않는 이유는 테스트베드 입력을 VM 로컬에서 직접 제어하려는 요구 때문이다. ArgoCD는 공장별 publisher와 Kubernetes 리소스 상태만 관리하고, 입력 데이터 생성 프로세스는 각 VM 담당자가 로컬에서 시작/중지한다.
 
 ## Placement 기준
 
@@ -129,19 +136,21 @@ factory-b/c K3s
 
 초기에는 두 sender가 동시에 같은 outbox를 처리하지 않도록 `edge-iot-publisher`를 1 replica로 둔다. checkpoint/idempotency 검증 후 RollingUpdate 확장을 검토한다.
 
+`factory-b/c`에서는 worker node에 `aegis.workload-node=true` label을 적용하고 publisher를 해당 worker에 고정한다. outbox가 `hostPath`이므로 publisher Pod가 다른 노드에 뜨면 VM 로컬 generator가 쓰는 파일을 볼 수 없다. 테스트베드 b/c는 worker 1대 기준으로 이 제약을 수용한다.
+
 ## Secret 기준
 
 IoT Core 인증서와 private key는 K3s Secret으로 주입한다.
 
 ```text
 namespace: ai-apps
-secret: aws-iot-factory-a-cert
+secret: aws-iot-<factory-id>-cert
 mount path: /etc/aegis/iot
 ```
 
 Secret 값은 Git에 저장하지 않는다. 생성과 주입 절차는 `docs/ops/12_iot_core_thing_secret_mount.md`를 따른다.
 
-M4 data-plane workload namespace는 `ai-apps`로 확정했다. 동일 인증서는 `ai-apps/aws-iot-factory-a-cert` Secret을 사용하며, 운영 단계에서는 External Secrets/SealedSecrets 전환 기준을 별도로 정한다.
+M4 data-plane workload namespace는 `ai-apps`로 확정했다. `factory-a`는 `ai-apps/aws-iot-factory-a-cert` Secret을 사용한다. `factory-b/c`는 후속 IoT 등록 단계에서 `aws-iot-factory-b-cert`, `aws-iot-factory-c-cert`를 생성한다. 운영 단계에서는 External Secrets/SealedSecrets 전환 기준을 별도로 정한다.
 
 ## 검증 기준
 

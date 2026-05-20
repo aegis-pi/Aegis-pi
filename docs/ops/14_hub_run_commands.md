@@ -1,7 +1,7 @@
 # Hub Run Commands
 
 상태: source of truth
-기준일: 2026-05-19
+기준일: 2026-05-20
 
 ## 표준 3단계 실행
 
@@ -14,11 +14,23 @@ scripts/build/build-iot-factory-a.sh
 
 현재 표준 순서는 Hub -> Admin UI -> IoT/Spoke deploy다.
 
-`build-hub.sh`는 Hub AWS 인프라와 Hub Kubernetes platform을 올리고, Tailscale을 통해 ArgoCD가 `factory-a` K3s에 접근할 수 있도록 cluster Secret까지 등록한다. 단, Spoke workload ApplicationSet 배포는 기본값에서 실행하지 않는다.
+`build-hub.sh`는 Hub AWS 인프라와 Hub Kubernetes platform을 올린다. 이 단계는 factory-a K3s 가용성에 의존하지 않으며 ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller까지만 준비한다.
 
 `build-admin-ui-after-ns.sh`는 Gabia NS 위임 이후 ACM certificate가 `ISSUED`가 될 때까지 기다린 뒤 ArgoCD/Grafana HTTPS Ingress를 활성화한다.
 
-`build-iot-factory-a.sh`는 IoT Thing/Policy/certificate와 K3s Secret을 준비한 뒤 ArgoCD ApplicationSet을 적용해 `factory-a` data-plane workload 배포를 시작한다.
+`build-iot-factory-a.sh`는 IoT Thing/Policy/certificate와 K3s Secret을 준비한 뒤 Hub-Spoke Tailscale, ArgoCD `factory-a` cluster Secret, ArgoCD ApplicationSet을 적용해 `factory-a` data-plane workload 배포를 시작한다.
+
+2026-05-20 기준 `factory-b/c`는 아직 전용 build wrapper가 없으므로 아래 Ansible playbook으로 등록했다.
+
+```bash
+cd scripts/ansible
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_bootstrap.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_verify.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_applicationset_bootstrap.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_applicationset_verify.yml
+```
+
+다음 구현에서는 `factory-b/c` IoT Secret 생성, `hostPath` outbox chart 전환, VM local dummy generator 실행, `edge-iot-publisher` 활성화를 순서대로 진행한다.
 
 ## 최종 검증
 
@@ -31,9 +43,10 @@ scripts/build/verify-complete.sh
 검증 범위:
 
 ```text
-Hub: ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI Ingress, Tailscale, Spoke ApplicationSet
+Hub: ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI Ingress, Hub-Spoke Tailscale, Spoke ApplicationSet
 AWS IoT: Thing, Policy, certificate ACTIVE, attachment
 factory-a K3s: IoT Secret, edge-iot-publisher rollout, factory-a-log-adapter rollout
+factory-b/c K3s: cluster Secret, Application 생성, hostPath data-plane 전환 후 publisher rollout
 ```
 
 ## Admin UI HTTPS 준비

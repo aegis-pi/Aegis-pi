@@ -20,10 +20,10 @@
 | `hub_admin_ingress_bootstrap.yml` | ACM 발급 상태 확인 후 선택적으로 ArgoCD/Grafana HTTPS Ingress와 Route53 CNAME 적용 |
 | `hub_admin_ingress_verify.yml` | Admin Ingress 활성화 시 shared ALB, ClusterIP 유지, HTTPS endpoint 확인 |
 | `hub_admin_ingress_cleanup.yml` | Hub destroy 전 Admin Ingress, Route53 CNAME, controller 생성 ALB 정리 |
-| `hub_tailscale_bootstrap.yml` | Tailscale Operator, factory-a egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD factory-a cluster Secret 적용 |
-| `hub_tailscale_verify.yml` | Tailscale Operator/proxy readiness, factory-a K3s API TCP, Tailscale UI HTTP, ArgoCD cluster Secret 설정 확인 |
-| `hub_aegis_spoke_applicationset_bootstrap.yml` | GitOps repo URL 변수 기준 AEGIS Spoke ApplicationSet 적용 및 factory-a Application 생성 확인 |
-| `hub_aegis_spoke_applicationset_verify.yml` | ApplicationSet repo URL과 factory-a Application destination 확인 |
+| `hub_tailscale_bootstrap.yml` | Tailscale Operator, Spoke egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD Spoke cluster Secret 적용 |
+| `hub_tailscale_verify.yml` | Tailscale Operator/proxy readiness, Spoke K3s API TCP, Tailscale UI HTTP, ArgoCD cluster Secret 설정 확인 |
+| `hub_aegis_spoke_applicationset_bootstrap.yml` | GitOps repo URL 변수 기준 AEGIS Spoke ApplicationSet 적용 및 enabled Spoke Application 생성 확인 |
+| `hub_aegis_spoke_applicationset_verify.yml` | ApplicationSet repo URL과 enabled Spoke Application destination 확인 |
 
 ## 기준
 
@@ -39,10 +39,10 @@
 - Hub bootstrap playbook은 SSH가 아니라 `localhost`에서 EKS Kubernetes API를 대상으로 실행한다.
 - Hub ArgoCD Helm release가 이미 `deployed` 상태이고 chart version이 같으면 Helm upgrade를 건너뛴다. 강제 재적용은 `-e argocd_force_upgrade=true`로 실행한다.
 - Admin Ingress는 `ADMIN_UI_INGRESS_ENABLED=true`일 때만 적용한다. 기본값은 인증서 발급 전 ALB 비용과 build 실패를 피하기 위해 비활성화다.
-- Hub Tailscale bootstrap은 `BUILD_TAILSCALE=true` 기본값으로 `build-hub.sh`에서 실행한다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 실패한다.
+- Hub Tailscale bootstrap은 `aegis_spokes`에서 `enabled: true`인 Spoke만 대상으로 실행한다. `factory-a`가 offline이면 임시로 `enabled: false`로 제외하고 `factory-b/c`만 등록/검증할 수 있다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 해당 단계가 실패한다.
 - AEGIS Spoke ApplicationSet의 기본 GitOps repo URL은 `https://github.com/aegis-pi/aegis-pi-gitops.git`이다. 다른 URL이나 revision을 쓰려면 `AEGIS_GITOPS_REPO_URL`, `AEGIS_GITOPS_REPO_REVISION` 환경 변수로 override한다.
-- 현재 ApplicationSet 기본 scope는 `envs/factory-a/values.yaml`만 대상으로 하고, destination namespace는 `ai-apps`다. `factory-b`, `factory-c`까지 넓힐 때는 각 cluster Secret을 먼저 등록한 뒤 `AEGIS_GITOPS_APPSET_VALUES_GLOB='envs/*/values.yaml'`로 실행한다.
-- `BUILD_TAILSCALE=true` 기준 `build-hub-platform.sh`는 Tailscale bootstrap/verify 이후 `hub_aegis_spoke_applicationset_bootstrap.yml`과 `hub_aegis_spoke_applicationset_verify.yml`를 이어서 실행한다.
+- 현재 ApplicationSet 기본 scope는 `envs/factory-*/values.yaml`이고, destination namespace는 `ai-apps`다. 특정 factory만 관리하려면 `AEGIS_GITOPS_APPSET_VALUES_GLOB='envs/factory-b/values.yaml'`처럼 override한다.
+- `BUILD_TAILSCALE=true` 기준 `build-iot-factory-a.sh`는 Tailscale bootstrap/verify 이후 `hub_aegis_spoke_applicationset_bootstrap.yml`과 `hub_aegis_spoke_applicationset_verify.yml`를 이어서 실행한다.
 
 ## factory-a OS baseline 실행
 

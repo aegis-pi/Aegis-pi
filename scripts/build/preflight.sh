@@ -12,7 +12,8 @@ BUILD_FOUNDATION="${BUILD_FOUNDATION:-false}"
 BUILD_HUB="${BUILD_HUB:-true}"
 BUILD_ADMIN_UI_AFTER_NS="${BUILD_ADMIN_UI_AFTER_NS:-false}"
 BUILD_IOT="${BUILD_IOT:-false}"
-BUILD_TAILSCALE="${BUILD_TAILSCALE:-true}"
+BUILD_TAILSCALE="${BUILD_TAILSCALE:-}"
+DEPLOY_SPOKES="${DEPLOY_SPOKES:-}"
 AEGIS_PREFLIGHT_AWS_STATE="${AEGIS_PREFLIGHT_AWS_STATE:-true}"
 
 failures=()
@@ -47,13 +48,16 @@ check_required_commands() {
     require_command terraform
   fi
 
-  if [[ "${BUILD_HUB}" == "true" || "${BUILD_ADMIN_UI_AFTER_NS}" == "true" ]]; then
+  if [[ "${BUILD_HUB}" == "true" || "${BUILD_ADMIN_UI_AFTER_NS}" == "true" || \
+    ( "${BUILD_IOT}" == "true" && \
+      ( "${BUILD_TAILSCALE}" != "false" || "${DEPLOY_SPOKES}" == "true" ) ) ]]; then
     require_command ansible-playbook
     require_command kubectl
     require_command jq
   fi
 
-  if [[ "${BUILD_HUB}" == "true" ]]; then
+  if [[ "${BUILD_HUB}" == "true" || \
+    ( "${BUILD_IOT}" == "true" && "${BUILD_TAILSCALE}" != "false" ) ]]; then
     require_command helm
     require_command openssl
   fi
@@ -114,8 +118,19 @@ check_admin_ui_inputs() {
 check_tailscale_inputs() {
   local operator_env
   local direct_kubeconfig
+  local hub_state
 
-  if [[ "${BUILD_HUB}" != "true" || "${BUILD_TAILSCALE}" != "true" ]]; then
+  if [[ "${BUILD_IOT}" != "true" || \
+    ( "${BUILD_TAILSCALE}" == "false" && "${DEPLOY_SPOKES}" != "true" ) ]]; then
+    return 0
+  fi
+
+  hub_state="${REPO_ROOT}/infra/hub/terraform.tfstate"
+  if [[ "${BUILD_HUB}" != "true" && ! -f "${hub_state}" ]]; then
+    add_failure "missing ${hub_state}; run scripts/build/build-hub.sh before Hub-Spoke Tailscale bootstrap"
+  fi
+
+  if [[ "${BUILD_TAILSCALE}" == "false" ]]; then
     return 0
   fi
 
@@ -123,7 +138,7 @@ check_tailscale_inputs() {
   direct_kubeconfig="${AEGIS_FACTORY_A_DIRECT_KUBECONFIG:-${HOME}/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig}"
 
   if [[ ! -f "${operator_env}" ]]; then
-    add_failure "missing ${operator_env}; set BUILD_TAILSCALE=false to skip Hub Tailscale bootstrap"
+    add_failure "missing ${operator_env}; set BUILD_TAILSCALE=false to skip Hub-Spoke Tailscale bootstrap"
   elif ! env -i bash -c "set -euo pipefail; set -a; . \"${operator_env}\"; test -n \"\${TAILSCALE_OAUTH_CLIENT_ID:-}\"; test -n \"\${TAILSCALE_OAUTH_CLIENT_SECRET:-}\"" >/dev/null 2>&1; then
     add_failure "${operator_env} must define TAILSCALE_OAUTH_CLIENT_ID and TAILSCALE_OAUTH_CLIENT_SECRET"
   fi

@@ -1,7 +1,7 @@
 # Aegis-Pi Docs
 
 상태: source of truth
-기준일: 2026-05-19
+기준일: 2026-05-20
 
 ## 목적
 
@@ -13,8 +13,8 @@
 - `factory-a`는 Raspberry Pi 3-node K3s 기반 운영형 Spoke다.
 - 2026-04-30 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
-- 2026-05-19 기준 `build-hub.sh`는 AWS Hub EKS/VPC/NAT/EIP, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI bootstrap, Hub Tailscale Operator/egress/UI/cluster Secret 복구를 자동화한다. Spoke ApplicationSet 배포는 IoT Secret 준비 이후로 분리했다.
-- 2026-05-19 기준 표준 실행 순서는 `build-hub.sh` -> `build-admin-ui-after-ns.sh` -> `build-iot-factory-a.sh` -> `verify-complete.sh`다.
+- 2026-05-20 기준 `build-hub.sh`는 AWS Hub EKS/VPC/NAT/EIP, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller까지만 자동화한다. Admin UI HTTPS Ingress는 Route53 NS 위임 이후 `build-admin-ui-after-ns.sh`에서 실행하고, factory-a K3s에 의존하는 Hub-Spoke Tailscale/ArgoCD cluster Secret/ApplicationSet은 `build-iot-factory-a.sh`에서 실행한다.
+- 2026-05-20 기준 표준 실행 순서는 `build-hub.sh` -> `build-admin-ui-after-ns.sh` -> `build-iot-factory-a.sh` -> `verify-complete.sh`다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 M1 검증용 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다. 최신 데이터 처리 방향은 Lambda data processor와 DynamoDB/S3 processed다.
 - M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 `up{cluster="AEGIS-EKS"}` 수신을 검증했다.
@@ -28,8 +28,10 @@
 - M2 Issue 4/5에서 `tls-server-name: 10.10.10.10` 기반 `factory-a` kubeconfig와 ArgoCD cluster 등록을 완료했고, cluster status `Successful`을 확인했다.
 - M2 Issue 6에서 `factory-a-podinfo-smoke` Application을 `factory-a`에 Sync해 `Synced` + `Healthy`, Pod 2개 `Running`을 확인했고, Tailscale egress Service 삭제 시 sync failure 및 재생성 후 복구를 검증했다.
 - M3 Issue 1에서 `aegis-pi-gitops` GitOps 저장소 구조, `aegis-spoke` Helm chart, 공장별 values, ApplicationSet skeleton, manifest validation workflow를 완료했다.
-- M4 Issue 1~5에서 Raw 데이터 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR 이미지, GitOps chart, IoT Core -> S3 raw 적재 검증을 완료했다. 다음 작업은 M4 Issue 6 Lambda data processor와 M5 factory 확장이다.
-- `factory-b`, `factory-c`, Risk Twin Dashboard는 후속 단계다.
+- M4 Issue 1~5에서 Raw 데이터 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR 이미지, GitOps chart, IoT Core -> S3 raw 적재 검증을 완료했다. 다음 데이터 처리 작업은 M4 Issue 6 Lambda data processor다.
+- 2026-05-20 기준 `factory-b`, `factory-c`는 2-node VM K3s, Tailnet 참여, Hub ArgoCD cluster Secret, ApplicationSet 기반 `aegis-spoke-factory-b/c` Application 생성과 sync 요청까지 확인했다. `factory-a`가 offline인 동안 `factory-a`는 `aegis_spokes.enabled=false`로 임시 제외했다.
+- `factory-b/c` 데이터 플레인은 로컬 dummy generator가 worker node hostPath `/var/lib/aegis/outbox`에 canonical JSON을 쓰고, Hub ArgoCD가 배포한 공통 `edge-iot-publisher`가 같은 hostPath를 읽어 IoT Core로 전송하는 방향으로 확정했다. GitOps chart/values는 이 hostPath 기준으로 전환했다.
+- Risk Twin Dashboard는 후속 단계다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
 - 계획과 실제 구현이 달라진 결정은 `docs/changes/`에서 추적한다.
@@ -64,9 +66,10 @@
 21. `ops/17_hub_grafana_amp.md`
 22. `ops/20_tailscale_hub_spoke_runbook.md`
 23. `ops/21_hub_admin_ui_ingress.md`
-24. `planning/16_m4_edge_data_plane_implementation.md`
-25. `issues/M0_factory-a_safe-edge-baseline.md`
-26. `issues/M1_hub-cloud.md`
+24. `ops/22_factory_bc_testbed_data_plane.md`
+25. `planning/16_m4_edge_data_plane_implementation.md`
+26. `issues/M0_factory-a_safe-edge-baseline.md`
+27. `issues/M1_hub-cloud.md`
 
 ## 문서 구조
 
@@ -102,7 +105,8 @@ docs/
 │   ├── 18_factory_b_mac_utm_k3s.md
 │   ├── 19_factory_c_windows_virtualbox_k3s.md
 │   ├── 20_tailscale_hub_spoke_runbook.md
-│   └── 21_hub_admin_ui_ingress.md
+│   ├── 21_hub_admin_ui_ingress.md
+│   └── 22_factory_bc_testbed_data_plane.md
 ├── architecture/
 ├── planning/
 │   ├── 00_project_overview.md

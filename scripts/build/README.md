@@ -1,7 +1,7 @@
 # Build Scripts
 
 상태: source of truth
-기준일: 2026-05-18
+기준일: 2026-05-20
 
 ## 목적
 
@@ -21,11 +21,12 @@ Layer 1 │ Hub Infra    │ VPC, NAT GW, EKS 클러스터, IRSA Role, Route53, 
         │ (Terraform)  │ 비용 주요 발생원. 개발 중단 시 삭제, 재개 시 재생성.
 
 Layer 2 │ Hub Platform │ ArgoCD, Prometheus Agent, Grafana, AWS LB Controller,
-        │ (Ansible)    │ Admin Ingress(ALB), Tailscale Operator
+        │ (Ansible)    │ Hub 내부 K8s 워크로드.
         │              │ Layer 1 위에 올라가는 K8s 워크로드.
 
 Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
-        │              │ factory-a 등록. 인증서 갱신 시 단독 재실행.
+        │              │ Hub-Spoke Tailscale/ArgoCD cluster Secret,
+        │              │ Spoke ApplicationSet 배포. 대상 factory K3s가 켜진 뒤 실행.
 ```
 
 ## 생성 순서
@@ -48,13 +49,18 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
    - internal Grafana install/verify and AMP datasource query
    - local secret/hub-ui-credentials.txt 출력
    - AWS Load Balancer Controller install/verify
-   - Admin UI HTTPS Ingress bootstrap/verify (ACM ISSUED 후 활성화)
-   - Tailscale Operator, ArgoCD/Grafana Tailscale UI, factory-a cluster Secret bootstrap/verify
 
-3. iot factory-a
+3. admin-ui-after-ns
+   - Gabia NS 위임 확인
+   - ACM ISSUED 대기
+   - Admin UI HTTPS Ingress bootstrap/verify
+
+4. iot / spoke registration
    - IoT Thing / Policy / certificate 등록
-   - local secret/iot/factory-a 출력
-   - K3s Secret 등록
+   - local secret/iot/<factory-id> 출력
+   - 대상 factory K3s Secret 등록
+   - Tailscale Operator, ArgoCD/Grafana Tailscale UI, enabled Spoke cluster Secret bootstrap/verify
+   - enabled Spoke ApplicationSet bootstrap/verify
 ```
 
 `build-all.sh`는 1 → 2 → 3 순서로 실행한다. 0(Foundation)은 기본값에서 제외되며 별도 실행한다.
@@ -67,9 +73,9 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 | `build-admin-ui-after-ns.sh` | Gabia NS 위임 후 ACM 발급을 기다리고 Admin UI HTTPS Ingress 활성화 |
 | `build-foundation.sh` | `infra/foundation` Terraform apply. 최초 1회 단독 실행. |
 | `build-hub-infra.sh` | `infra/hub` Terraform apply (VPC, EKS, IRSA, Route53, ACM) |
-| `build-hub-platform.sh` | Ansible bootstrap (ArgoCD, Prometheus, Grafana, LB Controller, Ingress, Tailscale) |
+| `build-hub-platform.sh` | Ansible bootstrap (ArgoCD, Prometheus, Grafana, LB Controller) |
 | `build-hub.sh` | `build-hub-infra.sh` → `build-hub-platform.sh` 순서 실행 wrapper |
-| `build-iot-factory-a.sh` | `factory-a` IoT Thing/certificate 생성 및 K3s Secret 등록 |
+| `build-iot-factory-a.sh` | `factory-a` IoT Thing/certificate, K3s Secret, Hub-Spoke Tailscale, ArgoCD cluster Secret, ApplicationSet 등록 |
 
 Hub build는 ArgoCD/Grafana 설치 검증 후 `secret/hub-ui-credentials.txt`를 갱신한다. 이 파일은 `.gitignore`의 `secret/` 규칙으로 Git에 들어가지 않으며, 파일 권한은 `0600`으로 설정된다.
 
@@ -117,7 +123,7 @@ IoT Thing/certificate와 K3s Secret 등록까지 포함하려면 `--iot`를 사�
 scripts/build/build-all.sh --iot [MFA_OTP]
 ```
 
-`build-all.sh`는 실제 생성 전에 preflight를 실행한다. preflight는 로컬 CLI, AWS 인증, Hub가 참조하는 foundation state, Tailscale secret/kubeconfig, 기존 Hub Terraform state의 대표 AWS 리소스 조회 가능 여부를 먼저 확인한다.
+`build-all.sh`는 실제 생성 전에 preflight를 실행한다. preflight는 로컬 CLI, AWS 인증, Hub가 참조하는 foundation state, 기존 Hub Terraform state의 대표 AWS 리소스 조회 가능 여부를 먼저 확인한다. `--iot`가 포함되면 Tailscale secret/kubeconfig도 함께 확인한다.
 
 일시적으로 preflight만 건너뛰려면 아래처럼 실행한다. 디버깅 때만 사용한다.
 
@@ -219,11 +225,13 @@ cd scripts/ansible
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
 ```
 
-### IoT factory-a만
+### IoT / Spoke 등록
 
 ```bash
 scripts/build/build-iot-factory-a.sh [MFA_OTP]
 ```
+
+현재 자동 wrapper는 `factory-a` 전용이다. `factory-b/c`는 2026-05-20 기준 cluster Secret과 ApplicationSet 등록을 Ansible playbook으로 직접 완료했고, 후속 작업에서 `build-iot-spoke.sh` 공통 스크립트와 `build-iot-factory-b.sh`, `build-iot-factory-c.sh` wrapper를 추가한다.
 
 ## 강제 재적용 옵션
 
@@ -233,20 +241,22 @@ Hub Platform의 각 컴포넌트는 이미 `deployed` 상태이고 chart version
 FORCE_ARGOCD_UPGRADE=true scripts/build/build-hub-platform.sh
 FORCE_GRAFANA_UPGRADE=true scripts/build/build-hub-platform.sh
 FORCE_AWS_LB_CONTROLLER_UPGRADE=true scripts/build/build-hub-platform.sh
-FORCE_TAILSCALE_OPERATOR_UPGRADE=true scripts/build/build-hub-platform.sh
+FORCE_TAILSCALE_OPERATOR_UPGRADE=true scripts/build/build-iot-factory-a.sh
 ```
 
-## Tailscale
+## Hub-Spoke Tailscale
 
-Hub Platform bootstrap은 기본적으로 Tailscale Operator까지 실행한다. 이 단계는 아래 리소스가 이미 있으면 생성하지 않고 상태만 검증한다.
+Hub-Spoke Tailscale과 ArgoCD cluster Secret은 각 Spoke K3s API에 직접 접근해야 하므로 `build-hub.sh` 기본 경로에서 제외한다. 대상 factory가 켜져 있고 kubeconfig로 접근 가능할 때 관련 build wrapper 또는 Ansible playbook이 아래 리소스를 생성하거나 검증한다.
 
 ```text
 tailscale/tailscale-operator Helm release
-argocd/factory-a-master-tailnet egress Service
+argocd/<factory>-master-tailnet egress Service
 argocd/argocd-server-tailscale UI Service
 observability/grafana-tailscale UI Service
-argocd/cluster-factory-a cluster Secret
+argocd/cluster-<factory> cluster Secret
 ```
+
+2026-05-20 기준 `factory-b/c`는 IoT Secret 생성 전 단계로, `hub_tailscale_bootstrap.yml`과 `hub_tailscale_verify.yml`를 직접 실행해 cluster Secret과 egress Service를 등록했다. `factory-a`가 offline이면 `scripts/ansible/inventory/group_vars/hub_eks.yml`에서 `factory-a`를 임시로 `enabled: false`로 두고 `factory-b/c`만 등록/검증할 수 있다. 후속 작업에서 `build-iot-spoke.sh` 공통 스크립트와 `build-iot-factory-b.sh`, `build-iot-factory-c.sh` wrapper를 추가한다.
 
 필수 secret 파일:
 
@@ -254,10 +264,16 @@ argocd/cluster-factory-a cluster Secret
 ~/Aegis/.aegis/secrets/tailscale/operator.env
 ```
 
-해당 파일에 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`이 없으면 Hub platform build는 실패한다. Tailscale만 임시로 건너뛰려면 아래처럼 실행한다.
+해당 파일에 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`이 없으면 Hub-Spoke Tailscale 단계는 실패한다. IoT 인증서와 K3s Secret만 처리하고 Tailscale/cluster Secret을 임시로 건너뛰려면 아래처럼 실행한다.
 
 ```bash
-BUILD_TAILSCALE=false scripts/build/build-hub-platform.sh
+BUILD_TAILSCALE=false scripts/build/build-iot-factory-a.sh
+```
+
+`BUILD_TAILSCALE=false`일 때 `DEPLOY_SPOKES` 기본값도 `false`가 된다. 기존 ArgoCD cluster Secret을 그대로 사용해 ApplicationSet만 다시 적용하려면 명시적으로 켠다.
+
+```bash
+BUILD_TAILSCALE=false DEPLOY_SPOKES=true scripts/build/build-iot-factory-a.sh
 ```
 
 ## 특정 단계 선택 실행
@@ -344,7 +360,7 @@ https://grafana.minsoo-tech.cloud
 scripts/build/build-all.sh --admin-ui-after-ns
 ```
 
-IoT `factory-a`만:
+IoT / Spoke 등록:
 
 ```bash
 scripts/build/build-iot-factory-a.sh

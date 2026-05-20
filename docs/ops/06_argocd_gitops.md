@@ -1,7 +1,7 @@
 # ArgoCD GitOps 운영
 
 상태: source of truth
-기준일: 2026-05-19
+기준일: 2026-05-20
 
 ## 목적
 
@@ -118,13 +118,13 @@ kubectl -n ai-apps get pvc
 
 ## Hub ArgoCD Spoke 방식
 
-Hub 재구성 이후 `factory-a` data-plane은 Hub EKS의 ArgoCD가 `aegis-pi-gitops` 저장소를 ApplicationSet으로 읽어 배포한다.
+Hub 재구성 이후 Spoke data-plane은 Hub EKS의 ArgoCD가 `aegis-pi-gitops` 저장소를 ApplicationSet으로 읽어 배포한다.
 
 ```text
 GitHub repo aegis-pi-gitops
   -> Hub ArgoCD ApplicationSet aegis-spoke
-  -> Application aegis-spoke-factory-a
-  -> destination cluster factory-a
+  -> Application aegis-spoke-factory-a/b/c
+  -> destination cluster factory-a/b/c
   -> namespace ai-apps
 ```
 
@@ -138,9 +138,9 @@ https://github.com/aegis-pi/aegis-pi-gitops.git
 
 ```text
 chart: charts/aegis-spoke
-values: envs/factory-a/values.yaml
-application: aegis-spoke-factory-a
-destination cluster: factory-a
+values glob: envs/factory-*/values.yaml
+application: aegis-spoke-<factory-id>
+destination cluster: <factory-id>
 destination namespace: ai-apps
 ```
 
@@ -153,7 +153,7 @@ server: https://factory-a-master-tailnet.argocd.svc.cluster.local:6443
 tls server name: 10.10.10.10
 ```
 
-현재 build 순서에서는 `build-hub.sh`가 cluster 등록까지만 수행하고, `build-iot-factory-a.sh`가 IoT Secret 생성 후 ApplicationSet을 적용한다.
+현재 build 순서에서는 `build-hub.sh`가 Hub platform까지만 수행하고, IoT/Spoke 등록 단계가 cluster Secret과 ApplicationSet 적용을 수행한다. `factory-a`는 `build-iot-factory-a.sh`가 담당한다. 2026-05-20 기준 `factory-b/c`는 `hub_tailscale_bootstrap.yml`, `hub_tailscale_verify.yml`, `hub_aegis_spoke_applicationset_bootstrap.yml`, `hub_aegis_spoke_applicationset_verify.yml`를 직접 실행해 등록했다.
 
 ```bash
 scripts/build/build-hub.sh
@@ -161,3 +161,13 @@ scripts/build/build-admin-ui-after-ns.sh
 scripts/build/build-iot-factory-a.sh
 scripts/build/verify-complete.sh
 ```
+
+2026-05-20 현재 Spoke 등록 상태:
+
+| Factory | Cluster Secret | Egress Service | Application | 상태 |
+| --- | --- | --- | --- | --- |
+| `factory-a` | `cluster-factory-a` | `factory-a-master-tailnet` | `aegis-spoke-factory-a` | 운영형. factory-a online 시 전체 verify 대상 |
+| `factory-b` | `cluster-factory-b` | `factory-b-master-tailnet` | `aegis-spoke-factory-b` | Sync operation 성공. GitOps chart/values hostPath 전환 완료 |
+| `factory-c` | `cluster-factory-c` | `factory-c-master-tailnet` | `aegis-spoke-factory-c` | Sync operation 성공. GitOps chart/values hostPath 전환 완료 |
+
+`factory-b/c`는 테스트베드이므로 dummy data generator를 ArgoCD Deployment로 배포하지 않는다. VM 로컬 generator가 worker node의 `/var/lib/aegis/outbox`에 canonical JSON을 쓰고, GitOps chart는 `edge-iot-publisher`가 그 경로를 `hostPath`로 mount하도록 관리한다.

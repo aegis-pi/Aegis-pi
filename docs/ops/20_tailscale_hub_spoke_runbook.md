@@ -41,17 +41,21 @@ Tailscale은 관리자 대시보드 접근망이 아니다. Dashboard Web/API는
 - EKS 내부에서 `factory-a-master` Tailscale IP reachability 확인
 - Tailscale IP 기반 `factory-a` kubeconfig 생성
 - ArgoCD `factory-a` cluster 등록과 `aegis-spoke-factory-a` Application Sync/Healthy 검증
-- 2026-05-19 기준 `build-hub.sh`가 Tailscale Operator/egress/cluster Secret을 복구하고, `build-iot-factory-a.sh`가 Spoke ApplicationSet을 적용한다.
+- 2026-05-20 기준 factory-a K3s에 의존하는 Tailscale Operator/egress/cluster Secret/ApplicationSet 단계는 `build-iot-factory-a.sh`가 실행한다. `build-hub.sh`는 Hub 인프라와 Hub 내부 플랫폼까지만 올린다.
+- `factory-b`, `factory-c`는 VM 테스트베드 Spoke로 Tailnet 참여, Hub egress Service, ArgoCD cluster Secret 등록을 완료했다.
 
 아직 하지 않은 것:
 
-- `factory-b`, `factory-c` Auth Key 발급 및 VM Spoke Tailnet 참여
+- `factory-b`, `factory-c` IoT Thing/certificate/K3s Secret 등록
+- `factory-b`, `factory-c` hostPath outbox chart 전환 및 data-plane smoke 검증
 
 현재 확인된 Tailnet device:
 
 | 대상 | Device name | Tailscale IPv4 | 상태 |
 | --- | --- | --- | --- |
 | `factory-a` Raspberry Pi master | `factory-a-master` | `100.117.40.125` | Connected, tagged |
+| `factory-b` Mac mini VM master | `factory-b` | `100.98.121.77` | Connected, tagged |
+| `factory-c` Windows VM master | `factory-c` | `100.76.243.72` | Connected, tagged |
 | Windows 운영자 PC | `minsoog14` | `100.67.181.8` | Connected |
 
 ## 방식 결정
@@ -184,16 +188,16 @@ TAILSCALE_AUTH_KEY="REDACTED"
 - `factory-a`용 one-off tagged Auth Key는 생성했지만 secret 노출을 피하기 위해 실제 등록에는 사용하지 않았다.
 - `factory-a-master`는 interactive login 후 Admin Console에서 ACL tag를 수동 적용했다.
 - 미사용 `factory-a-master` Auth Key는 revoke한다.
-- `factory-b`, `factory-c` Auth Key는 각 VM K3s 기준선 준비 시점에 별도 생성한다.
+- `factory-b`, `factory-c`는 2026-05-20 기준 Tailnet 참여와 Hub cluster 등록을 완료했다. 발급된 Auth Key는 재사용하지 않을 것이면 revoke한다.
 
 ## 4. Hub EKS에 Tailscale Operator 설치
 
-현재 기준에서는 `scripts/build/build-hub.sh`가 이 섹션의 Operator 설치, egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD `factory-a` cluster Secret 복구를 자동으로 수행한다. 각 단계는 이미 있으면 생성하지 않고 상태를 검증한다.
+현재 기준에서는 `scripts/build/build-iot-factory-a.sh`가 이 섹션의 Operator 설치, egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD `factory-a` cluster Secret 복구를 자동으로 수행한다. 각 단계는 이미 있으면 생성하지 않고 상태를 검증한다.
 
 자동 실행 조건:
 
 ```text
-BUILD_TAILSCALE=true  # 기본값
+BUILD_TAILSCALE=true  # build-iot-factory-a.sh 기본값
 secret: ~/Aegis/.aegis/secrets/tailscale/operator.env
 required keys: TAILSCALE_OAUTH_CLIENT_ID, TAILSCALE_OAUTH_CLIENT_SECRET
 ```
@@ -329,7 +333,23 @@ proxy pod: tailscale/ts-factory-a-master-tailnet-wp5c2-0 1/1 Running
 tcp check: EKS argocd namespace 임시 busybox pod -> factory-a-master-tailnet:6443 open
 ```
 
-따라서 M2 Issue 3의 Hub -> `factory-a-master` K3s API network reachability는 통과로 본다. M5에서는 같은 방식을 `factory-b`, `factory-c`용 `aegis_spokes` 항목으로 확장한다.
+따라서 M2 Issue 3의 Hub -> `factory-a-master` K3s API network reachability는 통과로 본다. M5에서는 같은 방식을 `factory-b`, `factory-c`용 `aegis_spokes` 항목으로 확장했고, 2026-05-20 기준 두 VM Spoke도 verify를 통과했다.
+
+2026-05-20 `factory-b/c` 등록 기록:
+
+```text
+service: argocd/factory-b-master-tailnet
+tailnet ip: 100.98.121.77
+cluster secret: argocd/cluster-factory-b
+tls server name: 192.168.128.10
+status: Tailscale verify pass, ArgoCD Application generated
+
+service: argocd/factory-c-master-tailnet
+tailnet ip: 100.76.243.72
+cluster secret: argocd/cluster-factory-c
+tls server name: factory-c-master
+status: Tailscale verify pass, ArgoCD Application generated
+```
 
 ## 6. `factory-a` Master Tailnet 참여
 
@@ -412,7 +432,7 @@ VM K3s 기준선이 먼저 있어야 한다.
 - `docs/ops/18_factory_b_mac_utm_k3s.md`
 - `docs/ops/19_factory_c_windows_virtualbox_k3s.md`
 
-각 VM에서 Tailscale을 설치하고 각자 전용 Auth Key로 참여한다.
+각 VM에서 Tailscale을 설치하고 각자 전용 Auth Key로 참여한다. 2026-05-20 기준 이 단계는 완료됐다.
 
 `factory-b`:
 
@@ -431,6 +451,18 @@ sudo tailscale up \
 ```
 
 테스트베드형 Spoke는 VM 재생성 반복 중 short-lived reusable key를 사용할 수 있다. bootstrap이 끝나면 해당 reusable key를 revoke한다.
+
+확인된 K3s node 기준:
+
+```text
+factory-b:
+  master node: master
+  worker node: worker1
+
+factory-c:
+  master node: factory-c-master
+  worker node: factory-c-worker
+```
 
 ## 8. Tailscale IP 기반 kubeconfig 생성
 
@@ -455,6 +487,8 @@ clusters:
 - `factory-a.kubeconfig`, `factory-b.kubeconfig`, `factory-c.kubeconfig`에는 credential이 들어갈 수 있으므로 Git에 커밋하지 않는다.
 - K3s API server certificate SAN이 Tailscale IP를 허용하지 않으면 TLS 오류가 날 수 있다. 이 경우 M2 Issue 4에서 K3s SAN 설정 또는 접근 방식을 조정한다.
 - `factory-a`는 2026-05-07 기준 K3s API server certificate SAN에 Tailnet IP `100.117.40.125`가 없다. 이 때문에 Tailscale IP 또는 EKS egress Service DNS로 접근하는 kubeconfig에는 `tls-server-name: 10.10.10.10`을 명시한다.
+- `factory-b`는 2026-05-20 기준 `tls-server-name: 192.168.128.10`으로 검증했다.
+- `factory-c`는 2026-05-20 기준 `tls-server-name: factory-c-master`로 검증했다.
 
 로컬 검증:
 
@@ -477,13 +511,27 @@ tls-server-name: 10.10.10.10
 result: master, worker1, worker2 Ready
 ```
 
+2026-05-20 `factory-b/c` 검증 기록:
+
+```text
+factory-b Tailscale IP kubeconfig: ~/Aegis/.aegis/secrets/kubeconfig/factory-b.tailscale-ip.kubeconfig
+factory-b server: https://100.98.121.77:6443
+factory-b tls-server-name: 192.168.128.10
+result: master, worker1 Ready
+
+factory-c Tailscale IP kubeconfig: ~/Aegis/.aegis/secrets/kubeconfig/factory-c.tailscale-ip.kubeconfig
+factory-c server: https://100.76.243.72:6443
+factory-c tls-server-name: factory-c-master
+result: factory-c-master, factory-c-worker Ready
+```
+
 ## 9. ArgoCD Cluster 등록
 
 M2 Issue 4의 kubeconfig 검증이 끝난 뒤 진행한다.
 
 현재 운영 경로에서는 `argocd cluster add`를 직접 실행하지 않는다. `hub_tailscale_bootstrap.yml`이 로컬에서 접근 가능한 kubeconfig로 target cluster에 `argocd-manager` ServiceAccount/RBAC/token을 만들고, Hub EKS의 ArgoCD namespace에 cluster Secret을 직접 생성한다. 최종 ArgoCD cluster Secret은 EKS 내부 egress Service를 바라본다.
 
-현재는 `hub_tailscale_bootstrap.yml`이 이 작업을 자동화한다.
+현재는 `hub_tailscale_bootstrap.yml`이 이 작업을 자동화한다. `factory-a-master`가 offline인 동안에는 `scripts/ansible/inventory/group_vars/hub_eks.yml`에서 `factory-a`를 임시로 `enabled: false`로 두고 `factory-b/c`만 검증할 수 있다. 이 값은 factory-a 복구 후 `true`로 되돌린다.
 
 - `factory-a` 직접 kubeconfig: `~/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig`
 - target cluster에 `kube-system/argocd-manager` ServiceAccount/RBAC/token Secret이 없으면 생성
@@ -517,12 +565,21 @@ M5에서 VM Spoke를 추가할 때는 `argocd cluster add` 대신 `scripts/ansib
 aegis_spokes:
   - id: factory-b
     enabled: true
-    master_tailnet_ip: "<factory-b-tailnet-ip>"
-    kube_tls_server_name: "<factory-b-k3s-cert-server-name>"
-    direct_kubeconfig: "<local factory-b kubeconfig path>"
+    master_tailnet_ip: "100.98.121.77"
+    kube_tls_server_name: "192.168.128.10"
+    direct_kubeconfig: "{{ lookup('env', 'HOME') }}/Aegis/.aegis/secrets/kubeconfig/factory-b.tailscale-ip.kubeconfig"
     egress_service_name: factory-b-master-tailnet
-    egress_server: "https://factory-b-master-tailnet.argocd.svc.cluster.local:6443"
+    egress_server: "https://factory-b-master-tailnet.{{ argocd_namespace }}.svc.cluster.local:6443"
     argocd_cluster_secret_name: cluster-factory-b
+
+  - id: factory-c
+    enabled: true
+    master_tailnet_ip: "100.76.243.72"
+    kube_tls_server_name: "factory-c-master"
+    direct_kubeconfig: "{{ lookup('env', 'HOME') }}/Aegis/.aegis/secrets/kubeconfig/factory-c.tailscale-ip.kubeconfig"
+    egress_service_name: factory-c-master-tailnet
+    egress_server: "https://factory-c-master-tailnet.{{ argocd_namespace }}.svc.cluster.local:6443"
+    argocd_cluster_secret_name: cluster-factory-c
 ```
 
 확인:

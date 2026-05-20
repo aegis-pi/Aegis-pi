@@ -236,6 +236,6 @@ Lambda data processor 구현:
 - S3 processed 저장
 
 Hub 재구성 시:
-- `build-hub.sh`가 ArgoCD cluster Secret을 등록
-- `build-iot-factory-a.sh`가 IoT Secret 준비 후 ApplicationSet 배포
+- `build-hub.sh`가 Hub 인프라와 Hub 내부 platform을 등록
+- `build-iot-factory-a.sh`가 IoT Secret 준비 후 ArgoCD cluster Secret과 ApplicationSet을 배포
 - `verify-complete.sh`가 Hub/IoT/factory-a rollout을 통합 검증

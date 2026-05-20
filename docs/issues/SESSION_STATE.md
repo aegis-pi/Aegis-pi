@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-05-19
+기준일: 2026-05-20
 
 ## 목적
 
@@ -58,18 +58,24 @@
 | M4 | Issue 4 - 이미지화 및 K3s 배포 | 완료 | `docs/issues/M4_data-plane.md` |
 | M4 | Issue 5 - IoT Core -> S3 적재 확인 | 완료 | `docs/issues/M4_data-plane.md` |
 | M4 | Issue 8 - factory-a 데이터 플레인 end-to-end 검증 | 완료 | `scripts/build/verify-complete.sh` |
+| M5 | Issue 1 - VM K3s 2-node 기준선 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
+| M5 | Issue 2 - factory-b/c Tailnet 참여 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
+| M5 | Issue 3 - Hub ArgoCD cluster 등록 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
+| M5 | Issue 4 - ApplicationSet factory-b/c 확장 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
 
 현재 바로 이어서 할 이슈:
 
 ```text
+M5 Issue 5 - factory-b/c local dummy generator 구현 및 VM 로컬 실행
+M5 Issue 6 - factory-b/c IoT Thing/certificate/K3s Secret 등록
+M5 Issue 7 - edge-iot-publisher 활성화 및 S3 raw 적재 확인
 M4 Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
-M5 Issue 1~4 - factory-b/c K3s, Tailscale, ArgoCD cluster/ApplicationSet 확장
 ```
 
 ## 현재 큰 상태
 
 ```text
-현재 단계: M4 Issue 1~5 및 factory-a GitOps 배포 검증 완료, 문서 최신화 진행 (2026-05-19)
+현재 단계: M5 Issue 4 완료 (chart hostPath 전환, factory-b/c outbox 생성/검증), M5 Issue 5 dummy generator 구현 진행 중 (2026-05-20)
 
 완료: M3 Issue 1~5 배포 파이프라인 전체
 완료: M4 Issue 1~5 데이터 플레인
@@ -87,9 +93,9 @@ M5 Issue 1~4 - factory-b/c K3s, Tailscale, ArgoCD cluster/ApplicationSet 확장
   - fix 4: factory-a-log-adapter outbox 파일 chmod 0o640 (NamedTemporaryFile 기본 600 -> cross-user 읽기 불가)
 
 현재 배포 방식:
-  - build-hub.sh: Hub EKS/ArgoCD/Tailscale/cluster Secret 등록
+  - build-hub.sh: Hub EKS/ArgoCD/Prometheus/Grafana/AWS Load Balancer Controller 등록
   - build-admin-ui-after-ns.sh: Admin UI HTTPS Ingress 활성화
-  - build-iot-factory-a.sh: IoT Secret 준비 후 ApplicationSet 배포
+  - build-iot-factory-a.sh: IoT Secret 준비 후 Tailscale/cluster Secret/ApplicationSet 배포
   - verify-complete.sh: Hub/IoT/factory-a rollout 통합 검증
 
 현재 AWS 상태: Foundation/IoT/ECR 리소스 활성, Hub EKS는 build/destroy로 반복 재생성 가능
@@ -98,8 +104,31 @@ IoT Secret: ai-apps/aws-iot-factory-a-cert 유지 중
 ECR pull secret: ai-apps/ecr-registry 유지 중
 Longhorn PVC: aegis-spoke-outbox 유지 중
 
-다음 우선: M4 Issue 6 Lambda data processor 구현 또는 M5 factory-b/c 확장
-보류: M3 Issue 6~8, M5~M7 전체
+완료: M5 factory-b/c Hub-Spoke 등록
+  - factory-b Tailnet IP: 100.98.121.77
+  - factory-c Tailnet IP: 100.76.243.72
+  - factory-b nodes: master, worker1
+  - factory-c nodes: factory-c-master, factory-c-worker
+  - master taint 유지, worker label 적용 완료
+  - Hub ArgoCD cluster Secrets: cluster-factory-b, cluster-factory-c
+  - Hub egress Services: factory-b-master-tailnet, factory-c-master-tailnet
+  - Applications: aegis-spoke-factory-b, aegis-spoke-factory-c 생성 및 Sync operation 성공
+  - GitOps chart/values는 b/c hostPath outbox를 지원하도록 전환 완료 (aegis-pi-gitops commit 04f90b2, remote push 완료)
+  - factory-b worker1: /var/lib/aegis/outbox drwxrwx--- 10001:10001 생성 확인 (SSH 직접)
+  - factory-c worker: /var/lib/aegis/outbox 생성 확인 (kubectl pod exit 0, uid 10001 write 성공)
+  - factory-c-worker K3s node-ip: 192.168.56.20으로 재등록 완료 (static IP, /etc/rancher/k3s/config.yaml)
+
+확정: factory-b/c 테스트베드 데이터 플레인 방향
+  - dummy generator는 Kubernetes Deployment가 아니라 VM 로컬 script/systemd service로 실행
+  - dummy generator는 worker node의 /var/lib/aegis/outbox에 canonical JSON을 write
+  - GitOps/ArgoCD는 공통 edge-iot-publisher만 배포
+  - publisher는 hostPath /var/lib/aegis/outbox를 mount해 IoT Core로 publish
+  - factory-a는 기존 Longhorn PVC outbox + factory-a-log-adapter 구조 유지
+
+주의: scripts/ansible/inventory/group_vars/hub_eks.yml에서 factory-a enabled=false는 factory-a-master offline 때문에 임시 적용한 상태다. factory-a가 online이면 enabled=true로 되돌리고 전체 Spoke verify를 다시 실행한다.
+
+다음 우선: M5 Issue 5 local dummy generator 구현/실행, M5 Issue 6 factory-b/c IoT 등록, M5 Issue 7 edge-iot-publisher 활성화
+보류: M3 Issue 6~8, M6~M7 전체
 후속 리팩토링: M7 Issue 0에서 repo 분리 및 OIDC CI/CD 고도화
 
 완료: M0 factory-a Safe-Edge 기준선
@@ -127,7 +156,7 @@ Longhorn PVC: aegis-spoke-outbox 유지 중
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
 AWS 실제 리소스 상태: 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 재생성 완료. Hub EKS, foundation S3/AMP/ECR/IoT Rule, `factory-a` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태.
 Terraform state: infra/hub apply 완료, infra/foundation apply 완료
-다음 작업 우선순위: M4 Issue 6 Lambda data processor 구현 또는 M5 factory-b/c 확장.
+다음 작업 우선순위: M5 factory-b/c hostPath outbox 전환 및 데이터 플레인 smoke 검증.
 ```
 
 ## 지금까지 완료한 일
@@ -160,7 +189,7 @@ Terraform state: infra/hub apply 완료, infra/foundation apply 완료
 - 도메인은 `minsoo-tech.cloud` 기준으로 확정했다. Route53 Hosted Zone NS는 `ns-1079.awsdns-06.org`, `ns-1913.awsdns-47.co.uk`, `ns-7.awsdns-00.com`, `ns-872.awsdns-45.net`이다.
 - `scripts/build/build-hub.sh`는 Terraform apply 직후 `scripts/ops/admin-ui-nameservers.sh`를 실행해 `secret/admin-ui-nameservers.txt`를 갱신한다. Gabia에 입력할 NS는 재생성 후 이 파일을 다시 확인한다.
 - 현재 기본값은 `ADMIN_UI_INGRESS_ENABLED=false`다. `scripts/build/build-hub.sh`는 Admin UI용 Route53 Hosted Zone/ACM certificate와 NS 파일까지만 준비하고, Gabia NS 위임 뒤 `scripts/build/build-admin-ui-after-ns.sh`로 ACM `ISSUED` 대기와 Admin UI Ingress 활성화를 별도 실행한다.
-- 현재 기본값은 `BUILD_TAILSCALE=true`이므로 `scripts/build/build-hub.sh`는 Hub bootstrap 이후 Tailscale Operator, factory-a egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD `factory-a` cluster Secret을 자동 복구/검증한다. Spoke ApplicationSet 배포는 `build-iot-factory-a.sh`에서 IoT Secret 준비 후 수행한다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 실패한다.
+- 2026-05-20 기준 `scripts/build/build-hub.sh`는 factory-a K3s에 의존하지 않는다. Tailscale Operator, factory-a egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD `factory-a` cluster Secret, Spoke ApplicationSet 배포는 `build-iot-factory-a.sh`에서 IoT Secret 준비 후 수행한다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 해당 단계가 실패한다.
 
 ### AWS CLI MFA 및 Terraform 접근
 

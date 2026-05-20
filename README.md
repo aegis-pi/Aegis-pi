@@ -10,10 +10,10 @@ Aegis-Pi는 이 기준선을 먼저 `factory-a`로 복구하고, 이후 AWS Hub�
 | 항목 | 내용 |
 | --- | --- |
 | 프로젝트명 | Aegis-Pi Risk Twin |
-| 현재 단계 | M4 데이터 플레인 준비 |
-| 현재 완료 범위 | M0 `factory-a`, M1 Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5, M4 Issue 1 완료. EKS Hub Tailscale Operator, `factory-a-master` K3s API TCP reachability, ArgoCD/Grafana Tailscale IP UI 접근, ArgoCD `factory-a` cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증 완료. IoT Rule -> S3 raw 적재, IRSA S3/AMP 권한, Hub Prometheus Agent -> AMP remote_write, 내부 Grafana -> AMP query, AWS Load Balancer Controller, Admin UI HTTPS Ingress, `factory-a-master` Tailnet 참여와 Windows 운영자 PC SSH 검증, `aegis-pi-gitops` GitOps 저장소 구조와 manifest validation, ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a` 보수적 rollout/rollback, Raw/Processed 데이터 계약 확정 완료 |
-| 현재 AWS 상태 | 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 리소스 재생성 검증 완료. ECR `aegis/edge-agent`는 M3 smoke image 검증용 repository로 사용 중 |
-| 다음 작업 | M4 Issue 2: `factory-a-log-adapter` raw/log -> canonical JSON 변환 구현. M3 Issue 6~8은 실제 Edge data-plane image 확정 후 재개 |
+| 현재 단계 | M5 `factory-b/c` 테스트베드 data-plane 전환 준비 |
+| 현재 완료 범위 | M0 `factory-a`, M1 Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~5/8 완료. EKS Hub Tailscale Operator, ArgoCD/Grafana Tailscale IP UI 접근, ArgoCD `factory-a/b/c` cluster 등록, `aegis-spoke-factory-a/b/c` Application 생성, IoT Rule -> S3 raw 적재, IRSA S3/AMP 권한, Hub Prometheus Agent -> AMP remote_write, 내부 Grafana -> AMP query, AWS Load Balancer Controller, Admin UI HTTPS Ingress, `factory-a-master`와 `factory-b/c` VM Tailnet 참여, `aegis-pi-gitops` GitOps 저장소 구조와 manifest validation, ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a` adapter/publisher data-plane S3 적재 검증 완료 |
+| 현재 AWS 상태 | 2026-05-20 기준 Hub/Foundation/IoT/Admin UI 리소스 재생성 검증 이력 유지. ECR `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`, `aegis/edge-agent` repository 사용 중 |
+| 다음 작업 | M5: `factory-b/c` VM worker outbox 준비, VM local dummy generator 구현, factory-b/c IoT Secret 등록, edge-iot-publisher 활성화와 S3 raw 적재 확인 |
 | 비용 기준 | 현재 active AEGIS AWS fixed-cost resource는 0개 기준. Hub를 다시 켜면 Admin UI ALB 포함 고정 비용은 `~$0.36/hour`로 계산한다. 상세 기준은 `docs/ops/15_aws_cost_baseline.md` |
 
 ## 현재 완료된 Factory-A 기준선
@@ -80,7 +80,7 @@ safe-edge-config-main GitHub repo
     -> factory-a K3s
 ```
 
-현재는 로컬 `factory-a` GitOps 기준선이 완료된 상태다. GitHub Actions, ECR, AWS Hub ApplicationSet은 후속 단계에서 진행한다.
+현재는 로컬 `factory-a` GitOps 기준선과 Hub ArgoCD ApplicationSet 기반 Spoke 배포 기준선이 모두 준비된 상태다. `factory-b/c`는 Hub ArgoCD에 cluster와 Application이 등록됐고, GitOps chart/values는 hostPath outbox 기준으로 전환했다. 다음 단계에서 VM worker outbox 준비와 publisher 활성화를 진행한다.
 
 ## 현재 Mesh VPN 기준
 
@@ -89,11 +89,13 @@ safe-edge-config-main GitHub repo
 | 대상 | Device name | Tailscale IPv4 | 상태 |
 | --- | --- | --- | --- |
 | `factory-a` Raspberry Pi master | `factory-a-master` | `100.117.40.125` | Connected, tagged |
+| `factory-b` Mac mini VM master | `factory-b` | `100.98.121.77` | Connected, tagged |
+| `factory-c` Windows VM master | `factory-c` | `100.76.243.72` | Connected, tagged |
 | EKS operator | `tailscale-operator` | `100.92.186.18` | Connected, tagged |
 | ArgoCD -> factory-a egress proxy | `argocd-factory-a-master-tailnet` | `100.104.73.68` | Connected, tagged |
 | Windows 운영자 PC | `minsoog14` | `100.67.181.8` | Connected |
 
-`factory-a-master`에는 `tag:aegis-spoke-prod`, `tag:factory-a`를 적용했다. Windows 운영자 PC에서 `100.117.40.125` ping 및 SSH 접근을 확인했다. EKS 내부에서 `factory-a-master-tailnet:6443` TCP open, ArgoCD `factory-a` cluster `Successful`, `factory-a-podinfo-smoke` `Synced` + `Healthy`를 확인했다.
+`factory-a-master`에는 `tag:aegis-spoke-prod`, `tag:factory-a`를 적용했다. `factory-b/c`에는 테스트베드용 tag를 적용했다. Windows 운영자 PC에서 `100.117.40.125` ping 및 SSH 접근을 확인했다. EKS 내부에서 `factory-a/b/c` egress Service의 K3s API 접근과 ArgoCD cluster Secret 등록을 확인했다.
 
 M2 단기 UI 접근 기준:
 
@@ -107,7 +109,7 @@ Public ALB: 단기 유지
 
 M1 Issue 0~10에서는 AWS MFA/Terraform 접근, Hub EKS/VPC 기준선, Hub namespace 기준선, Hub ArgoCD bootstrap, foundation S3 data bucket `aegis-bucket-data`, AMP Workspace `AEGIS-AMP-hub`, `factory-a` IoT Thing/certificate/policy/K3s Secret, IoT Rule -> S3 `raw/` prefix 적재, M1 검증용 `risk/risk-normalizer` IRSA S3 권한, `observability/prometheus-agent` 설치 및 AMP remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, ArgoCD/Grafana HTTPS Admin Ingress를 검증했다.
 
-2026-05-08 기준 `scripts/build/build-hub.sh`는 Hub EKS bootstrap 이후 Tailscale Operator, `factory-a` egress, ArgoCD/Grafana Tailscale UI, ArgoCD `factory-a` cluster Secret까지 자동 복구/검증한다. 기본 전체 재생성은 `scripts/build/build-all.sh`, Admin UI까지 포함한 재생성은 `scripts/build/build-all.sh --admin-ui`, 전체 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. `destroy-all.sh`는 AWS MFA 전에 `factory-a` K3s IoT Secret을 먼저 삭제하고, 이후 IoT/Hub/foundation을 정리한다. 비용 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.
+2026-05-20 기준 `scripts/build/build-hub.sh`는 Hub EKS와 Hub 내부 플랫폼까지만 자동 복구/검증한다. Tailscale Operator, Spoke egress, ArgoCD/Grafana Tailscale UI, ArgoCD cluster Secret, ApplicationSet은 IoT/Spoke 등록 단계에서 실행한다. 기본 전체 재생성은 `scripts/build/build-all.sh`, Admin UI까지 포함한 재생성은 `scripts/build/build-all.sh --admin-ui-after-ns`, 전체 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. 비용 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.
 
 앞으로 모든 작업은 `docs/planning/11_delivery_ownership_flow.md`의 책임 경계를 따른다.
 
@@ -193,8 +195,8 @@ LAN 제거 InfluxDB 공백:
 ```text
 AWS EKS Hub
     ├── factory-a  (현재 완료된 운영형 Raspberry Pi Safe-Edge)
-    ├── factory-b  (후속 Mac mini VM 테스트베드)
-    └── factory-c  (후속 Windows VM 테스트베드)
+    ├── factory-b  (등록 완료, Mac mini VM 테스트베드)
+    └── factory-c  (등록 완료, Windows VM 테스트베드)
 
 2번 VPC: Control / Management
     └── EKS Hub / Hub ArgoCD / Tailscale / Prometheus Agent / Grafana
@@ -203,7 +205,7 @@ AWS EKS Hub
     └── ALB / WAF / Dashboard Web/API / Lambda data processor / DynamoDB LATEST+HISTORY / S3 processed
 ```
 
-후속 확장에서는 단일 `edge-agent`가 아니라 Edge data-plane을 두 계층으로 나눈다. `factory-a-log-adapter`는 `factory-a` 로컬 raw/log/status 데이터를 canonical JSON으로 변환하고, `edge-iot-publisher`는 local spool/outbox의 JSON을 AWS IoT Core로 송신한다. IoT Core -> S3 raw 보존, IoT Core -> Lambda -> DynamoDB/S3 processed 데이터 플레인, ApplicationSet 기반 배포를 추가한다.
+후속 확장에서는 단일 `edge-agent`가 아니라 Edge data-plane을 두 계층으로 나눈다. `factory-a-log-adapter`는 `factory-a` 로컬 raw/log/status 데이터를 canonical JSON으로 변환하고, `edge-iot-publisher`는 local spool/outbox의 JSON을 AWS IoT Core로 송신한다. `factory-b/c`는 VM 로컬 dummy generator가 worker `hostPath` outbox에 JSON을 쓰고, ArgoCD가 배포한 `edge-iot-publisher`가 이를 송신한다. IoT Core -> S3 raw 보존, IoT Core -> Lambda -> DynamoDB/S3 processed 데이터 플레인, ApplicationSet 기반 배포를 추가한다.
 
 사용자 대시보드는 Tailscale에 의존하지 않는 1번 Data / Dashboard VPC에서 제공한다. Dashboard Web/API는 processed data와 latest status를 조회하고, ArgoCD/Tailscale/EKS API 같은 제어 plane에는 직접 접근하지 않는다.
 
@@ -230,8 +232,8 @@ AWS EKS Hub
 | Phase 2 (M1) | AWS EKS Hub 기준선 구성 | 핵심 완료, Issue 0~10/12 완료, Issue 11 보류 |
 | Phase 3 (M2) | Hub-Spoke 연결 | 완료, Issue 1~6 완료 |
 | Phase 4 (M3) | ECR/GitHub Actions/Hub ArgoCD 배포 기준선 | Issue 1~5 완료, Issue 6~8 보류 |
-| Phase 5 (M4) | `factory-a` adapter/publisher 데이터 플레인 | 다음 진행 |
-| Phase 6 (M5) | `factory-b`, `factory-c` 테스트베드 확장 | 대기 |
+| Phase 5 (M4) | `factory-a` adapter/publisher 데이터 플레인 | 핵심 완료 |
+| Phase 6 (M5) | `factory-b`, `factory-c` 테스트베드 확장 | cluster/Application 등록 완료, GitOps hostPath 전환 완료, VM-local data-plane 진행 |
 | Phase 6 (M6) | Risk Twin + Data / Dashboard VPC 관제 화면 | 대기 |
 | Phase 7 (M7) | 통합 검증 | 대기 |
 

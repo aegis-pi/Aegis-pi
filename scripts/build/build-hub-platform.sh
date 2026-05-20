@@ -15,9 +15,6 @@ aegis_ensure_aws_mfa "${OTP}"
 FORCE_ARGOCD_UPGRADE="${FORCE_ARGOCD_UPGRADE:-false}"
 FORCE_GRAFANA_UPGRADE="${FORCE_GRAFANA_UPGRADE:-false}"
 FORCE_AWS_LB_CONTROLLER_UPGRADE="${FORCE_AWS_LB_CONTROLLER_UPGRADE:-false}"
-FORCE_TAILSCALE_OPERATOR_UPGRADE="${FORCE_TAILSCALE_OPERATOR_UPGRADE:-false}"
-BUILD_TAILSCALE="${BUILD_TAILSCALE:-true}"
-DEPLOY_SPOKES="${DEPLOY_SPOKES:-false}"
 export GODEBUG="${GODEBUG:-http2client=0}"
 
 cd "${REPO_ROOT}/scripts/ansible"
@@ -39,21 +36,5 @@ ansible-playbook \
   playbooks/hub_aws_load_balancer_controller_bootstrap.yml \
   -e "aws_lb_controller_force_upgrade=${FORCE_AWS_LB_CONTROLLER_UPGRADE}"
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aws_load_balancer_controller_verify.yml
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_bootstrap.yml
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_verify.yml
-if [[ "${BUILD_TAILSCALE}" == "true" ]]; then
-  ansible-playbook \
-    -i inventory/hub_eks_dynamic.sh \
-    playbooks/hub_tailscale_bootstrap.yml \
-    -e "tailscale_operator_force_upgrade=${FORCE_TAILSCALE_OPERATOR_UPGRADE}"
-  ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_verify.yml
-else
-  echo "Skipped Hub Tailscale bootstrap/verify. Set BUILD_TAILSCALE=true to enable it."
-fi
-
-if [[ "${DEPLOY_SPOKES}" == "true" ]]; then
-  ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_applicationset_bootstrap.yml
-  ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_applicationset_verify.yml
-else
-  echo "Skipped AEGIS Spoke ApplicationSet deploy. Set DEPLOY_SPOKES=true to enable it."
-fi
+echo "Skipped Admin UI HTTPS Ingress. Run scripts/build/build-admin-ui-after-ns.sh after Route53 NS delegation."
+echo "Skipped Hub-Spoke Tailscale and ApplicationSet. Run scripts/build/build-iot-factory-a.sh when factory-a K3s is reachable."

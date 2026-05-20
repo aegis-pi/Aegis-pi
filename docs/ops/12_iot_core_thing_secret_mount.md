@@ -1,7 +1,7 @@
 # IoT Core Thing and K3s Secret Mount Runbook
 
 상태: source of truth
-기준일: 2026-05-19
+기준일: 2026-05-20
 
 ## 수정 버전
 
@@ -10,10 +10,11 @@
 | 2026-05-04 | 실제 생성된 `factory-a` IoT Thing/Policy/K3s Secret 기준으로 Thing 이름, 저장 위치, 자동화 스크립트, SSH 대상, Secret 이름을 최신화 |
 | 2026-05-15 | 단일 `edge-agent` 기준을 `edge-iot-publisher` Secret mount 기준으로 변경 |
 | 2026-05-19 | `build-iot-factory-a.sh`가 IoT Secret 준비 후 ArgoCD ApplicationSet 배포까지 수행하는 현재 build 순서 반영 |
+| 2026-05-20 | `factory-b/c`는 cluster/Application 등록 이후 별도 IoT Thing/Secret 등록을 진행하는 순서와 Secret 이름 기준 반영 |
 
 ## 목적
 
-`factory-a` `edge-iot-publisher`가 AWS IoT Core로 MQTT publish할 수 있도록 IoT Core Thing, 인증서, Policy를 만들고, 인증서를 `factory-a` K3s Secret으로 주입하는 절차를 정리한다.
+`factory-a/b/c` `edge-iot-publisher`가 AWS IoT Core로 MQTT publish할 수 있도록 IoT Core Thing, 인증서, Policy를 만들고, 인증서를 각 factory K3s Secret으로 주입하는 절차를 정리한다.
 
 이 문서는 `edge-iot-publisher` 구현 전에도 먼저 수행할 수 있는 IoT Core 인증 기반 준비 절차다. `edge-iot-publisher`는 Thing 자체가 아니라, Thing에 연결된 인증서를 사용하는 K3s workload다.
 
@@ -28,7 +29,7 @@ Thing:
   AEGIS-IoTThing-factory-c
 ```
 
-`factory-a` MVP에서는 먼저 `AEGIS-IoTThing-factory-a`만 생성했다.
+`factory-a` MVP에서는 먼저 `AEGIS-IoTThing-factory-a`를 생성했다. 2026-05-20 기준 `factory-b/c`는 Hub ArgoCD cluster/Application 등록을 먼저 완료했고, 다음 단계에서 `AEGIS-IoTThing-factory-b`, `AEGIS-IoTThing-factory-c`와 각 K3s Secret을 생성한다.
 
 K3s에는 Thing을 등록하지 않는다. K3s에는 해당 Thing에 연결된 인증서와 private key를 Kubernetes Secret으로 주입하고, `edge-iot-publisher` Deployment가 그 Secret을 read-only volume으로 mount한다.
 
@@ -40,9 +41,9 @@ AWS IoT Core:
   Thing <-> Certificate attachment
   Certificate <-> Policy attachment
 
-factory-a K3s:
+factory K3s:
   namespace: ai-apps
-  Secret: aws-iot-factory-a-cert
+  Secret: aws-iot-<factory-id>-cert
   ConfigMap: edge-iot-publisher-config
   Deployment: edge-iot-publisher
 ```
@@ -53,9 +54,8 @@ factory-a K3s:
 
 ```text
 1. scripts/build/build-hub.sh
-   - Hub EKS/ArgoCD/Tailscale 구성
-   - ArgoCD에 factory cluster Secret 등록
-   - Spoke workload 배포는 아직 시작하지 않음
+   - Hub EKS/ArgoCD/Grafana/AWS Load Balancer Controller 구성
+   - Spoke cluster Secret과 ApplicationSet은 IoT/Spoke 등록 단계에서 수행
 2. scripts/build/build-admin-ui-after-ns.sh
    - Admin UI HTTPS Ingress 활성화
 3. scripts/build/build-iot-factory-a.sh
@@ -68,6 +68,19 @@ factory-a K3s:
    - ArgoCD ApplicationSet 적용 및 factory-a workload 배포
 4. scripts/build/verify-complete.sh
    - Hub, IoT, factory-a workload 전체 검증
+```
+
+`factory-b/c`는 현재 공통 build wrapper가 아직 없으므로 다음 순서로 진행한다.
+
+```text
+1. hub_tailscale_bootstrap.yml / hub_tailscale_verify.yml
+   - 완료: cluster-factory-b, cluster-factory-c 등록
+2. hub_aegis_spoke_applicationset_bootstrap.yml / verify
+   - 완료: aegis-spoke-factory-b, aegis-spoke-factory-c 생성
+3. factory-b/c IoT Thing / Certificate / Policy 생성
+4. factory-b/c K3s ai-apps namespace에 aws-iot-factory-b-cert, aws-iot-factory-c-cert 생성
+5. factory-b/c values에서 edgeIotPublisher.enabled=true 전환
+6. VM local dummy generator -> hostPath outbox -> publisher -> IoT/S3 검증
 ```
 
 `edge-iot-publisher` 구현을 완료해야만 Thing을 만들 수 있는 것은 아니다. Thing과 인증서는 먼저 만들고, `edge-iot-publisher`는 이후 그 인증서를 사용하도록 붙인다.
@@ -85,6 +98,13 @@ secret/iot/factory-a/
   AmazonRootCA1.pem
   endpoint.txt
   registration-summary.txt
+```
+
+`factory-b/c`는 같은 구조를 공장별 디렉터리로 둔다.
+
+```text
+secret/iot/factory-b/
+secret/iot/factory-c/
 ```
 
 로컬 보관 디렉터리는 백업, 공유, 커밋 대상이 아니다. 운영 전에는 별도 Secret 관리 방식을 다시 정한다.

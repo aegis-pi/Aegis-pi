@@ -1,7 +1,7 @@
 # Edge Workload Placement
 
 상태: source of truth
-기준일: 2026-05-18
+기준일: 2026-05-20
 
 ## 목적
 
@@ -203,6 +203,38 @@ POD_UID = metadata.uid
 이는 후속 `event_id`, `sequence`, cloud idempotency 적용을 위한 기반이다.
 
 ## ArgoCD Resource 기준
+
+## Factory B/C 테스트베드 배치 기준
+
+`factory-b`와 `factory-c`는 2-node VM K3s 클러스터이며 master taint를 유지한다. 따라서 GitOps가 배포하는 workload는 worker node에만 배치한다.
+
+```text
+factory-b:
+  master: master
+  worker: worker1
+
+factory-c:
+  master: factory-c-master
+  worker: factory-c-worker
+```
+
+worker node에는 아래 label을 유지한다.
+
+```text
+aegis.workload-node=true
+aegis.input-module-type=dummy
+aegis.spoke-type=testbed
+```
+
+`factory-b/c`의 dummy generator는 Kubernetes Deployment가 아니라 VM 로컬 script/systemd service다. generator와 `edge-iot-publisher`가 같은 worker-local outbox를 공유해야 하므로 publisher Pod는 `aegis.workload-node=true` nodeSelector로 worker에 고정하고, `/var/lib/aegis/outbox`를 `hostPath`로 mount한다.
+
+```text
+local dummy generator
+  -> worker hostPath /var/lib/aegis/outbox
+  -> edge-iot-publisher Pod hostPath mount
+```
+
+이 방식에서는 Pod가 다른 노드로 이동하면 기존 outbox를 볼 수 없다. 테스트베드 b/c는 worker 1대 기준이므로 이 제약을 받아들이고, 운영형 HA outbox는 `factory-a`의 Longhorn PVC 경로를 기준으로 유지한다.
 
 ArgoCD는 Helm release로 설치되어 있으며 `safe-edge-config-main` GitOps repository에 직접 포함하지 않는다. 운영 중에는 Helm values로 resource 기준을 유지한다.
 

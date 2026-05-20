@@ -1,8 +1,9 @@
 # M5. VM Spoke 확장 - `factory-b`, `factory-c`
 
-> **마일스톤 목표**: Mac mini(`factory-b`)와 Windows VM(`factory-c`)을 테스트베드형 Spoke로 추가한다.  
-> M3(배포 파이프라인)과 M4(데이터 플레인)가 `factory-a` 기준으로 검증된 후 진행한다.  
+> **마일스톤 목표**: Mac mini(`factory-b`)와 Windows VM(`factory-c`)을 테스트베드형 Spoke로 추가한다.
+> M3(배포 파이프라인)과 M4(데이터 플레인)가 `factory-a` 기준으로 검증된 후 진행한다.
 > VM Spoke는 실센서/Longhorn/NFS 없이 Dummy data generator 기반으로 동작한다.
+> 2026-05-20 기준 `factory-b/c` 테스트베드의 dummy generator는 Kubernetes 배포물이 아니라 VM 로컬 프로세스/스크립트로 시작한다. Hub ArgoCD는 공통 `edge-iot-publisher`를 배포하고, publisher는 worker node의 hostPath outbox(`/var/lib/aegis/outbox`)를 읽어 IoT Core로 전송한다.
 
 ---
 
@@ -20,6 +21,26 @@
 
 `factory-b/c`는 실제 센서 정확도 검증이 아니라 멀티 factory 흐름 검증용 테스트베드로 설명한다. 핵심 검증 대상은 factory별 클러스터 식별, ApplicationSet 배포, IoT topic 분리, S3 prefix 분리, latest status 반영, Risk Score 분리 계산, Dashboard 카드 분리 표시다.
 
+### 2026-05-20 구현 방향 보강: 로컬 dummy source + hostPath outbox
+
+테스트베드형 Spoke의 데이터 플레인은 운영형 `factory-a`와 같은 outbox 계약을 유지하되, outbox 생산자와 저장소만 다르게 둔다.
+
+```text
+factory-a:
+  factory-a-log-adapter Pod
+    -> Longhorn PVC /var/lib/aegis/outbox
+    -> edge-iot-publisher Pod
+    -> IoT Core
+
+factory-b/c:
+  VM local dummy generator script 또는 systemd service
+    -> hostPath /var/lib/aegis/outbox on worker node
+    -> edge-iot-publisher Pod
+    -> IoT Core
+```
+
+이 방향을 선택한 이유는 `factory-b/c`의 목적이 저장소 HA 검증이 아니라 멀티 factory 배포/수집/분리 흐름 검증이기 때문이다. 따라서 `factory-b/c`에는 Longhorn을 넣지 않고, GitOps values에서 `outbox.type: hostPath`를 선택한다. `edge-iot-publisher`는 ArgoCD가 배포하고, dummy generator는 VM 로컬에서 시나리오를 수동 전환할 수 있게 한다.
+
 ---
 
 ## Issue 1 - [Spoke/K3s] Mac mini VM K3s 구성 (`factory-b`)
@@ -31,20 +52,24 @@ VM 기반 Spoke는 파이프라인 검증에 집중하므로 Longhorn, NFS, 버�
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] Mac mini에서 VM 구성 방식 결정 및 적용
+- [x] Mac mini에서 VM 구성 방식 결정 및 적용
   - 방식 예: UTM, Multipass, OrbStack 등
-- [ ] VM 스펙 결정 (CPU, 메모리, 디스크)
-- [ ] VM 내부 Ubuntu 또는 Debian 기반 OS 설치
-- [ ] K3s 단일 노드 또는 경량 클러스터 설치
+- [x] VM 스펙 결정 (CPU, 메모리, 디스크)
+- [x] VM 내부 Ubuntu 또는 Debian 기반 OS 설치
+- [x] K3s 2-node 경량 클러스터 설치
   - 제외 항목: Longhorn, NFS 티어링, 실센서 의존 구성
-- [ ] `factory-b` 기본 레이블 및 환경 설정 적용
+- [x] master node taint 유지
+- [x] worker node에 workload label 적용
+- [x] `factory-b` 기본 레이블 및 환경 설정 적용
   - `environment_type: vm-mac`
   - `input_module_type: dummy`
-- [ ] K3s 정상 동작 확인 (`kubectl get nodes`)
+- [x] K3s 정상 동작 확인 (`kubectl get nodes`)
 
 ### 🔍 Acceptance Criteria
 
-- `kubectl get nodes`에서 `factory-b` 노드 `Ready` 상태
+- `kubectl get nodes`에서 `factory-b` master/worker node `Ready` 상태
+- master node에 `node-role.kubernetes.io/control-plane:NoSchedule` taint 유지
+- worker node에 `aegis.workload-node=true` label 적용
 - K3s 버전 확인 및 기록
 - VM 재부팅 후에도 K3s 자동 시작 확인
 
@@ -59,20 +84,24 @@ Windows + Linux VM 조합의 호환성과 K3s 동작을 검증하는 것이 이 
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] Windows 환경에서 VM 구성 방식 결정 및 적용
+- [x] Windows 환경에서 VM 구성 방식 결정 및 적용
   - 방식 예: WSL2, Hyper-V, VirtualBox, VMware 등
-- [ ] VM 내부 Linux OS 설치 (Ubuntu 또는 Debian 권장)
-- [ ] K3s 단일 노드 또는 경량 클러스터 설치
+- [x] VM 내부 Linux OS 설치 (Ubuntu 또는 Debian 권장)
+- [x] K3s 2-node 경량 클러스터 설치
   - 제외 항목: `factory-b`와 동일 (`factory-a` 운영형 구성 제외)
-- [ ] `factory-c` 기본 레이블 및 환경 설정 적용
+- [x] master node taint 유지
+- [x] worker node에 workload label 적용
+- [x] `factory-c` 기본 레이블 및 환경 설정 적용
   - `environment_type: vm-windows`
   - `input_module_type: dummy`
-- [ ] K3s 정상 동작 확인
+- [x] K3s 정상 동작 확인
 - [ ] Windows 호스트 재부팅 후 VM 및 K3s 복구 방식 확인
 
 ### 🔍 Acceptance Criteria
 
-- `kubectl get nodes`에서 `factory-c` 노드 `Ready` 상태
+- `kubectl get nodes`에서 `factory-c` master/worker node `Ready` 상태
+- master node에 `node-role.kubernetes.io/control-plane:NoSchedule` taint 유지
+- worker node에 `aegis.workload-node=true` label 적용
 - VM 구성 방식 및 K3s 버전 기록
 - VM 재시작 후 K3s 자동 복구 확인
 
@@ -87,16 +116,16 @@ Windows + Linux VM 조합의 호환성과 K3s 동작을 검증하는 것이 이 
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] `factory-b` VM에 Tailscale 설치 및 네트워크 참여
+- [x] `factory-b` VM에 Tailscale 설치 및 네트워크 참여
   - M2에서 발급한 `factory-b` Auth Key 사용
-- [ ] `factory-c` VM에 Tailscale 설치 및 네트워크 참여
+- [x] `factory-c` VM에 Tailscale 설치 및 네트워크 참여
   - M2에서 발급한 `factory-c` Auth Key 사용
-- [ ] Tailscale Admin 콘솔에서 두 노드 `Connected` 확인
-- [ ] EKS Hub에서 두 Spoke Tailscale IP로 `ping` 성공
-- [ ] kubeconfig Tailscale IP 기반으로 각각 생성
+- [x] Tailscale Admin 콘솔에서 두 노드 `Connected` 확인
+- [x] EKS Hub에서 두 Spoke Tailscale IP로 K3s API 접근 확인
+- [x] kubeconfig Tailscale IP 기반으로 각각 생성
   - `factory-b.kubeconfig`
   - `factory-c.kubeconfig`
-- [ ] EKS 환경에서 두 kubeconfig로 `kubectl get nodes` 성공
+- [x] EKS 환경에서 두 kubeconfig로 `kubectl get nodes` 성공
 
 ### 🔍 Acceptance Criteria
 
@@ -114,14 +143,16 @@ M3에서 구성한 ApplicationSet에 `factory-b`, `factory-c` Spoke를 추가하
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] ArgoCD에 `factory-b`, `factory-c` 클러스터 등록
+- [x] ArgoCD에 `factory-b`, `factory-c` 클러스터 등록
   - `argocd cluster add` 수동 실행이 아니라 `scripts/ansible/inventory/group_vars/hub_eks.yml`의 `aegis_spokes`에 각 공장 항목을 추가한다.
   - `hub_tailscale_bootstrap.yml`이 각 Spoke의 `argocd-manager` RBAC/token과 Hub ArgoCD cluster Secret을 생성한다.
   - `hub_tailscale_verify.yml`로 egress Service와 cluster Secret을 검증한다.
-- [ ] `factory-b`, `factory-c` values 파일 준비 및 검증
+- [x] `factory-b`, `factory-c` values 파일 준비 및 검증
   - `environment_type`, `input_module_type`, 이미지/배포 대상 경로 반영
-- [ ] ArgoCD ApplicationSet에 `factory-b`, `factory-c` values 경로 추가
-- [ ] ApplicationSet에서 `aegis-spoke-factory-b`, `aegis-spoke-factory-c` Application 자동 생성 확인
+  - `factory-b/c`는 `outbox.type: hostPath`, `outbox.path: /var/lib/aegis/outbox` 기준
+  - IoT Secret 준비 전에는 `edgeIotPublisher.enabled: false`로 Application 생성/sync만 먼저 확인 가능
+- [x] ArgoCD ApplicationSet에 `factory-b`, `factory-c` values 경로 추가
+- [x] ApplicationSet에서 `aegis-spoke-factory-b`, `aegis-spoke-factory-c` Application 자동 생성 확인
 
 ### 🔍 Acceptance Criteria
 
@@ -132,15 +163,46 @@ M3에서 구성한 ApplicationSet에 `factory-b`, `factory-c` Spoke를 추가하
 - `factory-b`, `factory-c` 클러스터가 ArgoCD 배포 대상으로 정상 등록됨
 - ApplicationSet에서 두 Application이 자동 생성됨 확인
 
+### 완료 기록 (2026-05-20)
+
+- aegis-pi-gitops chart: `outbox.type: pvc|hostPath` 분기 구현 (commit `04f90b2`, remote push 완료)
+  - `_helpers.tpl`: `aegis-spoke.outboxVolumeSource` helper 추가
+  - `outbox-pvc.yaml`: `outbox.type == pvc`일 때만 생성
+  - `edge-iot-publisher`, `factory-a-log-adapter`: helper 사용으로 전환
+  - `envs/factory-a/values.yaml`: `outbox.type: pvc` 명시
+  - `envs/factory-b/values.yaml`: `outbox.type: hostPath`, `placement.nodeSelector: aegis.workload-node=true`, `edgeIotPublisher.iot.secretName: aws-iot-factory-b-cert`
+  - `envs/factory-c/values.yaml`: `outbox.type: hostPath`, `placement.nodeSelector: aegis.workload-node=true`, `edgeIotPublisher.iot.secretName: aws-iot-factory-c-cert`
+- helm lint factory-a/b/c 모두 통과
+- factory-b render: PVC 유지 확인 / factory-b/c publisher 활성화 render: PVC 없음, hostPath 확인
+
+### 참고: factory-c-worker K3s node-ip 수정 (2026-05-20)
+
+factory-c는 VirtualBox NAT 구조로 master/worker 모두 `10.0.2.15`로 K3s에 등록되는 문제가 있었다.
+worker의 host-only 인터페이스(`enp0s8`) IP `192.168.56.20`은 netplan에 static으로 고정되어 있음을 확인했다.
+
+```bash
+# factory-c-worker에서 적용
+sudo mkdir -p /etc/rancher/k3s
+echo "node-ip: 192.168.56.20" | sudo tee /etc/rancher/k3s/config.yaml
+sudo systemctl restart k3s-agent
+```
+
+적용 후 `kubectl get nodes -o wide`에서 `factory-c-worker` INTERNAL-IP가 `192.168.56.20`으로 갱신됨 확인.
+단, factory-c master API server가 worker kubelet(`192.168.56.20:10250`)에 프록시할 때 여전히 502가 나는 케이스가 있다.
+kubectl logs/exec는 이 경로를 쓰므로 불편하지만, pod 배포/스케줄링/outbox write에는 영향 없다.
+kubelet 로그 프록시 문제 근본 원인은 추후 확인한다 (kubelet 인증서 SAN에 신규 IP 미포함 가능성).
+
 ---
 
-## Issue 5 - [Spoke/Dummy Generator] Dummy data generator 구현 및 배포
+## Issue 5 - [Spoke/Dummy Generator] 로컬 Dummy data generator 구현 및 실행
 
 ### 🎯 목표 (What & Why)
 
 VM 환경에서 실센서 없이 표준 입력 스키마에 맞는 더미 canonical JSON을 생성하는 Dummy data generator를 구현한다.
 IoT Core 전송은 M4에서 만든 공통 `edge-iot-publisher`를 재사용한다.
 시나리오별(정상/주의/위험) 값 생성과 수동 전환이 가능해야 한다.
+
+초기 구현은 Kubernetes Deployment가 아니라 VM 로컬 script 또는 systemd service로 둔다. 로컬 generator는 worker node의 `/var/lib/aegis/outbox`에 canonical JSON 파일을 쓰고, ArgoCD가 배포한 `edge-iot-publisher`가 같은 hostPath를 mount해 전송한다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
@@ -153,14 +215,18 @@ IoT Core 전송은 M4에서 만든 공통 `edge-iot-publisher`를 재사용한�
   - `warning`: 주의 범위 값 생성
   - `danger`: 위험 범위 값 생성
   - 구체 수치는 `docs/ops/03_test_checklist.md` 기반 테스트 후 보정
-- [ ] 시나리오 전환 방법 구현 (예: 환경변수, ConfigMap)
+- [ ] 시나리오 전환 방법 구현 (예: CLI 인자, 환경변수, 로컬 config 파일)
 - [ ] 공통 `edge-iot-publisher`와 같은 local spool/outbox 계약 사용
+- [x] `factory-b/c` worker node에 `/var/lib/aegis/outbox` 생성 및 권한 설정
+- [x] Helm chart가 `outbox.type: hostPath`일 때 PVC를 만들지 않고 hostPath volume을 mount하도록 수정
 - [ ] IoT Core 연결 및 메시지 전송은 `edge-iot-publisher`로 처리
-- [ ] `factory-b`, `factory-c`에 각각 배포
+- [ ] `factory-b`, `factory-c`에서 로컬 generator 실행 또는 systemd 등록
 
 ### 🔍 Acceptance Criteria
 
-- `factory-b`, `factory-c` K3s에서 Dummy data generator 파드 `Running`
+- `factory-b`, `factory-c` worker node의 `/var/lib/aegis/outbox`에 더미 canonical JSON 파일 생성 확인
+- ArgoCD에서 `factory-b`, `factory-c` Application `Synced` 확인
+- IoT Secret 준비 후 `edge-iot-publisher` 파드 `Running` 확인
 - ArgoCD에서 `factory-b`, `factory-c` Application `Synced` + `Healthy` 확인
 - IoT Core에서 두 공장의 더미 메시지 수신 확인
 - S3 raw에서 `raw/factory-b/...`, `raw/factory-c/...` prefix 분리 적재 확인
@@ -197,7 +263,7 @@ IoT Core 전송은 M4에서 만든 공통 `edge-iot-publisher`를 재사용한�
 
 ### 🎯 목표 (What & Why)
 
-Dummy data generator에서 생성된 데이터가 `factory-a`와 동일한 파이프라인으로
+VM 로컬 Dummy data generator에서 생성된 데이터가 `factory-a`와 동일한 전송 계층으로
 IoT Core → S3까지 흐르는지 확인한다.  
 3개 Spoke 모두 Hub에서 배포/수집 가능한 상태를 완성한다.
 
@@ -207,9 +273,9 @@ IoT Core → S3까지 흐르는지 확인한다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] `factory-b` 더미 데이터 → IoT Core → S3 적재 확인
+- [ ] `factory-b` local dummy generator → hostPath outbox → `edge-iot-publisher` → IoT Core → S3 적재 확인
   - 경로: `s3://bucket/factory-b/...`
-- [ ] `factory-c` 더미 데이터 → IoT Core → S3 적재 확인
+- [ ] `factory-c` local dummy generator → hostPath outbox → `edge-iot-publisher` → IoT Core → S3 적재 확인
   - 경로: `s3://bucket/factory-c/...`
 - [ ] S3에서 3개 공장 데이터가 독립 경로에 분리 적재 확인
 - [ ] `pipeline_status` 집계 대상에 `factory-b`, `factory-c` 추가
