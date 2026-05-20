@@ -1,0 +1,14 @@
+[Unit]
+Description=Aegis factory-b dummy data generator
+Wants=network-online.target
+After=network-online.target k3s.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/aegis/factory-b-dummy.env
+ExecStart=/usr/bin/python3 /opt/aegis/dummy-sensor/factory_b_dummy_generator.py --loop
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
