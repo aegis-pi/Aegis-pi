@@ -1,6 +1,6 @@
 # Factory B/C Dummy Data systemd Runbook
 
-상태: draft
+상태: source of truth
 기준일: 2026-05-20
 
 ## 목적
@@ -56,16 +56,16 @@ AWS IoT Rule
 
 | 항목 | Factory B | Factory C |
 | --- | --- | --- |
-| 실행 위치 | Mac UTM `factory-b` VM | Windows VirtualBox `factory-c-worker` VM |
+| 실행 위치 | Mac UTM `factory-b` worker1 VM | Windows VirtualBox `factory-c-worker` VM |
 | Factory ID | `factory-b` | `factory-c` |
 | environment_type | `vm-mac` | `vm-windows` |
 | IoT client id | `AEGIS-IoTThing-factory-b` | `AEGIS-IoTThing-factory-c` |
 | MQTT topic | `aegis/factory-b/factory_state`, `aegis/factory-b/infra_state` | `aegis/factory-c/factory_state`, `aegis/factory-c/infra_state` |
 | S3 raw prefix | `raw/factory-b/...` | `raw/factory-c/...` |
 | profile | `stable-lab` | `noisy-vm` |
-| topology | single-node | master + worker |
-| nodes 배열 | `["factory-b"]` | `["factory-c-master", "factory-c-worker"]` |
-| factory_state node_id | `factory-b` | `factory-c-worker` |
+| topology | master + worker | master + worker |
+| nodes 배열 | `["master", "worker1"]` | `["factory-c-master", "factory-c-worker"]` |
+| factory_state node_id | `worker1` | `factory-c-worker` |
 | temperature baseline/jitter | `24.5 ± 3.0` | `27.0 ± 4.0` |
 | humidity baseline/jitter | `45.0 ± 8.0` | `52.0 ± 10.0` |
 | pressure baseline/jitter | `1013.5 ± 1.5` | `1012.0 ± 2.0` |
@@ -86,7 +86,7 @@ generator는 `AEGIS_CLUSTER_STATE_MODE=auto` 기본값에서 아래 순서로 �
 
 systemd 방식에서는 VM에 `kubectl`이 동작해야 한다.
 
-Factory B는 단일 노드 server VM이므로 일반적으로 아래 kubeconfig가 이미 있다.
+Factory B는 master + worker1 2-node K3s 구성이며, generator는 worker1에서 실행한다. worker1에서 실제 `infra_state`를 읽으려면 아래 kubeconfig 조회가 가능해야 한다.
 
 ```bash
 kubectl get nodes -o wide

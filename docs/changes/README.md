@@ -1,7 +1,7 @@
 # Change Records
 
 상태: source of truth
-기준일: 2026-04-30
+기준일: 2026-05-20
 
 ## 목적
 
@@ -24,6 +24,8 @@
 | 0002 | Failback controller: Kubernetes CronJob -> master OS cron | accepted | 2026-04-29 | M0, failback |
 | 0003 | NFS cold storage and hot/cold tiering deferred | accepted | 2026-04-29 | M0, data retention |
 | 0004 | GitOps source: local repo -> GitHub repo + ArgoCD UI sync | accepted | 2026-04-28 | M0, deployment |
+| 0018 | IoT Rule factory-c raw S3 extension | accepted | 2026-05-20 | M5, IoT Core, S3 raw |
+| 0019 | factory-c Windows VirtualBox master/worker cluster | accepted | 2026-05-20 | M5, factory-c, K3s networking |
 
 ## 파일 형식
 

@@ -2,7 +2,7 @@ metadata:
   schema_version: 0.1.0
   owner: aegis-pi
   status: draft
-  updated_at: "2026-05-06"
+  updated_at: "2026-05-20"
   description: Runtime field, risk weight, and factory dummy-data profile baseline.
 
 global:
@@ -118,13 +118,13 @@ factories:
 
   factory-b:
     display_name: Factory B
-    status: planned
+    status: active-testbed
     spoke_type: testbed
     environment_type: vm-mac
     input_module_type: dummy
     cluster:
       platform: k3s
-      topology: single-node
+      topology: two-node
       vm:
         host: mac-mini
         tool: UTM
@@ -134,15 +134,21 @@ factories:
         disk_gib: 40
         network_mode: shared-or-bridged
       nodes:
-        - name: factory-b
-          role: single-node
+        - name: master
+          role: control-plane
+          labels:
+            aegis.factory-id: factory-b
+            aegis.environment-type: vm-mac
+            aegis.spoke-type: testbed
+        - name: worker1
+          role: worker
           labels:
             aegis.factory-id: factory-b
             aegis.environment-type: vm-mac
             aegis.input-module-type: dummy
             aegis.spoke-type: testbed
     workload_placement:
-      preferred_node: factory-b
+      preferred_node: worker1
       failover_node: null
     telemetry:
       iot_thing_name: AEGIS-IoTThing-factory-b
@@ -172,13 +178,13 @@ factories:
 
   factory-c:
     display_name: Factory C
-    status: planned
+    status: active-testbed
     spoke_type: testbed
     environment_type: vm-windows
     input_module_type: dummy
     cluster:
       platform: k3s
-      topology: single-node
+      topology: two-node
       vm:
         host: windows
         tool: VirtualBox
@@ -186,17 +192,25 @@ factories:
         cpu: 2
         memory_gib: 4
         disk_gib: 40
-        network_mode: nat-or-bridged
+        network_mode: nat-plus-host-only
       nodes:
-        - name: factory-c
-          role: single-node
+        - name: factory-c-master
+          role: control-plane
+          address_hint: 192.168.56.10
+          labels:
+            aegis.factory-id: factory-c
+            aegis.environment-type: vm-windows
+            aegis.spoke-type: testbed
+        - name: factory-c-worker
+          role: worker
+          address_hint: 192.168.56.20
           labels:
             aegis.factory-id: factory-c
             aegis.environment-type: vm-windows
             aegis.input-module-type: dummy
             aegis.spoke-type: testbed
     workload_placement:
-      preferred_node: factory-c
+      preferred_node: factory-c-worker
       failover_node: null
     telemetry:
       iot_thing_name: AEGIS-IoTThing-factory-c

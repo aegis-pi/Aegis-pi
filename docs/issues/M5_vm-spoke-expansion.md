@@ -206,21 +206,21 @@ IoT Core 전송은 M4에서 만든 공통 `edge-iot-publisher`를 재사용한�
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] Dummy data generator 구현
+- [x] Dummy data generator 구현
   - 표준 입력 스키마 준수
   - `environment_type`: `vm-mac` / `vm-windows` 자동 설정
   - `input_module_type: dummy` 명시
-- [ ] 시나리오 모드 구현 (수동 전환 방식)
+- [x] 시나리오 모드 구현 (수동 전환 방식)
   - `normal`: 정상 범위 값 생성
   - `warning`: 주의 범위 값 생성
   - `danger`: 위험 범위 값 생성
   - 구체 수치는 `docs/ops/03_test_checklist.md` 기반 테스트 후 보정
-- [ ] 시나리오 전환 방법 구현 (예: CLI 인자, 환경변수, 로컬 config 파일)
-- [ ] 공통 `edge-iot-publisher`와 같은 local spool/outbox 계약 사용
+- [x] 시나리오 전환 방법 구현 (예: CLI 인자, 환경변수, 로컬 config 파일)
+- [x] 공통 `edge-iot-publisher`와 같은 local spool/outbox 계약 사용
 - [x] `factory-b/c` worker node에 `/var/lib/aegis/outbox` 생성 및 권한 설정
 - [x] Helm chart가 `outbox.type: hostPath`일 때 PVC를 만들지 않고 hostPath volume을 mount하도록 수정
-- [ ] IoT Core 연결 및 메시지 전송은 `edge-iot-publisher`로 처리
-- [ ] `factory-b`, `factory-c`에서 로컬 generator 실행 또는 systemd 등록
+- [x] IoT Core 연결 및 메시지 전송은 `edge-iot-publisher`로 처리
+- [x] `factory-b`, `factory-c`에서 로컬 generator 실행 또는 systemd 등록
 
 ### 🔍 Acceptance Criteria
 
@@ -243,19 +243,25 @@ IoT Core 전송은 M4에서 만든 공통 `edge-iot-publisher`를 재사용한�
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] 테스트베드형 Sync 정책 적용
+- [x] 테스트베드형 Sync 정책 적용
   - 자동 Sync (운영형보다 빠른 주기)
   - Self-heal 활성화
-- [ ] 배포 실패 시 자동 롤백 설정
+- [x] 배포 실패 시 자동 롤백 설정
   - 운영형은 수동 확인 / 테스트베드형은 자동 롤백
-- [ ] 정책 차이가 ArgoCD ApplicationSet에 명확히 반영됨 확인
-- [ ] 정책 내용을 배포 파이프라인 관련 문서에 반영
+- [x] 정책 차이가 ArgoCD ApplicationSet에 명확히 반영됨 확인
+- [x] 정책 내용을 배포 파이프라인 관련 문서에 반영
 
 ### 🔍 Acceptance Criteria
 
 - 의도적으로 잘못된 이미지 배포 후 `factory-b` 자동 롤백 확인
 - `factory-a`는 동일 상황에서 자동 롤백 없이 `Degraded` 상태 유지
 - ArgoCD UI에서 두 Spoke의 동기화 정책 차이 확인 가능
+
+### 완료 기록 (2026-05-20)
+
+- `factory-b/c`는 테스트베드형 values와 ApplicationSet 정책으로 빠른 sync/self-heal 검증 범위에 포함했다.
+- 운영형 `factory-a`는 보수적 정책을 유지하고, 테스트베드형 `factory-b/c`는 빠른 반영과 회복 검증을 우선하는 정책 차이를 문서화했다.
+- 최종 CI/CD hardening과 manifest 자동 갱신 workflow는 M7 Issue 0에서 다시 정리한다.
 
 ---
 
@@ -267,18 +273,18 @@ VM 로컬 Dummy data generator에서 생성된 데이터가 `factory-a`와 동�
 IoT Core → S3까지 흐르는지 확인한다.  
 3개 Spoke 모두 Hub에서 배포/수집 가능한 상태를 완성한다.
 
-> 실행 전 확인:
-> M4의 Lambda data processor가 `factory_id` 기준으로 다중 공장을 식별하고,
-> Grafana/Hub에서 3개 공장 상태를 구분해 조회할 수 있어야 한다.
+> 현재 완료 범위:
+> 이 이슈의 2026-05-20 완료 판정은 S3 raw 적재 기준이다.
+> Lambda data processor, DynamoDB `pipeline_status`, Dashboard 분리 표시는 M4 Issue 6~7과 M6에서 진행한다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] `factory-b` local dummy generator → hostPath outbox → `edge-iot-publisher` → IoT Core → S3 적재 확인
+- [x] `factory-b` local dummy generator → hostPath outbox → `edge-iot-publisher` → IoT Core → S3 적재 확인
   - 경로: `s3://bucket/factory-b/...`
-- [ ] `factory-c` local dummy generator → hostPath outbox → `edge-iot-publisher` → IoT Core → S3 적재 확인
+- [x] `factory-c` local dummy generator → hostPath outbox → `edge-iot-publisher` → IoT Core → S3 적재 확인
   - 경로: `s3://bucket/factory-c/...`
-- [ ] S3에서 3개 공장 데이터가 독립 경로에 분리 적재 확인
-- [ ] `pipeline_status` 집계 대상에 `factory-b`, `factory-c` 추가
+- [x] S3에서 3개 공장 데이터가 독립 경로에 분리 적재 확인
+- [ ] `pipeline_status` 집계 대상에 `factory-b`, `factory-c` 추가 (Phase 4 Lambda 구현 시 진행 예정)
 
 ### 🔍 Acceptance Criteria
 

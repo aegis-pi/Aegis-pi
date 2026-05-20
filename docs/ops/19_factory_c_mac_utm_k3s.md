@@ -1,13 +1,13 @@
 # Factory C Mac UTM K3s Runbook
 
-상태: draft
-기준일: 2026-05-19
+상태: superseded
+기준일: 2026-05-20
 
 ## 목적
 
-Mac에서 UTM 기반 Linux VM을 만들고 `factory-c` 테스트베드형 Spoke K3s를 구성한다.
+Mac에서 UTM 기반 Linux VM을 만들고 `factory-c` 테스트베드형 Spoke K3s를 구성하는 과거 초안이다.
 
-이 문서는 `docs/issues/M5_vm-spoke-expansion.md`의 Issue 2 실행 사전이다. 목표는 Hub/ArgoCD 연결 전, 독립 VM 안에서 `factory-c` 단일 노드 K3s가 재부팅 후에도 `Ready` 상태로 복구되는 기준선을 만드는 것이다.
+2026-05-20 기준 실제 `factory-c` source of truth는 Windows VirtualBox master + worker 2-node 구성인 `docs/ops/19_factory_c_windows_virtualbox_k3s.md`다. 이 문서는 Mac UTM 대안 초안으로만 보관한다.
 
 ## 범위
 

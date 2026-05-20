@@ -11,7 +11,8 @@
 ## 현재 권장 기준
 
 - `factory-a`는 실제 Raspberry Pi 기반 production-edge로 두고 dummy data를 비활성화한다.
-- `factory-b`는 Mac mini + UTM 기반 `stable-lab` dummy profile로 둔다.
-- `factory-c`는 Windows + VirtualBox 기반 `noisy-vm` dummy profile로 둔다.
+- `factory-b`는 Mac mini + UTM 기반 2-node K3s testbed이며, `worker1`에서 `stable-lab` dummy profile을 실행한다.
+- `factory-c`는 Windows + VirtualBox 기반 2-node K3s testbed이며, `factory-c-worker`에서 `noisy-vm` dummy profile을 실행한다.
+- `factory-c`는 VirtualBox NAT IP 중복을 피하기 위해 host-only `enp0s8` 대역을 K3s node-ip/flannel 인터페이스 기준으로 사용한다.
 - `global.fields`에서 `risk_enabled=true`인 field의 weight 합계는 100 이하로 유지한다. 현재 전역 합계는 100이다.
 - SSH 비밀번호, AWS access key, IoT private key, Grafana admin password, kubeconfig token 같은 민감값은 이 파일에 넣지 않는다.

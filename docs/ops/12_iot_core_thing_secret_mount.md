@@ -10,7 +10,7 @@
 | 2026-05-04 | 실제 생성된 `factory-a` IoT Thing/Policy/K3s Secret 기준으로 Thing 이름, 저장 위치, 자동화 스크립트, SSH 대상, Secret 이름을 최신화 |
 | 2026-05-15 | 단일 `edge-agent` 기준을 `edge-iot-publisher` Secret mount 기준으로 변경 |
 | 2026-05-19 | `build-iot-factory-a.sh`가 IoT Secret 준비 후 ArgoCD ApplicationSet 배포까지 수행하는 현재 build 순서 반영 |
-| 2026-05-20 | `factory-b/c`는 cluster/Application 등록 이후 별도 IoT Thing/Secret 등록을 진행하는 순서와 Secret 이름 기준 반영 |
+| 2026-05-20 | `factory-b/c` cluster/Application 등록 이후 IoT Thing/Secret 등록, publisher 활성화, S3 raw 적재 검증 완료 기준 반영 |
 
 ## 목적
 
@@ -29,7 +29,7 @@ Thing:
   AEGIS-IoTThing-factory-c
 ```
 
-`factory-a` MVP에서는 먼저 `AEGIS-IoTThing-factory-a`를 생성했다. 2026-05-20 기준 `factory-b/c`는 Hub ArgoCD cluster/Application 등록을 먼저 완료했고, 다음 단계에서 `AEGIS-IoTThing-factory-b`, `AEGIS-IoTThing-factory-c`와 각 K3s Secret을 생성한다.
+`factory-a` MVP에서는 먼저 `AEGIS-IoTThing-factory-a`를 생성했다. 2026-05-20 기준 `factory-b/c`도 Hub ArgoCD cluster/Application 등록 이후 `AEGIS-IoTThing-factory-b`, `AEGIS-IoTThing-factory-c`와 각 K3s Secret을 준비했고, publisher 활성화와 S3 raw 적재까지 검증했다.
 
 K3s에는 Thing을 등록하지 않는다. K3s에는 해당 Thing에 연결된 인증서와 private key를 Kubernetes Secret으로 주입하고, `edge-iot-publisher` Deployment가 그 Secret을 read-only volume으로 mount한다.
 

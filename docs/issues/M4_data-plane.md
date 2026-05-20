@@ -549,26 +549,28 @@ IoT Core 수신 상태와 S3 적재 상태를 기준으로 `pipeline_status`가 
 
 ### 🎯 목표 (What & Why)
 
-`factory-a` 데이터가 `factory-a-log-adapter`와 `edge-iot-publisher`를 거쳐 IoT Core, S3 raw, Lambda, DynamoDB/S3 processed까지 실제로 흐르는 전체 파이프라인을 검증한다.
-이 검증이 완료되어야 M4 마일스톤이 완료되고 M5(VM Spoke 확장)와 M6(Risk Twin)으로 넘어갈 수 있다.
+`factory-a` 데이터가 `factory-a-log-adapter`와 `edge-iot-publisher`를 거쳐 IoT Core와 S3 raw까지 실제로 흐르는 raw 데이터 플레인을 검증한다.
+Lambda, DynamoDB/S3 processed, `pipeline_status`는 Issue 6~7에서 별도 검증한다.
+이 raw 검증이 완료되어야 M5(VM Spoke 확장)를 진행할 수 있다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] `raw/log/status -> factory-a-log-adapter -> edge-iot-publisher -> IoT Core -> S3 raw` 흐름 end-to-end 확인
-- [ ] `IoT Core → Lambda data processor → DynamoDB/S3 processed` 흐름 확인
-- [ ] source_type별 경로 분리 적재 확인 (`factory_state`, `infra_state`)
-- [ ] Lambda 정규화/Risk 계산 처리 확인
-- [ ] `pipeline_status` Lambda 계산 동작 확인
-- [ ] DynamoDB LATEST/HISTORY에 Dashboard 조회용 최신 상태 반영 확인
-- [ ] 데이터 지연/누락 발생 시 `pipeline_status` 이상 판정 확인
-- [ ] 검증 결과를 데이터 플레인 관련 문서와 `docs/ops/03_test_checklist.md`에 반영
+- [x] `raw/log/status -> factory-a-log-adapter -> edge-iot-publisher -> IoT Core -> S3 raw` 흐름 end-to-end 확인
+- [x] source_type별 경로 분리 적재 확인 (`factory_state`, `infra_state`)
+- [x] raw object body가 canonical JSON 계약을 만족하는지 확인
+- [x] 검증 결과를 데이터 플레인 관련 문서와 `docs/ops/03_test_checklist.md`에 반영
+- [ ] `IoT Core → Lambda data processor → DynamoDB/S3 processed` 흐름 확인 (Issue 6)
+- [ ] Lambda 정규화/Risk 계산 처리 확인 (Issue 6, M6)
+- [ ] `pipeline_status` Lambda 계산 동작 확인 (Issue 7)
+- [ ] DynamoDB LATEST/HISTORY에 Dashboard 조회용 최신 상태 반영 확인 (Issue 6~7)
+- [ ] 데이터 지연/누락 발생 시 `pipeline_status` 이상 판정 확인 (Issue 7)
 
 ### 🔍 Acceptance Criteria
 
 - S3에서 `factory-a` 데이터 주기적 적재 확인 (최소 10분 이상 연속)
 - `factory_state`, `infra_state` 두 경로에 데이터 분리 적재 확인
-- `edge-iot-publisher` 강제 중지 후 `pipeline_status` 이상 판정 확인
-- 재기동 후 파이프라인 자동 복구 확인
+- Lambda/DynamoDB/S3 processed와 `pipeline_status`는 Issue 6~7에서 확인
+- `edge-iot-publisher` 강제 중지 후 이상 판정 검증은 Issue 7과 M7에서 수행
 
 ## 2026-05-14 수정 방향
 

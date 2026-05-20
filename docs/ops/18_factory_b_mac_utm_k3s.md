@@ -1,13 +1,13 @@
 # Factory B Mac UTM K3s Runbook
 
-상태: draft
-기준일: 2026-05-06
+상태: source of truth
+기준일: 2026-05-20
 
 ## 목적
 
-Mac mini에서 UTM 기반 Linux VM을 만들고 `factory-b` 테스트베드형 Spoke K3s를 구성한다.
+Mac mini에서 UTM 기반 Linux VM 2대를 만들고 `factory-b` 테스트베드형 Spoke K3s를 master + worker 구조로 구성한다.
 
-이 문서는 `docs/issues/M5_vm-spoke-expansion.md`의 Issue 1 실행 사전이다. 목표는 Hub/ArgoCD 연결 전, 독립 VM 안에서 `factory-b` 단일 노드 K3s가 재부팅 후에도 `Ready` 상태로 복구되는 기준선을 만드는 것이다.
+이 문서는 `docs/issues/M5_vm-spoke-expansion.md`의 Issue 1 실행 기준이다. 2026-05-20 기준 `factory-b`는 Hub/ArgoCD 등록, worker1 hostPath outbox, local dummy generator, common `edge-iot-publisher`, S3 raw 적재까지 검증됐다.
 
 ## 범위
 
@@ -15,10 +15,12 @@ Mac mini에서 UTM 기반 Linux VM을 만들고 `factory-b` 테스트베드형 S
 
 - UTM VM 생성 기준
 - Ubuntu Server 또는 Debian 계열 guest OS 설치 기준
-- K3s 단일 노드 설치
+- K3s master + worker 2-node 설치
 - `factory-b` hostname, label, 환경 기준 적용
 - kubeconfig 확인
 - VM 재부팅 후 K3s 자동 복구 확인
+- Tailscale Hub 연결과 ArgoCD cluster 등록 상태 기록
+- worker1 local dummy generator와 S3 raw 적재 검증 결과 연결
 
 제외:
 
@@ -26,15 +28,12 @@ Mac mini에서 UTM 기반 Linux VM을 만들고 `factory-b` 테스트베드형 S
 - NFS 또는 cold storage
 - 실센서, 카메라, 마이크 의존 구성
 - 운영형 failover/failback 구성
-- Tailscale 연결
-- ArgoCD cluster 등록
-- `dummy-data-generator`와 `edge-iot-publisher` 배포
 
 ## 권장 VM 기준
 
 | 항목 | 값 |
 | --- | --- |
-| VM 이름 | `factory-b` |
+| VM 이름 | `factory-b-master`, `factory-b-worker1` |
 | Host | Mac mini |
 | VM tool | UTM |
 | Guest OS | Ubuntu Server LTS 또는 Debian stable |
@@ -42,7 +41,9 @@ Mac mini에서 UTM 기반 Linux VM을 만들고 `factory-b` 테스트베드형 S
 | Memory | 4GiB |
 | Disk | 40GiB |
 | Network | UTM Shared Network 또는 Bridged |
-| Kubernetes | K3s single-node |
+| Kubernetes | K3s master + worker |
+
+`factory-b-worker1`은 `aegis.workload-node=true` label을 유지하고, local dummy generator가 `/var/lib/aegis/outbox`에 canonical JSON을 쓴다. Hub ArgoCD가 배포한 `edge-iot-publisher`는 같은 hostPath를 읽어 IoT Core로 송신한다.
 
 초기 로컬 검증은 UTM Shared Network로 충분하다. Hub EKS, ArgoCD, Tailscale 연결 단계에서는 Tailscale IP를 K3s API endpoint 기준으로 사용한다.
 
@@ -54,12 +55,12 @@ Mac mini에서 UTM 기반 Linux VM을 만들고 `factory-b` 테스트베드형 S
 4. Ubuntu Server LTS 또는 Debian ISO를 지정한다.
 5. CPU 2개, memory 4096MiB, disk 40GiB로 만든다.
 6. Network는 우선 Shared Network로 둔다.
-7. VM 이름은 `factory-b`로 둔다.
+7. VM 이름은 master는 `factory-b-master`, worker는 `factory-b-worker1`로 둔다.
 
 Guest OS 설치 중 사용자는 아래 기준을 적용한다.
 
 ```text
-hostname: factory-b
+hostname: factory-b-master / factory-b-worker1
 user: 운영자가 정한 일반 사용자
 ssh: enabled
 ```
@@ -189,22 +190,22 @@ aegis.input-module-type=dummy
 aegis.spoke-type=testbed
 ```
 
-## 후속 TODO
+## 완료 상태
 
-- Tailscale 설치 및 `factory-b` auth key로 tailnet 참여
-- Tailscale IP 기준 kubeconfig 생성
-- EKS Hub 또는 운영자 로컬에서 `factory-b.kubeconfig`로 `kubectl get nodes` 확인
-- ArgoCD에 `factory-b` cluster 등록
-- `envs/factory-b/values.yaml` 작성
-- `dummy-data-generator`와 `edge-iot-publisher` 배포
+- Tailscale 설치 및 `factory-b` auth key로 tailnet 참여 완료
+- Tailscale IP 기준 kubeconfig 생성 완료
+- EKS Hub와 운영자 로컬에서 `factory-b` K3s API 접근 확인
+- ArgoCD에 `factory-b` cluster 등록 완료
+- `envs/factory-b/values.yaml` 작성 및 hostPath outbox 적용 완료
+- local dummy generator와 common `edge-iot-publisher` 기반 S3 raw 적재 검증 완료
 
 ## 완료 체크리스트
 
-- [ ] UTM VM `factory-b` 생성
-- [ ] Guest OS 설치 및 SSH 활성화
-- [ ] K3s single-node 설치
-- [ ] `kubectl get nodes`에서 `factory-b` Ready 확인
-- [ ] K3s version 기록
-- [ ] `factory-b` label 적용
-- [ ] VM 재부팅 후 K3s 자동 복구 확인
-- [ ] 민감 정보가 문서와 repository에 남지 않았는지 확인
+- [x] UTM VM `factory-b-master`, `factory-b-worker1` 생성
+- [x] Guest OS 설치 및 SSH 활성화
+- [x] K3s master + worker 설치
+- [x] `kubectl get nodes`에서 master/worker Ready 확인
+- [x] K3s version 기록
+- [x] `factory-b` label 적용
+- [x] VM 재부팅 후 K3s 자동 복구 확인
+- [x] 민감 정보가 문서와 repository에 남지 않았는지 확인

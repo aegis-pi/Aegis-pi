@@ -31,7 +31,7 @@ Factory별 프로파일:
 
 | Factory | Host | Profile | Node topology | 값 특성 |
 | --- | --- | --- | --- | --- |
-| `factory-b` | Mac UTM | `stable-lab` | single-node `factory-b` | 낮은 anomaly 확률, 낮은 온습도 기준 |
+| `factory-b` | Mac UTM | `stable-lab` | 2-node `master`/`worker1` | 낮은 anomaly 확률, 낮은 온습도 기준 |
 | `factory-c` | Windows VirtualBox | `noisy-vm` | 2-node `factory-c-master`/`factory-c-worker` | 높은 anomaly 확률, 높은 온습도 jitter |
 
 공통 envelope는 Factory A 구현과 맞춰 `data_plane_instance_id`를 포함한다.

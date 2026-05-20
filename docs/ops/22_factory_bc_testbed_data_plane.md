@@ -156,27 +156,21 @@ ls -ld /var/lib/aegis/outbox
 
 ## Local Dummy Generator 기준
 
-초기 generator는 CLI script로 시작한다.
+초기 generator는 factory별 CLI script로 시작한다.
 
 ```bash
-python3 dummy_data_generator.py \
-  --factory-id factory-b \
-  --environment-type vm-mac \
-  --input-module-type dummy \
-  --scenario normal \
-  --outbox-dir /var/lib/aegis/outbox
+AEGIS_OUTBOX_DIR=/var/lib/aegis/outbox \
+  python3 apps/dummy-sensor/factory_b_dummy_generator.py --once all
 ```
 
 `factory-c`:
 
 ```bash
-python3 dummy_data_generator.py \
-  --factory-id factory-c \
-  --environment-type vm-windows \
-  --input-module-type dummy \
-  --scenario warning \
-  --outbox-dir /var/lib/aegis/outbox
+AEGIS_OUTBOX_DIR=/var/lib/aegis/outbox \
+  python3 apps/dummy-sensor/factory_c_dummy_generator.py --once all
 ```
+
+상시 실행은 `apps/dummy-sensor/docs/factory-b-c-dummy-systemd-runbook.md`의 systemd 유닛 기준을 따른다.
 
 생성 파일은 M4 canonical JSON 계약을 따른다.
 
@@ -193,6 +187,8 @@ write 방식:
 publisher는 publish 성공 후 파일을 삭제한다. invalid JSON은 `outbox/quarantine/`으로 이동한다.
 
 ## 진행 순서
+
+2026-05-20 기준 아래 순서는 완료됐다. 이후 재구축 또는 장애 복구 시 같은 순서로 반복한다.
 
 1. `factory-b/c` cluster registration과 ApplicationSet 생성을 완료한다.
 2. `charts/aegis-spoke`에 `outbox.type` 분기를 추가한다.
@@ -245,20 +241,57 @@ aws s3 ls s3://aegis-bucket-data/raw/factory-c/ --recursive --region ap-south-1
 - GitOps chart `outbox.type: pvc|hostPath` 분기 지원, `factory-b/c` values `hostPath` 전환 완료 (aegis-pi-gitops commit `04f90b2`, remote push 완료)
 - factory-b worker1 `/var/lib/aegis/outbox`: `drwxrwx--- 10001:10001` 생성 확인
 - factory-c worker `/var/lib/aegis/outbox`: 생성 확인 (kubectl pod exit 0, uid 10001 write 성공)
+- factory-b/c local dummy generator systemd service 배포 및 canonical JSON 생성 확인
+- factory-b/c IoT Thing/certificate/K3s Secret 준비 완료
+- factory-b/c `edge-iot-publisher` Pod Running 확인
+- S3 raw prefix 분리 적재 확인: `raw/factory-b/...`, `raw/factory-c/...`
+- 다음 단계: Lambda data processor가 S3 raw 이후 DynamoDB LATEST/HISTORY, S3 processed, `pipeline_status`를 갱신하도록 구현
 
-### factory-c-worker K3s node-ip 수정 내역
+### factory-c 네트워크 및 Flannel/CoreDNS 통신 장애 조치 내역 (2026-05-20)
 
-factory-c는 VirtualBox NAT 구조로 master/worker 모두 `INTERNAL-IP=10.0.2.15`로 K3s에 등록되는 문제가 있었다.
-worker의 host-only 인터페이스 `enp0s8` IP `192.168.56.20`은 netplan에 static으로 고정되어 있음을 확인하고 아래와 같이 수정했다.
+**문제 현상**:
+VirtualBox NAT 네트워크 복제 설정으로 인해 `factory-c-master`와 `factory-c-worker` VM의 `INTERNAL-IP`가 둘 다 `10.0.2.15`로 중복 등록되었습니다. 이로 인해 K3s flannel CNI를 통한 노드 간 VXLAN 터널링 및 Pod-to-Pod 통신이 차단되었고, `edge-iot-publisher` Pod에서 CoreDNS를 찾지 못해 `Temporary failure in name resolution` 오류가 발생하며 AWS IoT로 데이터를 전송하지 못했습니다.
 
+**조치 사항**:
+NAT IP 충돌 문제를 방지하기 위해, 각 VM의 호스트 전용 어댑터(Host-only Adapter) 인터페이스인 `enp0s8`의 고유 IP 대역을 K3s 및 Flannel의 CNI 바인딩용 인터페이스로 강제 지정하였습니다.
+
+1. **`factory-c-master` 설정**:
+   - `/etc/rancher/k3s/config.yaml` 파일에 아래 설정을 적용하여 내부 IP와 flannel 인터페이스를 고정:
+     ```yaml
+     node-ip: 192.168.56.10
+     flannel-iface: enp0s8
+     ```
+   - 설정 후 K3s 서비스 재시작: `sudo systemctl restart k3s`
+
+2. **`factory-c-worker` 설정**:
+   - `/etc/rancher/k3s/config.yaml` 파일에 아래 설정을 적용:
+     ```yaml
+     node-ip: 192.168.56.20
+     flannel-iface: enp0s8
+     ```
+   - 설정 후 K3s-agent 서비스 재시작: `sudo systemctl restart k3s-agent`
+
+**결과**:
+`kubectl get nodes -o wide` 실행 시 노드들의 `INTERNAL-IP`가 중복 없이 각각 `192.168.56.10`, `192.168.56.20`으로 올바르게 인식되며, 멀티 노드 간 네트워크 통신이 복구되어 `edge-iot-publisher`의 CoreDNS 질의 및 AWS IoT Core publish가 정상화되었습니다.
+
+---
+
+### factory-b 워커 노드 시각 동기화 (Clock Drift) 조치 내역 (2026-05-20)
+
+**문제 현상**:
+Factory B의 더미 생성기(`dummy-generator`)가 생성한 파일명 및 데이터 내 타임스탬프 시각과 S3의 LastModified 시각 사이에 약 32분의 시간 오차(Clock Drift)가 발생하였습니다 (예: 파일명 내 시간은 `08:34 UTC`이나 실제 전송 및 업로드 시각은 `09:06 UTC`).
+
+**원인**:
+Factory B의 `worker1` VM 노드의 시스템 시간이 실제 시각보다 32분 정도 느리게 차이가 나고 있었고, 이로 인해 로컬 파일 생성기 시각이 부정확해졌습니다. 시스템에 설치된 `chrony` 데몬이 작동하고 있었으나 오차의 임계치 기준을 초과하여 자동 도약 동기화가 중단된 상태였습니다.
+
+**조치 사항**:
+`worker1` 노드 내부에서 NTP 시간 강제 동기화 도약 명령을 수행하여 클럭 오차를 복구했습니다.
 ```bash
-# factory-c-worker에서 적용 (2026-05-20)
-sudo mkdir -p /etc/rancher/k3s
-echo "node-ip: 192.168.56.20" | sudo tee /etc/rancher/k3s/config.yaml
-sudo systemctl restart k3s-agent
+# factory-b worker1 노드에서 실행
+sudo chronyc makestep
 ```
 
-적용 후 `kubectl get nodes -o wide`에서 `factory-c-worker INTERNAL-IP: 192.168.56.20` 확인.
-
-주의: `kubectl logs` / `kubectl exec`가 worker 대상일 때 502 Bad Gateway가 나는 케이스가 남아 있다.
-pod 배포/스케줄링/outbox write에는 영향 없다. 근본 원인(kubelet 인증서 SAN 미포함 가능성)은 추후 확인한다.
+**결과**:
+- 조치 전 `worker1` 시스템 시간: `08:37 UTC`
+- 조치 후 `worker1` 시스템 시간: `09:08 UTC` (실제 표준 시각과 동기화 완료)
+- 동기화 직후 더미 생성기에서 생성되는 파일의 타임스탬프(`09:09Z`)와 S3 저장 메타데이터 상의 최종 수정 일시가 실시간 정합성을 이루게 되었습니다.

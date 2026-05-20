@@ -96,9 +96,9 @@
 - [x] Issue 2 - [Spoke/K3s] Windows VM K3s 구성 (`factory-c`)
 - [x] Issue 3 - [Spoke/Tailscale] `factory-b`, `factory-c` Tailscale 참여 및 Hub 연결
 - [x] Issue 4 - [배포/ArgoCD] ApplicationSet에 `factory-b`, `factory-c` 추가
-- [ ] Issue 5 - [Spoke/Dummy Generator] 로컬 Dummy data generator 구현 및 실행
-- [ ] Issue 6 - [배포/ArgoCD] 테스트베드형 동기화 정책 및 자동 롤백 적용
-- [ ] Issue 7 - [검증/데이터] `factory-b`, `factory-c` 데이터 플레인 연결 확인
+- [x] Issue 5 - [Spoke/Dummy Generator] 로컬 Dummy data generator 구현 및 실행
+- [x] Issue 6 - [배포/ArgoCD] 테스트베드형 동기화 정책 및 자동 롤백 적용
+- [x] Issue 7 - [검증/데이터] `factory-b`, `factory-c` 데이터 플레인 연결 확인
 
 ## M6. Risk Twin + 관제 화면
 
