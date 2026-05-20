@@ -62,23 +62,54 @@
 | M5 | Issue 2 - factory-b/c Tailnet 참여 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
 | M5 | Issue 3 - Hub ArgoCD cluster 등록 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
 | M5 | Issue 4 - ApplicationSet factory-b/c 확장 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
+| M5 | Issue 5 - 로컬 Dummy generator 구현 및 실행 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
+| M5 | Issue 6 - 테스트베드 동기화 및 롤백 정책 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
+| M5 | Issue 7 - 데이터 플레인 연결 확인 (S3 적재) | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
 
 현재 바로 이어서 할 이슈:
 
 ```text
-M5 Issue 5 - factory-b/c local dummy generator 구현 및 VM 로컬 실행
-M5 Issue 6 - factory-b/c IoT Thing/certificate/K3s Secret 등록
-M5 Issue 7 - edge-iot-publisher 활성화 및 S3 raw 적재 확인
 M4 Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
+M4 Issue 7 - [데이터/Pipeline] pipeline_status Lambda 처리 검증
+M6 Issue 1~4 - Risk 계산, runtime-config 적용, Risk Twin 출력 구조 구현
 ```
+
+## 다음 세션 시작 지점
+
+바로 이어서 작업할 때는 새 인프라 작업을 시작하기 전에 아래 순서로 현재 상태를 확인한다.
+
+```bash
+cd /home/vicbear/Aegis/git_clone/Aegis-pi
+git status --short
+```
+
+Hub가 내려가 있는 개발 중단 상태라면 아래 순서로 복구한다. IoT Core Thing/certificate와 Spoke K3s Secret은 유지한다.
+
+```bash
+scripts/build/build-hub.sh <MFA_OTP>
+scripts/build/build-admin-ui-after-ns.sh <MFA_OTP>        # Public HTTPS Admin UI가 필요할 때
+scripts/build/connect-hub-tailscale-ui.sh <MFA_OTP>       # Tailnet ArgoCD/Grafana UI가 필요할 때
+scripts/build/register-spoke-factory-a.sh <MFA_OTP>
+scripts/build/register-spoke-factory-b.sh <MFA_OTP>
+scripts/build/register-spoke-factory-c.sh <MFA_OTP>
+```
+
+Hub를 다시 내릴 때는 VM 데이터 생성을 먼저 멈춘다.
+
+```bash
+scripts/destroy/stop-dummy-generators.sh
+scripts/destroy/destroy-hub.sh <MFA_OTP>
+```
+
+Hub 상태와 무관하게 다음 구현 작업은 M4 Issue 6부터 시작한다. 구현 대상은 IoT Core Rule Lambda action, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 저장, 그리고 Issue 7 `pipeline_status` 계산이다.
 
 ## 현재 큰 상태
 
 ```text
-현재 단계: M5 Issue 4 완료 (chart hostPath 전환, factory-b/c outbox 생성/검증), M5 Issue 5 dummy generator 구현 진행 중 (2026-05-20)
+현재 단계: M5 factory-b/c 테스트베드 데이터 플레인 수집 및 S3 raw 검증 완료 (2026-05-20)
 
 완료: M3 Issue 1~5 배포 파이프라인 전체
-완료: M4 Issue 1~5 데이터 플레인
+완료: M4 Issue 1~5/8 raw 데이터 플레인
   - factory-a-log-adapter: factory_state 3s, infra_state 20s 주기 outbox write (--loop)
   - edge-iot-publisher: outbox scan -> MQTT -> IoT Core -> S3 raw
   - 배포 이미지: sha-f71a104 (stable, ECR 유지 중)
@@ -95,7 +126,12 @@ M4 Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
 현재 배포 방식:
   - build-hub.sh: Hub EKS/ArgoCD/Prometheus/Grafana/AWS Load Balancer Controller 등록
   - build-admin-ui-after-ns.sh: Admin UI HTTPS Ingress 활성화
-  - build-iot-factory-a.sh: IoT Secret 준비 후 Tailscale/cluster Secret/ApplicationSet 배포
+  - connect-hub-tailscale-ui.sh: ArgoCD/Grafana Tailscale UI Service 연결/검증
+  - register-spoke-factory-a.sh: 기존 IoT Secret 유지, factory-a egress/cluster Secret/ApplicationSet/app sync 복구
+  - register-spoke-factory-b.sh: 기존 IoT Secret 유지, factory-b egress/cluster Secret/ApplicationSet/app sync 복구
+  - register-spoke-factory-c.sh: 기존 IoT Secret 유지, factory-c egress/cluster Secret/ApplicationSet/app sync 복구
+  - build-iot-factory-a.sh: factory-a IoT Thing/certificate/K3s Secret을 새로 만들거나 갱신해야 할 때만 사용
+  - stop-dummy-generators.sh: Hub 삭제 전 factory-b/c VM dummy generator 정지
   - verify-complete.sh: Hub/IoT/factory-a rollout 통합 검증
 
 현재 AWS 상태: Foundation/IoT/ECR 리소스 활성, Hub EKS는 build/destroy로 반복 재생성 가능
@@ -104,7 +140,7 @@ IoT Secret: ai-apps/aws-iot-factory-a-cert 유지 중
 ECR pull secret: ai-apps/ecr-registry 유지 중
 Longhorn PVC: aegis-spoke-outbox 유지 중
 
-완료: M5 factory-b/c Hub-Spoke 등록
+완료: M5 factory-b/c Hub-Spoke 등록 및 데이터 플레인 검증
   - factory-b Tailnet IP: 100.98.121.77
   - factory-c Tailnet IP: 100.76.243.72
   - factory-b nodes: master, worker1
@@ -116,7 +152,11 @@ Longhorn PVC: aegis-spoke-outbox 유지 중
   - GitOps chart/values는 b/c hostPath outbox를 지원하도록 전환 완료 (aegis-pi-gitops commit 04f90b2, remote push 완료)
   - factory-b worker1: /var/lib/aegis/outbox drwxrwx--- 10001:10001 생성 확인 (SSH 직접)
   - factory-c worker: /var/lib/aegis/outbox 생성 확인 (kubectl pod exit 0, uid 10001 write 성공)
-  - factory-c-worker K3s node-ip: 192.168.56.20으로 재등록 완료 (static IP, /etc/rancher/k3s/config.yaml)
+  - factory-b/c local dummy generator systemd 배포 및 canonical JSON 생성 확인
+  - factory-b/c IoT Thing/certificate/K3s Secret 준비 및 edge-iot-publisher 활성화 확인
+  - factory-b/c -> IoT Core -> S3 raw/factory-b, raw/factory-c prefix 분리 적재 확인
+  - factory-c master/worker VirtualBox NAT 중복 IP 문제 해결: enp0s8 고정 IP와 flannel-iface 적용
+  - factory-b worker1 clock drift 약 32분 문제 해결: chrony makestep으로 S3 partition timestamp 정합성 복구
 
 확정: factory-b/c 테스트베드 데이터 플레인 방향
   - dummy generator는 Kubernetes Deployment가 아니라 VM 로컬 script/systemd service로 실행
@@ -125,10 +165,13 @@ Longhorn PVC: aegis-spoke-outbox 유지 중
   - publisher는 hostPath /var/lib/aegis/outbox를 mount해 IoT Core로 publish
   - factory-a는 기존 Longhorn PVC outbox + factory-a-log-adapter 구조 유지
 
-주의: scripts/ansible/inventory/group_vars/hub_eks.yml에서 factory-a enabled=false는 factory-a-master offline 때문에 임시 적용한 상태다. factory-a가 online이면 enabled=true로 되돌리고 전체 Spoke verify를 다시 실행한다.
+Hub-only 삭제/재생성 운영 순서:
+  - 내릴 때: scripts/destroy/stop-dummy-generators.sh -> scripts/destroy/destroy-hub.sh 또는 destroy-all.sh
+  - 올릴 때: scripts/build/build-hub.sh -> 필요 시 build-admin-ui-after-ns.sh -> 필요 시 connect-hub-tailscale-ui.sh -> register-spoke-factory-a/b/c.sh
+  - 이 경로에서는 IoT Core Thing/certificate와 Spoke K3s Secret을 다시 만들지 않는다.
 
-다음 우선: M5 Issue 5 local dummy generator 구현/실행, M5 Issue 6 factory-b/c IoT 등록, M5 Issue 7 edge-iot-publisher 활성화
-보류: M3 Issue 6~8, M6~M7 전체
+다음 우선: M4 Issue 6 Lambda data processor 구현, M4 Issue 7 pipeline_status 검증, 이후 M6 Risk Twin/Dashboard 구현
+보류: M3 Issue 6 manifest 자동 갱신 workflow, M6 Dashboard 세부 화면, M7 전체 통합 검증
 후속 리팩토링: M7 Issue 0에서 repo 분리 및 OIDC CI/CD 고도화
 
 완료: M0 factory-a Safe-Edge 기준선
@@ -156,7 +199,7 @@ Longhorn PVC: aegis-spoke-outbox 유지 중
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
 AWS 실제 리소스 상태: 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 재생성 완료. Hub EKS, foundation S3/AMP/ECR/IoT Rule, `factory-a` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태.
 Terraform state: infra/hub apply 완료, infra/foundation apply 완료
-다음 작업 우선순위: M5 factory-b/c hostPath outbox 전환 및 데이터 플레인 smoke 검증.
+다음 작업 우선순위: IoT Core Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, pipeline_status 계산.
 ```
 
 ## 지금까지 완료한 일
@@ -260,7 +303,7 @@ Capacity: On-Demand
 
 ### M1 Issue 3 Hub ArgoCD
 
-- 2026-05-19 기준 표준 생성 순서는 `build-hub.sh` -> `build-admin-ui-after-ns.sh` -> `build-iot-factory-a.sh` -> `verify-complete.sh`다.
+- 2026-05-20 기준 Hub-only 생성 순서는 `build-hub.sh` -> 필요 시 `build-admin-ui-after-ns.sh` -> 필요 시 `connect-hub-tailscale-ui.sh` -> `register-spoke-factory-a/b/c.sh`다.
 - `aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS` 완료.
 - `kubectl get nodes -o wide`에서 EKS worker node 2대 `Ready` 확인.
 - Hub namespace/LimitRange는 처음 Terraform으로 검증했고, 최종 기준은 Ansible bootstrap으로 전환했다.
@@ -315,7 +358,7 @@ terraform state: infra/foundation apply complete
 - `terraform init`은 provider/module을 로컬에 내려받는 작업이라 AWS 리소스를 만들지 않는다.
 - AWS 리소스가 실제로 만들어지는 시점은 `terraform apply` 실행 시점이다.
 - 테스트가 끝나면 반드시 `scripts/destroy/destroy-hub.sh` 또는 `scripts/destroy/destroy-all.sh`로 EKS, NAT Gateway, node group을 제거한다.
-- 2026-05-19에는 `build-hub.sh` 이후 Gabia NS 위임, `build-admin-ui-after-ns.sh`, `build-iot-factory-a.sh`, `verify-complete.sh` 기준으로 실행 순서를 재정렬했다.
+- 2026-05-20에는 Hub-only 재시작을 단계별 실행 파일로 분리했다. Hub build, Admin UI, Tailnet UI, factory별 Spoke 등록, dummy generator stop을 각각 독립 실행한다.
 
 과거 2026-05-08 삭제 전 검증 기록:
 

@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-05-19
+기준일: 2026-05-20
 
 ## 목적
 
@@ -12,11 +12,13 @@
 - Phase 0 문서 기준선 정리는 완료 상태로 유지 보수 중이다.
 - Phase 1 M0 `factory-a` Safe-Edge 기준선은 구축 및 실측 검증까지 완료됐다.
 - Phase 2 M1은 AWS MFA/Terraform 접근, Hub EKS/VPC, Hub namespace, Hub ArgoCD, foundation S3/AMP, `factory-a` IoT Thing/Policy/K3s Secret, IoT Rule -> S3 raw 적재, IRSA S3 권한, Hub Prometheus Agent 설치, AMP remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Admin UI HTTPS Ingress 검증까지 진행했다.
-- Hub AWS 리소스와 foundation S3/AMP/Admin UI는 `build-hub.sh`, `build-admin-ui-after-ns.sh`, `build-iot-factory-a.sh` 기준으로 재생성/검증한다. Hub build는 cluster 등록까지만 수행하고, Spoke ApplicationSet 배포는 IoT Secret 준비 이후로 분리했다.
+- Hub AWS 리소스와 foundation S3/AMP/Admin UI는 `build-hub.sh`, `build-admin-ui-after-ns.sh` 기준으로 재생성/검증한다. Hub build는 cluster 등록을 수행하지 않으며, Tailnet UI는 `connect-hub-tailscale-ui.sh`, Spoke ArgoCD cluster 등록과 ApplicationSet sync는 `register-spoke-factory-a/b/c.sh`로 factory별 분리했다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
-- M3는 Issue 1~5 범위를 완료했다. Issue 6 manifest 자동 갱신, Issue 7 배포 검증 workflow, Issue 8 end-to-end 배포 검증은 실제 Edge data-plane 이미지가 확정된 뒤 재개한다.
-- M4 Issue 1~5 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, 이미지화/GitOps chart, IoT Core -> S3 raw 적재 검증은 완료했다. 현재 다음 단계는 M4 Issue 6 Lambda data processor와 M5 factory 확장이다.
+- M3는 Issue 1~5와 build/verify 기반 배포 검증 범위를 완료했다. Issue 6 manifest 자동 갱신 workflow는 M7 CI/CD hardening 때 재검토한다.
+- M4 Issue 1~5/8 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, 이미지화/GitOps chart, IoT Core -> S3 raw 적재와 `factory-a` raw data-plane 검증은 완료했다. 현재 다음 단계는 M4 Issue 6 Lambda data processor와 M4 Issue 7 `pipeline_status` 검증이다.
+- M5는 `factory-b/c` 2-node VM K3s, Tailnet/Hub ArgoCD 등록, GitOps hostPath outbox 전환, local dummy generator systemd 실행, common `edge-iot-publisher` 배포, IoT Core -> S3 raw 분리 적재 검증까지 완료했다.
+- 2026-05-20 세션에서 `factory-c` VirtualBox NAT 중복 IP로 인한 Flannel/CoreDNS 장애를 enp0s8 고정 IP와 `flannel-iface` 지정으로 해결했고, `factory-b` worker1 clock drift는 `chronyc makestep`으로 복구했다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
 - 관리자 대시보드는 Tailscale 의존을 줄이기 위해 `docs/planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.
@@ -233,11 +235,14 @@ Hub 생성 순서:
 - `dummy-data-generator` 구현 / 배포
 - `factory-b/c`는 canonical JSON 형식의 가데이터를 생성하고, 공통 `edge-iot-publisher`가 IoT Core 송신을 담당
 - 테스트베드형 자동 롤백 정책 적용
-- 두 VM의 S3 적재 및 `pipeline_status` 확인
+- 두 VM의 S3 raw 적재 확인
+- `pipeline_status` 확인은 M4 Issue 7 Lambda 처리 검증으로 이관
 
 완료 조건:
 
 - 3개 공장이 Hub에서 독립 공장으로 배포/수집 가능
+- S3 raw에서 `raw/factory-a/`, `raw/factory-b/`, `raw/factory-c/` prefix가 분리되어 적재됨
+- `factory-b/c` dummy generator 중지/재시작을 통해 후속 `pipeline_status` 검증을 수행할 수 있음
 
 ### Phase 7. M6 Risk Twin + 관제 화면
 
@@ -288,9 +293,9 @@ Hub 생성 순서:
 | Phase 2 (M1) | 핵심 완료, Issue 0~10/12 완료, Issue 11 보류 | Hub 핵심 서비스 |
 | Phase 3 (M2) | 완료, Issue 1~6 완료 | Mesh 기반 `factory-a` 연결 |
 | Phase 4 (M3) | Issue 1~5 완료, Issue 6~8 보류 | ECR/GitHub Actions/Hub ArgoCD 배포 기준선 |
-| Phase 5 (M4) | 다음 진행 | `factory-a` adapter/publisher 데이터 플레인 |
-| Phase 6 (M5) | 후속 | VM Spoke 확장 |
-| Phase 7 (M6) | 후속 | Risk Twin + Dashboard VPC 관제 |
+| Phase 5 (M4) | raw 데이터 플레인 완료, Issue 6~7 다음 진행 | `factory-a` adapter/publisher, Lambda data processor |
+| Phase 6 (M5) | 완료 | VM Spoke 확장, dummy generator, S3 raw 수집 |
+| Phase 7 (M6) | 다음 주요 단계 | Risk Twin + Dashboard VPC 관제 |
 | Phase 8 (M7) | 후속 | 통합 검증 + 문서 보정 |
 
 ## 구현 중 테스트로 결정할 항목

@@ -9,11 +9,11 @@
 
 ## 현재 상태
 
-- 현재 운영형 구현 범위는 `factory-a` 단일 Spoke이며, 테스트베드 Spoke인 `factory-b/c`는 Hub ArgoCD cluster/Application 등록까지 완료됐다. Hub EKS/ArgoCD/Prometheus Agent/Grafana/Admin UI HTTPS 기준선은 `scripts/build/build-hub.sh`와 `scripts/build/build-admin-ui-after-ns.sh`로 재생성 가능하다.
+- 현재 구현 범위는 운영형 `factory-a` Spoke와 테스트베드 `factory-b/c` Spoke다. `factory-b/c`는 Hub ArgoCD cluster/Application 등록, hostPath outbox 전환, local dummy generator, 공통 publisher, S3 raw 적재 검증까지 완료했다. Hub EKS/ArgoCD/Prometheus Agent/Grafana/Admin UI HTTPS 기준선은 `scripts/build/build-hub.sh`와 `scripts/build/build-admin-ui-after-ns.sh`로 재생성 가능하다.
 - AWS Hub는 M1 Issue 0~10에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3/AMP 권한, Prometheus Agent remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress를 검증했다. 2026-05-20 기준 build 흐름은 Hub platform, Spoke cluster 등록, Spoke workload 배포를 분리한다.
 - M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록, IoT Rule -> S3 raw 적재 검증을 완료했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
-- `factory-b`, `factory-c`는 VM K3s/Tailnet/ArgoCD cluster/Application 등록까지 완료했고, GitOps chart/values는 worker `hostPath` outbox 기준으로 전환했다. 다음 단계는 VM worker outbox 디렉터리 준비, 로컬 dummy generator, IoT Secret, `edge-iot-publisher` 활성화다. Dashboard VPC는 아직 구축 전이다.
+- `factory-b`, `factory-c`는 VM K3s/Tailnet/ArgoCD cluster/Application 등록, worker `hostPath` outbox, 로컬 dummy generator, IoT Secret, `edge-iot-publisher` 활성화와 S3 raw 적재 검증까지 완료했다. Dashboard VPC는 아직 구축 전이다.
 - 이 문서는 현재 동작 중인 로컬 기준선과 rebuild 가능한 Hub 기준선을 함께 기록한다.
 
 ## 물리 / 클러스터 구조
@@ -139,7 +139,7 @@ InfluxDB safe_edge_db / Kubernetes API
 
 수집 주기: `factory_state` 3초, `infra_state` 20초
 
-`factory-b/c` 목표 데이터 흐름:
+`factory-b/c` 현재 데이터 흐름:
 
 ```text
 VM local dummy generator

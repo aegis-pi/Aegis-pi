@@ -1,7 +1,7 @@
 # 지도/검토용 브리프
 
 상태: source of truth
-기준일: 2026-05-08
+기준일: 2026-05-20
 
 ## 현재 진행 상태
 
@@ -33,7 +33,8 @@ LAN 제거 InfluxDB 공백: 10초 bucket 기준 AI/audio 80초, BME 70초
 
 - M0는 핵심 기준선 완료로 볼 수 있다.
 - NFS Cold Storage와 Ansible tiering은 보류했다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, Hub Prometheus Agent, Grafana/AMP datasource, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret, IRSA S3/AMP 권한은 현재 build 스크립트로 재생성/검증 가능하다. 표준 순서는 `build-hub.sh`, `build-admin-ui-after-ns.sh`, `build-iot-factory-a.sh`, `verify-complete.sh`다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, Hub Prometheus Agent, Grafana/AMP datasource, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a/b/c` IoT Thing/Policy/K3s Secret, IRSA S3/AMP 권한은 현재 build/등록 스크립트로 재생성/검증 가능하다. Hub-only 재시작은 `build-hub.sh` 이후 UI 연결과 `register-spoke-factory-a/b/c.sh`를 단계별 실행한다.
+- `factory-b/c` VM 테스트베드 raw 수집은 local dummy generator와 공통 `edge-iot-publisher`로 S3 raw 적재까지 검증했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 
 ## 다음 검토 주제
@@ -41,5 +42,5 @@ LAN 제거 InfluxDB 공백: 10초 bucket 기준 AI/audio 80초, BME 70초
 1. failover 데이터 공백 허용 범위
 2. failback 중복 write 처리 필요성
 3. active writer guard 필요 여부
-4. `runtime-config.yaml`과 Risk 가중치 기준
+4. Lambda data processor와 `pipeline_status` 구현 범위
 5. Dashboard VPC와 Risk Twin dashboard 범위

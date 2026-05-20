@@ -1,7 +1,7 @@
 # MVP 범위
 
 상태: source of truth
-기준일: 2026-05-08
+기준일: 2026-05-20
 
 ## 목적
 
@@ -10,7 +10,7 @@
 ## 현재 상태
 
 - MVP의 첫 기준선인 M0 `factory-a` Safe-Edge 구축과 실측 검증은 완료됐다.
-- AWS Hub EKS/ArgoCD, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a` IoT Thing/Policy/K3s Secret은 현재 build 스크립트로 재생성/검증 가능하다. Hub와 cluster 등록은 `build-hub.sh`, Admin UI는 `build-admin-ui-after-ns.sh`, IoT Secret과 Spoke 배포는 `build-iot-factory-a.sh`, 최종 확인은 `verify-complete.sh`가 담당한다.
+- AWS Hub EKS/ArgoCD, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a/b/c` IoT Thing/Policy/K3s Secret은 현재 build 스크립트와 factory별 등록 스크립트로 재생성/검증 가능하다. Hub는 `build-hub.sh`, Admin UI는 `build-admin-ui-after-ns.sh`, Tailnet UI는 `connect-hub-tailscale-ui.sh`, Spoke 등록은 `register-spoke-factory-a/b/c.sh`, 최종 확인은 `verify-complete.sh`가 담당한다.
 - 전체 MVP는 운영형 Spoke 1개와 테스트베드형 Spoke 2개를 포함한 멀티 공장 관제 구조를 목표로 한다.
 
 ## 2026-05-13 멘토링 반영
@@ -48,6 +48,7 @@
 - AMP Workspace
 - IoT Rule -> S3 raw 적재
 - `factory-a` IoT Thing/certificate/policy 및 K3s Secret
+- `factory-b/c` VM K3s 테스트베드, local dummy generator, 공통 publisher, S3 raw 적재 검증
 
 ## MVP 포함 범위
 

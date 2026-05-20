@@ -1,7 +1,7 @@
 # 프로젝트 보고서 초안
 
 상태: draft
-기준일: 2026-04-28
+기준일: 2026-05-20
 
 ## 1. 배경
 
@@ -78,14 +78,13 @@ AI snapshot: 24시간 초과 자동 삭제
 
 - failover 시 전원 장애 기준 약 65-75초의 데이터 공백이 있었다.
 - failback 전환 구간에서 중복 write 후보가 있다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, Hub Prometheus Agent, Grafana/AMP datasource, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, IRSA S3/AMP 권한은 현재 build 스크립트로 재생성/검증 가능하다. 표준 순서는 `build-hub.sh`, `build-admin-ui-after-ns.sh`, `build-iot-factory-a.sh`, `verify-complete.sh`다. Dashboard VPC/Risk Twin 구조는 아직 후속 단계다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, Hub Prometheus Agent, Grafana/AMP datasource, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, IRSA S3/AMP 권한은 현재 build/등록 스크립트로 재생성/검증 가능하다. Hub-only 재시작은 `build-hub.sh` 이후 UI 연결과 `register-spoke-factory-a/b/c.sh`를 단계별 실행한다. Dashboard VPC/Risk Twin 구조는 아직 후속 단계다.
 - NFS Cold Storage와 Ansible tiering은 보류했다.
 
 ## 7. 다음 단계
 
-1. `runtime-config.yaml`과 Risk 가중치 기준
-2. Hub-Spoke 연결
-3. GitHub Actions CI와 GitHub+ArgoCD CD 코드화
-4. IoT Core/S3 데이터 플레인 검증
-5. Dashboard VPC 기반 관리자 관제 화면
-6. Risk Twin dashboard 구현
+1. IoT Core Lambda data processor 구현
+2. DynamoDB LATEST/HISTORY와 S3 processed 저장
+3. `pipeline_status` 계산 검증
+4. Dashboard VPC 기반 관리자 관제 화면
+5. Risk Twin dashboard 구현

@@ -1,7 +1,7 @@
 # 프로젝트 개요
 
 상태: source of truth
-기준일: 2026-05-15
+기준일: 2026-05-20
 
 ## 목적
 
@@ -9,10 +9,10 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 
 ## 현재 상태
 
-- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5이다.
+- 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~5/8, M5 Issue 1~7이다.
 - `factory-a`는 로컬 K3s 3노드, ArgoCD, Helm, Longhorn, InfluxDB, Grafana, AI 앱 failover/failback 기준선을 갖는다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/AMP, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 현재 build 스크립트로 재생성/검증 가능하다. 표준 순서는 `build-hub.sh` -> `build-admin-ui-after-ns.sh` -> `build-iot-factory-a.sh` -> `verify-complete.sh`다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/AMP, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 현재 build/등록 스크립트로 재생성/검증 가능하다. Hub-only 재시작은 `build-hub.sh` 이후 `build-admin-ui-after-ns.sh`, `connect-hub-tailscale-ui.sh`, `register-spoke-factory-a/b/c.sh`를 필요 순서대로 개별 실행한다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 M1 검증용 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다. 최신 데이터 처리 방향은 별도 risk-normalizer 파드가 아니라 Lambda data processor와 DynamoDB/S3 processed다.
 - M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 기본 메트릭 수신을 검증했다.
@@ -22,8 +22,9 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
-- M4 Issue 1~5 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR image, Hub ArgoCD ApplicationSet 배포, IoT Core -> S3 raw 적재 검증을 완료했다. 다음 작업은 M4 Issue 6 Lambda data processor와 M5 factory 확장이다.
-- `factory-b`, `factory-c`, Risk Twin은 후속 확장 단계다.
+- M4 Issue 1~5/8 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR image, Hub ArgoCD ApplicationSet 배포, IoT Core -> S3 raw 적재 검증을 완료했다.
+- `factory-b`, `factory-c`는 2-node VM K3s 테스트베드로 확장했고, local dummy generator + common `edge-iot-publisher`를 통해 S3 raw 적재까지 검증했다.
+- 다음 작업은 M4 Issue 6 Lambda data processor, M4 Issue 7 `pipeline_status`, 이후 M6 Risk Twin/Dashboard다.
 
 ## 프로젝트명
 
