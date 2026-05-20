@@ -145,6 +145,7 @@
         executable: /bin/bash
       register: tailscale_egress_apply_decision
       changed_when: false
+      when: tailscale_spoke_registration_enabled | bool
       loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
       loop_control:
         label: "{{ item.id }}"
@@ -175,7 +176,9 @@
         executable: /bin/bash
       register: tailscale_egress_apply
       changed_when: "'created' in tailscale_egress_apply.stdout or 'configured' in tailscale_egress_apply.stdout"
-      when: item.stdout != "present"
+      when:
+        - tailscale_spoke_registration_enabled | bool
+        - item.stdout != "present"
       loop: "{{ tailscale_egress_apply_decision.results }}"
       loop_control:
         label: "{{ item.item.id }}"
@@ -197,6 +200,7 @@
         executable: /bin/bash
       register: tailscale_egress_external_name
       changed_when: false
+      when: tailscale_spoke_registration_enabled | bool
       loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
       loop_control:
         label: "{{ item.id }}"
@@ -228,6 +232,7 @@
         executable: /bin/bash
       register: tailscale_argocd_ui_apply
       changed_when: "'created' in tailscale_argocd_ui_apply.stdout or 'configured' in tailscale_argocd_ui_apply.stdout"
+      when: tailscale_ui_enabled | bool
 
     - name: Apply Grafana Tailscale UI Service
       ansible.builtin.shell: |
@@ -256,6 +261,7 @@
         executable: /bin/bash
       register: tailscale_grafana_ui_apply
       changed_when: "'created' in tailscale_grafana_ui_apply.stdout or 'configured' in tailscale_grafana_ui_apply.stdout"
+      when: tailscale_ui_enabled | bool
 
     - name: Wait for Tailscale UI Services readiness
       ansible.builtin.shell: |
@@ -277,6 +283,7 @@
         executable: /bin/bash
       register: tailscale_ui_ready
       changed_when: false
+      when: tailscale_ui_enabled | bool
       loop:
         - namespace: "{{ argocd_namespace }}"
           name: "{{ tailscale_argocd_ui_service_name }}"
@@ -338,6 +345,7 @@
         executable: /bin/bash
       register: tailscale_factory_a_rbac_apply
       changed_when: "'created' in tailscale_factory_a_rbac_apply.stdout or 'configured' in tailscale_factory_a_rbac_apply.stdout"
+      when: tailscale_spoke_registration_enabled | bool
       loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
       loop_control:
         label: "{{ item.id }}"
@@ -379,6 +387,7 @@
       register: tailscale_argocd_cluster_secret_apply_decision
       changed_when: false
       no_log: true
+      when: tailscale_spoke_registration_enabled | bool
       loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
       loop_control:
         label: "{{ item.id }}"
@@ -415,7 +424,9 @@
       register: tailscale_argocd_cluster_secret_apply
       changed_when: "'created' in tailscale_argocd_cluster_secret_apply.stdout or 'configured' in tailscale_argocd_cluster_secret_apply.stdout or 'labeled' in tailscale_argocd_cluster_secret_apply.stdout"
       no_log: true
-      when: item.stdout != "present"
+      when:
+        - tailscale_spoke_registration_enabled | bool
+        - item.stdout != "present"
       loop: "{{ tailscale_argocd_cluster_secret_apply_decision.results }}"
       loop_control:
         label: "{{ item.item.id }}"
@@ -424,6 +435,6 @@
       ansible.builtin.debug:
         msg:
           - "Tailscale operator: {{ tailscale_release_name }} in {{ tailscale_namespace }}"
-          - "Spoke egress services: {{ (aegis_spokes | selectattr('enabled') | map(attribute='egress_service_name') | list) | join(', ') }}"
-          - "ArgoCD UI service: {{ argocd_namespace }}/{{ tailscale_argocd_ui_service_name }}"
-          - "Grafana UI service: {{ grafana_namespace }}/{{ tailscale_grafana_ui_service_name }}"
+          - "Spoke registration enabled: {{ tailscale_spoke_registration_enabled | bool }}; services: {{ (aegis_spokes | selectattr('enabled') | map(attribute='egress_service_name') | list) | join(', ') }}"
+          - "UI enabled: {{ tailscale_ui_enabled | bool }}; ArgoCD UI service: {{ argocd_namespace }}/{{ tailscale_argocd_ui_service_name }}"
+          - "UI enabled: {{ tailscale_ui_enabled | bool }}; Grafana UI service: {{ grafana_namespace }}/{{ tailscale_grafana_ui_service_name }}"

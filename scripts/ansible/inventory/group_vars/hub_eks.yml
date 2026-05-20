@@ -73,6 +73,8 @@ tailscale_chart_ref: tailscale/tailscale-operator
 tailscale_chart_version: 1.96.5
 tailscale_release_name: tailscale-operator
 tailscale_operator_force_upgrade: false
+tailscale_ui_enabled: "{{ lookup('env', 'AEGIS_TAILSCALE_UI_ENABLED') | default('true', true) | bool }}"
+tailscale_spoke_registration_enabled: "{{ lookup('env', 'AEGIS_TAILSCALE_SPOKE_REGISTRATION_ENABLED') | default('true', true) | bool }}"
 
 tailscale_factory_a_name: factory-a
 tailscale_factory_a_master_ip: 100.117.40.125
@@ -109,7 +111,7 @@ tailscale_factory_c_argocd_manager_token_secret: argocd-manager-long-lived-token
 
 aegis_spokes:
   - id: factory-a
-    enabled: false
+    enabled: "{{ lookup('env', 'AEGIS_FACTORY_A_ENABLED') | default('true', true) | bool }}"
     master_tailnet_ip: "{{ tailscale_factory_a_master_ip }}"
     kube_tls_server_name: "{{ tailscale_factory_a_kube_tls_server_name }}"
     direct_kubeconfig: "{{ tailscale_factory_a_direct_kubeconfig }}"
@@ -121,7 +123,7 @@ aegis_spokes:
     argocd_manager_service_account: "{{ tailscale_factory_a_argocd_manager_service_account }}"
     argocd_manager_token_secret: "{{ tailscale_factory_a_argocd_manager_token_secret }}"
   - id: factory-b
-    enabled: true
+    enabled: "{{ lookup('env', 'AEGIS_FACTORY_B_ENABLED') | default('true', true) | bool }}"
     master_tailnet_ip: "{{ tailscale_factory_b_master_ip }}"
     kube_tls_server_name: "{{ tailscale_factory_b_kube_tls_server_name }}"
     direct_kubeconfig: "{{ tailscale_factory_b_direct_kubeconfig }}"
@@ -133,7 +135,7 @@ aegis_spokes:
     argocd_manager_service_account: "{{ tailscale_factory_b_argocd_manager_service_account }}"
     argocd_manager_token_secret: "{{ tailscale_factory_b_argocd_manager_token_secret }}"
   - id: factory-c
-    enabled: true
+    enabled: "{{ lookup('env', 'AEGIS_FACTORY_C_ENABLED') | default('true', true) | bool }}"
     master_tailnet_ip: "{{ tailscale_factory_c_master_ip }}"
     kube_tls_server_name: "{{ tailscale_factory_c_kube_tls_server_name }}"
     direct_kubeconfig: "{{ tailscale_factory_c_direct_kubeconfig }}"

@@ -41,13 +41,13 @@ Tailscale은 관리자 대시보드 접근망이 아니다. Dashboard Web/API는
 - EKS 내부에서 `factory-a-master` Tailscale IP reachability 확인
 - Tailscale IP 기반 `factory-a` kubeconfig 생성
 - ArgoCD `factory-a` cluster 등록과 `aegis-spoke-factory-a` Application Sync/Healthy 검증
-- 2026-05-20 기준 factory-a K3s에 의존하는 Tailscale Operator/egress/cluster Secret/ApplicationSet 단계는 `build-iot-factory-a.sh`가 실행한다. `build-hub.sh`는 Hub 인프라와 Hub 내부 플랫폼까지만 올린다.
-- `factory-b`, `factory-c`는 VM 테스트베드 Spoke로 Tailnet 참여, Hub egress Service, ArgoCD cluster Secret 등록을 완료했다.
+- 2026-05-20 기준 `build-hub.sh`는 Hub 인프라와 Hub 내부 플랫폼까지만 올린다. Tailnet UI는 `connect-hub-tailscale-ui.sh`, Spoke egress/cluster Secret/ApplicationSet 단계는 `register-spoke-factory-a/b/c.sh`로 factory별 실행한다.
+- `factory-b`, `factory-c`는 VM 테스트베드 Spoke로 Tailnet 참여, Hub egress Service, ArgoCD cluster Secret 등록, Application sync, S3 raw 적재 검증까지 완료했다.
 
 아직 하지 않은 것:
 
-- `factory-b`, `factory-c` IoT Thing/certificate/K3s Secret 등록
-- `factory-b`, `factory-c` hostPath outbox chart 전환 및 data-plane smoke 검증
+- Lambda data processor와 `pipeline_status` 처리 검증
+- Risk Twin/Dashboard 반영
 
 현재 확인된 Tailnet device:
 
@@ -192,17 +192,16 @@ TAILSCALE_AUTH_KEY="REDACTED"
 
 ## 4. Hub EKS에 Tailscale Operator 설치
 
-현재 기준에서는 `scripts/build/build-iot-factory-a.sh`가 이 섹션의 Operator 설치, egress Service, ArgoCD/Grafana Tailscale UI Service, ArgoCD `factory-a` cluster Secret 복구를 자동으로 수행한다. 각 단계는 이미 있으면 생성하지 않고 상태를 검증한다.
+현재 기준에서는 Hub 이후 단계가 분리돼 있다. `scripts/build/connect-hub-tailscale-ui.sh`는 ArgoCD/Grafana Tailscale UI Service만 처리하고, `scripts/build/register-spoke-factory-a.sh`, `scripts/build/register-spoke-factory-b.sh`, `scripts/build/register-spoke-factory-c.sh`는 해당 factory egress Service와 ArgoCD cluster Secret 복구를 처리한다. 각 단계는 이미 있으면 생성하지 않고 상태를 검증한다.
 
 자동 실행 조건:
 
 ```text
-BUILD_TAILSCALE=true  # build-iot-factory-a.sh 기본값
 secret: ~/Aegis/.aegis/secrets/tailscale/operator.env
 required keys: TAILSCALE_OAUTH_CLIENT_ID, TAILSCALE_OAUTH_CLIENT_SECRET
 ```
 
-수동으로 Tailscale 단계만 재검증하려면:
+수동으로 Tailscale 단계를 재검증하려면 enabled env를 맞춘 뒤 Ansible playbook을 직접 호출한다. 일반 운영에서는 build wrapper를 사용한다.
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ansible

@@ -59,8 +59,7 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
    - IoT Thing / Policy / certificate 등록
    - local secret/iot/<factory-id> 출력
    - 대상 factory K3s Secret 등록
-   - Tailscale Operator, ArgoCD/Grafana Tailscale UI, enabled Spoke cluster Secret bootstrap/verify
-   - enabled Spoke ApplicationSet bootstrap/verify
+   - Hub-only rebuild에서는 기존 IoT Secret을 유지하고 UI, factory별 cluster 등록, GitOps ApplicationSet을 별도 실행
 ```
 
 `build-all.sh`는 1 → 2 → 3 순서로 실행한다. 0(Foundation)은 기본값에서 제외되며 별도 실행한다.
@@ -76,6 +75,10 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 | `build-hub-platform.sh` | Ansible bootstrap (ArgoCD, Prometheus, Grafana, LB Controller) |
 | `build-hub.sh` | `build-hub-infra.sh` → `build-hub-platform.sh` 순서 실행 wrapper |
 | `build-iot-factory-a.sh` | `factory-a` IoT Thing/certificate, K3s Secret, Hub-Spoke Tailscale, ArgoCD cluster Secret, ApplicationSet 등록 |
+| `connect-hub-tailscale-ui.sh` | Hub ArgoCD/Grafana Tailscale UI Service만 연결/검증. Spoke cluster Secret은 등록하지 않음 |
+| `register-spoke-factory-a.sh` | 기존 `factory-a` K3s/IoT Secret을 유지하고 Hub ArgoCD cluster Secret과 Spoke Application sync 복구 |
+| `register-spoke-factory-b.sh` | 기존 `factory-b` K3s/IoT Secret을 유지하고 Hub ArgoCD cluster Secret과 Spoke Application sync 복구 |
+| `register-spoke-factory-c.sh` | 기존 `factory-c` K3s/IoT Secret을 유지하고 Hub ArgoCD cluster Secret과 Spoke Application sync 복구 |
 
 Hub build는 ArgoCD/Grafana 설치 검증 후 `secret/hub-ui-credentials.txt`를 갱신한다. 이 파일은 `.gitignore`의 `secret/` 규칙으로 Git에 들어가지 않으며, 파일 권한은 `0600`으로 설정된다.
 
@@ -139,7 +142,7 @@ AEGIS_PREFLIGHT_AWS_STATE=false scripts/build/build-all.sh
 
 ## Hub 재개 (개발 재시작)
 
-`destroy-all.sh` 또는 `destroy-hub.sh`로 Hub를 내린 뒤 개발을 재개할 때의 절차다.
+`stop-dummy-generators.sh`로 VM 데이터 생성을 멈추고 `destroy-all.sh` 또는 `destroy-hub.sh`로 Hub를 내린 뒤 개발을 재개할 때의 절차다.
 Foundation은 살아있으므로 Foundation 생성은 건너뛴다.
 
 ### 케이스 1 — Hub만 내렸다가 올릴 때 (IoT 유지)
@@ -150,11 +153,39 @@ Foundation은 살아있으므로 Foundation 생성은 건너뛴다.
 scripts/build/build-hub.sh [MFA_OTP]
 ```
 
-Admin UI까지 다시 활성화하려면 Hub 생성 직후 출력된 NS를 Gabia와 비교하고, NS 위임과 ACM 발급이 끝난 뒤 후속 단계를 실행한다.
+Admin UI HTTPS가 필요하면 Hub 생성 직후 출력된 NS를 Gabia와 비교하고, NS 위임과 ACM 발급이 끝난 뒤 후속 단계를 실행한다.
 
 ```bash
 scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]
 ```
+
+Tailnet 안에서 ArgoCD/Grafana UI에 접근하려면 Tailscale UI 연결만 별도로 실행한다.
+
+```bash
+scripts/build/connect-hub-tailscale-ui.sh [MFA_OTP]
+```
+
+기존 Spoke K3s와 IoT Secret이 살아있는 경우 factory별로 ArgoCD cluster 등록을 복구한다.
+
+```bash
+scripts/build/register-spoke-factory-a.sh [MFA_OTP]
+scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+scripts/build/register-spoke-factory-c.sh [MFA_OTP]
+```
+
+각 factory 등록 스크립트는 아래만 수행한다.
+
+```text
+1. 해당 factory만 enabled 처리
+2. Tailscale Operator 확인/설치
+3. 해당 factory egress Service 생성/검증
+4. 해당 factory argocd-manager RBAC/token 확인
+5. Hub ArgoCD cluster Secret 생성/검증
+6. AEGIS Spoke ApplicationSet repo 연결/검증
+7. 해당 aegis-spoke-factory-* Application sync/wait
+```
+
+이 경로는 `register-thing.sh`와 `register-k3s-secret.sh`를 실행하지 않는다.
 
 ### 케이스 2 — Hub + IoT를 모두 다시 올릴 때
 
@@ -231,7 +262,7 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.
 scripts/build/build-iot-factory-a.sh [MFA_OTP]
 ```
 
-현재 자동 wrapper는 `factory-a` 전용이다. `factory-b/c`는 2026-05-20 기준 cluster Secret과 ApplicationSet 등록을 Ansible playbook으로 직접 완료했고, 후속 작업에서 `build-iot-spoke.sh` 공통 스크립트와 `build-iot-factory-b.sh`, `build-iot-factory-c.sh` wrapper를 추가한다.
+Hub만 재생성한 뒤 기존 IoT Secret을 유지하면서 Spoke/Repo 연결만 복구하려면 `build-iot-factory-a.sh`가 아니라 `register-spoke-factory-a.sh`, `register-spoke-factory-b.sh`, `register-spoke-factory-c.sh`를 각각 사용한다.
 
 ## 강제 재적용 옵션
 
@@ -246,7 +277,7 @@ FORCE_TAILSCALE_OPERATOR_UPGRADE=true scripts/build/build-iot-factory-a.sh
 
 ## Hub-Spoke Tailscale
 
-Hub-Spoke Tailscale과 ArgoCD cluster Secret은 각 Spoke K3s API에 직접 접근해야 하므로 `build-hub.sh` 기본 경로에서 제외한다. 대상 factory가 켜져 있고 kubeconfig로 접근 가능할 때 관련 build wrapper 또는 Ansible playbook이 아래 리소스를 생성하거나 검증한다.
+Hub-Spoke Tailscale과 ArgoCD cluster Secret은 각 Spoke K3s API에 직접 접근해야 하므로 `build-hub.sh` 기본 경로에서 제외한다. 대상 factory가 켜져 있고 kubeconfig로 접근 가능할 때 factory별 등록 스크립트 또는 Ansible playbook이 아래 리소스를 생성하거나 검증한다.
 
 ```text
 tailscale/tailscale-operator Helm release
@@ -256,7 +287,13 @@ observability/grafana-tailscale UI Service
 argocd/cluster-<factory> cluster Secret
 ```
 
-2026-05-20 기준 `factory-b/c`는 IoT Secret 생성 전 단계로, `hub_tailscale_bootstrap.yml`과 `hub_tailscale_verify.yml`를 직접 실행해 cluster Secret과 egress Service를 등록했다. `factory-a`가 offline이면 `scripts/ansible/inventory/group_vars/hub_eks.yml`에서 `factory-a`를 임시로 `enabled: false`로 두고 `factory-b/c`만 등록/검증할 수 있다. 후속 작업에서 `build-iot-spoke.sh` 공통 스크립트와 `build-iot-factory-b.sh`, `build-iot-factory-c.sh` wrapper를 추가한다.
+2026-05-20 기준 `factory-a/b/c`는 개별 등록 대상이다.
+
+```bash
+scripts/build/register-spoke-factory-a.sh [MFA_OTP]
+scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+scripts/build/register-spoke-factory-c.sh [MFA_OTP]
+```
 
 필수 secret 파일:
 

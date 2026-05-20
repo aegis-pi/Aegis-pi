@@ -1,7 +1,7 @@
 # Destroy Scripts
 
 상태: source of truth
-기준일: 2026-05-18
+기준일: 2026-05-20
 
 ## 목적
 
@@ -14,6 +14,7 @@
 build와 대칭되는 4개 레이어로 관리한다.
 
 ```text
+Layer -1│ VM Data      │ factory-b/c dummy generator systemd service. Hub 삭제 전 정지 권장.
 Layer 0 │ Foundation   │ 영구 리소스. 기본 삭제 흐름에서 제외. DESTROY_FOUNDATION=true 명시 필요.
 Layer 1 │ Hub Infra    │ VPC, EKS, IRSA, Route53, ACM (Terraform destroy)
 Layer 2 │ Hub Platform │ ALB 등 K8s Controller가 만든 AWS 리소스 선정리 (Ansible cleanup)
@@ -26,28 +27,33 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 반드시 먼저 정리해야 한다. 그렇지 않으면 ALB가 VPC를 붙잡고 있어 Terraform destroy가 실패한다.
 
 ```text
-0. K3s factory-a IoT Secret 사전 삭제
+0. VM dummy generator stop
+   - factory-b/c VM worker의 local dummy generator systemd service 정지
+   - Hub가 내려간 뒤에도 outbox가 계속 쌓이는 것을 방지
+   - IoT Core Thing/certificate, K3s Secret은 건드리지 않음
+
+1. K3s factory-a IoT Secret 사전 삭제
    - DESTROY_IOT=true일 때 AWS MFA 전에 SSH로 K3s Secret 삭제
    - 이후 IoT destroy 단계에서는 같은 Secret 삭제를 건너뜀
 
-1. iot factory-a
+2. iot factory-a
    - IoT certificate detach/delete
    - IoT Policy 삭제
    - IoT Thing 삭제
 
-2. hub-platform cleanup  ← Terraform destroy 전에 반드시 먼저 실행
+3. hub-platform cleanup  ← Terraform destroy 전에 반드시 먼저 실행
    - EKS가 살아있는 경우에만 실행
    - Ansible hub_admin_ingress_cleanup.yml (Ingress 삭제 → ALB 자동 제거)
    - Tailscale Kubernetes 리소스는 별도 cleanup하지 않음 (EKS 삭제와 함께 사라짐)
 
-3. hub-infra
+4. hub-infra
    - infra/hub Terraform destroy
    - EKS, VPC, node group, NAT Gateway 삭제
    - IRSA IAM role/policy 삭제 (LB Controller, Grafana, Prometheus, Risk Normalizer)
    - Route53 Hosted Zone, ACM certificate 삭제
    - infra/hub가 Foundation outputs를 참조하므로 foundation tfstate 필요
 
-4. foundation (기본 제외, 명시적 실행 필요)
+5. foundation (기본 제외, 명시적 실행 필요)
    - infra/foundation Terraform destroy
    - S3 data bucket, AMP Workspace, ECR, IoT Rule, GitHub Actions OIDC
 ```
@@ -56,6 +62,7 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 
 | 파일 | 내용 |
 | --- | --- |
+| `stop-dummy-generators.sh` | factory-b/c VM worker의 dummy generator systemd service 정지. Hub 삭제 전 실행 권장 |
 | `destroy-all.sh` | 기본 hub(platform cleanup → infra) 삭제 실행. IoT와 Foundation은 명시 플래그가 있을 때만 삭제. |
 | `destroy-hub.sh` | `destroy-hub-platform.sh` → `destroy-hub-infra.sh` 순서 실행 wrapper |
 | `destroy-hub-platform.sh` | Ansible cleanup (Ingress → ALB 삭제). Terraform destroy 전에 실행. |
@@ -94,20 +101,23 @@ ACM Certificate                $0              ✗ 보존 (재발급 + ACM 검�
 **개발 중단 시 (일반)** — Hub만 내린다. Foundation과 IoT는 그대로 유지.
 
 ```text
-삭제: Hub Platform (ALB) → Hub Infra (EKS, NAT GW, VPC)
-보존: Foundation, IoT Thing/Certificate, K3s Secret
+삭제: VM dummy generator 정지 → Hub Platform (ALB) → Hub Infra (EKS, NAT GW, VPC)
+보존: Foundation, IoT Thing/Certificate, Spoke K3s Secret
 절약: ~$200/월
-재개: build-hub.sh 한 번으로 복구 (약 20-30분)
+재개: build-hub.sh 이후 UI/Spoke 등록 스크립트를 단계별 실행
 ```
 
 ```bash
+# VM 데이터 생성 정지
+scripts/destroy/stop-dummy-generators.sh
+
 # Hub 삭제, Foundation/IoT 보존 (기본 동작)
 scripts/destroy/destroy-all.sh [MFA_OTP]
 
 # 동일한 Hub-only 단독 진입점
 scripts/destroy/destroy-hub.sh [MFA_OTP]
 
-# 재개 시
+# 재개 시 최소 Hub 복구
 scripts/build/build-hub.sh [MFA_OTP]
 ```
 
@@ -134,6 +144,11 @@ K3s Secret은 라즈베리파이에 존재하며 AWS 비용이 전혀 없다.
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
+
+# 1. VM worker의 dummy generator 정지
+scripts/destroy/stop-dummy-generators.sh
+
+# 2. Hub 삭제
 scripts/destroy/destroy-all.sh [MFA_OTP]
 ```
 
@@ -148,6 +163,21 @@ DESTROY_FOUNDATION=false
 `DESTROY_IOT=true`를 명시했을 때만 AWS MFA 입력 전에 `scripts/destroy/destroy-k3s-iot-secret.sh`를 실행한다. 이 단계에서 OpenSSH가 `minsoo@10.10.10.10` 비밀번호를 물을 수 있다.
 
 ## 단계별 단독 실행
+
+### VM dummy generator 정지
+
+Hub 삭제 전에 factory-b/c worker의 systemd generator를 멈춘다. 접속 정보는 `scripts/ops/manage-dummy-generators.sh`와 같은 환경변수를 사용한다.
+
+```bash
+scripts/destroy/stop-dummy-generators.sh
+```
+
+특정 factory만 멈추려면:
+
+```bash
+scripts/destroy/stop-dummy-generators.sh factory-b
+scripts/destroy/stop-dummy-generators.sh factory-c
+```
 
 ### Hub 전체 삭제 (platform cleanup → infra)
 
@@ -203,10 +233,15 @@ Hub를 내렸다가 다시 올리는 경우:
 
 ```bash
 # 내리기
+scripts/destroy/stop-dummy-generators.sh
 scripts/destroy/destroy-hub.sh [MFA_OTP]
 
 # 올리기
 scripts/build/build-hub.sh [MFA_OTP]
+scripts/build/connect-hub-tailscale-ui.sh [MFA_OTP]
+scripts/build/register-spoke-factory-a.sh [MFA_OTP]
+scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+scripts/build/register-spoke-factory-c.sh [MFA_OTP]
 ```
 
 ## 주의
@@ -215,7 +250,7 @@ scripts/build/build-hub.sh [MFA_OTP]
 - `destroy-hub.sh`는 Terraform destroy 전에 반드시 `destroy-hub-platform.sh`(Ingress cleanup)를 먼저 실행한다. Ingress가 비활성화 상태면 cleanup은 no-op에 가깝게 지나간다.
 - `destroy-hub.sh`는 Tailscale OAuth client, Tailscale Admin Console device, `factory-a-master` Tailscale 상태를 삭제하거나 revoke하지 않는다.
 - `factory-a-master` Tailscale은 라즈베리파이 OS 레벨 상태이므로 비용이 없고 유지한다.
-- Hub를 다시 올리면 `scripts/build/build-hub-platform.sh`가 `~/Aegis/.aegis/secrets/tailscale/operator.env`를 사용해 Tailscale Operator와 관련 리소스를 다시 생성/검증한다.
+- Hub를 다시 올린 뒤 Tailnet UI는 `scripts/build/connect-hub-tailscale-ui.sh`, factory별 Spoke 등록은 `scripts/build/register-spoke-factory-a.sh`, `scripts/build/register-spoke-factory-b.sh`, `scripts/build/register-spoke-factory-c.sh`가 `~/Aegis/.aegis/secrets/tailscale/operator.env`를 사용해 생성/검증한다.
 - `destroy-hub-infra.sh`는 `infra/hub`가 Foundation outputs를 참조하므로 `infra/foundation/terraform.tfstate`가 있어야 한다.
 - CLI로 만든 IoT 리소스는 Terraform state에 없으므로 이 디렉터리의 destroy 스크립트로 정리한다.
 - K3s Secret은 Terraform state에 없으므로 SSH 기반 `kubectl delete secret`로 정리한다.

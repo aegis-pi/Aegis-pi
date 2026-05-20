@@ -33,6 +33,9 @@ FORCE_TAILSCALE_OPERATOR_UPGRADE="${FORCE_TAILSCALE_OPERATOR_UPGRADE:-false}"
 HUB_TERRAFORM_STATE="${REPO_ROOT}/infra/hub/terraform.tfstate"
 TAILSCALE_OPERATOR_ENV="${AEGIS_TAILSCALE_OPERATOR_ENV:-${HOME}/Aegis/.aegis/secrets/tailscale/operator.env}"
 FACTORY_A_DIRECT_KUBECONFIG="${AEGIS_FACTORY_A_DIRECT_KUBECONFIG:-${HOME}/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig}"
+export AEGIS_FACTORY_A_ENABLED="${AEGIS_FACTORY_A_ENABLED:-true}"
+export AEGIS_FACTORY_B_ENABLED="${AEGIS_FACTORY_B_ENABLED:-false}"
+export AEGIS_FACTORY_C_ENABLED="${AEGIS_FACTORY_C_ENABLED:-false}"
 
 for command_name in jq curl ssh scp; do
   require_command "${command_name}"

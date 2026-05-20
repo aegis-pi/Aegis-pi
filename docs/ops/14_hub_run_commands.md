@@ -3,34 +3,27 @@
 상태: source of truth
 기준일: 2026-05-20
 
-## 표준 3단계 실행
+## Hub-only 재시작 실행 순서
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
-scripts/build/build-hub.sh
-scripts/build/build-admin-ui-after-ns.sh
-scripts/build/build-iot-factory-a.sh
+scripts/build/build-hub.sh [MFA_OTP]
+scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]
+scripts/build/connect-hub-tailscale-ui.sh [MFA_OTP]
+scripts/build/register-spoke-factory-a.sh [MFA_OTP]
+scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+scripts/build/register-spoke-factory-c.sh [MFA_OTP]
 ```
 
-현재 표준 순서는 Hub -> Admin UI -> IoT/Spoke deploy다.
+현재 표준 순서는 Hub -> Admin UI -> Tailnet UI -> factory별 Spoke 등록이다. Hub만 삭제/재생성한 경우 IoT Core Thing/certificate와 Spoke K3s Secret은 다시 만들지 않는다.
 
 `build-hub.sh`는 Hub AWS 인프라와 Hub Kubernetes platform을 올린다. 이 단계는 factory-a K3s 가용성에 의존하지 않으며 ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller까지만 준비한다.
 
 `build-admin-ui-after-ns.sh`는 Gabia NS 위임 이후 ACM certificate가 `ISSUED`가 될 때까지 기다린 뒤 ArgoCD/Grafana HTTPS Ingress를 활성화한다.
 
-`build-iot-factory-a.sh`는 IoT Thing/Policy/certificate와 K3s Secret을 준비한 뒤 Hub-Spoke Tailscale, ArgoCD `factory-a` cluster Secret, ArgoCD ApplicationSet을 적용해 `factory-a` data-plane workload 배포를 시작한다.
+`build-iot-factory-a.sh`는 `factory-a` IoT Thing/Policy/certificate와 K3s Secret을 새로 준비해야 할 때 사용한다. Hub-only 재시작에서는 `register-spoke-factory-a.sh`를 사용한다.
 
-2026-05-20 기준 `factory-b/c`는 아직 전용 build wrapper가 없으므로 아래 Ansible playbook으로 등록했다.
-
-```bash
-cd scripts/ansible
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_bootstrap.yml
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_verify.yml
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_applicationset_bootstrap.yml
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_applicationset_verify.yml
-```
-
-다음 구현에서는 `factory-b/c` IoT Secret 생성, `hostPath` outbox chart 전환, VM local dummy generator 실행, `edge-iot-publisher` 활성화를 순서대로 진행한다.
+`register-spoke-factory-a/b/c.sh`는 기존 IoT Secret을 유지하고 해당 factory의 Hub Tailscale egress, ArgoCD cluster Secret, ApplicationSet repo 연결, Application sync/wait만 수행한다.
 
 ## 최종 검증
 
@@ -84,10 +77,11 @@ ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh
 장시간 사용하지 않을 때는 Hub EKS/VPC/NAT Gateway/node group을 먼저 내린다.
 
 ```bash
+scripts/destroy/stop-dummy-generators.sh
 scripts/destroy/destroy-hub.sh
 ```
 
-`destroy-hub.sh`는 Hub EKS/VPC/NAT Gateway/node group과 EKS 내부 ArgoCD/Tailscale/ApplicationSet 리소스를 제거한다. Foundation S3/AMP/ECR/IoT 리소스와 `factory-a` K3s Secret은 별도 삭제 대상이다.
+`stop-dummy-generators.sh`는 Hub가 내려간 뒤에도 factory-b/c worker outbox가 계속 쌓이는 것을 막는다. `destroy-hub.sh`는 Hub EKS/VPC/NAT Gateway/node group과 EKS 내부 ArgoCD/Tailscale/ApplicationSet 리소스를 제거한다. Foundation S3/AMP/ECR/IoT 리소스와 Spoke K3s Secret은 별도 삭제 대상이다.
 
 ## 전체 삭제
 

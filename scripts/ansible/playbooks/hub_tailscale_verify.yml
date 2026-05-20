@@ -50,6 +50,7 @@
         executable: /bin/bash
       register: tailscale_egress_status
       changed_when: false
+      when: tailscale_spoke_registration_enabled | bool
       loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
       loop_control:
         label: "{{ item.id }}"
@@ -57,6 +58,7 @@
     - name: Parse Spoke egress Service status
       ansible.builtin.set_fact:
         tailscale_egress_status_items: "{{ tailscale_egress_status.results | map(attribute='stdout') | map('from_json') | list }}"
+      when: tailscale_spoke_registration_enabled | bool
 
     - name: Assert Spoke egress Service is ready
       ansible.builtin.assert:
@@ -64,6 +66,7 @@
           - (item.stdout | from_json).ready == "True"
           - (item.stdout | from_json).externalName is search('tailscale.svc.cluster.local')
         fail_msg: "{{ item.item.id }} Tailscale egress Service is not ready"
+      when: tailscale_spoke_registration_enabled | bool
       loop: "{{ tailscale_egress_status.results }}"
       loop_control:
         label: "{{ item.item.id }}"
@@ -75,6 +78,7 @@
           --rm -i --restart=Never --image=busybox:1.36
           -- nc -vz {{ item.egress_service_name }} 6443
       changed_when: false
+      when: tailscale_spoke_registration_enabled | bool
       loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
       loop_control:
         label: "{{ item.id }}"
@@ -93,6 +97,7 @@
         executable: /bin/bash
       register: tailscale_ui_service_status
       changed_when: false
+      when: tailscale_ui_enabled | bool
       loop:
         - namespace: "{{ argocd_namespace }}"
           name: "{{ tailscale_argocd_ui_service_name }}"
@@ -110,6 +115,7 @@
           - (item.stdout | from_json).ip | length > 0
           - (item.stdout | from_json).hostname | length > 0
         fail_msg: "Tailscale UI Service {{ item.item.namespace }}/{{ item.item.name }} is not ready"
+      when: tailscale_ui_enabled | bool
       loop: "{{ tailscale_ui_service_status.results }}"
       loop_control:
         label: "{{ item.item.namespace }}/{{ item.item.name }}"
@@ -118,16 +124,19 @@
       ansible.builtin.set_fact:
         tailscale_argocd_ui_status: "{{ tailscale_ui_service_status.results[0].stdout | from_json }}"
         tailscale_grafana_ui_status: "{{ tailscale_ui_service_status.results[1].stdout | from_json }}"
+      when: tailscale_ui_enabled | bool
 
     - name: Verify ArgoCD Tailscale UI HTTP response
       ansible.builtin.command:
         cmd: "curl -k -fsS -o /dev/null --max-time 10 https://{{ tailscale_argocd_ui_status.ip }}/"
       changed_when: false
+      when: tailscale_ui_enabled | bool
 
     - name: Verify Grafana Tailscale health response
       ansible.builtin.command:
         cmd: "curl -fsS -o /dev/null --max-time 10 http://{{ tailscale_grafana_ui_status.ip }}/api/health"
       changed_when: false
+      when: tailscale_ui_enabled | bool
 
     - name: Read ArgoCD Spoke cluster Secret safe fields
       ansible.builtin.shell: |
@@ -144,6 +153,7 @@
       register: tailscale_argocd_cluster_secret
       changed_when: false
       no_log: true
+      when: tailscale_spoke_registration_enabled | bool
       loop: "{{ aegis_spokes | selectattr('enabled') | list }}"
       loop_control:
         label: "{{ item.id }}"
@@ -152,6 +162,7 @@
       ansible.builtin.set_fact:
         tailscale_argocd_cluster_secret_items: "{{ tailscale_argocd_cluster_secret.results | map(attribute='stdout') | map('from_json') | list }}"
       no_log: true
+      when: tailscale_spoke_registration_enabled | bool
 
     - name: Assert ArgoCD Spoke cluster Secret safe fields
       ansible.builtin.assert:
@@ -161,6 +172,7 @@
           - (item.stdout | from_json).secretType == "cluster"
           - (item.stdout | from_json).serverName == item.item.kube_tls_server_name
         fail_msg: "ArgoCD {{ item.item.id }} cluster Secret does not match expected Tailscale egress config"
+      when: tailscale_spoke_registration_enabled | bool
       loop: "{{ tailscale_argocd_cluster_secret.results }}"
       loop_control:
         label: "{{ item.item.id }}"
@@ -169,6 +181,7 @@
       ansible.builtin.debug:
         msg:
           - "Spoke egress services: {{ (aegis_spokes | selectattr('enabled') | map(attribute='egress_service_name') | list) | join(', ') }}"
-          - "ArgoCD Tailscale UI: https://{{ tailscale_argocd_ui_status.ip }}/ ({{ tailscale_argocd_ui_status.hostname }})"
-          - "Grafana Tailscale UI: http://{{ tailscale_grafana_ui_status.ip }}/ ({{ tailscale_grafana_ui_status.hostname }})"
+          - "UI enabled: {{ tailscale_ui_enabled | bool }}"
+          - "ArgoCD Tailscale UI: {{ ('https://' ~ tailscale_argocd_ui_status.ip ~ '/ (' ~ tailscale_argocd_ui_status.hostname ~ ')') if (tailscale_ui_enabled | bool) else 'skipped' }}"
+          - "Grafana Tailscale UI: {{ ('http://' ~ tailscale_grafana_ui_status.ip ~ '/ (' ~ tailscale_grafana_ui_status.hostname ~ ')') if (tailscale_ui_enabled | bool) else 'skipped' }}"
           - "ArgoCD cluster Secrets: {{ (aegis_spokes | selectattr('enabled') | map(attribute='argocd_cluster_secret_name') | list) | join(', ') }}"
