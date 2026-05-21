@@ -36,6 +36,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 OTP="${1:-}"
 FORCE_TAILSCALE_OPERATOR_UPGRADE="${FORCE_TAILSCALE_OPERATOR_UPGRADE:-false}"
 SYNC_SPOKE_APP="${SYNC_SPOKE_APP:-true}"
+ARGOCD_APP_NAMESPACE="${ARGOCD_APP_NAMESPACE:-argocd}"
 HUB_TERRAFORM_STATE="${REPO_ROOT}/infra/hub/terraform.tfstate"
 
 require_command() {
@@ -83,8 +84,17 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_appli
 cd "${REPO_ROOT}"
 
 if [[ "${SYNC_SPOKE_APP}" == "true" ]]; then
-  argocd --core app sync "${APP_NAME}" --timeout 300
-  argocd --core app wait "${APP_NAME}" --sync --health --timeout 300
+  ARGOCD_CORE_KUBECONFIG="$(mktemp)"
+  cleanup_argocd_core_kubeconfig() {
+    rm -f "${ARGOCD_CORE_KUBECONFIG}"
+  }
+  trap cleanup_argocd_core_kubeconfig EXIT
+
+  kubectl config view --raw >"${ARGOCD_CORE_KUBECONFIG}"
+  KUBECONFIG="${ARGOCD_CORE_KUBECONFIG}" kubectl config set-context --current --namespace="${ARGOCD_APP_NAMESPACE}" >/dev/null
+
+  KUBECONFIG="${ARGOCD_CORE_KUBECONFIG}" argocd --core app sync "${APP_NAME}" --app-namespace "${ARGOCD_APP_NAMESPACE}" --timeout 300
+  KUBECONFIG="${ARGOCD_CORE_KUBECONFIG}" argocd --core app wait "${APP_NAME}" --app-namespace "${ARGOCD_APP_NAMESPACE}" --sync --health --timeout 300
 else
   echo "Skipped ${APP_NAME} sync/wait. Set SYNC_SPOKE_APP=true to enable it."
 fi
