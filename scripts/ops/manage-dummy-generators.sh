@@ -65,14 +65,20 @@ run_on_worker() {
       ;;
     stop)
       printf -v remote_command \
-        "if systemctl list-unit-files %q --no-legend --no-pager | grep -q .; then sudo systemctl stop %q; fi; sudo systemctl stop %q" \
+        'if systemctl list-unit-files %q --no-legend --no-pager | grep -q .; then sudo systemctl stop %q; fi; sudo systemctl stop %q; sleep 1; STATUS=$(systemctl is-active %q); echo "[verify] %q: ${STATUS}"; [ "${STATUS}" = inactive ] || [ "${STATUS}" = failed ] || { echo "ERROR: %q did not stop (status: ${STATUS})" >&2; exit 1; }' \
         "${legacy_publisher_service}" \
         "${legacy_publisher_service}" \
+        "${generator_service}" \
+        "${generator_service}" \
+        "${generator_service}" \
         "${generator_service}"
       ;;
     start)
       printf -v remote_command \
-        "sudo systemctl start %q" \
+        'sudo systemctl start %q; sleep 1; STATUS=$(systemctl is-active %q); echo "[verify] %q: ${STATUS}"; [ "${STATUS}" = active ] || { echo "ERROR: %q did not start (status: ${STATUS})" >&2; exit 1; }' \
+        "${generator_service}" \
+        "${generator_service}" \
+        "${generator_service}" \
         "${generator_service}"
       ;;
   esac
