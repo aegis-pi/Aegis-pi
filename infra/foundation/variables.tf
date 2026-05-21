@@ -28,24 +28,6 @@ variable "data_bucket_force_destroy" {
   default     = true
 }
 
-variable "iot_factory_id" {
-  description = "Factory ID used by the factory-a IoT Core topic rule."
-  type        = string
-  default     = "factory-a"
-}
-
-variable "iot_topic_root" {
-  description = "Root MQTT topic prefix for Aegis IoT messages."
-  type        = string
-  default     = "aegis"
-}
-
-variable "iot_rule_enabled" {
-  description = "Whether the factory-a IoT Core to S3 topic rule is enabled."
-  type        = bool
-  default     = true
-}
-
 variable "amp_workspace_alias" {
   description = "Alias for the Amazon Managed Service for Prometheus workspace."
   type        = string
@@ -134,3 +116,10 @@ variable "github_actions_ecr_push_subjects" {
   type        = list(string)
   default     = ["repo:aegis-pi/Aegis-pi:ref:refs/heads/main"]
 }
+
+variable "dynamodb_table_name" {
+  description = "DynamoDB table name for factory status (LATEST and HISTORY items)."
+  type        = string
+  default     = "AEGIS-DynamoDB-FactoryStatus"
+}
+

@@ -12,3 +12,5 @@ ecr_edge_agent_image_tag_mutability    = "MUTABLE"
 ecr_edge_agent_scan_on_push            = true
 ecr_edge_agent_keep_sha_images         = 50
 ecr_edge_agent_expire_untagged_days    = 7
+
+dynamodb_table_name = "AEGIS-DynamoDB-FactoryStatus"
