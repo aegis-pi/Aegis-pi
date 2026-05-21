@@ -36,3 +36,6 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# Generated deployment artifacts
+infra/data-pipeline/lambda_data_processor.zip

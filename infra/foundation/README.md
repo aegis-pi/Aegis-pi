@@ -7,16 +7,34 @@
 ## 현재 관리 리소스
 
 - S3 데이터 버킷: `aegis-bucket-data`
-- IoT Rule -> S3 raw 적재: `AEGIS_IoTRule_factory_a_raw_s3`
 - AMP Workspace: `AEGIS-AMP-hub`
-- ECR repository: `aegis/edge-agent`
+- DynamoDB 테이블: `AEGIS-DynamoDB-FactoryStatus` (LATEST/HISTORY, PAY_PER_REQUEST, TTL 48h)
+- ECR repository: `aegis/edge-agent`, `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`
 - GitHub Actions OIDC provider와 ECR push role: `AEGIS-GitHubActions-ECRPush`
 
-2026-05-08 기준 위 리소스는 검증 후 비용 정리를 위해 `scripts/destroy/destroy-all.sh`로 삭제했다. 이 디렉터리는 다음 rebuild 때 같은 기준으로 foundation 리소스를 다시 생성하는 Terraform source of truth다.
+IoT Rule × 3 (factory-a/b/c)와 Lambda DataProcessor는 `infra/data-pipeline/` on-demand 레이어에서 관리한다.
 
-## 후속 후보 리소스
+## DynamoDB 기준
 
-- IoT Core Thing, 인증서
+```text
+table:        AEGIS-DynamoDB-FactoryStatus
+billing_mode: PAY_PER_REQUEST
+hash_key:     pk (String)
+range_key:    sk (String)
+TTL:          ttl (enabled, 48h)
+PITR:         enabled
+```
+
+아이템 구조:
+
+| 아이템 유형 | PK | SK |
+| --- | --- | --- |
+| LATEST | `FACTORY#{factory_id}` | `LATEST` |
+| HISTORY#STATE | `FACTORY#{factory_id}` | `HISTORY#STATE#{updated_at}` |
+
+DynamoDB `HISTORY#STATE`는 갱신된 `LATEST`와 같은 구조를 저장하고 `ttl`만 추가한다. 같은 snapshot은 S3 processed `state_snapshot/`에도 저장하되 S3에는 `ttl`을 제외한다.
+
+DynamoDB는 Hub EKS destroy와 무관하게 유지한다. `infra/data-pipeline/`에서 `data "aws_dynamodb_table"`로 참조하므로, data-pipeline destroy는 반드시 foundation destroy 이전에 먼저 수행해야 한다.
 
 ## ECR 기준
 
@@ -33,9 +51,12 @@ untagged image expiration: 7 days
 sha-* image retention: latest 50 images
 ```
 
-M3 Issue 2 기준 ECR 대상은 smoke image 검증용 `edge-agent` 하나다. Lambda data processor는 zip 배포를 기본으로 하며, `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` repository는 만들지 않는다.
+Lambda data processor는 zip 배포(`lambda_data_processor.zip`)를 기본으로 하며 별도 ECR repository를 사용하지 않는다. `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` repository는 만들지 않는다.
 
-M4 데이터 플레인 기준 ECR repository는 `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`를 사용한다. 두 repository는 `edge-agent`와 같은 lifecycle 기준을 따른다.
+현재 ECR repository:
+- `aegis/edge-agent`: M3 smoke image 검증용
+- `aegis/factory-a-log-adapter`: factory-a raw/log → canonical JSON 변환
+- `aegis/edge-iot-publisher`: local spool/outbox → IoT Core publish (factory-a/b/c 공통)
 
 ```text
 deployment tag: sha-<7-char-git-sha>
@@ -110,29 +131,17 @@ processed/{dataset}/{factory_id}/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id
 
 MVP 기준 Dashboard의 현재 상태는 S3 `latest/` object가 아니라 DynamoDB LATEST/HISTORY에서 조회한다. 이 Terraform root에는 과거 초안의 `latest/` lifecycle rule이 남아 있지만, 현재 데이터 플레인 계약에서 `latest/`는 primary current-state 저장소가 아니다. 장기 이력과 재처리는 S3 `raw/`, `processed/`를 기준으로 하고, 화면 current state는 DynamoDB를 기준으로 한다.
 
-## IoT Rule -> S3 raw 적재 기준
+## IoT Rule 기준
+
+IoT Rule × 3 (factory-a/b/c)는 `infra/data-pipeline/`에서 관리한다. foundation에는 IoT Rule이 없다.
+
+S3 raw 적재 경로:
 
 ```text
-rule: AEGIS_IoTRule_factory_a_raw_s3
-topic filter: aegis/factory-a/+
-sql: SELECT * FROM 'aegis/factory-a/+'
-target bucket: aegis-bucket-data
-target key: raw/factory-a/${topic(3)}/yyyy=${parse_time("yyyy", timestamp(), "UTC")}/mm=${parse_time("MM", timestamp(), "UTC")}/dd=${parse_time("dd", timestamp(), "UTC")}/${get_or_default(message_id, newuuid())}.json
-role: AEGIS-IAMRole-IoTRule-S3
-policy scope: s3:PutObject to arn:aws:s3:::aegis-bucket-data/raw/factory-a/*
+raw/{factory_id}/{source_type}/yyyy={YYYY}/mm={MM}/dd={DD}/{message_id}.json
 ```
 
-IoT Rule SQL은 raw object body에 보조 필드를 추가하지 않는다. S3 raw body는 publisher가 보낸 canonical JSON과 동일해야 한다.
-
-검증 결과:
-
-```text
-test topic: aegis/factory-a/factory_state 또는 aegis/factory-a/infra_state
-test message_id: manual-20260506T014423Z-31668
-test object: raw/factory-a/factory_state/yyyy=2026/mm=05/dd=06/manual-20260506T014423Z-31668.json
-```
-
-공장별 prefix를 분리한다. 이후 `factory-b`, `factory-c`가 추가되어도 권한, lifecycle, Athena/Glue partition, 장애 분석 기준을 독립적으로 다루기 쉽기 때문이다.
+S3 raw object body는 publisher가 보낸 canonical JSON과 동일하다.
 
 ## Lifecycle 기준
 

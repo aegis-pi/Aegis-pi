@@ -23,7 +23,10 @@
 | NAT Gateway | `AEGIS-NAT-public-Azone`, `AEGIS-NAT-public-Czone` | 2 | active |
 | Elastic IP | NAT Gateway용 | 2 | in-use |
 | S3 | `aegis-bucket-data` | 1 | active |
-| IoT Core | `AEGIS_IoTRule_factory_a_raw_s3` / Thing / cert | 1 set | active |
+| IoT Core | Thing / cert (factory-a) | 1 set | active |
+| IoT Rules | `AEGIS_IoTRule_factory_a/b/c_raw_s3` (data-pipeline layer) | 3 | active (build-data-pipe 실행 시) |
+| Lambda | `AEGIS-Lambda-DataProcessor` (data-pipeline layer) | 1 | active (build-data-pipe 실행 시) |
+| DynamoDB | `AEGIS-DynamoDB-FactoryStatus` (foundation layer) | 1 | active (PAY_PER_REQUEST, 상시) |
 | AMP | `AEGIS-AMP-hub` workspace | 1 | active (usage-based) |
 | ECR | `aegis/edge-agent`, `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher` | 3 repo | active |
 | Route53 | public hosted zone `minsoo-tech.cloud` | 1 | active |
@@ -176,11 +179,27 @@ Admin UI ALB 추가 시: +$30.5/월 → **~$350/월**
 | 하루 8시간 × 30일 | 240시간 | ~$76.5 | ~$29 | **~$106** |
 | 상시 운영 | 730시간 | ~$232.7 | ~$87 | **~$319** |
 
-`destroy-all.sh` 후 고정 비용과 AMP/S3/IoT 사용량 비용 모두 $0이 된다.
+`destroy-data-pipe.sh` + `destroy-hub.sh` 실행 후 (foundation 유지 시) 고정 비용은 사실상 $0/hr 이 된다.
 
-### Destroy 이후 비용 기준
+### destroy-data-pipe + destroy-hub 후 (Foundation 유지) 비용 기준
 
-`scripts/destroy/destroy-all.sh` 실행 후 EKS, EC2, EBS, VPC, NAT Gateway, Public IPv4, Route53 Hosted Zone, ACM certificate, S3, IoT Core, AMP가 모두 삭제되면 active AEGIS fixed-cost resource는 0개가 된다. 이 상태의 고정 시간 비용은 `0.0000 USD/hour`이다. 삭제 예약된 historical KMS key는 대기 기간 동안 monthly key storage charge가 없다.
+2026-05-21 기준. Hub와 data-pipeline을 내리고 foundation만 남은 상태.
+
+| 리소스 | 서비스 | 시간당 비용 | 비고 |
+| --- | --- | ---: | --- |
+| S3 버킷 (aegis-bucket-data) | S3 Standard | ~$0.000003 | 개발 중 ~100MB |
+| AMP workspace | Prometheus | ~$0.000001 | Hub 내린 후 신규 ingest 없음 |
+| ECR × 3 repos | ECR | **~$0.00008** | ~600MB 이미지 기준 |
+| DynamoDB (AEGIS-DynamoDB-FactoryStatus) | DynamoDB | ~$0 | PAY_PER_REQUEST, 48h TTL 후 idle |
+| GitHub Actions OIDC + IAM | IAM | $0 | |
+| IoT Thing/Cert/Policy | IoT Core | $0 | 연결 없으면 메시지 과금 없음 |
+| **합계** | | **~$0.00009/hr** | **~$0.07/월** |
+
+비용의 전부가 ECR 이미지 스토리지. 이미지 미push 상태면 사실상 $0/hr.
+
+### destroy-all (Foundation 포함) 후 비용 기준
+
+`DESTROY_FOUNDATION=true scripts/destroy/destroy-foundation.sh` 실행 후 EKS, EC2, EBS, VPC, NAT Gateway, Public IPv4, Route53 Hosted Zone, ACM certificate, S3, IoT Core, AMP, DynamoDB, ECR이 모두 삭제되면 active AEGIS fixed-cost resource는 0개가 된다. 이 상태의 고정 시간 비용은 `0.0000 USD/hour`이다. 삭제 예약된 historical KMS key는 대기 기간 동안 monthly key storage charge가 없다.
 
 ## 태그 기반 비용 조회 기준
 
