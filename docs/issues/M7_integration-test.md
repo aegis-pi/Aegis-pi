@@ -272,9 +272,9 @@ Hub 배포 및 데이터 플레인 파이프라인이 VM 환경에서도 정상 
 ### ✅ 완료 조건 (Definition of Done)
 
 - [ ] `factory-b` 시나리오 검증
-  - `normal` → `warning` 전환: Risk Score 40~69 진입 확인
-  - `warning` → `danger` 전환: Risk Score 70 이상 확인
-  - `danger` → `normal` 복구: Score 감소 및 관제 화면 정상화 확인
+  - `safe` → `warning` 전환: Risk Score 84~50 진입 확인
+  - `warning` → `danger` 전환: Risk Score 49 이하 확인
+  - `danger` → `safe` 복구: Score 증가 및 관제 화면 정상화 확인
 - [ ] `factory-c` 동일 시나리오 반복 검증
 - [ ] 시스템 상태 변화 시나리오
   - `edge-iot-publisher` 파드 강제 종료 → `data_plane_down` 판정 → 관제 반영

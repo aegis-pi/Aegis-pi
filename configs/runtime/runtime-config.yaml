@@ -8,7 +8,10 @@ metadata:
 global:
   risk_score:
     max_total_weight: 100
-    note: Field weights with risk_enabled=true must sum to 100 or less.
+    safe_range: "100-85"
+    warning_range: "84-50"
+    danger_range: "49-0"
+    note: Higher score is safer. Field risk penalties are normalized to a 0-100 safety score.
   fields:
     temperature:
       display: true
