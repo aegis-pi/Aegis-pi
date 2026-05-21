@@ -38,13 +38,14 @@ run_check() {
 }
 
 check_required_commands() {
-  if [[ "${BUILD_FOUNDATION}" == "true" || "${BUILD_HUB}" == "true" || \
-    "${BUILD_ADMIN_UI_AFTER_NS}" == "true" || "${BUILD_IOT}" == "true" ]]; then
+  if [[ "${BUILD_FOUNDATION}" == "true" || "${BUILD_DATA_PIPE}" == "true" || \
+    "${BUILD_HUB}" == "true" || "${BUILD_ADMIN_UI_AFTER_NS}" == "true" || \
+    "${BUILD_IOT}" == "true" ]]; then
     require_command aws
   fi
 
-  if [[ "${BUILD_FOUNDATION}" == "true" || "${BUILD_HUB}" == "true" || \
-    "${BUILD_ADMIN_UI_AFTER_NS}" == "true" ]]; then
+  if [[ "${BUILD_FOUNDATION}" == "true" || "${BUILD_DATA_PIPE}" == "true" || \
+    "${BUILD_HUB}" == "true" || "${BUILD_ADMIN_UI_AFTER_NS}" == "true" ]]; then
     require_command terraform
   fi
 
@@ -76,8 +77,9 @@ check_required_commands() {
 }
 
 check_aws_identity() {
-  if [[ "${BUILD_FOUNDATION}" != "true" && "${BUILD_HUB}" != "true" && \
-    "${BUILD_ADMIN_UI_AFTER_NS}" != "true" && "${BUILD_IOT}" != "true" ]]; then
+  if [[ "${BUILD_FOUNDATION}" != "true" && "${BUILD_DATA_PIPE}" != "true" && \
+    "${BUILD_HUB}" != "true" && "${BUILD_ADMIN_UI_AFTER_NS}" != "true" && \
+    "${BUILD_IOT}" != "true" ]]; then
     return 0
   fi
 
