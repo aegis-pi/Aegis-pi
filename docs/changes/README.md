@@ -1,7 +1,7 @@
 # Change Records
 
 상태: source of truth
-기준일: 2026-05-20
+기준일: 2026-05-21
 
 ## 목적
 
@@ -26,6 +26,8 @@
 | 0004 | GitOps source: local repo -> GitHub repo + ArgoCD UI sync | accepted | 2026-04-28 | M0, deployment |
 | 0018 | IoT Rule factory-c raw S3 extension | accepted | 2026-05-20 | M5, IoT Core, S3 raw |
 | 0019 | factory-c Windows VirtualBox master/worker cluster | accepted | 2026-05-20 | M5, factory-c, K3s networking |
+| 0020 | Hub-only rebuild spoke registration and dummy generator operations | accepted | 2026-05-21 | Hub rebuild, Spoke registration, factory-b/c dummy ops |
+| 0021 | DynamoDB: infra/data-pipeline → infra/foundation | accepted | 2026-05-21 | M4, infra/foundation, infra/data-pipeline, destroy 순서 제약 |
 
 ## 파일 형식
 

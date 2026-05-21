@@ -1,7 +1,7 @@
 # Factory B/C Testbed Data Plane
 
 상태: source of truth  
-기준일: 2026-05-20
+기준일: 2026-05-21
 
 ## 목적
 
@@ -11,7 +11,7 @@
 
 ## 결정
 
-`factory-b/c`의 dummy data generator는 Kubernetes Deployment가 아니라 VM 로컬 script 또는 systemd service로 시작한다. Hub ArgoCD는 `edge-iot-publisher`만 공통 Helm chart로 배포한다.
+`factory-b/c`의 dummy data generator는 Kubernetes Deployment가 아니라 VM 로컬 script 또는 systemd service로 시작한다. Hub ArgoCD는 `edge-iot-publisher`만 공통 Helm chart로 배포한다. VM 로컬 dummy publisher systemd는 현재 표준 운영 경로가 아니며, 과거 smoke/legacy 용도로만 남긴다.
 
 ```text
 factory-b/c worker node
@@ -80,14 +80,14 @@ factoryALogAdapter:
   enabled: false
 
 edgeIotPublisher:
-  enabled: false  # IoT Secret 준비 전
+  enabled: false  # IoT Secret 준비 전 임시 상태
 
 placement:
   nodeSelector:
     aegis.workload-node: "true"
 ```
 
-IoT Secret 준비 후 `factory-b/c`에서 publisher를 켠다.
+IoT Secret 준비 후 현재 운영 기준에서는 `factory-b/c`에서 K3s publisher를 켠다.
 
 ```yaml
 edgeIotPublisher:
@@ -186,9 +186,25 @@ write 방식:
 
 publisher는 publish 성공 후 파일을 삭제한다. invalid JSON은 `outbox/quarantine/`으로 이동한다.
 
+## 운영 스크립트 기준
+
+Hub를 내리기 전과 다시 올린 뒤에는 repository의 운영 스크립트를 사용한다.
+
+```bash
+scripts/destroy/stop-dummy-generators.sh
+scripts/ops/manage-dummy-generators.sh start factory-b
+scripts/ops/manage-dummy-generators.sh start factory-c
+scripts/ops/manage-dummy-generators.sh status factory-b
+scripts/ops/manage-dummy-generators.sh status factory-c
+```
+
+접속 정보 기본값은 `scripts/ops/dummy-generators.env`에서 읽는다. 다른 값을 쓰려면 `AEGIS_DUMMY_GENERATORS_ENV=/path/to/file`을 지정한다.
+
+`manage-dummy-generators.sh start/status`는 local dummy generator만 다룬다. `stop`은 generator를 멈추고, legacy local dummy publisher unit이 설치돼 있으면 함께 멈춘다. 현재 publish는 K3s `edge-iot-publisher`가 담당하므로 local publisher service가 없는 것은 정상이다.
+
 ## 진행 순서
 
-2026-05-20 기준 아래 순서는 완료됐다. 이후 재구축 또는 장애 복구 시 같은 순서로 반복한다.
+2026-05-21 기준 아래 순서는 완료됐다. 이후 재구축 또는 장애 복구 시 같은 순서로 반복한다.
 
 1. `factory-b/c` cluster registration과 ApplicationSet 생성을 완료한다.
 2. `charts/aegis-spoke`에 `outbox.type` 분기를 추가한다.
@@ -231,10 +247,12 @@ aws s3 ls s3://aegis-bucket-data/raw/factory-c/ --recursive --region ap-south-1
 
 ## 현재 알려진 상태
 
-2026-05-20 기준:
+2026-05-21 기준:
 
 - `factory-b` Tailnet IP: `100.98.121.77`
+- `factory-b` worker IP/user: `192.168.128.11`, `oosnim`
 - `factory-c` Tailnet IP: `100.76.243.72`
+- `factory-c` worker IP/user: `192.168.56.20`, `aegis`
 - Hub ArgoCD cluster Secret: `cluster-factory-b`, `cluster-factory-c`
 - egress Service: `factory-b-master-tailnet`, `factory-c-master-tailnet`
 - Application: `aegis-spoke-factory-b`, `aegis-spoke-factory-c`

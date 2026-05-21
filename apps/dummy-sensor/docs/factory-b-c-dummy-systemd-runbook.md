@@ -1,11 +1,11 @@
 # Factory B/C Dummy Data systemd Runbook
 
 상태: source of truth
-기준일: 2026-05-20
+기준일: 2026-05-21
 
 ## 목적
 
-`factory-b` Mac UTM VM과 `factory-c` Windows VirtualBox VM에서 실제 공장 센서가 있는 것처럼 가데이터를 계속 생성하고 AWS IoT Core로 전송한다.
+`factory-b` Mac UTM VM과 `factory-c` Windows VirtualBox VM에서 실제 공장 센서가 있는 것처럼 가데이터를 계속 생성한다. 현재 표준 운영에서는 VM 로컬 generator가 outbox에 JSON을 쓰고, Spoke K3s에 ArgoCD로 배포된 `edge-iot-publisher`가 AWS IoT Core로 전송한다.
 
 구조는 Factory A 최신 data-plane 구현과 같은 경계를 따른다.
 
@@ -15,7 +15,7 @@ dummy generator
   -> 20초마다 실제 K3s 상태를 조회해 infra_state JSON 생성
   -> /var/lib/aegis/outbox/*.json 저장
 
-dummy IoT publisher
+edge-iot-publisher (K3s)
   -> outbox JSON scan
   -> AWS IoT Core MQTT publish
   -> 성공한 파일 삭제
@@ -29,9 +29,9 @@ AWS IoT Rule
 | 파일 | Factory | 역할 |
 | --- | --- | --- |
 | `apps/dummy-sensor/factory_b_dummy_generator.py` | factory-b | `stable-lab` canonical JSON 생성 |
-| `apps/dummy-sensor/factory_b_iot_publisher.py` | factory-b | outbox → `aegis/factory-b/{source_type}` publish |
+| `apps/dummy-sensor/factory_b_iot_publisher.py` | factory-b | legacy/manual smoke publisher. 표준 운영에서는 K3s `edge-iot-publisher` 사용 |
 | `apps/dummy-sensor/factory_c_dummy_generator.py` | factory-c | `noisy-vm` canonical JSON 생성 |
-| `apps/dummy-sensor/factory_c_iot_publisher.py` | factory-c | outbox → `aegis/factory-c/{source_type}` publish |
+| `apps/dummy-sensor/factory_c_iot_publisher.py` | factory-c | legacy/manual smoke publisher. 표준 운영에서는 K3s `edge-iot-publisher` 사용 |
 
 ## 전제 조건
 
@@ -49,6 +49,7 @@ AWS IoT Rule
 - private key, certificate 원문은 git이나 문서에 기록하지 않는다.
 - Factory B와 Factory C는 서로 다른 IoT Thing/client id를 사용한다.
 - 같은 factory 안에서 같은 MQTT client id를 쓰는 프로세스를 동시에 두 개 띄우지 않는다.
+- K3s `edge-iot-publisher`가 Running인 현재 표준 운영에서는 VM 로컬 dummy publisher systemd를 설치하거나 활성화하지 않는다.
 
 ## Factory B와 C 차이
 
@@ -394,27 +395,39 @@ factory-c nodes = ["factory-c-master", "factory-c-worker"]
 
 ## 중단 / 재시작
 
+일반 운영에서는 repository의 wrapper를 사용한다.
+
+```bash
+scripts/ops/manage-dummy-generators.sh status factory-b
+scripts/ops/manage-dummy-generators.sh start factory-b
+scripts/ops/manage-dummy-generators.sh stop factory-b
+
+scripts/ops/manage-dummy-generators.sh status factory-c
+scripts/ops/manage-dummy-generators.sh start factory-c
+scripts/ops/manage-dummy-generators.sh stop factory-c
+```
+
+`start/status`는 generator만 다룬다. `stop`은 generator를 멈추고, legacy local publisher unit이 설치돼 있으면 함께 멈춘다.
+
 Factory B:
 
 ```bash
 sudo systemctl restart aegis-factory-b-dummy-generator.service
-sudo systemctl restart aegis-factory-b-dummy-publisher.service
 
 sudo systemctl disable --now aegis-factory-b-dummy-generator.service
-sudo systemctl disable --now aegis-factory-b-dummy-publisher.service
+sudo systemctl disable --now aegis-factory-b-dummy-publisher.service 2>/dev/null || true
 ```
 
 Factory C:
 
 ```bash
 sudo systemctl restart aegis-factory-c-dummy-generator.service
-sudo systemctl restart aegis-factory-c-dummy-publisher.service
 
 sudo systemctl disable --now aegis-factory-c-dummy-generator.service
-sudo systemctl disable --now aegis-factory-c-dummy-publisher.service
+sudo systemctl disable --now aegis-factory-c-dummy-publisher.service 2>/dev/null || true
 ```
 
-운영형 Edge Agent 또는 다른 publisher로 전환하기 전에는 해당 factory의 dummy publisher를 반드시 중단한다.
+legacy local publisher가 설치돼 있다면 K3s `edge-iot-publisher`와 동시에 실행하지 않는다.
 
 ## 미수신 / 재수신 드릴
 

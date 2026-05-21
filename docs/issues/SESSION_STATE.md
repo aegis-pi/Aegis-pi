@@ -88,7 +88,7 @@ Hub가 내려가 있는 개발 중단 상태라면 아래 순서로 복구한다
 ```bash
 scripts/build/build-hub.sh <MFA_OTP>
 scripts/build/build-admin-ui-after-ns.sh <MFA_OTP>        # Public HTTPS Admin UI가 필요할 때
-scripts/build/connect-hub-tailscale-ui.sh <MFA_OTP>       # Tailnet ArgoCD/Grafana UI가 필요할 때
+scripts/build/connect-hub-tailscale-ui.sh <MFA_OTP>       # Tailnet ArgoCD/Grafana UI가 필요할 때만 선택 실행
 scripts/build/register-spoke-factory-a.sh <MFA_OTP>
 scripts/build/register-spoke-factory-b.sh <MFA_OTP>
 scripts/build/register-spoke-factory-c.sh <MFA_OTP>
@@ -153,7 +153,7 @@ Longhorn PVC: aegis-spoke-outbox 유지 중
   - factory-b worker1: /var/lib/aegis/outbox drwxrwx--- 10001:10001 생성 확인 (SSH 직접)
   - factory-c worker: /var/lib/aegis/outbox 생성 확인 (kubectl pod exit 0, uid 10001 write 성공)
   - factory-b/c local dummy generator systemd 배포 및 canonical JSON 생성 확인
-  - factory-b/c IoT Thing/certificate/K3s Secret 준비 및 edge-iot-publisher 활성화 확인
+  - factory-b/c IoT Thing/certificate/K3s Secret 준비 및 K3s edge-iot-publisher 활성화 확인
   - factory-b/c -> IoT Core -> S3 raw/factory-b, raw/factory-c prefix 분리 적재 확인
   - factory-c master/worker VirtualBox NAT 중복 IP 문제 해결: enp0s8 고정 IP와 flannel-iface 적용
   - factory-b worker1 clock drift 약 32분 문제 해결: chrony makestep으로 S3 partition timestamp 정합성 복구
@@ -167,7 +167,8 @@ Longhorn PVC: aegis-spoke-outbox 유지 중
 
 Hub-only 삭제/재생성 운영 순서:
   - 내릴 때: scripts/destroy/stop-dummy-generators.sh -> scripts/destroy/destroy-hub.sh 또는 destroy-all.sh
-  - 올릴 때: scripts/build/build-hub.sh -> 필요 시 build-admin-ui-after-ns.sh -> 필요 시 connect-hub-tailscale-ui.sh -> register-spoke-factory-a/b/c.sh
+  - 올릴 때: scripts/build/build-hub.sh -> 필요 시 build-admin-ui-after-ns.sh -> register-spoke-factory-a/b/c.sh -> manage-dummy-generators.sh start factory-b/c
+  - connect-hub-tailscale-ui.sh는 ALB/Admin UI HTTPS가 아닌 Tailnet UI 직접 접근이 필요할 때만 선택 실행
   - 이 경로에서는 IoT Core Thing/certificate와 Spoke K3s Secret을 다시 만들지 않는다.
 
 다음 우선: M4 Issue 6 Lambda data processor 구현, M4 Issue 7 pipeline_status 검증, 이후 M6 Risk Twin/Dashboard 구현
@@ -303,7 +304,7 @@ Capacity: On-Demand
 
 ### M1 Issue 3 Hub ArgoCD
 
-- 2026-05-20 기준 Hub-only 생성 순서는 `build-hub.sh` -> 필요 시 `build-admin-ui-after-ns.sh` -> 필요 시 `connect-hub-tailscale-ui.sh` -> `register-spoke-factory-a/b/c.sh`다.
+- 2026-05-21 기준 Hub-only 생성 순서는 `build-hub.sh` -> 필요 시 `build-admin-ui-after-ns.sh` -> `register-spoke-factory-a/b/c.sh` -> `manage-dummy-generators.sh start factory-b/c`다. `connect-hub-tailscale-ui.sh`는 Tailnet UI 직접 접근이 필요할 때만 선택 실행한다.
 - `aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS` 완료.
 - `kubectl get nodes -o wide`에서 EKS worker node 2대 `Ready` 확인.
 - Hub namespace/LimitRange는 처음 Terraform으로 검증했고, 최종 기준은 Ansible bootstrap으로 전환했다.

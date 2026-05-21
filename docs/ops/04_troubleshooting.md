@@ -2147,3 +2147,99 @@ nmcli con up eth0의 eth0는 device가 아니라 connection profile 이름이다
 wlan0가 끊기면 인터넷, DNS, Tailscale control plane, image pull은 실패할 수 있다.
 하지만 eth0 static profile과 K3s 내부망은 독립적으로 유지되어야 한다.
 ```
+
+## 2026-05-21 Hub-only rebuild / Spoke registration / dummy generator
+
+### `argocd --core`: `configmap "argocd-cm" not found`
+
+현상:
+
+```text
+{"level":"fatal","msg":"configmap \"argocd-cm\" not found"}
+```
+
+원인:
+
+`argocd --core`는 kubeconfig current context의 namespace에서 `argocd-cm`을 찾는다. current namespace가 `default`이면 실제 ConfigMap이 `argocd/argocd-cm`에 있어도 찾지 못한다.
+
+현재 조치:
+
+`scripts/build/lib/connect-spoke.sh`는 sync/wait 전에 임시 kubeconfig를 만들고 current namespace를 `argocd`로 설정한다. 원본 kubeconfig는 수정하지 않는다.
+
+수동 확인:
+
+```bash
+TMP_KUBECONFIG="$(mktemp)"
+kubectl config view --raw > "${TMP_KUBECONFIG}"
+KUBECONFIG="${TMP_KUBECONFIG}" kubectl config set-context --current --namespace=argocd
+KUBECONFIG="${TMP_KUBECONFIG}" argocd --core app get aegis-spoke-factory-a --app-namespace argocd
+rm -f "${TMP_KUBECONFIG}"
+```
+
+### Hub 재생성 후 어떤 build/register를 써야 하는지 헷갈릴 때
+
+Hub만 삭제/재생성했고 IoT Thing/certificate와 Spoke K3s Secret이 남아 있으면 `build-iot-factory-a.sh`를 다시 실행하지 않는다.
+
+표준 순서:
+
+```bash
+scripts/build/build-hub.sh [MFA_OTP]
+scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]
+scripts/build/register-spoke-factory-a.sh [MFA_OTP]
+scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+scripts/build/register-spoke-factory-c.sh [MFA_OTP]
+scripts/ops/manage-dummy-generators.sh start factory-b
+scripts/ops/manage-dummy-generators.sh start factory-c
+```
+
+ALB/Admin UI HTTPS로 충분하면 `scripts/build/connect-hub-tailscale-ui.sh`는 생략할 수 있다. Tailnet 내부 IP로 ArgoCD/Grafana UI를 직접 열어야 할 때만 실행한다.
+
+### `manage-dummy-generators.sh`: password prompt와 Permission denied
+
+현상:
+
+```text
+Permission denied, please try again.
+oosnim@192.168.128.11: Permission denied (publickey,password).
+```
+
+원인:
+
+factory-b/c dummy generator는 worker VM에서 systemd로 실행된다. 운영 PC에서 worker로 바로 닿지 않는 경우 master를 ProxyJump로 거치며, master SSH password와 worker SSH password가 각각 필요할 수 있다. worker에서 `sudo systemctl ...`을 실행하므로 sudo password도 물을 수 있다.
+
+현재 스크립트는 아래처럼 동작한다.
+
+```text
+local PC -> factory master (SSH ProxyJump) -> factory worker -> sudo systemctl
+```
+
+반복 입력을 줄이려면 운영 PC에서 master와 worker에 SSH key 인증을 구성한다. worker key 등록은 ProxyJump를 통해 수행할 수 있다.
+
+```bash
+ssh-copy-id oosnim@100.98.121.77
+ssh-copy-id -o ProxyJump=oosnim@100.98.121.77 oosnim@192.168.128.11
+```
+
+factory-c는 `scripts/ops/dummy-generators.env`의 user/IP 값을 기준으로 같은 방식으로 구성한다.
+
+### `unexpected EOF while looking for matching '\''` 또는 원격 shell에 남는 경우
+
+원인:
+
+이전 구현의 nested SSH/here-doc 방식에서 quote가 깨지거나 TTY가 열린 채로 남은 증상이다.
+
+현재 조치:
+
+`scripts/ops/manage-dummy-generators.sh`는 ProxyJump 단일 원격 명령으로 변경됐다. 그래도 이미 원격 shell에 들어간 상태라면 `exit`로 빠져나온 뒤 최신 스크립트를 다시 실행한다.
+
+```bash
+scripts/ops/manage-dummy-generators.sh status factory-b
+```
+
+### `aegis-factory-b-dummy-publisher.service could not be found`
+
+의미:
+
+현재 표준 운영에서는 VM 로컬 dummy publisher를 사용하지 않는다. VM 로컬 generator가 `/var/lib/aegis/outbox`에 JSON을 쓰고, K3s `edge-iot-publisher` Pod가 같은 hostPath를 읽어 IoT Core로 보낸다.
+
+따라서 local publisher service가 없는 것은 정상이다. 최신 `manage-dummy-generators.sh status`는 generator 상태만 확인한다. `stop`은 legacy local publisher unit이 남아 있는 경우에만 조용히 함께 멈춘다.

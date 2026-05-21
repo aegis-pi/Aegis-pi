@@ -1,12 +1,13 @@
 # Factory C Windows VirtualBox K3s Runbook
 
 상태: candidate
-기준일: 2026-05-19
+기준일: 2026-05-21
 
 ## 수정 이력
 
 | 날짜 | 버전 | 요약 |
 | --- | --- | --- |
+| 2026-05-21 | v6 | 현재 표준 운영에서는 VM local dummy publisher systemd를 사용하지 않고, VM local dummy generator + K3s `edge-iot-publisher`를 사용한다는 주의 추가. 이 문서의 dummy publisher 단계는 legacy 기록으로 유지 |
 | 2026-05-19 | v5 | 노드/VM/변수 호칭을 master/worker 로 통일. `factory-c-server` → `factory-c-master`, `factory-c-agent` → `factory-c-worker`, `TS_IP_SERVER` → `TS_IP_MASTER`, `TS_IP_AGENT` → `TS_IP_WORKER`. K3s 자체 용어 (`INSTALL_K3S_EXEC="server"`, `k3s.service`, `k3s-agent.service`, `K3S_URL/K3S_TOKEN`) 는 K3s 정의 그대로 유지. ADR 0019 와 `configs/runtime/runtime-config.yaml` 의 노드명도 함께 정렬 |
 | 2026-05-19 | v4 | 토폴로지 single-node → **server + agent 2-VM cluster** 전면 반영 (ADR 0019). VM 사이즈 분리 (server 2 vCPU/2 GiB · agent 2 vCPU/4 GiB), Tailscale 2 노드 join, K3s server 토큰 추출 → agent join, 노드 label 분리, dummy publisher 위치 = worker VM, `infra_state.payload.nodes` 배열 2개, Windows Task Scheduler 2개 작업 (60s 지연), 재부팅 검증에 두 노드 Ready 확인 추가 |
 | 2026-05-19 | v3 | factory-a 데이터 형상 참고 절차, IoT Rule factory-c 확장 (ADR 0018) 흡수, 가데이터 자동 발행 루프 (systemd `aegis-dummy-publisher`) 추가, Step 11~16 재번호, S3 적재 검증 기준을 "채워짐" 으로 갱신, Edge Agent 전환 시 dummy publisher 중단 절차 명시 |
@@ -20,6 +21,8 @@ Windows 호스트에서 VirtualBox 기반 Linux VM **2 대**를 만들고 `facto
 이 문서는 운영자가 다른 문서를 함께 열지 않고도 처음부터 끝까지 따라갈 수 있도록 작성되었다. 목표는 두 VM 으로 이뤄진 `factory-c` 클러스터가 IoT Core 로 `aegis/factory-c/*` topic 데이터를 송신하고, IoT Rule (ADR 0018) 을 통해 S3 `raw/factory-c/...` 에 적재되며, Hub/ArgoCD 가 Tailscale 을 통해 `factory-c` K3s API (master 노드) 를 인식하는 기준선을 만드는 것이다.
 
 2-VM 구성으로 가는 이유와 변경 근거는 `docs/changes/0019-factory-c-master-worker-cluster.md` 참조. 워크스트림 A↔B 합류 지점인 IoT Rule 확장은 `docs/changes/0018-iot-rule-extend-to-factory-c.md` 참조.
+
+2026-05-21 기준 현재 운영 표준은 VM local dummy generator가 `/var/lib/aegis/outbox`에 JSON을 쓰고 K3s `edge-iot-publisher`가 publish하는 구조다. 이 문서에 남아 있는 dummy publisher systemd 단계는 초기 factory-c bring-up과 smoke 검증 기록이며, 현재 표준 운영에서는 설치/활성화하지 않는다. 최신 운영 절차는 `docs/ops/22_factory_bc_testbed_data_plane.md`와 `apps/dummy-sensor/docs/factory-b-c-dummy-systemd-runbook.md`를 따른다.
 
 ## PC 구성
 
@@ -36,7 +39,7 @@ Computer 3 안의 VM 들은 별도 환경이므로 세 번째/네 번째 환경�
 | --- | --- |
 | **Computer 3 Windows 호스트** | VirtualBox 호스트, Windows 자체 설정, Task Scheduler 2 작업 |
 | **Computer 3 VM (server)** | factory-c-master. Ubuntu Server, K3s server (control plane), Tailscale, IoT 인증서 cluster Secret 위치 |
-| **Computer 3 VM (agent)** | factory-c-worker. Ubuntu Server, K3s agent (worker), Tailscale, dummy publisher systemd, Edge Agent dummy mode 배치 노드 |
+| **Computer 3 VM (agent)** | factory-c-worker. Ubuntu Server, K3s agent (worker), Tailscale, local dummy generator와 K3s `edge-iot-publisher` 배치 노드 |
 
 각 Step 상단에 `실행 위치:` 라벨로 어디서 명령을 입력하는지 명시한다.
 

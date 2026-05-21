@@ -13,12 +13,14 @@ factory_b_dummy_generator.py / factory_c_dummy_generator.py
   -> canonical JSON 생성
   -> local outbox 파일 저장
 
-factory_b_iot_publisher.py / factory_c_iot_publisher.py
+edge-iot-publisher (K3s, ArgoCD 배포)
   -> outbox JSON scan
   -> AWS IoT Core MQTT publish
   -> IoT Rule
   -> S3 raw/{factory_id}/{source_type}/...
 ```
+
+`factory_b_iot_publisher.py`와 `factory_c_iot_publisher.py`는 legacy/manual smoke 용도다. 현재 표준 운영에서는 VM 로컬 publisher systemd를 켜지 않고, Spoke K3s의 `edge-iot-publisher`가 publish를 담당한다.
 
 생성되는 source type:
 
@@ -57,7 +59,7 @@ AEGIS_OUTBOX_DIR=/tmp/aegis-factory-b-outbox \
   python3 apps/dummy-sensor/factory_b_dummy_generator.py --once all
 ```
 
-outbox를 1회 publish:
+legacy publisher로 outbox를 1회 publish하는 smoke 테스트:
 
 ```bash
 AEGIS_OUTBOX_DIR=/tmp/aegis-factory-c-outbox \
@@ -136,7 +138,9 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-publisher service:
+legacy publisher service:
+
+현재 표준 운영에서는 이 service를 설치/활성화하지 않는다. 같은 factory에서 K3s `edge-iot-publisher`와 동시에 실행하면 MQTT client id 충돌이나 중복 publish가 발생할 수 있다.
 
 ```ini
 [Unit]
@@ -194,7 +198,9 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-publisher service:
+legacy publisher service:
+
+현재 표준 운영에서는 이 service를 설치/활성화하지 않는다. 같은 factory에서 K3s `edge-iot-publisher`와 동시에 실행하면 MQTT client id 충돌이나 중복 publish가 발생할 수 있다.
 
 ```ini
 [Unit]
