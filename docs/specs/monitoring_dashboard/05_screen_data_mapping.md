@@ -13,10 +13,8 @@
 
 | 이름 | 저장소 | 용도 |
 | --- | --- | --- |
-| `DynamoDB LATEST` | `aegis-factory-status` | 공장별 현재 상태, 카드, 현재 요약 |
-| `DynamoDB HISTORY#RISK` | `aegis-factory-status` | Risk Score 그래프 |
-| `DynamoDB HISTORY#FACTORY` | `aegis-factory-status` | 온도/습도/기압/AI score 그래프 |
-| `DynamoDB HISTORY#INFRA` | `aegis-factory-status` | 노드 CPU/memory/disk/Ready 그래프 |
+| `DynamoDB LATEST` | `AEGIS-DynamoDB-FactoryStatus` | 공장별 현재 상태, 카드, 현재 요약 |
+| `DynamoDB HISTORY#STATE` | `AEGIS-DynamoDB-FactoryStatus` | Safety/Risk, 환경, AI score, 노드 CPU/memory/disk/Ready 그래프 |
 | `S3 processed` | `processed/*` | 상세 이력, 리포트, 장기 조회 |
 | `S3 raw` | `raw/*` | 원본 확인, 감사, 재처리 |
 
@@ -27,7 +25,7 @@ MVP 기본 화면은 DynamoDB만으로 그린다. S3는 상세/감사/장기 이
 테이블:
 
 ```text
-aegis-factory-status
+AEGIS-DynamoDB-FactoryStatus
 ```
 
 LATEST:
@@ -41,15 +39,13 @@ HISTORY:
 
 ```text
 pk = FACTORY#{factory_id}
-sk = HISTORY#RISK#{timestamp}
-sk = HISTORY#FACTORY#{timestamp}
-sk = HISTORY#INFRA#{timestamp}
+sk = HISTORY#STATE#{timestamp}
 ```
 
 timestamp는 UTC ISO 8601 문자열을 사용한다. lexicographical sort가 시간순과 같아야 하므로 아래 형식을 사용한다.
 
 ```text
-YYYY-MM-DDTHH:mm:ssZ
+YYYY-MM-DDTHH:mm:ss.sssZ
 ```
 
 ## 공통 LATEST 필드
@@ -65,7 +61,7 @@ YYYY-MM-DDTHH:mm:ssZ
 | `updated_at` | string | Y | latest item 최종 갱신 시각 |
 | `last_factory_state_at` | string | Y | 마지막 `factory_state` 반영 시각 |
 | `last_infra_state_at` | string | Y | 마지막 `infra_state` 반영 시각 |
-| `risk.score` | number | Y | 0~100 Risk Score |
+| `risk.score` | number | Y | 0~100 Safety Score. 높을수록 안전 |
 | `risk.level` | string | Y | `safe`, `warning`, `danger` |
 | `risk.top_causes[]` | array | Y | 주요 원인 목록 |
 | `factory_state.sensor` | object | Y | 현재 환경 센서 요약 |
@@ -394,7 +390,7 @@ Risk:
 ```text
 Query
 pk = FACTORY#{factory_id}
-sk BETWEEN HISTORY#RISK#{from} AND HISTORY#RISK#{to}
+sk BETWEEN HISTORY#STATE#{from} AND HISTORY#STATE#{to}
 ```
 
 Factory:
@@ -402,10 +398,10 @@ Factory:
 ```text
 Query
 pk = FACTORY#{factory_id}
-sk BETWEEN HISTORY#FACTORY#{from} AND HISTORY#FACTORY#{to}
+sk BETWEEN HISTORY#STATE#{from} AND HISTORY#STATE#{to}
 ```
 
-### HISTORY#RISK 필드
+### HISTORY#STATE 필드
 
 | 화면 요소 | 필드 경로 | 필수 | 렌더링 |
 | --- | --- | --- | --- |
@@ -415,7 +411,7 @@ sk BETWEEN HISTORY#FACTORY#{from} AND HISTORY#FACTORY#{to}
 | Top causes | `top_cause_names[]` | N | tooltip |
 | bucket | `bucket_seconds` | Y | sampling note |
 
-### HISTORY#FACTORY 필드
+### HISTORY#STATE 필드
 
 | 화면 요소 | 필드 경로 | 필수 | 렌더링 |
 | --- | --- | --- | --- |
@@ -470,9 +466,9 @@ Risk chart:
 ```text
 x = timestamp
 y = risk_score
-safe range: 0~39
-warning range: 40~69
-danger range: 70~100
+safe range: 100~85
+warning range: 84~50
+danger range: 49~0
 ```
 
 AI chart:
@@ -553,7 +549,7 @@ History:
 ```text
 Query
 pk = FACTORY#{factory_id}
-sk BETWEEN HISTORY#INFRA#{from} AND HISTORY#INFRA#{to}
+sk BETWEEN HISTORY#STATE#{from} AND HISTORY#STATE#{to}
 ```
 
 ### 현재 노드 표 필드
@@ -597,7 +593,7 @@ MVP 저장 구조는 `workload_summary`를 필수로 둔다. 상세 workload lis
 | infra age | `pipeline_status.latest_infra_state_age_seconds` | Y | seconds |
 | s3 raw age | `pipeline_status.latest_s3_raw_age_seconds` | Y | seconds |
 
-### HISTORY#INFRA 필드
+### HISTORY#STATE 필드
 
 | 그래프 | 필드 경로 | 필수 | 비고 |
 | --- | --- | --- | --- |
@@ -730,9 +726,9 @@ GET /factories/{factory_id}/timeline?window=1h
 MVP 기본:
 
 ```text
-Query HISTORY#RISK
-Query HISTORY#FACTORY
-Query HISTORY#INFRA
+Query HISTORY#STATE
+Query HISTORY#STATE
+Query HISTORY#STATE
 merge by timestamp
 derive changes in API layer
 ```
@@ -749,14 +745,14 @@ MVP에서는 별도 event item 없이 history point를 비교해 timeline을 만
 
 | 이벤트 | 비교 필드 | 생성 조건 |
 | --- | --- | --- |
-| Risk level 변화 | `HISTORY#RISK.risk_level` | 이전 point와 값이 다름 |
-| Risk 급등 | `HISTORY#RISK.risk_score` | 이전 point 대비 +10 이상 |
-| 주요 원인 변화 | `HISTORY#RISK.top_cause_names` | 목록이 바뀜 |
-| 온도 상승 | `HISTORY#FACTORY.temperature_celsius_avg` | 이전 point 대비 +5 이상 또는 threshold 초과 |
+| Risk level 변화 | `HISTORY#STATE.risk_level` | 이전 point와 값이 다름 |
+| Risk 급등 | `HISTORY#STATE.risk_score` | 이전 point 대비 +10 이상 |
+| 주요 원인 변화 | `HISTORY#STATE.top_cause_names` | 목록이 바뀜 |
+| 온도 상승 | `HISTORY#STATE.temperature_celsius_avg` | 이전 point 대비 +5 이상 또는 threshold 초과 |
 | AI score 상승 | `fire_score`, `fall_score`, `bend_score` | 이전 point 대비 +0.3 이상 |
-| Pipeline 변화 | `HISTORY#INFRA.pipeline_status.status` | 이전 point와 값이 다름 |
-| Node Ready 변화 | `HISTORY#INFRA.node_summary.ready/not_ready` | 이전 point와 값이 다름 |
-| Workload 이상 | `HISTORY#INFRA.workload_summary.unhealthy` | 0에서 1 이상으로 증가 |
+| Pipeline 변화 | `HISTORY#STATE.pipeline_status.status` | 이전 point와 값이 다름 |
+| Node Ready 변화 | `HISTORY#STATE.node_summary.ready/not_ready` | 이전 point와 값이 다름 |
+| Workload 이상 | `HISTORY#STATE.workload_summary.unhealthy` | 0에서 1 이상으로 증가 |
 | Device 이상 | `device_summary.*_available` | true에서 false로 변경 |
 
 ### 응답 예시
@@ -772,7 +768,7 @@ MVP에서는 별도 event item 없이 history point를 비교해 timeline을 만
       "severity": "danger",
       "title": "Risk 주의 -> 위험",
       "description": "fall_score 0.67, temperature 38.2°C",
-      "source": "HISTORY#RISK"
+      "source": "HISTORY#STATE"
     },
     {
       "timestamp": "2026-05-14T11:58:20Z",
@@ -780,7 +776,7 @@ MVP에서는 별도 event item 없이 history point를 비교해 timeline을 만
       "severity": "warning",
       "title": "Microphone unavailable",
       "description": "microphone_available=false",
-      "source": "HISTORY#INFRA"
+      "source": "HISTORY#STATE"
     }
   ]
 }
@@ -825,8 +821,8 @@ Severity:
 
 - [ ] `GET /risk-history` API 구현
 - [ ] `GET /factory-history` API 구현
-- [ ] `HISTORY#RISK` range query
-- [ ] `HISTORY#FACTORY` range query
+- [ ] `HISTORY#STATE` range query
+- [ ] `HISTORY#STATE` range query
 - [ ] 1h/2h/24h window 처리
 - [ ] Risk threshold band 렌더링
 
@@ -834,7 +830,7 @@ Severity:
 
 - [ ] `GET /infra-history` API 구현
 - [ ] `DynamoDB LATEST.infra_state` 조회
-- [ ] `HISTORY#INFRA` range query
+- [ ] `HISTORY#STATE` range query
 - [ ] node별 CPU/memory/disk series 생성
 - [ ] node/workload/device empty state 처리
 
@@ -854,10 +850,10 @@ S3 조회가 필요한 경우:
 
 | 경우 | 조회 대상 |
 | --- | --- |
-| 특정 timestamp의 계산 결과 상세 | `S3 processed/risk-score/*` |
+| 특정 timestamp의 계산 결과 상세 | `S3 processed/{factory_id}/risk_score/*` |
 | 원본 메시지 확인 | `S3 raw/{factory_id}/{source_type}/*` |
 | 장기 리포트 | `S3 processed/*` |
-| DynamoDB HISTORY TTL 이후 이력 조회 | `S3 processed/*` |
+| DynamoDB HISTORY TTL 이후 이력 조회 | `S3 processed/{factory_id}/state_snapshot/*` |
 | 재처리 검증 | `S3 raw/*`와 `S3 processed/*` 비교 |
 
 ## 공통 시간 처리

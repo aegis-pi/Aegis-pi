@@ -100,26 +100,33 @@ Lambda는 계산 결과와 상태 요약을 S3 processed에 저장한다.
 Risk 결과:
 
 ```text
-processed/risk-score/{factory_id}/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json
+processed/{factory_id}/risk_score/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json
 ```
 
 환경 상태 처리 결과:
 
 ```text
-processed/factory-state/{factory_id}/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json
+processed/{factory_id}/factory_state/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json
 ```
 
 인프라 상태 처리 결과:
 
 ```text
-processed/infra-state/{factory_id}/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json
+processed/{factory_id}/infra_state/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json
+```
+
+전체 상태 snapshot:
+
+```text
+processed/{factory_id}/state_snapshot/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{updated_at}.json
 ```
 
 예시:
 
 ```text
-processed/risk-score/factory-a/yyyy=2026/mm=05/dd=14/hh=12/factory-a:factory_state:worker2:2026-05-14T12:00:06Z.json
-processed/infra-state/factory-a/yyyy=2026/mm=05/dd=14/hh=12/factory-a:infra_state:cluster:2026-05-14T12:00:20Z.json
+processed/factory-a/risk_score/yyyy=2026/mm=05/dd=14/hh=12/factory-a:factory_state:worker2:2026-05-14T12:00:06Z.json
+processed/factory-a/infra_state/yyyy=2026/mm=05/dd=14/hh=12/factory-a:infra_state:cluster:2026-05-14T12:00:20Z.json
+processed/factory-a/state_snapshot/yyyy=2026/mm=05/dd=14/hh=12/2026-05-14T12:00:06.123Z.json
 ```
 
 `S3 processed`는 장기 이력과 재처리 비교를 위한 저장소다. Dashboard의 기본 현재 상태와 최근 그래프는 DynamoDB를 먼저 조회한다.
@@ -128,9 +135,10 @@ Processed object body 기준:
 
 - Lambda data processor가 정규화한 입력, Risk 계산 결과, pipeline summary, dashboard summary를 저장한다.
 - `source_message_id`에는 원본 canonical JSON의 `message_id`를 저장한다.
-- `processed/risk-score/`는 `factory_state` 처리 결과와 Risk 계산 결과를 담는다.
-- `processed/factory-state/`는 Dashboard 환경 상태 조회에 필요한 정규화 결과를 담는다.
-- `processed/infra-state/`는 인프라 상태와 pipeline status 계산 결과를 담는다.
+- `processed/{factory_id}/risk_score/`는 `factory_state` 처리 결과와 Risk 계산 결과를 담는다.
+- `processed/{factory_id}/factory_state/`는 Dashboard 환경 상태 조회에 필요한 정규화 결과를 담는다.
+- `processed/{factory_id}/infra_state/`는 인프라 상태와 pipeline status 계산 결과를 담는다.
+- `processed/{factory_id}/state_snapshot/`은 DynamoDB `HISTORY#STATE`와 같은 전체 상태 snapshot을 담되, DynamoDB TTL 정책 필드인 `ttl`은 저장하지 않는다.
 - S3 processed는 장기 이력과 재처리 비교용이며, Dashboard current state의 1차 조회 대상은 아니다.
 
 ## DynamoDB Table
@@ -138,8 +146,10 @@ Processed object body 기준:
 테이블명:
 
 ```text
-aegis-factory-status
+AEGIS-DynamoDB-FactoryStatus
 ```
+
+레이어: `infra/foundation` (영구 리소스. data-pipeline destroy와 무관하게 유지됨)
 
 기본 키:
 
@@ -198,24 +208,22 @@ Dashboard 사용처:
   "last_factory_state_at": "2026-05-14T12:00:06Z",
   "last_infra_state_at": "2026-05-14T12:00:20Z",
   "risk": {
-    "score": 72.4,
+    "score": 27.6,
     "level": "danger",
     "top_causes": [
       {
-        "name": "fall_score",
-        "value": 0.67,
-        "weight": 35,
-        "contribution": 23.45
+        "field": "temperature",
+        "value": 38.2,
+        "contribution": 42.86
       },
       {
-        "name": "temperature_celsius_avg",
-        "value": 38.2,
-        "weight": 20,
-        "contribution": 15.1
+        "field": "ai_event_rate",
+        "value": 0.67,
+        "contribution": 19.14
       }
     ],
     "calculated_at": "2026-05-14T12:00:06Z",
-    "calculation_version": "risk-v0.1.0"
+    "calculation_version": "risk-v0.2.0"
   },
   "factory_state": {
     "source_message_id": "factory-a:factory_state:worker2:2026-05-14T12:00:06Z",
@@ -291,154 +299,78 @@ Dashboard 사용처:
 
 ## DynamoDB HISTORY
 
-`HISTORY` item은 최근 그래프를 빠르게 그리기 위한 short-term 시계열이다.
+`HISTORY` item은 최근 그래프를 빠르게 그리기 위한 short-term 시계열이다. `LATEST`와 필드 구조를 동일하게 유지하고, `sk`와 `ttl`만 history용으로 바꾼 스냅샷을 저장한다.
 
 보존:
 
 ```text
-TTL: 24시간
+TTL: 48시간
 ```
 
-MVP Dashboard는 최근 1시간 또는 2시간 그래프를 기본으로 조회한다. TTL은 운영 중 2시간, 24시간, 7일 중 하나로 조정할 수 있지만 MVP 기본값은 24시간이다.
-
-### 환경/Risk History
-
-`factory_state`는 3초마다 들어오므로 그대로 history를 쌓지 않고 30초 단위 last-value를 저장한다.
+MVP Dashboard는 최근 1시간 또는 2시간 그래프를 기본으로 조회한다. TTL은 48시간이 기본값이며, Lambda 환경변수 `HISTORY_TTL_HOURS`로 조정 가능하다.
 
 키:
 
 ```text
 pk = FACTORY#{factory_id}
-sk = HISTORY#FACTORY#2026-05-14T12:00:30Z
-sk = HISTORY#RISK#2026-05-14T12:00:30Z
-```
-
-저장 주기:
-
-```text
-30초
+sk = HISTORY#STATE#{updated_at}   ← 예: HISTORY#STATE#2026-05-14T12:00:06.123Z
 ```
 
 저장 방식:
 
-- `LATEST.factory_state`와 `LATEST.risk`는 3초마다 갱신한다.
-- `HISTORY#FACTORY`와 `HISTORY#RISK`는 30초 bucket마다 마지막 값을 저장한다.
-- 정확한 3초 단위 이력은 S3 raw와 S3 processed에 남긴다.
+- `factory_state` 수신 시 `LATEST.factory_state`, `LATEST.risk`, `LATEST.pipeline_status`를 부분 갱신한 뒤, 갱신된 `LATEST` 전체를 `HISTORY#STATE#{updated_at}`으로 복사한다.
+- `infra_state` 수신 시 `LATEST.infra_state`, `LATEST.pipeline_status`를 부분 갱신한 뒤, 갱신된 `LATEST` 전체를 `HISTORY#STATE#{updated_at}`으로 복사한다.
+- `HISTORY#STATE` item은 `LATEST`와 같은 구조이며, `ttl` 필드만 추가된다.
+- 정밀 이력 원본은 S3 raw와 S3 processed에 별도 보존한다.
 
 예시:
 
 ```json
 {
   "pk": "FACTORY#factory-a",
-  "sk": "HISTORY#RISK#2026-05-14T12:00:30Z",
+  "sk": "HISTORY#STATE#2026-05-14T12:00:06.123Z",
   "factory_id": "factory-a",
   "schema_version": "0.1.0",
-  "timestamp": "2026-05-14T12:00:30Z",
-  "bucket_seconds": 30,
-  "source": "last_value",
-  "risk_score": 72.4,
-  "risk_level": "danger",
-  "top_cause_names": ["fall_score", "temperature_celsius_avg"],
-  "ttl": 1760000000
-}
-```
-
-```json
-{
-  "pk": "FACTORY#factory-a",
-  "sk": "HISTORY#FACTORY#2026-05-14T12:00:30Z",
-  "factory_id": "factory-a",
-  "schema_version": "0.1.0",
-  "timestamp": "2026-05-14T12:00:30Z",
-  "bucket_seconds": 30,
-  "source": "last_value",
-  "temperature_celsius_avg": 38.2,
-  "humidity_percent_avg": 64.0,
-  "pressure_hpa_avg": 1011.8,
-  "fire_score": 0.0,
-  "fall_score": 0.67,
-  "bend_score": 0.2,
-  "ttl": 1760000000
-}
-```
-
-### Infra History
-
-`infra_state`는 20초마다 들어오므로 별도 downsample 없이 매 수신값을 history에 저장한다.
-
-키:
-
-```text
-pk = FACTORY#{factory_id}
-sk = HISTORY#INFRA#2026-05-14T12:00:20Z
-```
-
-저장 주기:
-
-```text
-20초
-```
-
-저장 방식:
-
-- `LATEST.infra_state`와 `LATEST.pipeline_status`는 20초마다 갱신한다.
-- `HISTORY#INFRA`는 매 수신값을 그대로 저장한다.
-- 노드 상태는 이미 20초 주기라 그래프용으로 충분히 낮은 빈도다.
-
-예시:
-
-```json
-{
-  "pk": "FACTORY#factory-a",
-  "sk": "HISTORY#INFRA#2026-05-14T12:00:20Z",
-  "factory_id": "factory-a",
-  "schema_version": "0.1.0",
-  "timestamp": "2026-05-14T12:00:20Z",
-  "bucket_seconds": 20,
-  "node_summary": {
-    "total": 3,
-    "ready": 3,
-    "not_ready": 0
+  "factory_state": {
+    "message_id": "factory-a:factory_state:worker2:2026-05-14T12:00:06Z",
+    "source_timestamp": "2026-05-14T12:00:06Z",
+    "aggregation_window_seconds": 3,
+    "temperature_celsius": 38.2,
+    "humidity_percent": 64.0,
+    "pressure_hpa": 1011.8,
+    "sample_count": 5,
+    "fire_score": 0.0,
+    "fall_score": 0.67,
+    "bend_score": 0.2,
+    "abnormal_sound": "none",
+    "ai_sample_count": 3
   },
-  "nodes": [
-    {
-      "node_id": "master",
-      "ready": true,
-      "cpu_usage_percent": 31.2,
-      "memory_usage_percent": 55.4,
-      "disk_usage_percent": 42.1
-    },
-    {
-      "node_id": "worker1",
-      "ready": true,
-      "cpu_usage_percent": 22.8,
-      "memory_usage_percent": 48.0,
-      "disk_usage_percent": 39.5
-    },
-    {
-      "node_id": "worker2",
-      "ready": true,
-      "cpu_usage_percent": 44.8,
-      "memory_usage_percent": 63.0,
-      "disk_usage_percent": 45.5
-    }
-  ],
-  "workload_summary": {
-    "total": 3,
-    "running": 3,
-    "unhealthy": 0,
-    "restart_count_total": 0
+  "infra_state": {
+    "message_id": "factory-a:infra_state:cluster:2026-05-14T12:00:00Z",
+    "source_timestamp": "2026-05-14T12:00:00Z",
+    "agent_status": "running",
+    "cluster_name": "factory-a",
+    "nodes_total": 3,
+    "nodes_ready": 3,
+    "pods_ready": 12,
+    "pods_total": 12,
+    "nodes": [],
+    "workloads": [],
+    "devices": {}
   },
-  "device_summary": {
-    "bme280_available": true,
-    "camera_available": true,
-    "microphone_available": true
+  "risk": {
+    "score": 72.4,
+    "level": "warning",
+    "calculation_version": "risk-v0.2.0"
   },
   "pipeline_status": {
     "status": "normal",
     "latest_infra_state_age_seconds": 6,
     "latest_s3_raw_age_seconds": 4
   },
+  "last_factory_state_at": "2026-05-14T12:00:06Z",
+  "last_infra_state_at": "2026-05-14T12:00:00Z",
+  "updated_at": "2026-05-14T12:00:06.123Z",
   "ttl": 1760000000
 }
 ```
@@ -465,8 +397,7 @@ factory_state
 | --- | --- | --- |
 | `DynamoDB LATEST.factory_state` | 3초마다 overwrite | 현재 환경 상태 카드 |
 | `DynamoDB LATEST.risk` | 3초마다 overwrite | 현재 Risk 카드 |
-| `DynamoDB HISTORY#FACTORY` | 30초 last-value | 온도/습도/기압/AI score 그래프 |
-| `DynamoDB HISTORY#RISK` | 30초 last-value | Risk Score 그래프 |
+| `DynamoDB HISTORY#STATE` | LATEST snapshot + TTL | 온도/습도/기압/AI score/Risk 그래프 |
 | `S3 raw` | 3초 원본 전체 | 원본 보존 |
 | `S3 processed` | 3초 계산 결과 | 장기 이력/재처리 |
 
@@ -490,7 +421,7 @@ infra_state
 | --- | --- | --- |
 | `DynamoDB LATEST.infra_state` | 20초마다 overwrite | 현재 노드/워크로드/장치 상태 |
 | `DynamoDB LATEST.pipeline_status` | 20초마다 overwrite | 현재 파이프라인 상태 |
-| `DynamoDB HISTORY#INFRA` | 20초 수신값 그대로 저장 | 노드 CPU/memory/disk/Ready 그래프 |
+| `DynamoDB HISTORY#STATE` | LATEST snapshot + TTL | 노드 CPU/memory/disk/Ready 그래프 |
 | `S3 raw` | 20초 원본 전체 | 장애 분석/원본 보존 |
 | `S3 processed` | 20초 상태 요약 | 운영 이력/리포트 |
 
@@ -502,9 +433,9 @@ infra_state
 | 현재 환경 상태 | `DynamoDB LATEST.factory_state` | 온도, 습도, 기압, AI score |
 | 현재 노드 상태 | `DynamoDB LATEST.infra_state` | Ready, CPU, memory, disk |
 | 현재 pipeline 상태 | `DynamoDB LATEST.pipeline_status` | normal/warning/critical |
-| 최근 Risk 그래프 | `DynamoDB HISTORY#RISK` | 30초 간격 |
-| 최근 환경 그래프 | `DynamoDB HISTORY#FACTORY` | 30초 간격 |
-| 최근 노드 그래프 | `DynamoDB HISTORY#INFRA` | 20초 간격 |
+| 최근 Risk 그래프 | `DynamoDB HISTORY#STATE` | factory_state 수신 시점 snapshot |
+| 최근 환경 그래프 | `DynamoDB HISTORY#STATE` | factory_state 수신 시점 snapshot |
+| 최근 노드 그래프 | `DynamoDB HISTORY#STATE` | infra_state 수신 시점 snapshot |
 | 장기 이력/감사 | `S3 processed`, `S3 raw` | 장기 조회, 재처리, 리포트 |
 
 Dashboard API 예시:
@@ -517,13 +448,13 @@ GET /factories/{factory_id}
   -> DynamoDB LATEST get item
 
 GET /factories/{factory_id}/risk-history?window=1h
-  -> DynamoDB HISTORY#RISK query
+  -> DynamoDB HISTORY#STATE query, risk 필드 추출
 
 GET /factories/{factory_id}/factory-history?window=1h
-  -> DynamoDB HISTORY#FACTORY query
+  -> DynamoDB HISTORY#STATE query, factory_state 필드 추출
 
 GET /factories/{factory_id}/infra-history?window=1h
-  -> DynamoDB HISTORY#INFRA query
+  -> DynamoDB HISTORY#STATE query, infra_state 필드 추출
 ```
 
 ## 구현 기준
@@ -532,8 +463,8 @@ GET /factories/{factory_id}/infra-history?window=1h
 - `S3 raw` 저장은 IoT Rule이 담당한다.
 - Lambda는 `DynamoDB LATEST`, `DynamoDB HISTORY`, `S3 processed`를 담당한다.
 - Dashboard current state는 S3 `latest/` prefix가 아니라 DynamoDB LATEST를 기준으로 조회한다.
-- `factory_state`와 `risk_result` history는 30초 last-value downsample을 사용한다.
-- `infra_state` history는 downsample하지 않고 20초 수신값을 그대로 저장한다.
+- `DynamoDB HISTORY#STATE`는 갱신된 `LATEST`와 같은 구조를 저장하고 TTL만 추가한다.
+- `S3 processed state_snapshot`은 `DynamoDB HISTORY#STATE`와 같은 구조를 저장하되 TTL은 제외한다.
 - `DynamoDB HISTORY`에는 TTL을 적용한다.
 - 장기 보존과 재처리는 DynamoDB가 아니라 S3 raw/processed를 기준으로 한다.
 - Dashboard는 기본적으로 DynamoDB를 조회하고, 상세/감사/장기 이력에서만 S3를 조회한다.

@@ -305,7 +305,8 @@ S3는 공장/source_type/날짜 기준으로 그린다.
 s3://<bucket>/
   raw/factory-a/factory_state/yyyy=YYYY/mm=MM/dd=DD/<message_id>.json
   raw/factory-a/infra_state/yyyy=YYYY/mm=MM/dd=DD/<message_id>.json
-  processed/risk-score/factory-a/yyyy=YYYY/mm=MM/dd=DD/hh=HH/<message_id>.json
+  processed/factory-a/risk_score/yyyy=YYYY/mm=MM/dd=DD/hh=HH/<message_id>.json
+  processed/factory-a/state_snapshot/yyyy=YYYY/mm=MM/dd=DD/hh=HH/<updated_at>.json
 ```
 
 ### Cloud-side 데이터 처리

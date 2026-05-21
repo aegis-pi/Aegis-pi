@@ -494,28 +494,68 @@ S3 raw는 IoT Rule로 원본 보존을 유지하고, Dashboard 현재 상태 조
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] Lambda data processor 구현
-  - IoT Core Rule 또는 메시지 라우팅으로 Lambda 호출
-  - 필드 정규화 (타입 변환, null 처리, 단위 통일)
-  - Risk Score 계산
-  - `pipeline_status` 계산
-  - DynamoDB LATEST overwrite/update
-  - DynamoDB HISTORY TTL item 저장
-  - S3 processed 처리 결과 저장
-- [ ] Lambda IAM 권한 설정
-  - DynamoDB read/write
-  - S3 processed write
-  - 필요 시 S3 raw read
-- [ ] 정규화 실패 데이터 처리 원칙 정의 (스킵 또는 오류 로그)
-- [ ] Dashboard VPC 조회용 DynamoDB/S3 processed 계약 반영
+- [x] Lambda data processor 구현
+  - [x] IoT Core Rule 또는 메시지 라우팅으로 Lambda 호출
+  - [x] 필드 정규화 (타입 변환, null 처리, 단위 통일)
+  - [x] Risk Score 계산
+  - [x] `pipeline_status` 계산
+  - [x] DynamoDB LATEST overwrite/update
+  - [x] DynamoDB HISTORY TTL item 저장
+  - [x] S3 processed 처리 결과 저장
+- [x] Lambda IAM 권한 설정
+  - [x] DynamoDB read/write
+  - [x] S3 processed write
+  - [x] 필요 시 S3 raw read
+- [x] 정규화 실패 데이터 처리 원칙 정의 (스킵 또는 오류 로그)
+- [ ] Dashboard VPC 조회용 DynamoDB/S3 processed 계약 반영 (Dashboard VPC 후속 단계)
 
-### 🔍 Acceptance Criteria
+### 🔍 Acceptance Criteria (검증 미완료)
 
-- IoT Core 메시지 수신 후 Lambda가 자동 실행됨
-- `factory_state` 처리 후 DynamoDB LATEST의 `factory_state`, `risk`가 갱신됨
-- `infra_state` 처리 후 DynamoDB LATEST의 `infra_state`, `pipeline_status`가 갱신됨
-- DynamoDB HISTORY와 S3 processed에 처리 결과가 저장됨
-- Lambda CloudWatch Logs에서 정상 처리와 실패 로그를 확인할 수 있음
+- [ ] IoT Core 메시지 수신 후 Lambda가 자동 실행됨
+- [ ] `factory_state` 처리 후 DynamoDB LATEST의 `factory_state`, `risk`가 갱신됨
+- [ ] `infra_state` 처리 후 DynamoDB LATEST의 `infra_state`, `pipeline_status`가 갱신됨
+- [ ] DynamoDB HISTORY와 S3 processed에 처리 결과가 저장됨
+- [ ] Lambda CloudWatch Logs에서 정상 처리와 실패 로그를 확인할 수 있음
+
+### 2026-05-21 구현 메모
+
+- 구현 위치: `apps/data-processor/`
+- entrypoint: `lambda_function.py`
+- Terraform 인프라: `infra/data-pipeline/` (IoT Rule × 3, Lambda, IAM, CloudWatch)
+- DynamoDB 테이블: `AEGIS-DynamoDB-FactoryStatus` (infra/foundation 영구 리소스, data-pipeline에서 data source로 참조)
+
+DynamoDB 저장 계약:
+- LATEST 아이템: `pk=FACTORY#factory-a`, `sk=LATEST` — 최신 전체 상태, TTL 없음
+- HISTORY#STATE 아이템: `pk=FACTORY#factory-a`, `sk=HISTORY#STATE#{updated_at}` — `LATEST`와 같은 구조 + TTL 48h
+- `factory_state`와 `infra_state`는 `LATEST`를 부분 갱신한 뒤, 갱신된 전체 `LATEST`를 history snapshot으로 저장
+
+Risk Score 계산:
+- `factory_state` 수신 시 fire/fall/bend score 기반 Risk 계산
+- LATEST `risk` 부분 갱신 + HISTORY#STATE snapshot 저장
+
+pipeline_status 계산:
+- `infra_state` 수신 시 마지막 수신 시각 기준으로 pipeline 상태 계산
+- LATEST `pipeline_status` 부분 갱신 + HISTORY#STATE snapshot 저장
+
+S3 processed 저장:
+- `s3://aegis-bucket-data/processed/factory-a/{source_type}/{yyyy}/{mm}/{dd}/{message_id}.json`
+- `s3://aegis-bucket-data/processed/factory-a/state_snapshot/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{updated_at}.json`
+- `state_snapshot`은 DynamoDB `HISTORY#STATE`와 같은 구조를 저장하되, DynamoDB TTL 정책 필드인 `ttl`은 제외
+
+정규화 실패 처리:
+- schema 검증 실패 시 CloudWatch Logs에 오류 기록 후 스킵 (Lambda 실패로 처리하지 않음)
+
+남은 검증:
+- 실제 AWS 배포 후 IoT → Lambda → DynamoDB/S3 processed end-to-end 검증
+- `scripts/build/build-data-pipe.sh` 실행 후 CloudWatch Logs, DynamoDB, S3 확인
+
+### GitHub Issue Comment Draft
+
+- 상태: 코드/인프라 완료, end-to-end 검증 대기
+- 진행 요약: Lambda data processor(`apps/data-processor/`) 구현 완료. DynamoDB는 `LATEST`와 `HISTORY#STATE#{updated_at}` 단일 snapshot 이력 구조로 정리했고, history는 `LATEST`와 같은 구조에 TTL 48h만 추가한다. Terraform 인프라(`infra/data-pipeline/`) 구현 완료. DynamoDB는 infra/foundation 영구 리소스로 이관.
+- 변경/확인: `apps/data-processor/`, `infra/data-pipeline/`, `infra/foundation/dynamodb.tf`
+- 검증: 실제 AWS 배포 후 IoT → Lambda → DynamoDB/S3 processed end-to-end 검증 필요
+- 후속: M4 Issue 7 pipeline_status 검증 (동일 Lambda 배포 후 함께 수행)
 
 ---
 
@@ -528,20 +568,46 @@ IoT Core 수신 상태와 S3 적재 상태를 기준으로 `pipeline_status`가 
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] Lambda data processor의 `pipeline_status` 계산 구현
-  - IoT Core `infra_state` 수신 여부 확인 로직
-  - S3 최신 적재 시각 기준 지연 판단 로직
-  - DynamoDB LATEST/HISTORY 업데이트 로직
-  - `infra_state` 20초 주기 기준 warning/critical 판단
-- [ ] DynamoDB LATEST/HISTORY 저장 확인
-- [ ] Dashboard VPC 조회용 latest/status 저장소 반영
-- [ ] `pipeline_status` 판단 기준을 데이터 플레인 관련 문서에 반영
+- [x] Lambda data processor의 `pipeline_status` 계산 구현
+  - [x] IoT Core `infra_state` 수신 여부 확인 로직
+  - [x] S3 최신 적재 시각 기준 지연 판단 로직
+  - [x] DynamoDB LATEST/HISTORY 업데이트 로직
+  - [x] `infra_state` 20초 주기 기준 warning/critical 판단
+- [ ] DynamoDB LATEST/HISTORY 저장 확인 (검증 미완료)
+- [ ] Dashboard VPC 조회용 latest/status 저장소 반영 (Dashboard VPC 후속 단계)
+- [ ] `pipeline_status` 판단 기준을 데이터 플레인 관련 문서에 반영 (검증 후 반영)
 
-### 🔍 Acceptance Criteria
+### 🔍 Acceptance Criteria (검증 미완료)
 
-- Lambda 처리 결과에서 `factory-a`의 pipeline 상태 확인 가능
-- DynamoDB LATEST에서 `factory-a`의 pipeline 상태 조회 가능
-- IoT Core 메시지가 일정 시간 이상 없을 때 `pipeline_status` 이상으로 판정
+- [ ] Lambda 처리 결과에서 `factory-a`의 pipeline 상태 확인 가능
+- [ ] DynamoDB LATEST에서 `factory-a`의 pipeline 상태 조회 가능
+- [ ] IoT Core 메시지가 일정 시간 이상 없을 때 `pipeline_status` 이상으로 판정
+
+### 2026-05-21 구현 메모
+
+pipeline_status 계산 로직 (`apps/data-processor/lambda_function.py`):
+- `infra_state` 수신 시 현재 시각과 source_timestamp 차이로 지연 판단
+- `infra_state` 20초 주기 기준: 60초 이상이면 `warning`, 120초 이상이면 `critical`, 정상이면 `healthy`
+- DynamoDB LATEST `pk=FACTORY#factory-a`, `sk=LATEST`의 `pipeline_status`를 부분 갱신
+- DynamoDB HISTORY: `pk=FACTORY#factory-a`, `sk=HISTORY#STATE#{updated_at}`, `LATEST`와 같은 구조 + TTL 48h
+
+검증 시나리오 (build-data-pipe.sh 실행 후):
+1. `edge-iot-publisher` 정상 동작 중: DynamoDB LATEST pipeline_status = `healthy`
+2. `edge-iot-publisher` 강제 중지 후 60초: DynamoDB LATEST pipeline_status = `warning`
+3. `edge-iot-publisher` 강제 중지 후 120초: DynamoDB LATEST pipeline_status = `critical`
+4. `edge-iot-publisher` 재시작 후: DynamoDB LATEST pipeline_status = `healthy` 복구 확인
+
+남은 검증:
+- `scripts/build/build-data-pipe.sh` 실행 후 Lambda 배포 확인
+- publisher 중지/시작 테스트로 pipeline_status 상태 전이 확인
+- DynamoDB HISTORY에 이력 적재 확인
+
+### GitHub Issue Comment Draft
+
+- 상태: 코드 완료, end-to-end 검증 대기
+- 진행 요약: pipeline_status 계산 로직은 Issue 6의 Lambda data processor에 통합 구현됨. infra_state 수신 주기(20초) 기준 healthy/warning/critical 판단 로직 구현. DynamoDB LATEST 부분 갱신 + HISTORY#STATE snapshot TTL 아이템 저장 로직 구현.
+- 검증: 실제 Lambda 배포 후 edge-iot-publisher 중지/재시작 시나리오 검증 필요
+- 후속: Issue 6 end-to-end 검증과 동일 배포에서 함께 수행
 
 ---
 
@@ -583,10 +649,10 @@ factory-a-log-adapter / dummy-data-generator
   -> edge-iot-publisher
   -> IoT Core
       -> IoT Rule -> S3 raw
-      -> Lambda data processor
-          -> DynamoDB LATEST
-          -> DynamoDB HISTORY
-          -> S3 processed
+          -> Lambda data processor
+              -> DynamoDB LATEST
+              -> DynamoDB HISTORY#STATE
+              -> S3 processed
 
 Dashboard API/Web
   -> DynamoDB LATEST/HISTORY

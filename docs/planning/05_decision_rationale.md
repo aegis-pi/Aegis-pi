@@ -216,7 +216,8 @@ S3 경로는 아래처럼 공장/source_type/날짜 기준으로 나눈다.
 s3://<bucket>/
   raw/factory-a/factory_state/yyyy=2026/mm=05/dd=04/<message_id>.json
   raw/factory-a/infra_state/yyyy=2026/mm=05/dd=04/<message_id>.json
-  processed/risk-score/factory-a/yyyy=2026/mm=05/dd=04/<message_id>.json
+  processed/factory-a/risk_score/yyyy=2026/mm=05/dd=04/hh=HH/<message_id>.json
+  processed/factory-a/state_snapshot/yyyy=2026/mm=05/dd=04/hh=HH/<updated_at>.json
 ```
 
 Risk Service로 직접 넣으면 지연은 줄어들 수 있지만, 원본 보존과 재처리 근거가 약해진다.
