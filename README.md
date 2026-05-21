@@ -10,10 +10,10 @@ Aegis-Pi는 이 기준선을 먼저 `factory-a`로 복구하고, 이후 AWS Hub�
 | 항목 | 내용 |
 | --- | --- |
 | 프로젝트명 | Aegis-Pi Risk Twin |
-| 현재 단계 | M5 `factory-b/c` 테스트베드 data-plane 수집 및 검증 완료 |
-| 현재 완료 범위 | M0 `factory-a`, M1 Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~5/8 완료. EKS Hub Tailscale Operator, ArgoCD/Grafana Tailscale IP UI 접근, ArgoCD `factory-a/b/c` cluster 등록, `aegis-spoke-factory-a/b/c` Application 생성, IoT Rule -> S3 raw 적재, IRSA S3/AMP 권한, Hub Prometheus Agent -> AMP remote_write, 내부 Grafana -> AMP query, AWS Load Balancer Controller, Admin UI HTTPS Ingress, `factory-a-master`와 `factory-b/c` VM Tailnet 참여, `aegis-pi-gitops` GitOps 저장소 구조와 manifest validation, ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a/b/c` 전체 데이터 플레인 S3 적재 및 시간 동기화(Chrony), VirtualBox Flannel/CoreDNS 네트워크 중복 IP(enp0s8 고정) 장애 해결 완료 |
-| 현재 AWS 상태 | 2026-05-20 기준 Hub/Foundation/IoT/Admin UI 리소스 재생성 검증 이력 유지. ECR `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`, `aegis/edge-agent` repository 사용 중 |
-| 다음 작업 | M4 Issue 6~7: IoT Core Lambda data processor 구현, DynamoDB LATEST/HISTORY 적재, S3 processed 저장, `pipeline_status` 검증. 이후 M6 Risk Twin/Dashboard 구현 |
+| 현재 단계 | M4 Lambda data processor 코드/인프라 완료, end-to-end 검증 대기 |
+| 현재 완료 범위 | M0 `factory-a`, M1 Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~5/8 + Issue 6~7 코드/인프라 완료, M5 Issue 1~7 완료. EKS Hub Tailscale Operator, ArgoCD/Grafana Tailscale IP UI 접근, ArgoCD `factory-a/b/c` cluster 등록, `aegis-spoke-factory-a/b/c` Application 생성, IoT Rule -> S3 raw 적재, IRSA S3/AMP 권한, Hub Prometheus Agent -> AMP remote_write, 내부 Grafana -> AMP query, AWS Load Balancer Controller, Admin UI HTTPS Ingress, `factory-a-master`와 `factory-b/c` VM Tailnet 참여, `aegis-pi-gitops` GitOps 저장소 구조와 manifest validation, ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a/b/c` 전체 데이터 플레인 S3 적재 및 시간 동기화(Chrony), VirtualBox Flannel/CoreDNS 네트워크 중복 IP(enp0s8 고정) 장애 해결, Lambda data processor(`apps/data-processor/`) 및 Terraform(`infra/data-pipeline/`) 구현 완료 |
+| 현재 AWS 상태 | 2026-05-21 기준 Hub/Foundation/IoT/Admin UI 리소스 재생성 검증 이력 유지. ECR `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`, `aegis/edge-agent` repository 사용 중. DynamoDB `AEGIS-DynamoDB-FactoryStatus`는 `infra/foundation` 영구 리소스 |
+| 다음 작업 | `build-data-pipe.sh` 실행 후 IoT → Lambda → DynamoDB/S3 processed end-to-end 검증 (M4 Issue 6~7). 이후 M6 Risk Twin/Dashboard 구현 |
 | 비용 기준 | 현재 active AEGIS AWS fixed-cost resource는 0개 기준. Hub를 다시 켜면 Admin UI ALB 포함 고정 비용은 `~$0.36/hour`로 계산한다. 상세 기준은 `docs/ops/15_aws_cost_baseline.md` |
 
 ## 현재 완료된 Factory-A 기준선
@@ -80,7 +80,7 @@ safe-edge-config-main GitHub repo
     -> factory-a K3s
 ```
 
-현재는 로컬 `factory-a` GitOps 기준선과 Hub ArgoCD ApplicationSet 기반 Spoke 배포 기준선이 모두 준비된 상태다. `factory-b/c`는 Hub ArgoCD에 cluster와 Application이 등록됐고, GitOps chart/values는 hostPath outbox 기준으로 전환했다. VM worker outbox, local dummy generator, IoT Secret, publisher 활성화, S3 raw 적재 검증까지 완료했다.
+현재는 로컬 `factory-a` GitOps 기준선과 Hub ArgoCD ApplicationSet 기반 Spoke 배포 기준선이 모두 준비된 상태다. `factory-b/c`는 Hub ArgoCD에 cluster와 Application이 등록됐고, GitOps chart/values는 hostPath outbox 기준으로 전환했다. VM worker outbox, local dummy generator, IoT Secret, K3s `edge-iot-publisher`, S3 raw 적재 검증까지 완료했다.
 
 ## 현재 Mesh VPN 기준
 
@@ -109,7 +109,7 @@ Public ALB: 단기 유지
 
 M1 Issue 0~10에서는 AWS MFA/Terraform 접근, Hub EKS/VPC 기준선, Hub namespace 기준선, Hub ArgoCD bootstrap, foundation S3 data bucket `aegis-bucket-data`, AMP Workspace `AEGIS-AMP-hub`, `factory-a` IoT Thing/certificate/policy/K3s Secret, IoT Rule -> S3 `raw/` prefix 적재, M1 검증용 `risk/risk-normalizer` IRSA S3 권한, `observability/prometheus-agent` 설치 및 AMP remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, ArgoCD/Grafana HTTPS Admin Ingress를 검증했다.
 
-2026-05-20 기준 `scripts/build/build-hub.sh`는 Hub EKS와 Hub 내부 플랫폼까지만 자동 복구/검증한다. Tailscale Operator, Spoke egress, ArgoCD/Grafana Tailscale UI, ArgoCD cluster Secret, ApplicationSet은 Hub 이후 단계에서 실행한다. 기본 전체 재생성은 `scripts/build/build-all.sh`, Admin UI까지 포함한 재생성은 `scripts/build/build-all.sh --admin-ui-after-ns`, 전체 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. Hub 삭제 전에는 `scripts/destroy/stop-dummy-generators.sh`로 factory-b/c VM 데이터 생성을 먼저 멈추고, 그 다음 `destroy-hub.sh` 또는 `destroy-all.sh`를 실행한다. Hub만 삭제/재생성했고 Spoke K3s Secret과 IoT Core Thing/certificate가 유지된 경우에는 `build-hub.sh` 이후 `build-admin-ui-after-ns.sh`, `connect-hub-tailscale-ui.sh`, `register-spoke-factory-a.sh`, `register-spoke-factory-b.sh`, `register-spoke-factory-c.sh`를 필요 순서대로 개별 실행한다. 비용 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.
+2026-05-21 기준 `scripts/build/build-hub.sh`는 Hub EKS와 Hub 내부 플랫폼까지만 자동 복구/검증한다. Tailscale Operator, Spoke egress, ArgoCD/Grafana Tailscale UI, ArgoCD cluster Secret, ApplicationSet은 Hub 이후 단계에서 실행한다. 기본 전체 재생성은 `scripts/build/build-all.sh`, Admin UI까지 포함한 재생성은 `scripts/build/build-all.sh --admin-ui-after-ns`, 전체 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. Hub 삭제 전에는 `scripts/destroy/stop-dummy-generators.sh`로 factory-b/c VM 데이터 생성을 먼저 멈추고, 그 다음 `destroy-hub.sh` 또는 `destroy-all.sh`를 실행한다. Hub만 삭제/재생성했고 Spoke K3s Secret과 IoT Core Thing/certificate가 유지된 경우에는 `build-hub.sh` 이후 `build-admin-ui-after-ns.sh`, `register-spoke-factory-a.sh`, `register-spoke-factory-b.sh`, `register-spoke-factory-c.sh`, factory-b/c dummy generator start를 필요 순서대로 개별 실행한다. ALB 기반 Admin UI를 쓰는 경우 `connect-hub-tailscale-ui.sh`는 선택 사항이다. 비용 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.
 
 앞으로 모든 작업은 `docs/planning/11_delivery_ownership_flow.md`의 책임 경계를 따른다.
 
@@ -119,7 +119,8 @@ M1 Issue 0~10에서는 AWS MFA/Terraform 접근, Hub EKS/VPC 기준선, Hub name
 | --- | --- | --- |
 | `infra/hub` | VPC, subnet, NAT Gateway, EKS cluster, node group, Route53/ACM, EKS OIDC 기반 IRSA | destroy 완료, rebuild 시 Terraform/Ansible 재실행 |
 | `scripts/ansible/playbooks` | kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, Prometheus Agent remote_write, Grafana AMP datasource, AWS Load Balancer Controller, Admin UI Ingress bootstrap/검증 | rebuild 시 재실행 |
-| `infra/foundation` | S3, AMP Workspace, IoT Rule 같은 EKS destroy와 분리할 영속 리소스 | destroy 완료, rebuild 시 Terraform 재실행 |
+| `infra/foundation` | S3, AMP Workspace, ECR, DynamoDB 같은 Hub EKS destroy와 분리할 영속 리소스 | 유지, destroy 시 `DESTROY_FOUNDATION=true` 명시 필요 |
+| `infra/data-pipeline` | IoT Rule × 3, Lambda DataProcessor on-demand 레이어 | `build-data-pipe.sh` / `destroy-data-pipe.sh`로 개별 관리 |
 
 Hub 기본값:
 
@@ -232,8 +233,8 @@ AWS EKS Hub
 | Phase 2 (M1) | AWS EKS Hub 기준선 구성 | 핵심 완료, Issue 0~10/12 완료, Issue 11 보류 |
 | Phase 3 (M2) | Hub-Spoke 연결 | 완료, Issue 1~6 완료 |
 | Phase 4 (M3) | ECR/GitHub Actions/Hub ArgoCD 배포 기준선 | Issue 1~5 완료, Issue 6~8 보류 |
-| Phase 5 (M4) | `factory-a` adapter/publisher 데이터 플레인 | 핵심 완료 |
-| Phase 6 (M5) | `factory-b`, `factory-c` 테스트베드 확장 | cluster/Application 등록 완료, GitOps hostPath 전환, VM 로컬 dummy generator 및 publisher 배포, 시각 동기화(Chrony) 및 S3 적재 검증 완료 |
+| Phase 5 (M4) | `factory-a` adapter/publisher 데이터 플레인, Lambda data processor | 코드/인프라 완료, end-to-end 검증 대기 |
+| Phase 6 (M5) | `factory-b`, `factory-c` 테스트베드 확장 | cluster/Application 등록 완료, GitOps hostPath 전환, VM 로컬 dummy generator와 K3s `edge-iot-publisher` 배포, 시각 동기화(Chrony) 및 S3 적재 검증 완료 |
 | Phase 7 (M6) | Risk Twin + Data / Dashboard VPC 관제 화면 | 대기 |
 | Phase 8 (M7) | 통합 검증 | 대기 |
 
@@ -285,8 +286,9 @@ docs/
 
 ```text
 infra/
-├── hub/
-├── foundation/
+├── foundation/    # 영구: S3, AMP, ECR, DynamoDB
+├── data-pipeline/ # on-demand: IoT Rule × 3, Lambda
+├── hub/           # on-demand: EKS, VPC, NAT GW
 ├── safe-edge/
 ├── mesh-vpn/
 └── deploy/
@@ -320,4 +322,4 @@ infra/
 | `draft` | 방향은 있으나 세부값 미정 |
 | `candidate` | 후속 확장 또는 검토용 |
 
-기준일: 2026-05-14
+기준일: 2026-05-21

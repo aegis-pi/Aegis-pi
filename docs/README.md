@@ -1,7 +1,7 @@
 # Aegis-Pi Docs
 
 상태: source of truth
-기준일: 2026-05-20
+기준일: 2026-05-21
 
 ## 목적
 
@@ -9,12 +9,12 @@
 
 ## 현재 상태
 
-- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~5/8, M5 Issue 1~7이다.
+- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~5/8 (Issue 6~7 코드/인프라 완료, end-to-end 검증 대기), M5 Issue 1~7이다.
 - `factory-a`는 Raspberry Pi 3-node K3s 기반 운영형 Spoke다.
 - 2026-04-30 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
-- 2026-05-20 기준 `build-hub.sh`는 AWS Hub EKS/VPC/NAT/EIP, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller까지만 자동화한다. Admin UI HTTPS Ingress는 Route53 NS 위임 이후 `build-admin-ui-after-ns.sh`에서 실행하고, Tailnet UI 연결은 `connect-hub-tailscale-ui.sh`, Spoke ArgoCD cluster 등록은 `register-spoke-factory-a.sh`, `register-spoke-factory-b.sh`, `register-spoke-factory-c.sh`로 factory별 실행한다.
-- 2026-05-20 기준 Hub-only 재시작 순서는 `build-hub.sh` -> 필요 시 `build-admin-ui-after-ns.sh` -> 필요 시 `connect-hub-tailscale-ui.sh` -> `register-spoke-factory-a/b/c.sh`다. Hub 삭제 전에는 `destroy/stop-dummy-generators.sh`로 factory-b/c VM 데이터 생성을 먼저 멈춘다.
+- 2026-05-21 기준 `build-hub.sh`는 AWS Hub EKS/VPC/NAT/EIP, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller까지만 자동화한다. Admin UI HTTPS Ingress는 Route53 NS 위임 이후 `build-admin-ui-after-ns.sh`에서 실행하고, Spoke ArgoCD cluster 등록은 `register-spoke-factory-a.sh`, `register-spoke-factory-b.sh`, `register-spoke-factory-c.sh`로 factory별 실행한다. Tailnet UI 연결은 필요할 때만 `connect-hub-tailscale-ui.sh`로 실행한다.
+- 2026-05-21 기준 Hub-only 재시작 순서는 `build-hub.sh` -> 필요 시 `build-admin-ui-after-ns.sh` -> `register-spoke-factory-a/b/c.sh` -> `manage-dummy-generators.sh start factory-b/c`다. Hub 삭제 전에는 `destroy/stop-dummy-generators.sh`로 factory-b/c VM 데이터 생성을 먼저 멈춘다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 M1 검증용 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다. 최신 데이터 처리 방향은 Lambda data processor와 DynamoDB/S3 processed다.
 - M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
 - M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 `up{cluster="AEGIS-EKS"}` 수신을 검증했다.
@@ -28,7 +28,7 @@
 - M2 Issue 4/5에서 `tls-server-name: 10.10.10.10` 기반 `factory-a` kubeconfig와 ArgoCD cluster 등록을 완료했고, cluster status `Successful`을 확인했다.
 - M2 Issue 6에서 `factory-a-podinfo-smoke` Application을 `factory-a`에 Sync해 `Synced` + `Healthy`, Pod 2개 `Running`을 확인했고, Tailscale egress Service 삭제 시 sync failure 및 재생성 후 복구를 검증했다.
 - M3 Issue 1에서 `aegis-pi-gitops` GitOps 저장소 구조, `aegis-spoke` Helm chart, 공장별 values, ApplicationSet skeleton, manifest validation workflow를 완료했다.
-- M4 Issue 1~5/8에서 Raw 데이터 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR 이미지, GitOps chart, IoT Core -> S3 raw 적재와 `factory-a` raw data-plane 검증을 완료했다. 다음 데이터 처리 작업은 M4 Issue 6 Lambda data processor와 M4 Issue 7 `pipeline_status` 처리 검증이다.
+- M4 Issue 1~5/8에서 Raw 데이터 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR 이미지, GitOps chart, IoT Core -> S3 raw 적재와 `factory-a` raw data-plane 검증을 완료했다. M4 Issue 6 Lambda data processor 코드(`apps/data-processor/`)와 Terraform 인프라(`infra/data-pipeline/`)는 구현 완료. 다음 단계는 실제 AWS 배포 후 IoT → Lambda → DynamoDB/S3 processed end-to-end 검증이다.
 - 2026-05-20 기준 `factory-b`, `factory-c`는 2-node VM K3s, Tailnet 참여, Hub ArgoCD cluster Secret, ApplicationSet 기반 `aegis-spoke-factory-b/c` Application 생성 및 동기화를 완료하고, 로컬 dummy generator 및 publisher를 통한 S3 raw 적재와 시각 동기화(Chrony) 검증까지 최종 완료했다.
 - `factory-b/c` 데이터 플레인은 로컬 dummy generator가 worker node hostPath `/var/lib/aegis/outbox`에 canonical JSON을 쓰고, Hub ArgoCD가 배포한 공통 `edge-iot-publisher`가 같은 hostPath를 읽어 IoT Core로 전송하도록 구축했다. GitOps chart/values는 이 hostPath 기준으로 전환했다.
 - Risk Twin Dashboard는 후속 단계이며, 선행 작업은 IoT Core Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 저장 경로 구현이다.
@@ -150,7 +150,8 @@ AWS actual state: Hub/Foundation/IoT/Admin UI are rebuildable through scripts/bu
 Hub bootstrap roots:
 - infra/hub: VPC/EKS/node group, Route53/ACM, IRSA
 - scripts/ansible: namespace/LimitRange/ArgoCD/Prometheus Agent/Grafana/AWS Load Balancer Controller/Admin UI Ingress/Tailscale/Spoke ApplicationSet bootstrap
-- infra/foundation: S3 data bucket, AMP Workspace, IoT Rule, and future durable resources
+- infra/foundation: S3 data bucket, AMP Workspace, ECR, DynamoDB (FactoryStatus) — 영구 보존 리소스
+- infra/data-pipeline: IoT Rule × 3 (factory-a/b/c), Lambda (DataProcessor) — on-demand, build-data-pipe.sh / destroy-data-pipe.sh
 Build entrypoint: scripts/build/build-hub.sh
 Admin UI post-NS entrypoint: scripts/build/build-admin-ui-after-ns.sh
 Tailnet UI entrypoint: scripts/build/connect-hub-tailscale-ui.sh

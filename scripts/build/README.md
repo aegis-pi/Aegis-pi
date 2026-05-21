@@ -1,7 +1,7 @@
 # Build Scripts
 
 상태: source of truth
-기준일: 2026-05-20
+기준일: 2026-05-21
 
 ## 목적
 
@@ -14,8 +14,12 @@
 리소스를 생애주기 기준으로 4개 레이어로 나눈다.
 
 ```text
-Layer 0 │ Foundation   │ S3, AMP, ECR, IoT Rule, GitHub Actions OIDC
-        │              │ 영구 리소스. 최초 1회 생성 후 일반 빌드 흐름에서 제외.
+Layer 0 │ Foundation      │ S3 data bucket, AMP Workspace, ECR, GitHub Actions OIDC
+        │                 │ 영구 리소스. 최초 1회 생성 후 일반 빌드 흐름에서 제외.
+
+Layer 0 │ Data-pipeline   │ IoT Rule (factory-a/b/c), Lambda (data-processor)
+        │                 │ 필요 시 생성/삭제. foundation이 먼저 존재해야 함.
+        │                 │ DynamoDB는 foundation에 포함(영구). build-data-pipe.sh / destroy-data-pipe.sh 로 관리.
 
 Layer 1 │ Hub Infra    │ VPC, NAT GW, EKS 클러스터, IRSA Role, Route53, ACM
         │ (Terraform)  │ 비용 주요 발생원. 개발 중단 시 삭제, 재개 시 재생성.
@@ -32,9 +36,9 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 ## 생성 순서
 
 ```text
-0. foundation (최초 1회만)
+0a. foundation (최초 1회만)
    - infra/foundation Terraform apply
-   - S3 data bucket, AMP Workspace, ECR, IoT Rule, GitHub Actions OIDC
+   - S3 data bucket, AMP Workspace, ECR, GitHub Actions OIDC, DynamoDB(AEGIS-DynamoDB-FactoryStatus)
 
 1. hub-infra
    - infra/hub Terraform apply
@@ -50,19 +54,25 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
    - local secret/hub-ui-credentials.txt 출력
    - AWS Load Balancer Controller install/verify
 
-3. admin-ui-after-ns
+3. data-pipeline (필요 시 생성/삭제)
+   - infra/data-pipeline Terraform apply
+   - IoT Rule (factory-a/b/c), Lambda (data-processor), CloudWatch log group, IAM
+   - foundation의 S3와 DynamoDB를 data source로 조회
+   - hub보다 먼저 또는 나중에 배포해도 무방 (hub와 독립)
+
+4. admin-ui-after-ns
    - Gabia NS 위임 확인
    - ACM ISSUED 대기
    - Admin UI HTTPS Ingress bootstrap/verify
 
-4. iot / spoke registration
+5. iot / spoke registration
    - IoT Thing / Policy / certificate 등록
    - local secret/iot/<factory-id> 출력
    - 대상 factory K3s Secret 등록
    - Hub-only rebuild에서는 기존 IoT Secret을 유지하고 UI, factory별 cluster 등록, GitOps ApplicationSet을 별도 실행
 ```
 
-`build-all.sh`는 1 → 2 → 3 순서로 실행한다. 0(Foundation)은 기본값에서 제외되며 별도 실행한다.
+`build-all.sh`는 foundation → preflight → hub → data-pipe 순서로 실행한다. Foundation은 기본값에서 제외되며 별도 실행한다.
 
 ## 파일
 
@@ -71,11 +81,12 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 | `build-all.sh` | 기본 hub-infra → hub-platform 실행. `--foundation`, `--admin-ui-after-ns`, `--iot`로 4단계 선택 실행. |
 | `build-admin-ui-after-ns.sh` | Gabia NS 위임 후 ACM 발급을 기다리고 Admin UI HTTPS Ingress 활성화 |
 | `build-foundation.sh` | `infra/foundation` Terraform apply. 최초 1회 단독 실행. |
+| `build-data-pipe.sh` | `infra/data-pipeline` Terraform apply. IoT Rule × 3, Lambda, CloudWatch, IAM 생성. foundation의 S3/DynamoDB를 data source로 참조하므로 foundation이 먼저 존재해야 함. |
 | `build-hub-infra.sh` | `infra/hub` Terraform apply (VPC, EKS, IRSA, Route53, ACM) |
 | `build-hub-platform.sh` | Ansible bootstrap (ArgoCD, Prometheus, Grafana, LB Controller) |
 | `build-hub.sh` | `build-hub-infra.sh` → `build-hub-platform.sh` 순서 실행 wrapper |
 | `build-iot-factory-a.sh` | `factory-a` IoT Thing/certificate, K3s Secret, Hub-Spoke Tailscale, ArgoCD cluster Secret, ApplicationSet 등록 |
-| `connect-hub-tailscale-ui.sh` | Hub ArgoCD/Grafana Tailscale UI Service만 연결/검증. Spoke cluster Secret은 등록하지 않음 |
+| `connect-hub-tailscale-ui.sh` | Tailnet UI가 필요할 때 Hub ArgoCD/Grafana Tailscale UI Service만 연결/검증. Spoke cluster Secret은 등록하지 않음 |
 | `register-spoke-factory-a.sh` | 기존 `factory-a` K3s/IoT Secret을 유지하고 Hub ArgoCD cluster Secret과 Spoke Application sync 복구 |
 | `register-spoke-factory-b.sh` | 기존 `factory-b` K3s/IoT Secret을 유지하고 Hub ArgoCD cluster Secret과 Spoke Application sync 복구 |
 | `register-spoke-factory-c.sh` | 기존 `factory-c` K3s/IoT Secret을 유지하고 Hub ArgoCD cluster Secret과 Spoke Application sync 복구 |
@@ -151,6 +162,7 @@ Foundation은 살아있으므로 Foundation 생성은 건너뛴다.
 
 ```bash
 scripts/build/build-hub.sh [MFA_OTP]
+scripts/build/build-data-pipe.sh [MFA_OTP]   # data-pipeline도 재생성 필요한 경우
 ```
 
 Admin UI HTTPS가 필요하면 Hub 생성 직후 출력된 NS를 Gabia와 비교하고, NS 위임과 ACM 발급이 끝난 뒤 후속 단계를 실행한다.
@@ -159,7 +171,7 @@ Admin UI HTTPS가 필요하면 Hub 생성 직후 출력된 NS를 Gabia와 비교
 scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]
 ```
 
-Tailnet 안에서 ArgoCD/Grafana UI에 접근하려면 Tailscale UI 연결만 별도로 실행한다.
+Tailnet 안에서 ArgoCD/Grafana UI에 접근하려면 Tailscale UI 연결만 별도로 실행한다. ALB/Admin UI HTTPS로 충분한 개발 흐름에서는 선택 사항이다.
 
 ```bash
 scripts/build/connect-hub-tailscale-ui.sh [MFA_OTP]
@@ -171,6 +183,13 @@ scripts/build/connect-hub-tailscale-ui.sh [MFA_OTP]
 scripts/build/register-spoke-factory-a.sh [MFA_OTP]
 scripts/build/register-spoke-factory-b.sh [MFA_OTP]
 scripts/build/register-spoke-factory-c.sh [MFA_OTP]
+```
+
+factory-b/c의 K3s publisher는 ArgoCD가 배포한다. VM 로컬 dummy generator는 Hub가 내려간 동안 멈췄다면 Spoke 등록 후 다시 시작한다.
+
+```bash
+scripts/ops/manage-dummy-generators.sh start factory-b
+scripts/ops/manage-dummy-generators.sh start factory-c
 ```
 
 각 factory 등록 스크립트는 아래만 수행한다.
@@ -186,6 +205,7 @@ scripts/build/register-spoke-factory-c.sh [MFA_OTP]
 ```
 
 이 경로는 `register-thing.sh`와 `register-k3s-secret.sh`를 실행하지 않는다.
+`argocd --core` sync/wait는 임시 kubeconfig의 namespace를 `argocd`로 맞춰 `argocd-cm`을 올바른 namespace에서 찾게 한다.
 
 ### 케이스 2 — Hub + IoT를 모두 다시 올릴 때
 

@@ -14,11 +14,11 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | --- | --- |
 | `build/build-all.sh` | 기본 Hub 생성 실행. `--foundation`, `--admin-ui-after-ns`, `--iot`로 4단계 선택 실행 |
 | `build/build-admin-ui-after-ns.sh` | Gabia NS 입력 후 ACM 발급 대기와 Admin UI HTTPS Ingress 활성화 |
-| `build/connect-hub-tailscale-ui.sh` | Hub ArgoCD/Grafana Tailscale UI Service 연결 및 검증 |
+| `build/connect-hub-tailscale-ui.sh` | Hub ArgoCD/Grafana Tailscale UI Service 연결 및 검증. ALB/Admin UI HTTPS를 쓰면 선택 실행 |
 | `build/register-spoke-factory-a.sh` | 기존 IoT Secret을 유지하고 `factory-a` Hub ArgoCD cluster 등록, GitOps ApplicationSet 적용, app sync 수행 |
 | `build/register-spoke-factory-b.sh` | 기존 IoT Secret을 유지하고 `factory-b` Hub ArgoCD cluster 등록, GitOps ApplicationSet 적용, app sync 수행 |
 | `build/register-spoke-factory-c.sh` | 기존 IoT Secret을 유지하고 `factory-c` Hub ArgoCD cluster 등록, GitOps ApplicationSet 적용, app sync 수행 |
-| `destroy/stop-dummy-generators.sh` | Hub 삭제 전 factory-b/c VM worker dummy generator systemd service 정지 |
+| `destroy/stop-dummy-generators.sh` | Hub 삭제 전 factory-b/c VM worker dummy generator systemd service 정지. legacy local publisher unit이 있으면 함께 정지 |
 | `destroy/destroy-all.sh` | 기본 Hub 삭제 실행. `DESTROY_IOT=true`, `DESTROY_FOUNDATION=true`로 삭제 범위 확장 |
 | `hub/run-hub.sh` | `build/build-hub.sh` 실행 후 ArgoCD port-forward까지 연결하는 호환 wrapper |
 | `hub/destroy-hub.sh` | `destroy/destroy-hub.sh`를 호출하는 호환 wrapper |
@@ -30,7 +30,7 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | `ops/copy-public-image-to-ecr.py` | Docker Hub public image의 단일 platform manifest/blob을 ECR repository로 복사 |
 | `ops/refresh-factory-a-ecr-pull-secret.sh` | factory-a K3s namespace에 ECR pull용 `docker-registry` Secret 생성/갱신 |
 | `ops/admin-ui-nameservers.sh` | Terraform output 기준 Gabia 위임용 Route53 NS 파일 생성 |
-| `ops/manage-dummy-generators.sh` | factory-b/c VM worker의 local dummy generator systemd service start/stop/status 보조. 접속 정보는 환경변수로만 입력 |
+| `ops/manage-dummy-generators.sh` | factory-b/c VM worker의 local dummy generator systemd service start/stop/status 보조. `ops/dummy-generators.env`에서 접속 정보를 읽고 master를 ProxyJump로 사용 |
 | `lib/aws-mfa.sh` | AWS MFA session 공통 함수 |
 | `lib/terraform.sh` | Terraform apply/destroy 공통 함수 |
 | `config/defaults.sh` | scripts 기본값 source |

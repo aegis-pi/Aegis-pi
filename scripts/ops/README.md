@@ -1,0 +1,49 @@
+# scripts/ops
+
+상태: source of truth
+기준일: 2026-05-21
+
+## 목적
+
+일상 운영에서 자주 사용하는 보조 스크립트를 모아둔 디렉터리다.
+Hub 재생성/삭제 진입점은 `scripts/build/`, `scripts/destroy/`이며, 이 디렉터리는 UI 접근, 자격증명 확인, dummy generator 관리 등 운영 편의 목적만 다룬다.
+
+## 파일
+
+| 파일 | 역할 |
+| --- | --- |
+| `manage-dummy-generators.sh` | factory-b/c VM dummy generator systemd service 시작/정지 |
+| `argocd-port-forward.sh` | Hub EKS ArgoCD UI 포트포워드 (Public ALB 없을 때 로컬 접근용) |
+| `grafana-port-forward.sh` | Hub EKS Grafana UI 포트포워드 (Public ALB 없을 때 로컬 접근용) |
+| `argocd-initial-password.sh` | ArgoCD admin 초기 비밀번호 출력 |
+| `grafana-admin-password.sh` | Grafana admin 비밀번호 출력 |
+| `export-hub-ui-credentials.sh` | ArgoCD/Grafana 자격증명을 환경변수 형식으로 출력 |
+| `admin-ui-nameservers.sh` | Route53 Hosted Zone NS 레코드 출력 (도메인 NS 위임 확인용) |
+| `refresh-factory-a-ecr-pull-secret.sh` | factory-a K3s `imagePullSecret` 갱신 |
+| `copy-public-image-to-ecr.py` | Public Docker 이미지를 ECR로 복사 (smoke image 준비용) |
+| `dummy-generators.env` | factory-b/c dummy generator SSH 접속 기본 설정 (`AEGIS_DUMMY_GENERATORS_ENV`로 경로 재지정 가능) |
+
+## 주요 사용 예시
+
+```bash
+# Hub 재시작 후 factory-b/c dummy generator 시작
+scripts/ops/manage-dummy-generators.sh start factory-b
+scripts/ops/manage-dummy-generators.sh start factory-c
+
+# 양쪽 동시 시작
+scripts/ops/manage-dummy-generators.sh start
+
+# ArgoCD UI 포트포워드 (ALB 없을 때)
+scripts/ops/argocd-port-forward.sh
+
+# Grafana UI 포트포워드 (ALB 없을 때)
+scripts/ops/grafana-port-forward.sh
+
+# Route53 NS 확인 (ACM 검증 전 도메인 위임 확인)
+scripts/ops/admin-ui-nameservers.sh
+```
+
+## 참고
+
+- dummy generator 정지(Hub 내리기 전)는 `scripts/destroy/stop-dummy-generators.sh`를 사용한다.
+- dummy generator 설정 파일은 `dummy-generators.env`이며, `scripts/destroy/stop-dummy-generators.sh`와 이 디렉터리의 `manage-dummy-generators.sh`가 공유한다.
