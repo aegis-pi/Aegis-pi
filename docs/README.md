@@ -33,6 +33,7 @@
 - `factory-b/c` 데이터 플레인은 로컬 dummy generator가 worker node hostPath `/var/lib/aegis/outbox`에 canonical JSON을 쓰고, Hub ArgoCD가 배포한 공통 `edge-iot-publisher`가 같은 hostPath를 읽어 IoT Core로 전송하도록 구축했다. GitOps chart/values는 이 hostPath 기준으로 전환했다.
 - Risk Twin Dashboard는 후속 단계이며, 선행 작업은 IoT Core Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 저장 경로 구현이다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
+- Git Wiki에 옮길 수 있도록 재구성한 문서는 `docs/wiki/`에 둔다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
 - 계획과 실제 구현이 달라진 결정은 `docs/changes/`에서 추적한다.
 - 후속 관리자 대시보드는 `planning/07_dashboard_vpc_extension_plan.md`의 Dashboard VPC 방향을 따른다.

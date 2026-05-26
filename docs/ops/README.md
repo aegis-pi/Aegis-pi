@@ -33,5 +33,6 @@
 ## 기준
 
 - 현재 실제 운영 절차는 이 디렉터리의 문서를 우선한다.
+- Git Wiki에 올릴 트러블슈팅 리포트 형식 변환본은 `../wiki/troubleshooting/`을 따른다.
 - 비밀번호, token, private key, certificate 원문은 문서에 기록하지 않는다.
 - AWS 리소스, 상시 실행 컴포넌트, 저장소, 네트워크 경로가 추가되면 `15_aws_cost_baseline.md`의 비용 기준을 함께 갱신한다.
