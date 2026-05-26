@@ -22,6 +22,8 @@
 | `13_architecture_adr_backlog.md` | 향후 ADR로 분리할 아키텍처 질문과 쟁점 목록 |
 | `14_argocd_hub_migration_plan.md` | factory local ArgoCD를 Hub ArgoCD 중심으로 이관하는 계획과 장단점 |
 | `15_cloud_architecture_final.md` | 확정된 클라우드 아키텍처와 리소스 배치 |
+| `16_m4_edge_data_plane_implementation.md` | M4 Edge data-plane 구현 기준과 검증 이력 |
+| `17_llm_daily_factory_report_plan.md` | Bedrock 기반 factory별 일일 운영 보고서 생성 MVP 설계 |
 
 ## 기준
 
