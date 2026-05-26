@@ -17,6 +17,7 @@
 | `M6_risk-twin-dashboard.md` | Lambda Risk 계산 로직과 관제 화면 |
 | `M7_integration-test.md` | 전체 통합 검증 시나리오 |
 | `edit.md` | 이슈 문서 보강 메모와 수정 방향 |
+| `troubleshooting-wiki-curation.md` | 트러블슈팅 Wiki/Issue 리포트 정리 완료 체크리스트 |
 
 ## 기준
 

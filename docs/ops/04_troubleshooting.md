@@ -2243,3 +2243,8 @@ scripts/ops/manage-dummy-generators.sh status factory-b
 현재 표준 운영에서는 VM 로컬 dummy publisher를 사용하지 않는다. VM 로컬 generator가 `/var/lib/aegis/outbox`에 JSON을 쓰고, K3s `edge-iot-publisher` Pod가 같은 hostPath를 읽어 IoT Core로 보낸다.
 
 따라서 local publisher service가 없는 것은 정상이다. 최신 `manage-dummy-generators.sh status`는 generator 상태만 확인한다. `stop`은 legacy local publisher unit이 남아 있는 경우에만 조용히 함께 멈춘다.
+
+---
+
+> 2026-05-26 기준: 이 선 위 트러블슈팅 항목은 Git Wiki / Issue 리포트 정리 완료.
+> 이후 이 선 아래에 추가되는 항목은 다음 트러블슈팅 정리 대상이다.

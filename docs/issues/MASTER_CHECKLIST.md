@@ -15,6 +15,12 @@
 
 ---
 
+## Cross-cutting 문서 정리
+
+원본: `docs/issues/troubleshooting-wiki-curation.md`
+
+- [x] Troubleshooting Wiki/Issue 리포트 정리 완료
+
 ## M0. `factory-a` Safe-Edge 기준선 복구
 
 원본: `docs/issues/M0_factory-a_safe-edge-baseline.md`
