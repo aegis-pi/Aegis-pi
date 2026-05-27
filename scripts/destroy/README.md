@@ -1,7 +1,7 @@
 # Destroy Scripts
 
 상태: source of truth
-기준일: 2026-05-21
+기준일: 2026-05-27
 
 ## 목적
 
@@ -19,6 +19,8 @@ Layer -1│ VM Data      │ factory-b/c dummy generator systemd service. data-p
 Layer 0a│ Data-pipeline│ IoT Rule × 3, Lambda(DataProcessor), CloudWatch, IAM. 기본 삭제 흐름에 포함.
         │              │ DESTROY_DATA_PIPE=false로 제외 가능. foundation S3/DynamoDB data source 참조
         │              │ 때문에 foundation destroy 이전에 반드시 먼저 삭제해야 함.
+Layer 0a│ Reporting    │ EventBridge Scheduler, Step Functions, reporting Lambda, CloudWatch, IAM.
+        │              │ foundation S3 data source를 참조하므로 foundation destroy 이전에 먼저 삭제해야 함.
 Layer 0b│ Foundation   │ 영구 리소스(S3, AMP, ECR, DynamoDB). 기본 제외. DESTROY_FOUNDATION=true 필요.
 Layer 1 │ Hub Infra    │ VPC, EKS, IRSA, Route53, ACM (Terraform destroy)
 Layer 2 │ Hub Platform │ ALB 등 K8s Controller가 만든 AWS 리소스 선정리 (Ansible cleanup)
@@ -42,6 +44,12 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
    - IoT Rule × 3, Lambda, CloudWatch log group, IAM role/policy 삭제
    - DynamoDB 데이터는 foundation에 보존됨
    - ⚠️ foundation destroy 이전에 반드시 먼저 실행. 역순이면 terraform destroy 실패
+
+0.6. reporting destroy (필요 시 명시 실행)
+   - infra/reporting Terraform destroy
+   - Scheduler, Step Functions, reporting Lambda, IAM role/policy, CloudWatch log group 삭제
+   - S3 reports/daily 산출물은 삭제하지 않음
+   - foundation destroy 이전에 먼저 실행
 
 1. K3s factory-a IoT Secret 사전 삭제
    - DESTROY_IOT=true일 때 AWS MFA 전에 SSH로 K3s Secret 삭제
@@ -76,6 +84,7 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 | --- | --- |
 | `stop-dummy-generators.sh` | factory-b/c VM worker의 dummy generator systemd service 정지. 인수 없이 실행하면 b/c 동시 정지. |
 | `destroy-data-pipe.sh` | `infra/data-pipeline` Terraform destroy. IoT Rules × 3, Lambda, IAM 삭제. DynamoDB는 보존. state file 없으면 no-op. |
+| `destroy-reporting.sh` | `infra/reporting` Terraform destroy. Scheduler, Step Functions, reporting Lambda, IAM, Log Group 삭제. state file 없으면 no-op. |
 | `destroy-all.sh` | 기본: data-pipeline → hub(platform cleanup → infra) 삭제. IoT/Foundation은 명시 플래그 필요. DESTROY_DATA_PIPE=false로 data-pipe 제외 가능. |
 | `destroy-hub.sh` | `destroy-hub-platform.sh` → `destroy-hub-infra.sh` 순서 실행 wrapper |
 | `destroy-hub-platform.sh` | Ansible cleanup (Ingress → ALB 삭제). Terraform destroy 전에 실행. |

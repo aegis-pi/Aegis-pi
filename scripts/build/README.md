@@ -1,7 +1,7 @@
 # Build Scripts
 
 상태: source of truth
-기준일: 2026-05-21
+기준일: 2026-05-27
 
 ## 목적
 
@@ -20,6 +20,9 @@ Layer 0 │ Foundation      │ S3 data bucket, AMP Workspace, ECR, GitHub Actio
 Layer 0 │ Data-pipeline   │ IoT Rule (factory-a/b/c), Lambda (data-processor)
         │                 │ 필요 시 생성/삭제. foundation이 먼저 존재해야 함.
         │                 │ DynamoDB는 foundation에 포함(영구). build-data-pipe.sh / destroy-data-pipe.sh 로 관리.
+
+Layer 0 │ Reporting       │ EventBridge Scheduler, Step Functions, reporting Lambda, IAM/Logs.
+        │                 │ foundation S3 bucket을 data source로 조회. build-reporting.sh / destroy-reporting.sh 로 관리.
 
 Layer 1 │ Hub Infra    │ VPC, NAT GW, EKS 클러스터, IRSA Role, Route53, ACM
         │ (Terraform)  │ 비용 주요 발생원. 개발 중단 시 삭제, 재개 시 재생성.
@@ -60,6 +63,13 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
    - foundation의 S3와 DynamoDB를 data source로 조회
    - hub보다 먼저 또는 나중에 배포해도 무방 (hub와 독립)
 
+3.5. reporting (필요 시 생성/삭제)
+   - apps/daily-report-generator Lambda package 생성
+   - infra/reporting Terraform apply
+   - EventBridge Scheduler, Step Functions, 4개 reporting Lambda, IAM/CloudWatch Logs 생성
+   - foundation의 S3 bucket을 data source로 조회
+   - Bedrock model access가 ap-south-1에서 열려 있어야 실제 GenerateFactoryReport가 성공
+
 4. admin-ui-after-ns
    - Gabia NS 위임 확인
    - ACM ISSUED 대기
@@ -82,6 +92,7 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 | `build-admin-ui-after-ns.sh` | Gabia NS 위임 후 ACM 발급을 기다리고 Admin UI HTTPS Ingress 활성화 |
 | `build-foundation.sh` | `infra/foundation` Terraform apply. 최초 1회 단독 실행. |
 | `build-data-pipe.sh` | `infra/data-pipeline` Terraform apply. IoT Rule × 3, Lambda, CloudWatch, IAM 생성. foundation의 S3/DynamoDB를 data source로 참조하므로 foundation이 먼저 존재해야 함. |
+| `build-reporting.sh` | `apps/daily-report-generator` Lambda package 생성 후 `infra/reporting` Terraform apply. daily report Scheduler/Step Functions/Lambda/IAM/Logs 생성. |
 | `build-hub-infra.sh` | `infra/hub` Terraform apply (VPC, EKS, IRSA, Route53, ACM) |
 | `build-hub-platform.sh` | Ansible bootstrap (ArgoCD, Prometheus, Grafana, LB Controller) |
 | `build-hub.sh` | `build-hub-infra.sh` → `build-hub-platform.sh` 순서 실행 wrapper |
