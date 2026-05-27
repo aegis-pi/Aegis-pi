@@ -119,6 +119,24 @@ class InfluxClient:
         return rows
 
 
+class PrometheusClient:
+    def __init__(self, url: str, timeout_seconds: float = 5.0) -> None:
+        self.url = url.rstrip("/")
+        self.timeout_seconds = timeout_seconds
+
+    def query(self, query: str) -> list[dict[str, Any]]:
+        params = urllib.parse.urlencode({"query": query})
+        request = urllib.request.Request(f"{self.url}/api/v1/query?{params}")
+
+        with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+
+        if payload.get("status") != "success":
+            raise RuntimeError(payload.get("error") or "Prometheus query failed")
+
+        return payload.get("data", {}).get("result", [])
+
+
 class KubernetesClient:
     def __init__(self, timeout_seconds: float = 5.0) -> None:
         self.timeout_seconds = timeout_seconds
@@ -173,6 +191,10 @@ class Adapter:
             os.getenv("AEGIS_INFLUXDB_DATABASE", "safe_edge_db"),
             float(os.getenv("AEGIS_HTTP_TIMEOUT_SECONDS", "5")),
         )
+        self.prometheus = PrometheusClient(
+            os.getenv("AEGIS_PROMETHEUS_URL", "http://prometheus-svc.monitoring.svc.cluster.local:9090"),
+            float(os.getenv("AEGIS_HTTP_TIMEOUT_SECONDS", "5")),
+        )
         self.k8s = KubernetesClient(timeout_seconds=float(os.getenv("AEGIS_K8S_TIMEOUT_SECONDS", "5")))
         self.window_seconds = int(os.getenv("AEGIS_FACTORY_STATE_WINDOW_SECONDS", "3"))
         self.factory_state_interval_seconds = int(os.getenv("AEGIS_FACTORY_STATE_INTERVAL_SECONDS", "3"))
@@ -215,7 +237,8 @@ class Adapter:
 
     def infra_state(self) -> dict[str, Any]:
         collected_at = utc_now()
-        nodes = [self._node_payload(item) for item in self.k8s.nodes()]
+        node_metrics = self._node_metrics()
+        nodes = [self._node_payload(item, node_metrics) for item in self.k8s.nodes()]
         workloads = self._workload_payloads()
         devices = self._device_payloads(workloads)
         message_id = f"{self.factory_id}:infra_state:cluster:{format_utc(collected_at)}"
@@ -453,10 +476,11 @@ class Adapter:
                     return node
         return "cluster"
 
-    def _node_payload(self, item: dict[str, Any]) -> dict[str, Any]:
+    def _node_payload(self, item: dict[str, Any], node_metrics: dict[str, dict[str, float | None]] | None = None) -> dict[str, Any]:
         name = normalize_node_id(item.get("metadata", {}).get("name"))
         conditions = item.get("status", {}).get("conditions", [])
         ready = any(cond.get("type") == "Ready" and cond.get("status") == "True" for cond in conditions)
+        metrics = (node_metrics or {}).get(name, {})
         role = "unknown"
         labels = item.get("metadata", {}).get("labels", {})
         if labels.get("kubernetes.io/hostname") == "worker2" or name == "worker2":
@@ -469,11 +493,63 @@ class Adapter:
             "node_id": name,
             "role": role,
             "ready": ready,
-            "cpu_usage_percent": None,
-            "memory_usage_percent": None,
-            "disk_usage_percent": None,
-            "network_reachability": "unknown",
+            "cpu_usage_percent": metrics.get("cpu_usage_percent"),
+            "memory_usage_percent": metrics.get("memory_usage_percent"),
+            "disk_usage_percent": metrics.get("disk_usage_percent"),
+            "network_reachability": "ok" if ready else "not_ready",
         }
+
+    def _node_metrics(self) -> dict[str, dict[str, float | None]]:
+        try:
+            instance_to_node = self._prometheus_instance_to_node()
+            metrics: dict[str, dict[str, float | None]] = {}
+            for field, query in {
+                "cpu_usage_percent": '100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])))',
+                "memory_usage_percent": "100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))",
+                "disk_usage_percent": '100 * (1 - (node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay|aufs|squashfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay|aufs|squashfs"}))',
+            }.items():
+                for result in self.prometheus.query(query):
+                    node_id = self._node_id_from_prometheus_metric(result.get("metric", {}), instance_to_node)
+                    value = self._prometheus_value(result)
+                    if node_id and value is not None:
+                        metrics.setdefault(node_id, {})[field] = round(max(min(value, 100.0), 0.0), 2)
+            return metrics
+        except Exception as exc:
+            print(f"failed to read Prometheus node metrics: {exc}", file=sys.stderr, flush=True)
+            return {}
+
+    def _prometheus_instance_to_node(self) -> dict[str, str]:
+        mapping: dict[str, str] = {}
+        try:
+            for result in self.prometheus.query("node_uname_info"):
+                labels = result.get("metric", {})
+                instance = labels.get("instance")
+                node = labels.get("nodename") or labels.get("node") or labels.get("kubernetes_node")
+                if instance and node:
+                    mapping[str(instance)] = normalize_node_id(str(node))
+        except Exception:
+            return {}
+        return mapping
+
+    def _node_id_from_prometheus_metric(self, labels: dict[str, Any], instance_to_node: dict[str, str]) -> str | None:
+        for key in ("node", "kubernetes_node", "nodename"):
+            if labels.get(key):
+                return normalize_node_id(str(labels[key]))
+
+        instance = labels.get("instance")
+        if not instance:
+            return None
+        if str(instance) in instance_to_node:
+            return instance_to_node[str(instance)]
+
+        host = str(instance).split(":", 1)[0]
+        return normalize_node_id(host)
+
+    def _prometheus_value(self, result: dict[str, Any]) -> float | None:
+        value = result.get("value")
+        if not isinstance(value, list) or len(value) < 2:
+            return None
+        return safe_float(value[1])
 
     def _workload_payloads(self) -> list[dict[str, Any]]:
         requested = os.getenv("AEGIS_WORKLOADS", ",".join(DEFAULT_WORKLOADS)).split(",")

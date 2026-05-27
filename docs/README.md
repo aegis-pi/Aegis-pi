@@ -1,7 +1,7 @@
 # Aegis-Pi Docs
 
 상태: source of truth
-기준일: 2026-05-21
+기준일: 2026-05-27
 
 ## 목적
 
@@ -9,7 +9,7 @@
 
 ## 현재 상태
 
-- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~5/8 (Issue 6~7 코드/인프라 완료, end-to-end 검증 대기), M5 Issue 1~7이다.
+- 현재 완료된 구현 범위는 `factory-a` Safe-Edge 기준선, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~8, M5 Issue 1~7이다.
 - `factory-a`는 Raspberry Pi 3-node K3s 기반 운영형 Spoke다.
 - 2026-04-30 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
@@ -28,10 +28,11 @@
 - M2 Issue 4/5에서 `tls-server-name: 10.10.10.10` 기반 `factory-a` kubeconfig와 ArgoCD cluster 등록을 완료했고, cluster status `Successful`을 확인했다.
 - M2 Issue 6에서 `factory-a-podinfo-smoke` Application을 `factory-a`에 Sync해 `Synced` + `Healthy`, Pod 2개 `Running`을 확인했고, Tailscale egress Service 삭제 시 sync failure 및 재생성 후 복구를 검증했다.
 - M3 Issue 1에서 `aegis-pi-gitops` GitOps 저장소 구조, `aegis-spoke` Helm chart, 공장별 values, ApplicationSet skeleton, manifest validation workflow를 완료했다.
-- M4 Issue 1~5/8에서 Raw 데이터 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR 이미지, GitOps chart, IoT Core -> S3 raw 적재와 `factory-a` raw data-plane 검증을 완료했다. M4 Issue 6 Lambda data processor 코드(`apps/data-processor/`)와 Terraform 인프라(`infra/data-pipeline/`)는 구현 완료. 다음 단계는 실제 AWS 배포 후 IoT → Lambda → DynamoDB/S3 processed end-to-end 검증이다.
+- M4 Issue 1~8에서 Raw 데이터 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR 이미지, GitOps chart, IoT Core -> S3 raw 적재, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, `pipeline_status` 검증을 완료했다.
 - 2026-05-20 기준 `factory-b`, `factory-c`는 2-node VM K3s, Tailnet 참여, Hub ArgoCD cluster Secret, ApplicationSet 기반 `aegis-spoke-factory-b/c` Application 생성 및 동기화를 완료하고, 로컬 dummy generator 및 publisher를 통한 S3 raw 적재와 시각 동기화(Chrony) 검증까지 최종 완료했다.
 - `factory-b/c` 데이터 플레인은 로컬 dummy generator가 worker node hostPath `/var/lib/aegis/outbox`에 canonical JSON을 쓰고, Hub ArgoCD가 배포한 공통 `edge-iot-publisher`가 같은 hostPath를 읽어 IoT Core로 전송하도록 구축했다. GitOps chart/values는 이 hostPath 기준으로 전환했다.
-- Risk Twin Dashboard는 후속 단계이며, 선행 작업은 IoT Core Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 저장 경로 구현이다.
+- Risk Twin Dashboard는 후속 단계이며, 선행 작업인 IoT Core Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 저장 경로 구현과 검증은 완료했다.
+- 클라우드 인프라와 data-pipeline 관측 확장은 CloudWatch Metrics/Logs, Lambda EMF custom metrics, Grafana CloudWatch datasource, AMP, X-Ray/OpenTelemetry 역할 분리 기준을 따른다. 세부 기준은 `planning/15_cloud_architecture_final.md`와 `ops/23_data_pipeline.md`에 둔다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - Git Wiki에 옮길 수 있도록 재구성한 문서는 `docs/wiki/`에 둔다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.

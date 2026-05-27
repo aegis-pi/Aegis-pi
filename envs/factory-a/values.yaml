@@ -24,10 +24,13 @@ factoryALogAdapter:
   enabled: true
   image:
     repository: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/factory-a-log-adapter
-    tag: sha-f71a104
+    tag: main
+    pullPolicy: Always
   influxdb:
     url: http://influxdb-svc.monitoring.svc.cluster.local:8086
     database: safe_edge_db
+  prometheus:
+    url: http://prometheus-svc.monitoring.svc.cluster.local:9090
 
 edgeIotPublisher:
   enabled: true

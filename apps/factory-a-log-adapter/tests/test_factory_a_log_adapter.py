@@ -73,6 +73,37 @@ class FakeKubernetes:
         }
 
 
+class FakePrometheus:
+    def query(self, query):
+        if query == "node_uname_info":
+            return [
+                {
+                    "metric": {"instance": "10.10.10.10:9100", "nodename": "master"},
+                    "value": [1779840000, "1"],
+                },
+                {
+                    "metric": {"instance": "10.10.10.12:9100", "nodename": "worker-2"},
+                    "value": [1779840000, "1"],
+                },
+            ]
+        if "node_cpu_seconds_total" in query:
+            return [
+                {"metric": {"instance": "10.10.10.10:9100"}, "value": [1779840000, "31.234"]},
+                {"metric": {"instance": "10.10.10.12:9100"}, "value": [1779840000, "44.567"]},
+            ]
+        if "node_memory_MemAvailable_bytes" in query:
+            return [
+                {"metric": {"instance": "10.10.10.10:9100"}, "value": [1779840000, "55.432"]},
+                {"metric": {"instance": "10.10.10.12:9100"}, "value": [1779840000, "63.219"]},
+            ]
+        if "node_filesystem_avail_bytes" in query:
+            return [
+                {"metric": {"instance": "10.10.10.10:9100"}, "value": [1779840000, "42.111"]},
+                {"metric": {"instance": "10.10.10.12:9100"}, "value": [1779840000, "45.555"]},
+            ]
+        return []
+
+
 class FactoryALogAdapterTest(unittest.TestCase):
     def setUp(self):
         self.old_env = os.environ.copy()
@@ -172,6 +203,29 @@ class FactoryALogAdapterTest(unittest.TestCase):
         self.assertEqual(workloads[("monitoring", "bme280-sensor")]["node_id"], "worker2")
         self.assertTrue(payload["devices"]["bme280"]["available"])
         self.assertFalse(payload["devices"]["microphone"]["available"])
+
+    def test_infra_state_adds_prometheus_node_metrics(self):
+        adapter = adapter_module.Adapter()
+        adapter.k8s = FakeKubernetes()
+        adapter.prometheus = FakePrometheus()
+        adapter.influx = FakeInflux(
+            {
+                "environment_data": [{"time": "2026-05-18T01:00:01Z"}],
+                "ai_detection": [{"time": "2026-05-18T01:00:02Z"}],
+                "acoustic_detection": [{"time": "2026-05-18T01:00:03Z"}],
+            }
+        )
+
+        message = adapter.infra_state()
+        nodes = {item["node_id"]: item for item in message["payload"]["nodes"]}
+
+        self.assertEqual(nodes["master"]["cpu_usage_percent"], 31.23)
+        self.assertEqual(nodes["master"]["memory_usage_percent"], 55.43)
+        self.assertEqual(nodes["master"]["disk_usage_percent"], 42.11)
+        self.assertEqual(nodes["worker2"]["cpu_usage_percent"], 44.57)
+        self.assertEqual(nodes["worker2"]["memory_usage_percent"], 63.22)
+        self.assertEqual(nodes["worker2"]["disk_usage_percent"], 45.55)
+        self.assertEqual(nodes["master"]["network_reachability"], "ok")
 
     def test_write_outbox_creates_message_file_once(self):
         adapter = adapter_module.Adapter()

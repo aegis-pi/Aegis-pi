@@ -56,6 +56,8 @@ spec:
               value: {{ .Values.factoryALogAdapter.influxdb.url | quote }}
             - name: AEGIS_INFLUXDB_DATABASE
               value: {{ .Values.factoryALogAdapter.influxdb.database | quote }}
+            - name: AEGIS_PROMETHEUS_URL
+              value: {{ .Values.factoryALogAdapter.prometheus.url | quote }}
             - name: AEGIS_OUTBOX_DIR
               value: {{ .Values.outbox.path | quote }}
             - name: AEGIS_FACTORY_STATE_INTERVAL_SECONDS

@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-05-20
+기준일: 2026-05-27
 
 ## 목적
 
@@ -57,6 +57,8 @@
 | M4 | Issue 3 - edge-iot-publisher 구현 | 완료 | `docs/issues/M4_data-plane.md` |
 | M4 | Issue 4 - 이미지화 및 K3s 배포 | 완료 | `docs/issues/M4_data-plane.md` |
 | M4 | Issue 5 - IoT Core -> S3 적재 확인 | 완료 | `docs/issues/M4_data-plane.md` |
+| M4 | Issue 6 - IoT Core Lambda data processor 구현 | 완료 | `docs/issues/M4_data-plane.md` |
+| M4 | Issue 7 - pipeline_status Lambda 처리 검증 | 완료 | `docs/issues/M4_data-plane.md` |
 | M4 | Issue 8 - factory-a 데이터 플레인 end-to-end 검증 | 완료 | `scripts/build/verify-complete.sh` |
 | M5 | Issue 1 - VM K3s 2-node 기준선 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
 | M5 | Issue 2 - factory-b/c Tailnet 참여 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
@@ -69,8 +71,6 @@
 현재 바로 이어서 할 이슈:
 
 ```text
-M4 Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
-M4 Issue 7 - [데이터/Pipeline] pipeline_status Lambda 처리 검증
 M6 Issue 1~4 - Risk 계산, runtime-config 적용, Risk Twin 출력 구조 구현
 ```
 
@@ -101,12 +101,12 @@ scripts/destroy/stop-dummy-generators.sh
 scripts/destroy/destroy-hub.sh <MFA_OTP>
 ```
 
-Hub 상태와 무관하게 다음 구현 작업은 M4 Issue 6부터 시작한다. 구현 대상은 IoT Core Rule Lambda action, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 저장, 그리고 Issue 7 `pipeline_status` 계산이다.
+Hub 상태와 무관하게 다음 구현 작업은 M6 Issue 1부터 시작한다. 구현 대상은 Risk 계산 보강, `runtime-config.yaml` 적용, 온도/습도 기준값 초안, Risk Twin 출력 구조다.
 
 ## 현재 큰 상태
 
 ```text
-현재 단계: M5 factory-b/c 테스트베드 데이터 플레인 수집 및 S3 raw 검증 완료 (2026-05-20)
+현재 단계: M4 data-pipeline end-to-end 검증 완료, M6 Risk Twin/Dashboard 착수 대기 (2026-05-27)
 
 완료: M3 Issue 1~5 배포 파이프라인 전체
 완료: M4 Issue 1~5/8 raw 데이터 플레인
@@ -116,6 +116,16 @@ Hub 상태와 무관하게 다음 구현 작업은 M4 Issue 6부터 시작한다
   - S3 확인: raw/factory-a/factory_state/, raw/factory-a/infra_state/ 실적재 확인
   - canonical JSON 필수 필드 모두 채워짐 (published_at, data_plane_instance_id 포함)
   - Hub ArgoCD ApplicationSet: aegis-spoke-factory-a -> factory-a/ai-apps Synced/Healthy 확인
+
+완료: M4 Issue 6~7 Lambda data processor / pipeline_status 검증
+  - Lambda: AEGIS-Lambda-DataProcessor Active, LastUpdateStatus Successful, python3.12, 512MB, timeout 60s
+  - IoT Rules: AEGIS_IoTRule_factory_a/b/c_raw_s3 모두 disabled=false, Lambda action + S3 raw action 연결 확인
+  - S3: aegis-bucket-data raw/factory-a,b,c 및 processed/factory-a,b,c/state_snapshot 적재 확인
+  - DynamoDB: AEGIS-DynamoDB-FactoryStatus factory-a/b/c LATEST 갱신 확인
+  - pipeline_status: factory-a/b/c 모두 normal 확인
+  - risk: factory-a/b/c 모두 safe 확인
+  - DynamoDB TTL: ttl ENABLED, HISTORY 보존 48h 기준
+  - S3 bucket 설정: ap-south-1, versioning enabled, SSE-S3 AES256, public access block 전체 true, BucketOwnerEnforced, raw/processed lifecycle 적용
 
 버그 수정 이력 (2026-05-18 세션):
   - fix 1: factory-a-log-adapter CMD --once -> --loop (CrashLoopBackOff)
@@ -171,7 +181,7 @@ Hub-only 삭제/재생성 운영 순서:
   - connect-hub-tailscale-ui.sh는 ALB/Admin UI HTTPS가 아닌 Tailnet UI 직접 접근이 필요할 때만 선택 실행
   - 이 경로에서는 IoT Core Thing/certificate와 Spoke K3s Secret을 다시 만들지 않는다.
 
-다음 우선: M4 Issue 6 Lambda data processor 구현, M4 Issue 7 pipeline_status 검증, 이후 M6 Risk Twin/Dashboard 구현
+다음 우선: M6 Issue 1~4 Risk 계산 보강, runtime-config 적용, 온도/습도 기준값 초안, Risk Twin 출력 구조 구현
 보류: M3 Issue 6 manifest 자동 갱신 workflow, M6 Dashboard 세부 화면, M7 전체 통합 검증
 후속 리팩토링: M7 Issue 0에서 repo 분리 및 OIDC CI/CD 고도화
 
@@ -198,9 +208,9 @@ Hub-only 삭제/재생성 운영 순서:
 보류: EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 상태: 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 재생성 완료. Hub EKS, foundation S3/AMP/ECR/IoT Rule, `factory-a` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태.
-Terraform state: infra/hub apply 완료, infra/foundation apply 완료
-다음 작업 우선순위: IoT Core Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, pipeline_status 계산.
+AWS 실제 리소스 상태: 2026-05-27 기준 Hub/Foundation/IoT/Admin UI/data-pipeline 리소스 활성. Hub EKS, foundation S3/AMP/ECR/DynamoDB, IoT Rule 3개, Lambda data processor, `factory-a/b/c` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태.
+Terraform state: infra/hub apply 완료, infra/foundation apply 완료, infra/data-pipeline apply 완료
+다음 작업 우선순위: M6 Risk Twin/Dashboard 구현.
 ```
 
 ## 지금까지 완료한 일
@@ -474,10 +484,10 @@ Hub ArgoCD GitOps 배포 자동화 구성
     - envs/factory-a/values.yaml
 ```
 
-그 이후:
+현재 상태:
 
 ```text
-M4 Issue 6 Lambda data processor 구현
+M4 Issue 6~7 Lambda data processor / pipeline_status 구현 및 검증 완료
   - IoT Core Rule -> Lambda 트리거
   - 정규화, Risk Score 계산
   - DynamoDB LATEST/HISTORY, S3 processed 저장
@@ -698,7 +708,7 @@ M4 Issue 2~5 완료:
 다음 세션 우선 작업:
   Hub EKS 재구성 + Hub ArgoCD ApplicationSet 기반 factory-a K3s 배포 자동화 구성
   -> 직접 배포 검증 이력을 GitOps 운영 경로로 전환 완료
-  그 이후: M4 Issue 6 Lambda data processor 구현
+  그 이후: M4 Issue 6~7 Lambda data processor / pipeline_status 구현 및 검증 완료
 ```
 
 ## 갱신 규칙

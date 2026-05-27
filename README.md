@@ -10,10 +10,10 @@ Aegis-Pi는 이 기준선을 먼저 `factory-a`로 복구하고, 이후 AWS Hub�
 | 항목 | 내용 |
 | --- | --- |
 | 프로젝트명 | Aegis-Pi Risk Twin |
-| 현재 단계 | M4 Lambda data processor 코드/인프라 완료, end-to-end 검증 대기 |
-| 현재 완료 범위 | M0 `factory-a`, M1 Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~5/8 + Issue 6~7 코드/인프라 완료, M5 Issue 1~7 완료. EKS Hub Tailscale Operator, ArgoCD/Grafana Tailscale IP UI 접근, ArgoCD `factory-a/b/c` cluster 등록, `aegis-spoke-factory-a/b/c` Application 생성, IoT Rule -> S3 raw 적재, IRSA S3/AMP 권한, Hub Prometheus Agent -> AMP remote_write, 내부 Grafana -> AMP query, AWS Load Balancer Controller, Admin UI HTTPS Ingress, `factory-a-master`와 `factory-b/c` VM Tailnet 참여, `aegis-pi-gitops` GitOps 저장소 구조와 manifest validation, ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a/b/c` 전체 데이터 플레인 S3 적재 및 시간 동기화(Chrony), VirtualBox Flannel/CoreDNS 네트워크 중복 IP(enp0s8 고정) 장애 해결, Lambda data processor(`apps/data-processor/`) 및 Terraform(`infra/data-pipeline/`) 구현 완료 |
-| 현재 AWS 상태 | 2026-05-21 기준 Hub/Foundation/IoT/Admin UI 리소스 재생성 검증 이력 유지. ECR `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`, `aegis/edge-agent` repository 사용 중. DynamoDB `AEGIS-DynamoDB-FactoryStatus`는 `infra/foundation` 영구 리소스 |
-| 다음 작업 | `build-data-pipe.sh` 실행 후 IoT → Lambda → DynamoDB/S3 processed end-to-end 검증 (M4 Issue 6~7). 이후 M6 Risk Twin/Dashboard 구현 |
+| 현재 단계 | M4 data-pipeline end-to-end 검증 완료, M6 Risk Twin/Dashboard 착수 대기 |
+| 현재 완료 범위 | M0 `factory-a`, M1 Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~8, M5 Issue 1~7 완료. EKS Hub Tailscale Operator, ArgoCD/Grafana Tailscale IP UI 접근, ArgoCD `factory-a/b/c` cluster 등록, `aegis-spoke-factory-a/b/c` Application 생성, IoT Rule -> S3 raw 적재, IoT Rule -> Lambda -> DynamoDB LATEST/HISTORY + S3 processed 적재, IRSA S3/AMP 권한, Hub Prometheus Agent -> AMP remote_write, 내부 Grafana -> AMP query, AWS Load Balancer Controller, Admin UI HTTPS Ingress, `factory-a-master`와 `factory-b/c` VM Tailnet 참여, `aegis-pi-gitops` GitOps 저장소 구조와 manifest validation, ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a/b/c` 전체 데이터 플레인 S3 raw/processed 적재 및 시간 동기화(Chrony), VirtualBox Flannel/CoreDNS 네트워크 중복 IP(enp0s8 고정) 장애 해결, Lambda data processor(`apps/data-processor/`) 및 Terraform(`infra/data-pipeline/`) 배포/검증 완료 |
+| 현재 AWS 상태 | 2026-05-27 기준 Hub/Foundation/IoT/Admin UI/data-pipeline 리소스 활성 및 검증 완료. S3 `aegis-bucket-data`는 versioning/SSE-S3/public access block/lifecycle 적용. IoT Rule 3개는 Lambda + S3 raw action 연결. Lambda `AEGIS-Lambda-DataProcessor` Active/Successful. DynamoDB `AEGIS-DynamoDB-FactoryStatus`는 `factory-a/b/c` LATEST 갱신 및 TTL 활성 |
+| 다음 작업 | M6 Risk Twin/Dashboard 구현. 우선순위는 Risk 계산 보강, `runtime-config.yaml` 적용, 온도/습도 기준값 초안, Risk Twin 출력 구조 구현. 확장 범위로 CloudWatch/AMP/Grafana 기반 클라우드 인프라 및 data-pipeline 관측 metric을 추가 |
 | 비용 기준 | 현재 active AEGIS AWS fixed-cost resource는 0개 기준. Hub를 다시 켜면 Admin UI ALB 포함 고정 비용은 `~$0.36/hour`로 계산한다. 상세 기준은 `docs/ops/15_aws_cost_baseline.md` |
 
 ## 현재 완료된 Factory-A 기준선
@@ -233,7 +233,7 @@ AWS EKS Hub
 | Phase 2 (M1) | AWS EKS Hub 기준선 구성 | 핵심 완료, Issue 0~10/12 완료, Issue 11 보류 |
 | Phase 3 (M2) | Hub-Spoke 연결 | 완료, Issue 1~6 완료 |
 | Phase 4 (M3) | ECR/GitHub Actions/Hub ArgoCD 배포 기준선 | Issue 1~5 완료, Issue 6~8 보류 |
-| Phase 5 (M4) | `factory-a` adapter/publisher 데이터 플레인, Lambda data processor | 코드/인프라 완료, end-to-end 검증 대기 |
+| Phase 5 (M4) | `factory-a` adapter/publisher 데이터 플레인, Lambda data processor | 완료, IoT -> Lambda -> DynamoDB/S3 processed end-to-end 검증 완료 |
 | Phase 6 (M5) | `factory-b`, `factory-c` 테스트베드 확장 | cluster/Application 등록 완료, GitOps hostPath 전환, VM 로컬 dummy generator와 K3s `edge-iot-publisher` 배포, 시각 동기화(Chrony) 및 S3 적재 검증 완료 |
 | Phase 7 (M6) | Risk Twin + Data / Dashboard VPC 관제 화면 | 대기 |
 | Phase 8 (M7) | 통합 검증 | 대기 |

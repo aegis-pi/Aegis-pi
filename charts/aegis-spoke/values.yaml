@@ -37,6 +37,8 @@ factoryALogAdapter:
   influxdb:
     url: http://influxdb-svc.monitoring.svc.cluster.local:8086
     database: safe_edge_db
+  prometheus:
+    url: http://prometheus-svc.monitoring.svc.cluster.local:9090
   intervals:
     factoryStateSeconds: 3
     infraStateSeconds: 20

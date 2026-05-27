@@ -90,8 +90,8 @@
 - [x] Issue 3 - [데이터/Publisher] JSON -> IoT Core 전송 로직 구현
 - [x] Issue 4 - [데이터/Container/GitOps] adapter/publisher 이미지화 및 K3s 배포
 - [x] Issue 5 - [데이터/S3] IoT Core -> S3 적재 확인 (경로 파티셔닝 포함)
-- [ ] Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
-- [ ] Issue 7 - [데이터/Pipeline] `pipeline_status` Lambda 처리 검증
+- [x] Issue 6 - [데이터/Lambda] IoT Core Lambda data processor 구현
+- [x] Issue 7 - [데이터/Pipeline] `pipeline_status` Lambda 처리 검증
 - [x] Issue 8 - [검증/데이터] `factory-a` 데이터 플레인 end-to-end 검증
 
 ## M5. VM Spoke 확장 - `factory-b`, `factory-c`

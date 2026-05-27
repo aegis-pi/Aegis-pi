@@ -317,6 +317,28 @@ Aegis 데이터 파이프라인은 Edge factory에서 발생한 센서·인프�
 
 ---
 
+## Factory-A Node Metric 수집
+
+`factory-a-log-adapter`는 Kubernetes API로 node/workload/device 상태를 읽고, Prometheus HTTP API로 node exporter 사용률 지표를 조회한다.
+
+기본 Prometheus endpoint:
+
+```text
+http://prometheus-svc.monitoring.svc.cluster.local:9090
+```
+
+사용하는 Prometheus metric:
+
+| 필드 | Prometheus 기준 |
+|---|---|
+| `cpu_usage_percent` | `node_cpu_seconds_total{mode="idle"}`의 2분 rate 기반 |
+| `memory_usage_percent` | `node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes` |
+| `disk_usage_percent` | root filesystem `node_filesystem_avail_bytes / node_filesystem_size_bytes` |
+
+`node_uname_info`의 `instance -> nodename` 매핑을 우선 사용해 Prometheus series를 canonical `node_id`에 연결한다. Prometheus 조회 실패 또는 해당 node series 누락 시 사용률 필드는 `null`로 둔다. `0`은 실제 0% 사용률을 의미해야 하므로 미수집 값을 `0`으로 대체하지 않는다.
+
+---
+
 ## AWS 리소스 목록
 
 | 리소스 | 이름 | 설정 |
@@ -506,6 +528,77 @@ DynamoDB `HISTORY#STATE`와 같은 전체 상태 snapshot이다. S3에서는 Dyn
 | S3 raw | 90일 후 Glacier IR 전환 | S3 Lifecycle |
 | S3 processed | 365일 후 Standard-IA 전환 | S3 Lifecycle |
 | CloudWatch Logs | 30일 | Log Group retention |
+
+---
+
+## 관측 확장 범위
+
+현재 data-pipeline 완료 판정은 S3 raw/processed, DynamoDB LATEST/HISTORY, Lambda, IoT Rule 실제 리소스 확인을 기준으로 한다. 후속 확장에서는 운영 중 지연과 처리 품질을 지속적으로 보기 위해 CloudWatch metric과 Grafana 관측 패널을 추가한다.
+
+### 역할 분리
+
+| 관측 대상 | 수집/조회 경로 | 설명 |
+|---|---|---|
+| Lambda 기본 지표 | CloudWatch Metrics | Invocations, Errors, Duration, Throttles, ConcurrentExecutions |
+| DynamoDB 기본 지표 | CloudWatch Metrics | SuccessfulRequestLatency, ThrottledRequests, ConsumedRead/WriteCapacityUnits, SystemErrors |
+| S3 요청 지표 | CloudWatch Metrics | prefix 단위 request/error/latency. 비용을 보고 필요한 prefix만 활성화 |
+| IoT Rule 실행 지표 | CloudWatch Metrics | rule execution/error/throttle 계열 지표 |
+| Hub/EKS/Pod 지표 | Prometheus Agent -> AMP | Kubernetes와 앱 Prometheus metric |
+| Lambda 처리 로그 | CloudWatch Logs / Logs Insights | message_id, factory_id, source_type, 오류 원인 추적 |
+| Lambda 호출 구간 trace | X-Ray 또는 OpenTelemetry | DynamoDB/S3 호출 시간과 전체 처리 지연 breakdown |
+
+AMP는 Prometheus metric 저장소로 유지한다. S3 encryption/lifecycle, IoT Rule action, Lambda environment, IAM policy 같은 AWS 리소스 설정 검증은 AWS API, Terraform state, AWS Config 후속 확장으로 확인한다.
+
+### Lambda custom metric 후보
+
+Lambda data processor는 CloudWatch Embedded Metric Format(EMF) 또는 CloudWatch custom metrics로 아래 값을 남긴다.
+
+| Metric | 의미 |
+|---|---|
+| `MessagesReceived` | Lambda가 받은 전체 메시지 수 |
+| `MessagesProcessed` | 정상 처리된 메시지 수 |
+| `MessagesSkipped` | schema/validation 오류 등으로 스킵된 메시지 수 |
+| `MessagesFailed` | Lambda 처리 실패 수 |
+| `ProcessingLatencyMs` | Lambda 내부 전체 처리 시간 |
+| `EndToEndLagSeconds` | `processed_at - source_timestamp` 기준 end-to-end 지연 |
+| `DynamoDBUpdateLatencyMs` | DynamoDB LATEST/HISTORY 쓰기 지연 |
+| `S3PutLatencyMs` | S3 processed PutObject 지연 |
+| `PipelineStatusAgeSeconds` | 최신 infra_state 기준 pipeline age |
+| `RiskScore` | factory별 최신 Risk Score |
+
+권장 dimension:
+
+```text
+factory_id
+source_type
+environment_type
+status
+error_type
+```
+
+### Grafana 운영 패널 후보
+
+Grafana에는 AMP datasource와 CloudWatch datasource를 함께 둔다.
+
+| 패널 | Datasource | 목적 |
+|---|---|---|
+| factory별 처리량 | CloudWatch | `MessagesProcessed` rate |
+| Lambda p95 duration | CloudWatch | Lambda 기본 Duration 또는 `ProcessingLatencyMs` |
+| end-to-end lag | CloudWatch | `EndToEndLagSeconds` p50/p95 |
+| DynamoDB write latency | CloudWatch | `DynamoDBUpdateLatencyMs` |
+| S3 processed write latency | CloudWatch | `S3PutLatencyMs` |
+| skipped/failed message count | CloudWatch | schema 오류와 처리 실패 분리 |
+| pipeline age | CloudWatch | `PipelineStatusAgeSeconds` |
+| Hub/EKS workload 상태 | AMP | Pod/node/service 상태 |
+
+### 구현 우선순위
+
+1. `apps/data-processor/`에 EMF custom metric 로깅 추가
+2. Lambda X-Ray tracing 활성화 여부 결정
+3. Grafana에 CloudWatch datasource 추가
+4. data-pipeline 운영 패널 생성
+5. S3 request metrics는 비용을 확인한 뒤 `raw/`, `processed/` 중 필요한 prefix만 활성화
+6. 리소스 설정 drift 검증은 AWS Config 또는 정기 AWS API 점검 스크립트로 분리
 
 ---
 

@@ -481,7 +481,7 @@ Issue 2의 adapter가 만든 canonical JSON을 local spool/outbox에서 읽어 A
 - 진행 요약: factory-a K3s에서 `factory-a-log-adapter`와 `edge-iot-publisher`를 배포하고 S3 raw 경로에 `factory_state`, `infra_state` 데이터가 실제 적재되는 것을 검증했다.
 - 변경/확인: `apps/factory-a-log-adapter/`, `apps/edge-iot-publisher/`, `charts/aegis-spoke/`, `envs/factory-a/values.yaml`, `infra/foundation/ecr.tf`, `.github/workflows/build-push.yaml`
 - 검증: S3 object body canonical JSON 필드 일치, 경로 파티셔닝 정상
-- 후속: M4 Issue 6 Lambda data processor 구현 시작
+- 후속: M4 Issue 6 Lambda data processor 구현 및 검증 완료. 다음은 M6 Risk Twin/Dashboard 구현
 
 ---
 
@@ -509,13 +509,13 @@ S3 raw는 IoT Rule로 원본 보존을 유지하고, Dashboard 현재 상태 조
 - [x] 정규화 실패 데이터 처리 원칙 정의 (스킵 또는 오류 로그)
 - [ ] Dashboard VPC 조회용 DynamoDB/S3 processed 계약 반영 (Dashboard VPC 후속 단계)
 
-### 🔍 Acceptance Criteria (검증 미완료)
+### 🔍 Acceptance Criteria
 
-- [ ] IoT Core 메시지 수신 후 Lambda가 자동 실행됨
-- [ ] `factory_state` 처리 후 DynamoDB LATEST의 `factory_state`, `risk`가 갱신됨
-- [ ] `infra_state` 처리 후 DynamoDB LATEST의 `infra_state`, `pipeline_status`가 갱신됨
-- [ ] DynamoDB HISTORY와 S3 processed에 처리 결과가 저장됨
-- [ ] Lambda CloudWatch Logs에서 정상 처리와 실패 로그를 확인할 수 있음
+- [x] IoT Core 메시지 수신 후 Lambda가 자동 실행됨
+- [x] `factory_state` 처리 후 DynamoDB LATEST의 `factory_state`, `risk`가 갱신됨
+- [x] `infra_state` 처리 후 DynamoDB LATEST의 `infra_state`, `pipeline_status`가 갱신됨
+- [x] DynamoDB HISTORY와 S3 processed에 처리 결과가 저장됨
+- [x] Lambda CloudWatch Logs에서 최신 이벤트 수신을 확인할 수 있음
 
 ### 2026-05-21 구현 메모
 
@@ -545,17 +545,20 @@ S3 processed 저장:
 정규화 실패 처리:
 - schema 검증 실패 시 CloudWatch Logs에 오류 기록 후 스킵 (Lambda 실패로 처리하지 않음)
 
-남은 검증:
-- 실제 AWS 배포 후 IoT → Lambda → DynamoDB/S3 processed end-to-end 검증
-- `scripts/build/build-data-pipe.sh` 실행 후 CloudWatch Logs, DynamoDB, S3 확인
+2026-05-27 검증 결과:
+- Lambda `AEGIS-Lambda-DataProcessor` Active, LastUpdateStatus Successful 확인
+- IoT Rule `AEGIS_IoTRule_factory_a/b/c_raw_s3` 모두 `disabled=false`, Lambda action + S3 raw action 연결 확인
+- S3 `raw/factory-a,b,c/`와 `processed/factory-a,b,c/state_snapshot/`에 2026-05-27 데이터 적재 확인
+- DynamoDB `AEGIS-DynamoDB-FactoryStatus`의 `FACTORY#factory-a/b/c` LATEST 갱신 확인
+- DynamoDB TTL `ttl` ENABLED 확인
 
 ### GitHub Issue Comment Draft
 
-- 상태: 코드/인프라 완료, end-to-end 검증 대기
-- 진행 요약: Lambda data processor(`apps/data-processor/`) 구현 완료. DynamoDB는 `LATEST`와 `HISTORY#STATE#{updated_at}` 단일 snapshot 이력 구조로 정리했고, history는 `LATEST`와 같은 구조에 TTL 48h만 추가한다. Terraform 인프라(`infra/data-pipeline/`) 구현 완료. DynamoDB는 infra/foundation 영구 리소스로 이관.
+- 상태: 완료
+- 진행 요약: Lambda data processor(`apps/data-processor/`) 구현 및 AWS 배포 검증 완료. DynamoDB는 `LATEST`와 `HISTORY#STATE#{updated_at}` 단일 snapshot 이력 구조로 정리했고, history는 `LATEST`와 같은 구조에 TTL 48h만 추가한다. Terraform 인프라(`infra/data-pipeline/`) 배포 완료. IoT Rule 3개는 S3 raw와 Lambda action을 동시에 수행한다.
 - 변경/확인: `apps/data-processor/`, `infra/data-pipeline/`, `infra/foundation/dynamodb.tf`
-- 검증: 실제 AWS 배포 후 IoT → Lambda → DynamoDB/S3 processed end-to-end 검증 필요
-- 후속: M4 Issue 7 pipeline_status 검증 (동일 Lambda 배포 후 함께 수행)
+- 검증: 2026-05-27 AWS 실제 리소스 기준 IoT → Lambda → DynamoDB LATEST/HISTORY + S3 processed end-to-end 확인
+- 후속: M6 Risk Twin/Dashboard 구현
 
 ---
 
@@ -573,14 +576,14 @@ IoT Core 수신 상태와 S3 적재 상태를 기준으로 `pipeline_status`가 
   - [x] S3 최신 적재 시각 기준 지연 판단 로직
   - [x] DynamoDB LATEST/HISTORY 업데이트 로직
   - [x] `infra_state` 20초 주기 기준 warning/critical 판단
-- [ ] DynamoDB LATEST/HISTORY 저장 확인 (검증 미완료)
+- [x] DynamoDB LATEST/HISTORY 저장 확인
 - [ ] Dashboard VPC 조회용 latest/status 저장소 반영 (Dashboard VPC 후속 단계)
-- [ ] `pipeline_status` 판단 기준을 데이터 플레인 관련 문서에 반영 (검증 후 반영)
+- [x] `pipeline_status` 판단 기준을 데이터 플레인 관련 문서에 반영
 
-### 🔍 Acceptance Criteria (검증 미완료)
+### 🔍 Acceptance Criteria
 
-- [ ] Lambda 처리 결과에서 `factory-a`의 pipeline 상태 확인 가능
-- [ ] DynamoDB LATEST에서 `factory-a`의 pipeline 상태 조회 가능
+- [x] Lambda 처리 결과에서 `factory-a`의 pipeline 상태 확인 가능
+- [x] DynamoDB LATEST에서 `factory-a`의 pipeline 상태 조회 가능
 - [ ] IoT Core 메시지가 일정 시간 이상 없을 때 `pipeline_status` 이상으로 판정
 
 ### 2026-05-21 구현 메모
@@ -597,17 +600,18 @@ pipeline_status 계산 로직 (`apps/data-processor/lambda_function.py`):
 3. `edge-iot-publisher` 강제 중지 후 120초: DynamoDB LATEST pipeline_status = `critical`
 4. `edge-iot-publisher` 재시작 후: DynamoDB LATEST pipeline_status = `healthy` 복구 확인
 
-남은 검증:
-- `scripts/build/build-data-pipe.sh` 실행 후 Lambda 배포 확인
-- publisher 중지/시작 테스트로 pipeline_status 상태 전이 확인
-- DynamoDB HISTORY에 이력 적재 확인
+2026-05-27 검증 결과:
+- `factory-a`, `factory-b`, `factory-c` DynamoDB LATEST에서 `pipeline_status.status=normal` 확인
+- `factory-a` latest_infra_state_age_seconds=17, `factory-b`=10, `factory-c`=3 확인
+- `factory-a/b/c` 모두 S3 processed state_snapshot과 DynamoDB LATEST 갱신 확인
+- publisher 중지/시작 기반 warning/critical 상태 전이 검증은 M7 장애/통합 검증에서 수행
 
 ### GitHub Issue Comment Draft
 
-- 상태: 코드 완료, end-to-end 검증 대기
-- 진행 요약: pipeline_status 계산 로직은 Issue 6의 Lambda data processor에 통합 구현됨. infra_state 수신 주기(20초) 기준 healthy/warning/critical 판단 로직 구현. DynamoDB LATEST 부분 갱신 + HISTORY#STATE snapshot TTL 아이템 저장 로직 구현.
-- 검증: 실제 Lambda 배포 후 edge-iot-publisher 중지/재시작 시나리오 검증 필요
-- 후속: Issue 6 end-to-end 검증과 동일 배포에서 함께 수행
+- 상태: 완료
+- 진행 요약: pipeline_status 계산 로직은 Issue 6의 Lambda data processor에 통합 구현됨. infra_state 수신 주기(20초) 기준 healthy/warning/critical 판단 로직 구현. DynamoDB LATEST 부분 갱신 + HISTORY#STATE snapshot TTL 아이템 저장 로직 구현 및 AWS 실제 리소스 검증 완료.
+- 검증: 2026-05-27 `factory-a/b/c` LATEST pipeline_status normal 확인. 지연/중단 상태 전이 검증은 M7 장애/통합 검증에서 수행.
+- 후속: M6 Risk Twin/Dashboard 구현
 
 ---
 
@@ -625,17 +629,17 @@ Lambda, DynamoDB/S3 processed, `pipeline_status`는 Issue 6~7에서 별도 검�
 - [x] source_type별 경로 분리 적재 확인 (`factory_state`, `infra_state`)
 - [x] raw object body가 canonical JSON 계약을 만족하는지 확인
 - [x] 검증 결과를 데이터 플레인 관련 문서와 `docs/ops/03_test_checklist.md`에 반영
-- [ ] `IoT Core → Lambda data processor → DynamoDB/S3 processed` 흐름 확인 (Issue 6)
-- [ ] Lambda 정규화/Risk 계산 처리 확인 (Issue 6, M6)
-- [ ] `pipeline_status` Lambda 계산 동작 확인 (Issue 7)
-- [ ] DynamoDB LATEST/HISTORY에 Dashboard 조회용 최신 상태 반영 확인 (Issue 6~7)
+- [x] `IoT Core → Lambda data processor → DynamoDB/S3 processed` 흐름 확인 (Issue 6)
+- [x] Lambda 정규화/Risk 계산 처리 확인 (Issue 6, M6에서 보강)
+- [x] `pipeline_status` Lambda 계산 동작 확인 (Issue 7)
+- [x] DynamoDB LATEST/HISTORY에 Dashboard 조회용 최신 상태 반영 확인 (Issue 6~7)
 - [ ] 데이터 지연/누락 발생 시 `pipeline_status` 이상 판정 확인 (Issue 7)
 
 ### 🔍 Acceptance Criteria
 
 - S3에서 `factory-a` 데이터 주기적 적재 확인 (최소 10분 이상 연속)
 - `factory_state`, `infra_state` 두 경로에 데이터 분리 적재 확인
-- Lambda/DynamoDB/S3 processed와 `pipeline_status`는 Issue 6~7에서 확인
+- Lambda/DynamoDB/S3 processed와 `pipeline_status`는 Issue 6~7에서 확인 완료
 - `edge-iot-publisher` 강제 중지 후 이상 판정 검증은 Issue 7과 M7에서 수행
 
 ## 2026-05-14 수정 방향

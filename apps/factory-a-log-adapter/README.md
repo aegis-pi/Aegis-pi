@@ -12,6 +12,7 @@ The adapter is read-only. It does not access `/dev/i2c-1`, camera, or microphone
 | InfluxDB `safe_edge_db.ai_detection` | fire/fall/bend scores |
 | InfluxDB `safe_edge_db.acoustic_detection` | `abnormal_sound` label |
 | Kubernetes API | node, workload, and device summary state |
+| Prometheus `prometheus-svc.monitoring.svc.cluster.local:9090` | node exporter CPU, memory, and root filesystem usage |
 
 `abnormal_sound` keeps the current canonical schema. The adapter maps recent `acoustic_detection` rows as follows:
 
@@ -30,6 +31,7 @@ sum(is_danger) > 0 and event_type is empty/None -> "abnormal_sound"
 | `AEGIS_INPUT_MODULE_TYPE` | `sensor` |
 | `AEGIS_INFLUXDB_URL` | `http://influxdb-svc.monitoring.svc.cluster.local:8086` |
 | `AEGIS_INFLUXDB_DATABASE` | `safe_edge_db` |
+| `AEGIS_PROMETHEUS_URL` | `http://prometheus-svc.monitoring.svc.cluster.local:9090` |
 | `AEGIS_OUTBOX_DIR` | `/var/lib/aegis/outbox` |
 | `AEGIS_FACTORY_STATE_WINDOW_SECONDS` | `3` |
 | `AEGIS_FACTORY_STATE_INTERVAL_SECONDS` | `3` |

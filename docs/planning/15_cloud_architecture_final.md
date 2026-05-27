@@ -343,6 +343,50 @@ Hub EKS / Prometheus Agent / Edge data-plane metrics
   -> Grafana
 ```
 
+### 관측 확장 범위
+
+AMP는 Prometheus metric 저장/조회 백엔드로 사용한다. AWS managed resource의 설정 상태나 전체 리소스 상태를 직접 판정하는 source of truth로 쓰지 않는다.
+
+관측 레이어의 역할은 아래처럼 분리한다.
+
+| 영역 | 1차 수집/조회 | 용도 |
+| --- | --- | --- |
+| Kubernetes / Hub / Edge workload metric | Prometheus Agent -> AMP -> Grafana | EKS node/pod/service, Prometheus scrape 대상, 앱 `/metrics` 시계열 |
+| AWS managed resource metric | CloudWatch Metrics -> Grafana CloudWatch datasource | Lambda, DynamoDB, S3, IoT Core, ALB, NAT Gateway, EKS managed metric |
+| Data-pipeline 업무 metric | Lambda EMF 또는 CloudWatch custom metrics -> Grafana CloudWatch datasource | 처리량, 실패율, end-to-end lag, DynamoDB/S3 write latency |
+| 실행 로그 | CloudWatch Logs / Logs Insights | Lambda 처리 로그, 오류 원인, message_id 추적 |
+| 지연 원인 분석 | AWS X-Ray 또는 OpenTelemetry | Lambda 내부 처리 구간, DynamoDB/S3 호출 지연 breakdown |
+| 리소스 설정/존재 검증 | Terraform state + AWS API + AWS Config(후속) | S3 encryption/lifecycle, IoT Rule action, Lambda env, IAM policy 같은 설정 검증 |
+
+초기 확장 구현은 data processor Lambda에 CloudWatch Embedded Metric Format(EMF)을 추가하는 방향으로 둔다.
+
+권장 custom metric:
+
+```text
+MessagesReceived
+MessagesProcessed
+MessagesSkipped
+MessagesFailed
+ProcessingLatencyMs
+EndToEndLagSeconds
+DynamoDBUpdateLatencyMs
+S3PutLatencyMs
+PipelineStatusAgeSeconds
+RiskScore
+```
+
+권장 dimension:
+
+```text
+factory_id
+source_type
+environment_type
+status
+error_type
+```
+
+Dashboard Web/API의 사용자 화면은 DynamoDB/S3 processed를 기준으로 운영 상태를 보여준다. CloudWatch/AMP/Grafana/X-Ray는 내부 운영 관측과 트러블슈팅용으로 분리한다.
+
 ## 2026-05-14 수정 방향
 
 `docs/specs/data_storage_pipeline.md`를 IoT Core 이후 데이터 저장의 최신 source of truth로 둔다.
