@@ -101,6 +101,7 @@ aegis-pi-gitops ApplicationSet 기반 factory-a data-plane 배포
 factory-b/factory-c Hub ArgoCD cluster 등록 및 Application 생성
 factory-b/factory-c local dummy generator 및 K3s edge-iot-publisher 활성화
 factory-a/factory-b/factory-c IoT Core -> S3 raw 적재 검증
+factory-a/factory-b/factory-c IoT Core -> Lambda -> DynamoDB/S3 processed 적재 검증
 ```
 
 ## 다음 단계
@@ -110,4 +111,4 @@ factory-a/factory-b/factory-c IoT Core -> S3 raw 적재 검증
 3. 계획과 실제 구현이 달라진 항목은 `docs/changes/`에 Change Record로 남긴다.
 4. `README.md`, `docs/README.md`, architecture 문서를 현재 `factory-a/b/c` 기준으로 유지한다.
 5. Grafana/dashboard 스펙을 실제 InfluxDB + Prometheus 기준으로 유지한다.
-6. M1 Issue 9 AWS Load Balancer Controller, M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress, M1 Issue 12 `runtime-config.yaml` 구조 초안, M3 Issue 1~5/7/8 배포 기준선, M4 Issue 1~5/8 raw data-plane 구현/적재 검증, M5 factory-b/c 테스트베드 수집 검증은 완료됐다. 다음 작업은 M4 Issue 6 Lambda data processor와 M4 Issue 7 `pipeline_status` 검증이다.
+6. M1 Issue 9 AWS Load Balancer Controller, M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress, M1 Issue 12 `runtime-config.yaml` 구조 초안, M3 Issue 1~5/7/8 배포 기준선, M4 Issue 1~8 data-pipeline 검증, M5 factory-b/c 테스트베드 수집 검증은 완료됐다. 다음 작업은 M6 Risk Twin/Dashboard와 Bedrock 기반 daily factory report 구현이다.

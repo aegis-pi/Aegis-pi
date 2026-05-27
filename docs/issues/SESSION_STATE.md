@@ -719,6 +719,24 @@ M4 Issue 2~5 완료:
     KJW_AEGIS_Data_IoTRule_infra_state_processor
     KJW_AEGIS_Data_IoTRule_factory_state_processor
   최신 processed state_snapshot 기준 nodes_ready=3/3, pods_ready=6/6, pipeline_status=normal 확인
+
+2026-05-27 LLM daily report 문서화:
+  docs/planning/17_llm_daily_factory_report_plan.md를 MVP reporting source of truth로 확정
+  AWS Region은 ap-south-1로 고정
+  Bedrock 기반 factory별 일일 운영 보고서는 MVP 포함
+  입력은 S3 processed/{factory_id}/{factory_state,risk_score,infra_state}, raw 직접 LLM 입력 제외
+  출력은 reports/daily/yyyy=YYYY/mm=MM/dd=DD/{factory_id}/ 아래 report.md, report-context.json, factory-daily-summary.json, generation-metadata.json
+  infra_state fixture는 최신 processed 포맷으로 정리:
+    node_id, ready, cpu_usage_percent, memory_usage_percent, disk_usage_percent, network_reachability, device available
+  infra/reporting은 foundation remote state를 읽지 않고 data_bucket_name variable + data.aws_s3_bucket 조회 방식으로 확정
+  docs/product/00_mvp_scope.md, docs/product/02_requirements_definition.md, docs/planning/00_project_overview.md, docs/planning/02_implementation_plan.md, docs/ops/15_aws_cost_baseline.md, docs/ops/24_daily_factory_report.md 최신화
+
+다음 세션 우선 작업:
+  1. apps/daily-report-generator/ skeleton 생성
+  2. processed fixture 기반 AggregateFactoryHour reducer unit test 작성
+  3. MergeFactoryDaily boundary event merge/severity/top N 테스트 작성
+  4. Bedrock mock으로 GenerateFactoryReport report.md 생성까지 구현
+  5. 이후 infra/reporting Terraform과 build/destroy-reporting 스크립트 작성
 ```
 
 ## 갱신 규칙

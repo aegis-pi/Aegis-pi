@@ -1,7 +1,7 @@
 # data-processor
 
 상태: source of truth
-기준일: 2026-05-21
+기준일: 2026-05-27
 
 ## 목적
 
@@ -21,7 +21,7 @@ processor/
   envelope.py            # canonical JSON envelope 파싱 및 필수 필드 검증
   normalizer.py          # factory_state / infra_state 필드 정규화 (타입 변환, null 처리)
   risk.py                # Safety Score 계산 (높을수록 안전, safe/warning/danger)
-  pipeline_status.py     # pipeline_status 계산 (infra_state 수신 지연 → healthy/warning/critical)
+  pipeline_status.py     # pipeline_status 계산 (infra_state 수신 지연 -> normal/warning/critical)
   dynamo.py              # DynamoDB LATEST 부분 갱신, HISTORY#STATE TTL 아이템 저장
   s3_writer.py           # S3 processed source별 결과와 state_snapshot 저장
 tests/
@@ -40,7 +40,7 @@ IoT Core Rule (aegis/factory-a/+, factory-b/+, factory-c/+)
       -> envelope.parse()             # 필수 필드 검증, EnvelopeError → skipped
       -> normalizer.normalize_*()     # 타입 변환, null 처리
       -> risk.calculate()             # factory_state → safety score/level
-      -> pipeline_status.calculate()  # infra_state → healthy/warning/critical
+      -> pipeline_status.calculate()  # infra_state -> normal/warning/critical
       -> dynamo.write_*_snapshot()    # LATEST 부분 갱신 + HISTORY#STATE TTL item
       -> s3_writer.write_*()          # S3 processed/{factory_id}/{dataset}/...
       -> s3_writer.write_state_snapshot()
@@ -75,14 +75,14 @@ s3://aegis-bucket-data/processed/{factory_id}/state_snapshot/yyyy={YYYY}/mm={MM}
 
 | 상태 | 조건 |
 | --- | --- |
-| `healthy` | 마지막 `infra_state` 수신 후 60초 미만 |
-| `warning` | 60초 이상 120초 미만 |
-| `critical` | 120초 이상 |
+| `normal` | latest `infra_state` age <= 40초 |
+| `warning` | latest `infra_state` age > 40초 |
+| `critical` | latest `infra_state` age > 60초 |
 
 ## S3 processed 저장 경로
 
 ```text
-s3://aegis-bucket-data/processed/{factory_id}/{source_type}/yyyy={YYYY}/mm={MM}/dd={DD}/{message_id}.json
+s3://aegis-bucket-data/processed/{factory_id}/{dataset}/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json
 ```
 
 ## 환경변수 (Lambda Terraform이 주입)

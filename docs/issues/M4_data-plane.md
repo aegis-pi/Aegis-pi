@@ -590,15 +590,15 @@ IoT Core 수신 상태와 S3 적재 상태를 기준으로 `pipeline_status`가 
 
 pipeline_status 계산 로직 (`apps/data-processor/lambda_function.py`):
 - `infra_state` 수신 시 현재 시각과 source_timestamp 차이로 지연 판단
-- `infra_state` 20초 주기 기준: 60초 이상이면 `warning`, 120초 이상이면 `critical`, 정상이면 `healthy`
+- `infra_state` 20초 주기 기준: age > 40초이면 `warning`, age > 60초이면 `critical`, 정상이면 `normal`
 - DynamoDB LATEST `pk=FACTORY#factory-a`, `sk=LATEST`의 `pipeline_status`를 부분 갱신
 - DynamoDB HISTORY: `pk=FACTORY#factory-a`, `sk=HISTORY#STATE#{updated_at}`, `LATEST`와 같은 구조 + TTL 48h
 
 검증 시나리오 (build-data-pipe.sh 실행 후):
-1. `edge-iot-publisher` 정상 동작 중: DynamoDB LATEST pipeline_status = `healthy`
-2. `edge-iot-publisher` 강제 중지 후 60초: DynamoDB LATEST pipeline_status = `warning`
-3. `edge-iot-publisher` 강제 중지 후 120초: DynamoDB LATEST pipeline_status = `critical`
-4. `edge-iot-publisher` 재시작 후: DynamoDB LATEST pipeline_status = `healthy` 복구 확인
+1. `edge-iot-publisher` 정상 동작 중: DynamoDB LATEST pipeline_status = `normal`
+2. `edge-iot-publisher` 강제 중지 후 40초 초과: DynamoDB LATEST pipeline_status = `warning`
+3. `edge-iot-publisher` 강제 중지 후 60초 초과: DynamoDB LATEST pipeline_status = `critical`
+4. `edge-iot-publisher` 재시작 후: DynamoDB LATEST pipeline_status = `normal` 복구 확인
 
 2026-05-27 검증 결과:
 - `factory-a`, `factory-b`, `factory-c` DynamoDB LATEST에서 `pipeline_status.status=normal` 확인
@@ -609,7 +609,7 @@ pipeline_status 계산 로직 (`apps/data-processor/lambda_function.py`):
 ### GitHub Issue Comment Draft
 
 - 상태: 완료
-- 진행 요약: pipeline_status 계산 로직은 Issue 6의 Lambda data processor에 통합 구현됨. infra_state 수신 주기(20초) 기준 healthy/warning/critical 판단 로직 구현. DynamoDB LATEST 부분 갱신 + HISTORY#STATE snapshot TTL 아이템 저장 로직 구현 및 AWS 실제 리소스 검증 완료.
+- 진행 요약: pipeline_status 계산 로직은 Issue 6의 Lambda data processor에 통합 구현됨. infra_state 수신 주기(20초) 기준 normal/warning/critical 판단 로직 구현. DynamoDB LATEST 부분 갱신 + HISTORY#STATE snapshot TTL 아이템 저장 로직 구현 및 AWS 실제 리소스 검증 완료.
 - 검증: 2026-05-27 `factory-a/b/c` LATEST pipeline_status normal 확인. 지연/중단 상태 전이 검증은 M7 장애/통합 검증에서 수행.
 - 후속: M6 Risk Twin/Dashboard 구현
 

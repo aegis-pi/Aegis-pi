@@ -1,7 +1,7 @@
 # Data Storage Pipeline and Formats
 
 상태: source of truth
-기준일: 2026-05-18
+기준일: 2026-05-27
 
 ## 목적
 
@@ -19,6 +19,7 @@ DynamoDB HISTORY
 전송 데이터 포맷 자체는 `docs/specs/iot_data_format.md`를 따른다. 이 문서는 해당 메시지를 cloud-side에서 어떻게 저장하고 Dashboard가 어떻게 조회하는지를 정의한다.
 
 MVP 기준 Dashboard의 현재 상태 조회는 S3 `latest/` 객체가 아니라 DynamoDB LATEST item을 기준으로 한다. S3는 raw 원본 보존과 processed 장기 이력 저장소로 사용한다.
+Bedrock 기반 일일 운영 보고서의 MVP 입력도 S3 `processed/`를 기준으로 하며, S3 `raw/` 원본 전체를 Bedrock에 직접 전달하지 않는다.
 
 ## 전체 데이터 흐름
 
