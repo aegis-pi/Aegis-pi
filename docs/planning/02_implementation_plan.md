@@ -278,14 +278,14 @@ Hub 생성 순서:
 
 주요 작업:
 
-- `apps/daily-report-generator/` package 생성
-- `PrepareReportWindow`, `AggregateFactoryHour`, `MergeFactoryDaily`, `GenerateFactoryReport` Lambda 구현
-- S3 processed hourly aggregation, daily merge, event severity/top N, recommended checks 구현
-- Bedrock mock 기반 `report-context.json`/`report.md` 로컬 테스트
-- Bedrock output invariant validation 구현
-- `infra/reporting/` Terraform root module 추가
-- `scripts/build/build-reporting.sh`, `scripts/destroy/destroy-reporting.sh` 추가
-- `docs/ops/24_daily_factory_report.md` 운영 기준 작성
+- `apps/daily-report-generator/` package 생성 - 완료
+- `PrepareReportWindow`, `AggregateFactoryHour`, `MergeFactoryDaily`, `GenerateFactoryReport` Lambda 구현 - 로컬 구현 진행
+- S3 processed hourly aggregation, daily merge, event severity/top N, recommended checks 구현 - 로컬 구현 진행
+- Bedrock mock 기반 `report-context.json`/`report.md` 로컬 테스트 - pytest 통과
+- Bedrock output invariant validation 구현 - 기본 검증 구현, enriched v2 실출력 검토 필요
+- `infra/reporting/` Terraform root module 추가 - 완료, validate 재검증 필요
+- `scripts/build/build-reporting.sh`, `scripts/destroy/destroy-reporting.sh` 추가 - 완료
+- `docs/ops/24_daily_factory_report.md` 운영 기준 작성 - 완료
 
 완료 조건:
 
@@ -326,7 +326,7 @@ Hub 생성 순서:
 | Phase 5 (M4) | 완료, Issue 1~8 완료 | `factory-a` adapter/publisher, Lambda data processor, DynamoDB/S3 processed |
 | Phase 6 (M5) | 완료 | VM Spoke 확장, dummy generator, S3 raw 수집 |
 | Phase 7 (M6) | 다음 주요 단계 | Risk Twin + Dashboard VPC 관제 |
-| Phase 7.5 | 설계 확정, 구현 대기 | Bedrock 기반 factory별 일일 운영 보고서 |
+| Phase 7.5 | 구현 진행/로컬 검증 완료 | Bedrock 기반 factory별 일일 운영 보고서. Bedrock 실호출, 24시간 검증, AWS 배포 미완료 |
 | Phase 8 (M7) | 후속 | 통합 검증 + 문서 보정 |
 
 ## 구현 중 테스트로 결정할 항목

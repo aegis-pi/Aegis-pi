@@ -34,6 +34,7 @@
 - Risk Twin Dashboard는 후속 단계이며, 선행 작업인 IoT Core Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 저장 경로 구현과 검증은 완료했다.
 - 클라우드 인프라와 data-pipeline 관측 확장은 CloudWatch Metrics/Logs, Lambda EMF custom metrics, Grafana CloudWatch datasource, AMP, X-Ray/OpenTelemetry 역할 분리 기준을 따른다. 세부 기준은 `planning/15_cloud_architecture_final.md`와 `ops/23_data_pipeline.md`에 둔다.
 - Bedrock 기반 factory별 일일 운영 보고서 초안 생성은 MVP 포함으로 확정했다. 세부 설계는 `planning/17_llm_daily_factory_report_plan.md`, 운영 기준은 `ops/24_daily_factory_report.md`를 따른다.
+- 2026-05-27 기준 `apps/daily-report-generator/`와 `infra/reporting/` 구현을 진행했고, 로컬 pytest/compileall/fmt 검증을 완료했다. enriched v2 `factory-b` 단일 hour context/prompt/test note는 `/home/vicbear/Aegis/test_paper/`에 저장했다. Bedrock 실호출, 24시간 daily merge 검증, AWS 배포는 다음 작업이다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - Git Wiki에 옮길 수 있도록 재구성한 문서는 `docs/wiki/`에 둔다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.

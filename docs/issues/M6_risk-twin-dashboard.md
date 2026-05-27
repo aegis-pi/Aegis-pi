@@ -26,13 +26,13 @@ IoT Core
 
 ### 보강 방향
 
-MVP에는 완전 자동화된 고도화 리포트가 아니라, 하루 1회 운영 리포트 초안을 생성하는 최소 기능을 포함하는 방향을 검토한다.
+MVP에는 완전 자동화된 고도화 리포트가 아니라, 하루 1회 운영 리포트 초안을 생성하는 최소 기능을 포함한다.
 
 ```text
-S3 raw / processed / latest
-  + 사고 이미지 또는 이상 이벤트
+S3 processed / DynamoDB latest
+  + 이상 이벤트
   + 최근 Risk Score 변화
-  -> LLM/VLM 기반 요약
+  -> LLM 기반 요약
   -> 일일 운영 리포트 초안
   -> 모델/설정 업데이트 후보
   -> 운영자 승인 후 GitOps 배포
@@ -46,6 +46,8 @@ MVP에서 제외하는 범위는 유지한다.
 - 복잡한 자연어 질의 시스템
 
 즉, 일일 리포트는 자동 조치 시스템이 아니라 Edge AI 판단 결과를 다시 검토하고 모델/설정 업데이트 필요성을 발견하는 운영 피드백 루프다.
+
+2026-05-27 기준 daily report 구현은 `apps/daily-report-generator/`와 `infra/reporting/`에 진행 중이다. 로컬 pytest/compileall/fmt 검증은 통과했고, enriched v2 `factory-b` 단일 hour context/prompt/test note를 저장했다. Bedrock 실호출, 24시간 daily merge 검증, AWS 배포는 다음 단계다.
 
 ---
 

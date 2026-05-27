@@ -8,6 +8,7 @@
 | --- | --- |
 | `MASTER_CHECKLIST.md` | M0~M7 전체 진행 상태 요약 체크리스트 |
 | `SESSION_STATE.md` | 현재 세션을 이어받기 위한 상태 스냅샷 |
+| `SESSION_2026-05-27_DAILY_REPORT.md` | 2026-05-27 daily factory report 구현/검증 handoff |
 | `M0_factory-a_safe-edge-baseline.md` | `factory-a` Safe-Edge 기준선 복구 작업 |
 | `M1_hub-cloud.md` | AWS Hub, EKS, IoT Core, S3, AMP 기준 작업 |
 | `M2_mesh-vpn-hub-spoke.md` | Tailscale 기반 Hub-Spoke 연결 작업 |

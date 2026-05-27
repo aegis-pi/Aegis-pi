@@ -10,11 +10,11 @@ Aegis-Pi는 이 기준선을 먼저 `factory-a`로 복구하고, 이후 AWS Hub�
 | 항목 | 내용 |
 | --- | --- |
 | 프로젝트명 | Aegis-Pi Risk Twin |
-| 현재 단계 | M4 data-pipeline end-to-end 검증 완료, M6 Risk Twin/Dashboard 착수 대기 |
+| 현재 단계 | M6 Risk Twin/Dashboard 및 MVP Daily Factory Report 구현 진행 |
 | 현재 완료 범위 | M0 `factory-a`, M1 Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~8, M5 Issue 1~7 완료. EKS Hub Tailscale Operator, ArgoCD/Grafana Tailscale IP UI 접근, ArgoCD `factory-a/b/c` cluster 등록, `aegis-spoke-factory-a/b/c` Application 생성, IoT Rule -> S3 raw 적재, IoT Rule -> Lambda -> DynamoDB LATEST/HISTORY + S3 processed 적재, IRSA S3/AMP 권한, Hub Prometheus Agent -> AMP remote_write, 내부 Grafana -> AMP query, AWS Load Balancer Controller, Admin UI HTTPS Ingress, `factory-a-master`와 `factory-b/c` VM Tailnet 참여, `aegis-pi-gitops` GitOps 저장소 구조와 manifest validation, ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a/b/c` 전체 데이터 플레인 S3 raw/processed 적재 및 시간 동기화(Chrony), VirtualBox Flannel/CoreDNS 네트워크 중복 IP(enp0s8 고정) 장애 해결, Lambda data processor(`apps/data-processor/`) 및 Terraform(`infra/data-pipeline/`) 배포/검증 완료 |
 | 현재 AWS 상태 | 2026-05-27 기준 Hub/Foundation/IoT/Admin UI/data-pipeline 리소스 활성 및 검증 완료. S3 `aegis-bucket-data`는 versioning/SSE-S3/public access block/lifecycle 적용. IoT Rule 3개는 Lambda + S3 raw action 연결. Lambda `AEGIS-Lambda-DataProcessor` Active/Successful. DynamoDB `AEGIS-DynamoDB-FactoryStatus`는 `factory-a/b/c` LATEST 갱신 및 TTL 활성 |
-| 다음 작업 | M6 Risk Twin/Dashboard와 Bedrock 기반 daily factory report 구현. 우선순위는 Risk 계산 보강, `runtime-config.yaml` 적용, 온도/습도 기준값 초안, Risk Twin 출력 구조 구현, `apps/daily-report-generator/` skeleton 및 reporting reducer/merge 로직 구현 |
-| 비용 기준 | 현재 active AEGIS AWS fixed-cost resource는 0개 기준. Hub를 다시 켜면 Admin UI ALB 포함 고정 비용은 `~$0.36/hour`로 계산한다. 상세 기준은 `docs/ops/15_aws_cost_baseline.md` |
+| 다음 작업 | Bedrock 기반 daily factory report의 enriched v2 실호출, 24시간 daily merge 검증, `terraform validate` 재검증, reporting stack 배포/Step Functions 수동 실행. 병행 우선순위는 M6 Risk 계산 보강, `runtime-config.yaml` 적용, 온도/습도 기준값 초안, Risk Twin 출력 구조 구현 |
+| 비용 기준 | Hub/Foundation/IoT/Admin UI/data-pipeline 활성 여부에 따라 비용이 달라진다. Hub EKS와 Admin UI ALB가 켜져 있으면 기존 기준상 약 `~$0.36/hour` 수준으로 계산한다. 상세 기준은 `docs/ops/15_aws_cost_baseline.md` |
 
 ## 현재 완료된 Factory-A 기준선
 

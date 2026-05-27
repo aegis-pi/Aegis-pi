@@ -68,9 +68,10 @@
 | M5 | Issue 6 - 테스트베드 동기화 및 롤백 정책 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
 | M5 | Issue 7 - 데이터 플레인 연결 확인 (S3 적재) | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
 
-현재 바로 이어서 할 이슈:
+현재 바로 이어서 할 이슈/작업:
 
 ```text
+Daily Factory Report - terraform validate 재검증, enriched v2 Bedrock 실호출, 24시간 daily merge 검증, reporting stack 배포
 M6 Issue 1~4 - Risk 계산, runtime-config 적용, Risk Twin 출력 구조 구현
 ```
 
@@ -101,12 +102,12 @@ scripts/destroy/stop-dummy-generators.sh
 scripts/destroy/destroy-hub.sh <MFA_OTP>
 ```
 
-Hub 상태와 무관하게 다음 구현 작업은 M6 Issue 1부터 시작한다. 구현 대상은 Risk 계산 보강, `runtime-config.yaml` 적용, 온도/습도 기준값 초안, Risk Twin 출력 구조다.
+Hub 상태와 무관하게 다음 구현 작업은 daily factory report 검증/AWS 실행을 먼저 마무리한 뒤 M6 Issue 1~4를 병행한다. daily report는 `apps/daily-report-generator/`와 `infra/reporting/` 로컬 구현이 진행된 상태이며, Bedrock 실호출과 24시간 검증, AWS 배포가 남았다.
 
 ## 현재 큰 상태
 
 ```text
-현재 단계: M4 data-pipeline end-to-end 검증 완료, M6 Risk Twin/Dashboard 착수 대기 (2026-05-27)
+현재 단계: M6 Risk Twin/Dashboard 및 MVP Daily Factory Report 구현 진행 (2026-05-27)
 
 완료: M3 Issue 1~5 배포 파이프라인 전체
 완료: M4 Issue 1~5/8 raw 데이터 플레인
@@ -210,7 +211,7 @@ Hub-only 삭제/재생성 운영 순서:
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
 AWS 실제 리소스 상태: 2026-05-27 기준 Hub/Foundation/IoT/Admin UI/data-pipeline 리소스 활성. Hub EKS, foundation S3/AMP/ECR/DynamoDB, IoT Rule 3개, Lambda data processor, `factory-a/b/c` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태.
 Terraform state: infra/hub apply 완료, infra/foundation apply 완료, infra/data-pipeline apply 완료
-다음 작업 우선순위: M6 Risk Twin/Dashboard 구현.
+다음 작업 우선순위: daily factory report 검증/AWS 실행 완료 후 M6 Risk Twin/Dashboard 구현.
 ```
 
 ## 지금까지 완료한 일
@@ -456,58 +457,48 @@ secret exists, DATA=4
 
 ## 다음에 할 일
 
-### 1. 다음 시작 작업: Hub ArgoCD GitOps 배포 자동화
+### 1. Daily Factory Report 검증과 AWS 실행
 
-M4 Issue 5까지 완료했고, 2026-05-19 기준 factory-a 배포는 Hub EKS ArgoCD ApplicationSet 경로로 전환했다.
-
-다음 세션에서 진행할 내용:
+로컬 구현은 진행됐고, 다음 세션에서는 실제 실행 경로 검증을 우선한다.
 
 ```text
-Hub ArgoCD GitOps 배포 자동화 구성
-  목적: Hub EKS ArgoCD -> GitHub 연결 -> factory-a K3s 배포를 자동화하는 설정 파일 작성
-  범위:
-    - Hub EKS ArgoCD에서 GitHub repo 연결 설정 (Ansible playbook 또는 sh)
-    - factory-a K3s cluster Secret 등록 자동화 (Tailscale IP 기반)
-    - aegis-spoke ApplicationSet 등록 자동화
-    - factory-a-log-adapter, edge-iot-publisher 두 파드가 ArgoCD GitOps로 배포되는 것 검증
-
-  사전 조건:
-    - Hub EKS 재구성 (scripts/build/build-hub.sh)
-    - factory-a master Tailscale 참여 상태 유지 (현재 정상)
-    - ECR 이미지 sha-f71a104 유지 (현재 정상)
-    - IoT Secret, ECR pull secret ai-apps namespace에 존재 (현재 정상)
-
-  관련 기존 파일:
-    - scripts/ansible/playbooks/hub_argocd_bootstrap.yml
-    - scripts/ansible/playbooks/hub_argocd_verify.yml
-    - charts/aegis-spoke/
-    - envs/factory-a/values.yaml
-```
-
-현재 상태:
-
-```text
-M4 Issue 6~7 Lambda data processor / pipeline_status 구현 및 검증 완료
-  - IoT Core Rule -> Lambda 트리거
-  - 정규화, Risk Score 계산
-  - DynamoDB LATEST/HISTORY, S3 processed 저장
-```
-
-로컬/재생성 후 확인할 명령:
-
-```bash
-cd /home/vicbear/Aegis/git_clone/Aegis-pi
-scripts/build/build-hub.sh
-ssh minsoo@10.10.10.10 'tailscale status --self; tailscale ip -4'
-aws eks describe-cluster --region ap-south-1 --name AEGIS-EKS
+1. cd /home/vicbear/Aegis/git_clone/Aegis-pi
+2. git status --short 로 변경 파일 확인
+3. python -m pytest -q 재실행
+4. python -m compileall -q apps/daily-report-generator 재실행
+5. terraform fmt -check -diff 재실행
+6. infra/reporting 기준 terraform validate 재실행
+7. /home/vicbear/Aegis/test_paper/factory-b-hh03-report-context-enriched-v2.json 기반 enriched v2 Bedrock 실호출
+8. 생성 Markdown에서 factory/date/Risk Score/collection count/evidence id/recommended checks/S3 processed 한계 검증
+9. 24시간 daily merge fixture 또는 실제 processed day 입력으로 missing_hour_count=0, count 합산, hour boundary event merge 검증
+10. scripts/build/build-reporting.sh 로 reporting stack 배포
+11. Step Functions DailyFactoryReportStateMachine 수동 실행
+12. S3 reports/daily/.../{factory_id}/ 산출물 확인
 ```
 
 주의:
 
-- Secret 값, private key, SSH 비밀번호, MFA OTP는 문서에 기록하지 않는다.
-- 현재 local `secret/iot/factory-a/registration-summary.txt` 기준 Thing 이름은 `AEGIS-IoTThing-factory-a`다.
+```text
+factory-b hh=03 enriched v2 context는 단일 hour 테스트라 missing_hour_count=23이 정상.
+24시간 daily merge에서는 missing_hour_count=0 여부를 별도 검증해야 함.
+terraform validate는 sandbox provider plugin 실행 제한으로 이전 세션에서 재검증하지 못했음.
+AWS Bedrock 실호출은 외부 호출 승인/사용량 제한 때문에 아직 수행하지 못했음.
+```
 
-### 2. Hub 재기동 순서
+### 2. M6 Risk Twin/Dashboard 구현
+
+Daily report 검증을 마친 뒤 M6 Issue 1~4를 진행한다.
+
+```text
+1. Lambda data processor Risk 계산 보강
+2. runtime-config.yaml 적용
+3. 온도/습도 기준값 초안 적용
+4. Risk Twin 출력 구조 구현
+5. Dashboard Web/API 또는 Grafana 관제 화면 구현
+6. DynamoDB LATEST/HISTORY와 S3 processed read-only 조회 검증
+```
+
+### 3. Hub 재기동 순서
 
 Hub EKS를 destroy한 뒤 다시 필요한 작업을 시작할 때는 아래 순서로 올린다.
 
@@ -634,31 +625,38 @@ scripts/destroy/destroy-all.sh
 
 ## 문서 갱신 상태
 
-M1 Issue 4/5/6/7/8/9/10/12 완료, IoT Rule -> S3 raw 적재, `risk/risk-normalizer` IRSA 검증, AMP Workspace 생성, `observability/prometheus-agent` remote_write 수신 검증, Grafana AMP datasource query 검증, AWS Load Balancer Controller, Admin UI HTTPS Ingress, runtime-config.yaml과 VM dummy data 추천값, M2 Issue 1~6 완료 상태, 2026-05-08 전체 destroy 후 현재 AWS 삭제 상태를 문서에 반영했다.
-AWS 비용 기준은 `docs/ops/15_aws_cost_baseline.md`에 추가했고, AWS 리소스나 상시 운영 경로가 추가될 때 함께 갱신하는 규칙을 `docs/README.md`, `docs/ops/README.md`, `docs/planning/11_delivery_ownership_flow.md`에 반영했다.
-또한 앞으로의 구현 책임 경계를 Terraform, Ansible, GitHub Actions, GitHub+ArgoCD 흐름으로 고정하고 관련 문서를 최신화했다.
+M1~M5 완료 상태와 2026-05-27 daily factory report 구현 진행 상태를 문서에 반영했다.
+AWS 비용 기준은 `docs/ops/15_aws_cost_baseline.md`에 있고, AWS 리소스나 상시 운영 경로가 추가될 때 함께 갱신한다.
+구현 책임 경계는 Terraform, Ansible, GitHub Actions, GitHub+ArgoCD 흐름으로 고정한다.
 
 - `README.md`
 - `docs/README.md`
+- `docs/issues/M6_risk-twin-dashboard.md`
 - `docs/issues/M1_hub-cloud.md`
 - `docs/issues/M3_deploy-pipeline.md`
 - `docs/issues/MASTER_CHECKLIST.md`
 - `docs/issues/SESSION_STATE.md`
 - `docs/ops/README.md`
+- `docs/ops/00_quick_start.md`
 - `docs/ops/13_hub_namespace_baseline.md`
 - `docs/ops/14_hub_run_commands.md`
 - `docs/ops/15_aws_cost_baseline.md`
 - `docs/ops/16_hub_prometheus_amp.md`
 - `docs/ops/17_hub_grafana_amp.md`
+- `docs/ops/24_daily_factory_report.md`
 - `docs/planning/09_m1_eks_vpc_decision_record.md`
 - `docs/planning/00_project_overview.md`
 - `docs/planning/02_implementation_plan.md`
+- `docs/planning/17_llm_daily_factory_report_plan.md`
 - `docs/planning/11_delivery_ownership_flow.md`
 - `infra/README.md`
 - `infra/hub/README.md`
 - `infra/foundation/README.md`
+- `infra/reporting/README.md`
+- `apps/daily-report-generator/README.md`
 - `scripts/iot/README.md`
 - `scripts/build/README.md`
+- `scripts/destroy/README.md`
 - `scripts/hub/README.md`
 - `scripts/README.md`
 - `scripts/ansible/README.md`
@@ -686,57 +684,54 @@ a65216f docs: record mentoring-based MVP and architecture updates
 현재 세션 정리 내용:
 
 ```text
-2026-05-18 세션 저장 기준
+2026-05-27 세션 저장 기준
 
-M4 Issue 2~5 완료:
-  factory-a-log-adapter 구현, Dockerfile CMD --loop 수정, outbox chmod 0o640 수정
-  edge-iot-publisher 구현, endpoint strip() 수정
-  ECR 신규 repo 2개 Terraform apply: aegis/factory-a-log-adapter, aegis/edge-iot-publisher
-  GitHub Actions matrix 빌드 3종: edge-agent, factory-a-log-adapter, edge-iot-publisher
-  ECR 이미지 sha-f71a104 push 완료
-  Helm chart 확장: imagePullSecrets, fsGroup: 10001, Longhorn storageClass
-  초기 helm template | kubectl apply 직접 배포 검증 후 Hub ArgoCD ApplicationSet 배포 경로로 전환
-  S3 raw 적재 확인: raw/factory-a/factory_state/, raw/factory-a/infra_state/
-  검증 완료 후 파드 정리, ECR 이미지/PVC/IoT Secret은 유지
+M4/M5 완료 상태:
+  factory-a/b/c data-pipeline은 IoT Core -> S3 raw, IoT Core -> Lambda -> DynamoDB/S3 processed 흐름 검증 완료.
+  factory-b/c는 2-node VM K3s 테스트베드, local dummy generator, common edge-iot-publisher, Chrony 시각 동기화 기준으로 검증 완료.
+  factory-a 최신 processed state_snapshot 기준 nodes_ready=3/3, pods_ready=6/6, pipeline_status=normal 확인.
 
-문서 최신화:
-  docs/planning/16_m4_edge_data_plane_implementation.md 신규 생성
-  docs/architecture/00_current_architecture.md 갱신 (2026-05-18)
-  docs/issues/M4_data-plane.md Issue 5 완료 기록
-  docs/ops/10_edge_workload_placement.md 실제 결과 반영
+Daily Factory Report 구현 진행:
+  apps/daily-report-generator/ package와 4개 Lambda handler 구현 진행.
+  AggregateFactoryHour:
+    not_ready_nodes, unhealthy_workloads 구조화.
+    node 이름이 비어 있으면 control-plane:Unknown, worker:Unknown 같은 fallback label 사용.
+  MergeFactoryDaily:
+    ai_spike_event_count, ai_spike_event_counts, ai_spike_event_examples 추가.
+    likely_infra_causes 추가.
+    recommended_checks를 rule 기반으로 생성하고 evidence message id 1~2개 포함.
+  PromptBuilder:
+    AI spike evidence, infra cause, recommended_checks, S3 processed/raw 한계, testbed/dummy 해석 반영.
+  infra/reporting/ Terraform root module 추가.
+  scripts/build/build-reporting.sh, scripts/destroy/destroy-reporting.sh 추가.
 
-다음 세션 우선 작업:
-  Hub EKS 재구성 + Hub ArgoCD ApplicationSet 기반 factory-a K3s 배포 자동화 구성
-  -> 직접 배포 검증 이력을 GitOps 운영 경로로 전환 완료
-  그 이후: M4 Issue 6~7 Lambda data processor / pipeline_status 구현 및 검증 완료
+저장된 테스트 산출물:
+  /home/vicbear/Aegis/test_paper/factory-b-hh03-report-context-enriched-v2.json
+  /home/vicbear/Aegis/test_paper/factory-b-hh03-prompt-enriched-v2.txt
+  /home/vicbear/Aegis/test_paper/factory-b-hh03-hourly-aggregate-enriched-v2.json
+  /home/vicbear/Aegis/test_paper/factory-b-hh03-enriched-v2-test-note.md
 
-2026-05-27 추가 진행:
-  factory-a infra_state raw/processed/state_snapshot 재검증 완료
-  factory-a-log-adapter:main 배포 및 Prometheus node CPU/memory/disk 수집 반영
-  factory-a ai-apps/ecr-registry imagePullSecret 만료로 ErrImagePull 발생, secret 갱신 후 rollout 복구
-  DataProcessor Lambda archive에서 __pycache__/pyc 제외 후 재배포
-  중복 KJW IoT Rule 2개 비활성화:
-    KJW_AEGIS_Data_IoTRule_infra_state_processor
-    KJW_AEGIS_Data_IoTRule_factory_state_processor
-  최신 processed state_snapshot 기준 nodes_ready=3/3, pods_ready=6/6, pipeline_status=normal 확인
+검증:
+  python -m pytest -q 통과: 9 passed
+  python -m compileall -q apps/daily-report-generator 통과
+  terraform fmt -check -diff 통과
+  terraform validate는 sandbox provider plugin 실행 제한으로 실패했고, escalated 재시도는 사용량 제한으로 거절되어 이번 세션에서 재검증하지 못함.
 
-2026-05-27 LLM daily report 문서화:
-  docs/planning/17_llm_daily_factory_report_plan.md를 MVP reporting source of truth로 확정
-  AWS Region은 ap-south-1로 고정
-  Bedrock 기반 factory별 일일 운영 보고서는 MVP 포함
-  입력은 S3 processed/{factory_id}/{factory_state,risk_score,infra_state}, raw 직접 LLM 입력 제외
-  출력은 reports/daily/yyyy=YYYY/mm=MM/dd=DD/{factory_id}/ 아래 report.md, report-context.json, factory-daily-summary.json, generation-metadata.json
-  infra_state fixture는 최신 processed 포맷으로 정리:
-    node_id, ready, cpu_usage_percent, memory_usage_percent, disk_usage_percent, network_reachability, device available
-  infra/reporting은 foundation remote state를 읽지 않고 data_bucket_name variable + data.aws_s3_bucket 조회 방식으로 확정
-  docs/product/00_mvp_scope.md, docs/product/02_requirements_definition.md, docs/planning/00_project_overview.md, docs/planning/02_implementation_plan.md, docs/ops/15_aws_cost_baseline.md, docs/ops/24_daily_factory_report.md 최신화
+주의:
+  factory-b hh=03 enriched v2 context는 단일 hour 테스트라 missing_hour_count=23이 정상.
+  24시간 daily merge에서는 missing_hour_count=0, 24시간 count 합산, hour boundary event merge를 별도 검증해야 함.
+  enriched v2 Bedrock 실호출과 AWS reporting stack 배포는 아직 하지 않음.
 
 다음 세션 우선 작업:
-  1. apps/daily-report-generator/ skeleton 생성
-  2. processed fixture 기반 AggregateFactoryHour reducer unit test 작성
-  3. MergeFactoryDaily boundary event merge/severity/top N 테스트 작성
-  4. Bedrock mock으로 GenerateFactoryReport report.md 생성까지 구현
-  5. 이후 infra/reporting Terraform과 build/destroy-reporting 스크립트 작성
+  1. git status --short 로 변경 파일 확인
+  2. 로컬 pytest/compileall/fmt 재실행
+  3. terraform validate 재실행
+  4. enriched v2 Bedrock 실호출
+  5. Bedrock 출력 invariant와 보고서 품질 검토
+  6. 24시간 daily merge 검증
+  7. reporting stack 배포
+  8. Step Functions 수동 실행과 S3 reports/daily 산출물 확인
+  9. 이후 M6 Risk 계산/runtime-config/Risk Twin 출력 구조 구현
 ```
 
 ## 갱신 규칙
