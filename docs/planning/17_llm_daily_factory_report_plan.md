@@ -1801,7 +1801,7 @@ factory별 결과 상태 예시:
 
 기준:
 
-- Region: `us-east-1` 기준 추정
+- Region: `ap-south-1` 기준 추정
 - 실행 주기: 하루 1회
 - 대상 factory: `factory-a`, `factory-b`, `factory-c`
 - 무료 티어: 미적용
@@ -1811,6 +1811,7 @@ factory별 결과 상태 예시:
 주의:
 
 실제 비용은 region, Lambda duration, S3 object 수, Bedrock model, prompt/context token 수에 따라 달라진다. 이 섹션은 MVP 설계 판단을 위한 추정이다.
+Bedrock model availability와 account-level model access는 `ap-south-1`에서 배포 전 별도 확인한다.
 
 MVP 규모 가정:
 
@@ -2328,7 +2329,7 @@ infra/reporting/
 | `providers.tf` | AWS provider, region variable |
 | `variables.tf` | project, environment, region, bucket, schedule, Bedrock model variables |
 | `locals.tf` | name prefix, tags, Lambda names, common env |
-| `data.tf` | foundation remote state 또는 기존 S3 bucket 참조 |
+| `data.tf` | `data_bucket_name` variable로 기존 S3 bucket 조회 |
 | `iam.tf` | Lambda role/policy, Step Functions role, Scheduler role |
 | `lambda.tf` | 4개 Lambda function, package file, env, timeout/memory |
 | `stepfunctions.tf` | State machine definition |
@@ -2341,7 +2342,7 @@ infra/reporting/
 ```hcl
 variable "aws_region" {
   type    = string
-  default = "us-east-1"
+  default = "ap-south-1"
 }
 
 variable "project_name" {
@@ -2379,6 +2380,16 @@ variable "schedule_expression" {
   default = "cron(30 15 * * ? *)"
 }
 ```
+
+`infra/reporting/`은 MVP에서 foundation remote state를 읽지 않는다. `data_bucket_name`을 입력값으로 받고 `data "aws_s3_bucket"`으로 기존 버킷 존재 여부를 확인한다.
+
+권장 이유:
+
+- reporting stack이 필요한 foundation 출력은 현재 S3 bucket name/ARN뿐이다.
+- bucket name은 이미 `infra/data-pipeline/`도 variable로 받아 `data.aws_s3_bucket`으로 참조한다.
+- local backend의 `../foundation/terraform.tfstate` 경로에 의존하지 않아 CI/다른 작업 디렉터리에서도 적용하기 쉽다.
+- foundation은 S3 bucket의 생성/삭제 소유권을 유지하고, reporting은 reports prefix 권한만 가진 소비자로 분리된다.
+- 후속으로 AMP workspace ARN, DynamoDB table ARN 등 foundation 출력이 추가로 필요해지면 그때 remote state를 도입한다.
 
 Lambda 설정 초기값:
 
@@ -2698,20 +2709,80 @@ Infra fixture 형태:
   "source_timestamp": "2026-01-01T06:00:00Z",
   "processed_at": "2026-01-01T06:00:01Z",
   "data": {
-    "agent_status": "alive",
-    "nodes_total": 2,
-    "nodes_ready": 2,
+    "heartbeat": {
+      "agent_status": "alive",
+      "last_successful_publish_at": "2026-01-01T06:00:00Z",
+      "last_checkpoint_timestamp": "2026-01-01T06:00:00Z",
+      "publish_sequence": 12345
+    },
+    "cluster": {
+      "cluster_name": "factory-a",
+      "kubernetes_version": "v1.34.6+k3s1"
+    },
+    "nodes_total": 3,
+    "nodes_ready": 3,
     "nodes": [
-      {"name": "master", "role": "control-plane", "status": "Ready"},
-      {"name": "worker2", "role": "worker", "status": "Ready"}
+      {
+        "node_id": "master",
+        "role": "control-plane",
+        "ready": true,
+        "cpu_usage_percent": 31.2,
+        "memory_usage_percent": 55.4,
+        "disk_usage_percent": 42.1,
+        "network_reachability": "ok"
+      },
+      {
+        "node_id": "worker1",
+        "role": "failover-standby",
+        "ready": true,
+        "cpu_usage_percent": 22.8,
+        "memory_usage_percent": 48.0,
+        "disk_usage_percent": 39.5,
+        "network_reachability": "ok"
+      },
+      {
+        "node_id": "worker2",
+        "role": "sensor-ai-audio-preferred",
+        "ready": true,
+        "cpu_usage_percent": 44.8,
+        "memory_usage_percent": 63.0,
+        "disk_usage_percent": 45.5,
+        "network_reachability": "ok"
+      }
     ],
-    "pods_ready": 2,
-    "pods_total": 2,
+    "pods_ready": 6,
+    "pods_total": 6,
     "workloads": [
-      {"namespace": "ai-apps", "name": "edge-iot-publisher", "containers_ready": 1, "containers_total": 1, "restart_count": 0}
+      {
+        "namespace": "ai-apps",
+        "name": "safe-edge-integrated-ai",
+        "status": "Running",
+        "ready": true,
+        "restart_count": 0,
+        "node_id": "worker2"
+      },
+      {
+        "namespace": "ai-apps",
+        "name": "bme280-sensor",
+        "status": "Running",
+        "ready": true,
+        "restart_count": 0,
+        "node_id": "worker2"
+      }
     ],
     "devices": {
-      "bme280": {"status": "available"}
+      "bme280": {
+        "available": true,
+        "last_seen_at": "2026-01-01T06:00:00Z"
+      },
+      "camera": {
+        "available": true,
+        "last_seen_at": "2026-01-01T06:00:00Z"
+      },
+      "microphone": {
+        "available": true,
+        "last_seen_at": "2026-01-01T06:00:00Z"
+      }
     }
   },
   "pipeline_status": {
@@ -2817,7 +2888,7 @@ MVP 완료 조건:
 | 확장 산출물 | DOCX/PDF는 후처리 Lambda 확장으로 분리 | 충족 |
 | 구현 착수성 | 앱/인프라 위치와 테스트 순서 제시 | 충족 |
 
-남은 open question은 구현 전 선택값이며, 현재 계획의 구조적 완성도를 막지는 않는다.
+남은 항목은 구현 전 검증값이며, 현재 계획의 구조적 완성도를 막지는 않는다.
 
 ## 확정 기본값과 변경 필요 항목
 
@@ -2825,6 +2896,7 @@ MVP 완료 조건:
 
 | 항목 | 확정 기본값 |
 | --- | --- |
+| AWS region | `ap-south-1` |
 | Bedrock 모델 ID | `anthropic.claude-3-haiku-20240307-v1:0` |
 | 보고서 언어 | 한국어 |
 | 생성 시각 | 매일 00:30 KST |
@@ -2839,23 +2911,77 @@ MVP 완료 조건:
 | `bedrock-response.json` 저장 | 기본 `false` |
 | DOCX/PDF | 확장 범위. MVP 기본 출력은 Markdown |
 | 전체 공장 요약 보고서 | 후속 확장 범위 |
+| reporting Terraform의 S3 참조 방식 | `data_bucket_name` variable + `data.aws_s3_bucket` 조회 |
 
 구현 전 다시 확인할 항목은 아래뿐이다.
 
-- 실제 AWS 계정/region에서 선택한 Bedrock model 사용 권한이 열려 있는지
-- `aegis-bucket-data` bucket 이름이 대상 환경에서 동일한지
-- `infra/reporting/`이 foundation remote state를 읽을지, bucket name variable만 받을지
+- 실제 AWS 계정의 `ap-south-1` region에서 선택한 Bedrock model 사용 권한이 열려 있는지
+- `aegis-bucket-data` bucket 이름이 대상 환경에서 동일한지. 다르면 `data_bucket_name` variable로 override한다.
+
+## 다음 세션 시작 상태
+
+2026-05-27 세션 종료 기준 상태다. 다음 세션에서 사용자가 "`17_llm_daily_factory_report_plan.md` 파일 확인하고 바로 보고서 생성 파이프라인 진행하자"고 요청하면, 이 섹션을 확인한 뒤 별도 설계 재논의 없이 구현을 시작한다.
+
+현재 완료 상태:
+
+- `factory-a/b/c` data-pipeline은 실제 AWS 리소스 기준 end-to-end 검증 완료.
+- Region은 `ap-south-1`로 확정.
+- S3 bucket은 `aegis-bucket-data`를 기본값으로 사용.
+- IoT Core Rule 3개는 S3 raw action과 Lambda action을 통해 data processor로 연결됨.
+- `AEGIS-Lambda-DataProcessor`는 Active/Successful 상태로 검증됨.
+- DynamoDB `AEGIS-DynamoDB-FactoryStatus`는 `factory-a/b/c` LATEST 갱신 확인.
+- S3 `processed/factory-a,b,c/`에 `factory_state`, `risk_score`, `infra_state`, `state_snapshot` 적재 확인.
+- 최신 `factory-a` processed `state_snapshot` 기준 `nodes_ready=3/3`, `pods_ready=6/6`, `pipeline_status=normal`.
+- `factory-a` infra metrics는 최신 포맷 기준으로 채워짐:
+  - `node_id`
+  - `ready`
+  - `cpu_usage_percent`
+  - `memory_usage_percent`
+  - `disk_usage_percent`
+  - `network_reachability`
+  - device `available`
+- `factory-b/c`는 테스트베드형 factory이며 dummy data generator + common publisher 기반이다.
+- LLM daily report는 MVP 포함으로 확정.
+- Bedrock에는 S3 raw 원본 전체를 직접 넣지 않고, Lambda가 만든 `report-context.json`만 전달한다.
+- `infra/reporting/`은 foundation remote state를 읽지 않고 `data_bucket_name` variable + `data.aws_s3_bucket` 조회 방식으로 구현한다.
+
+이미 최신화한 문서:
+
+- `docs/product/00_mvp_scope.md`
+- `docs/product/02_requirements_definition.md`
+- `docs/planning/00_project_overview.md`
+- `docs/planning/02_implementation_plan.md`
+- `docs/ops/15_aws_cost_baseline.md`
+- `docs/ops/24_daily_factory_report.md`
+- `docs/specs/data_storage_pipeline.md`
+- `apps/data-processor/README.md`
+- `docs/issues/SESSION_STATE.md`
+
+다음 세션에서 바로 시작할 작업:
+
+1. `apps/daily-report-generator/` package skeleton 생성.
+2. `apps/daily-report-generator/tests/fixtures/`에 최신 processed 포맷 기반 fixture 작성.
+3. `AggregateFactoryHour` reducer unit test부터 작성.
+4. S3 reader는 실제 AWS 호출 전에 local fixture reader/mock으로 검증.
+5. `MergeFactoryDaily`의 hour boundary event merge, severity score, top N 테스트 작성.
+6. Bedrock은 mock client로 시작하고, `report-context.json` -> `report.md` 생성 경로를 먼저 완성.
+7. 그 다음 `infra/reporting/`, `build-reporting.sh`, `destroy-reporting.sh`를 추가.
+
+구현 시작 전 실무 확인:
+
+- `ap-south-1`에서 `anthropic.claude-3-haiku-20240307-v1:0` model access가 열려 있는지 확인.
+- 만약 해당 모델이 `ap-south-1`에서 사용 불가하면, 같은 문서의 Bedrock model ID 기본값을 사용자 승인 후 변경한다.
 
 ## 다음 세션 작업 지시
 
 새 세션에서 바로 구현을 시작하려면 아래 순서로 진행한다.
 
-1. 이 문서를 읽고 현재 결정을 유지할지 사용자에게 확인한다.
-2. `docs/product/00_mvp_scope.md`, `docs/product/02_requirements_definition.md`, `docs/planning/00_project_overview.md`를 이 문서 기준으로 갱신한다.
+1. 이 문서와 `docs/ops/24_daily_factory_report.md`를 읽는다.
+2. 현재 결정값이 유지되는지 확인한다. 사용자가 바로 진행하라고 하면 확인 질문 없이 구현한다.
 3. `apps/daily-report-generator/` skeleton과 unit test fixture를 만든다.
 4. `AggregateFactoryHour`부터 구현한다. 이때 평균뿐 아니라 max/p95/p05, threshold 초과 구간, spike event, evidence message_id 보존 테스트를 먼저 작성한다.
 5. `MergeFactoryDaily` 구현 전 hour 경계 이벤트 병합과 severity_score top N 테스트를 작성한다.
 6. 실제 Bedrock 호출은 마지막에 붙이고, 먼저 mock Bedrock으로 `report.md` 생성까지 끝낸다.
 7. Bedrock output validation을 추가해 핵심 수치 mismatch를 잡는다.
 8. `infra/reporting/` Terraform과 build/destroy 스크립트를 추가한다.
-9. 비용 기준 문서를 갱신한다.
+9. 비용 기준 문서는 이미 기본 추정이 반영되어 있으므로, 실제 리소스 배포 후 단가/사용량이 달라지면 갱신한다.

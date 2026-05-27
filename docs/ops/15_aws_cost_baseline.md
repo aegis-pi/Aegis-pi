@@ -1,7 +1,7 @@
 # AWS Cost Baseline
 
 상태: source of truth
-기준일: 2026-05-19
+기준일: 2026-05-27
 리전: `ap-south-1` / Asia Pacific (Mumbai)
 
 ## 목적
@@ -36,6 +36,7 @@
 | EKS workload | ArgoCD (7 pod), Grafana, Prometheus Agent | active | observability/argocd ns |
 | EKS workload | AWS LB Controller × 2, Tailscale Operator + 3 proxy | active | kube-system/tailscale ns |
 | CloudWatch Logs | `/aws/eks/AEGIS-EKS/cluster` | 1 | 보존 여부 별도 확인 필요 |
+| Reporting | Daily factory report stack | 0 | 설계 확정, 아직 미배포 |
 
 2026-05-08 destroy 이후 KMS key `775cd837-1961-4660-893f-f220d9f250be` 등 이전 키는 `PendingDeletion` 상태(삭제 예정일 2026-06-07)이며 대기 기간 동안 monthly key storage charge는 없다.
 
@@ -148,6 +149,44 @@ AMP는 현재 구성에서 **가장 큰 사용량 기반 비용**이다. 2026-05
 | CloudWatch Logs ingest/storage | ingest bytes와 저장량 기준 | active EKS cluster 로그 보존 여부 별도 확인 필요 |
 | ACM public certificate | public certificate 기준 | ALB에 연결하는 public ACM certificate 자체는 과금 없음 |
 | ALB LCU | new connections, processed bytes 기준 | Admin UI Ingress 활성화 후 접속량에 따라 증가 |
+
+### Daily Factory Report Reporting Stack
+
+2026-05-27 기준 Bedrock 기반 factory별 일일 운영 보고서는 MVP 포함으로 확정했지만 아직 배포되지 않았다. 배포 후에는 `infra/reporting/`이 별도 Terraform root module로 관리되며, Region은 `ap-south-1`이다.
+
+설계 기준:
+
+```text
+EventBridge Scheduler: 1회/day
+Step Functions Standard: DailyFactoryReportStateMachine
+Lambda: PrepareReportWindow 1회/day
+Lambda: AggregateFactoryHour 72회/day
+Lambda: MergeFactoryDaily 3회/day
+Lambda: GenerateFactoryReport 3회/day
+S3 input: processed/factory-a,b,c/{factory_state,risk_score,infra_state}
+S3 output: reports/daily/yyyy=YYYY/mm=MM/dd=DD/{factory_id}/
+Bedrock input: report-context.json only
+```
+
+월간 MVP 추정 비용:
+
+| 항목 | 월 추정 비용 | 비고 |
+| --- | ---: | --- |
+| Lambda | ~$1.1~$2.2 | 79 invocation/day, AggregateFactoryHour 중심 |
+| Step Functions Standard | ~$0.1 | state transition 기준 소량 |
+| S3 GET/LIST/PUT | ~$2.3 | processed small object read가 주 비용 |
+| CloudWatch Logs | ~$0.02~$0.15 | payload logging 금지 전제 |
+| Bedrock Claude 3 Haiku | ~$0.35~$0.75 | factory별 보고서 3개/day |
+| Bedrock Claude 3.5 Haiku | ~$1.10~$2.35 | 모델 변경 시 대체 추정 |
+| **합계** | **~$3.8~$7/month** | 보수적으로 ~$10/month 이하를 초기 기준으로 둠 |
+
+비용 통제 기준:
+
+- S3 `raw/`와 `state_snapshot/` 전체를 매일 읽지 않는다.
+- Bedrock에는 `report-context.json`만 전달한다.
+- `MAX_CONTEXT_EVENTS=10`, `MAX_CONTEXT_BYTES=120000` 기본값을 유지한다.
+- Lambda 로그에는 raw payload와 Bedrock prompt 전문을 남기지 않는다.
+- reporting Terraform은 `data_bucket_name` variable로 기존 S3 bucket을 조회하고, foundation remote state에 의존하지 않는다.
 
 ## 주요 비용 원인 분석 (2026-05-19 기준)
 
