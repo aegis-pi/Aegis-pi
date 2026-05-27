@@ -1,7 +1,7 @@
 # LLM Daily Factory Report Plan
 
 상태: source of truth
-기준일: 2026-05-26
+기준일: 2026-05-27
 범위: MVP 포함 기능
 
 ## 목적
@@ -2796,59 +2796,54 @@ Infra fixture 형태:
 
 문서 기반 구현 완료 체크리스트:
 
-- [ ] `apps/daily-report-generator/` package 생성
-- [ ] 4개 Lambda handler 생성
-- [ ] 공통 config/time_window/s3_keys 모듈 구현
-- [ ] S3 reader가 ListObjectsV2 pagination을 처리
-- [ ] S3 reader가 bounded concurrency GET을 지원
-- [ ] JSON parse 실패가 전체 Lambda 실패로 이어지지 않음
-- [ ] `AggregateFactoryHour`가 empty hour summary를 생성
-- [ ] `AggregateFactoryHour`가 expected/actual count를 계산
-- [ ] `AggregateFactoryHour`가 avg/min/max/p05/p95를 계산
-- [ ] spike event와 threshold window가 평균에 묻히지 않음
-- [ ] evidence message id 또는 S3 key가 summary에 남음
-- [ ] `MergeFactoryDaily`가 24개 hour summary를 병합
-- [ ] hour boundary event merge 테스트 통과
-- [ ] severity score top N 테스트 통과
-- [ ] factory profile/testbed interpretation mode 포함
-- [ ] `report-context.json`이 compact context 기준을 만족
-- [ ] `GenerateFactoryReport`가 Bedrock mock으로 report.md 생성
-- [ ] Bedrock output invariant validation 구현
-- [ ] `generation-metadata.json` 저장
-- [ ] `infra/reporting/` Terraform root module 생성
-- [ ] Lambda IAM role에 S3/Bedrock/Logs 권한 최소 부여
-- [ ] Step Functions role에 Lambda invoke 권한 부여
-- [ ] EventBridge Scheduler role에 `states:StartExecution` 권한 부여
-- [ ] CloudWatch log retention 14일 설정
-- [ ] `scripts/build/build-reporting.sh` 추가
-- [ ] `scripts/destroy/destroy-reporting.sh` 추가
-- [ ] `docs/ops/24_daily_factory_report.md` 운영 문서 추가
-- [ ] 1~2시간 fixture dry run 성공
+- [x] `apps/daily-report-generator/` package 생성
+- [x] 4개 Lambda handler 생성
+- [x] 공통 config/time_window/s3_keys 모듈 구현
+- [x] S3 reader가 ListObjectsV2 pagination을 처리
+- [x] S3 reader가 bounded concurrency GET을 지원
+- [x] JSON parse 실패가 전체 Lambda 실패로 이어지지 않음
+- [x] `AggregateFactoryHour`가 empty hour summary를 생성
+- [x] `AggregateFactoryHour`가 expected/actual count를 계산
+- [x] `AggregateFactoryHour`가 avg/min/max/p05/p95를 계산
+- [x] spike event와 threshold window가 평균에 묻히지 않음
+- [x] evidence message id 또는 S3 key가 summary에 남음
+- [x] `MergeFactoryDaily`가 24개 hour summary를 병합
+- [x] hour boundary event merge 테스트 통과
+- [x] severity score top N 테스트 통과
+- [x] factory profile/testbed interpretation mode 포함
+- [x] `report-context.json`이 compact context 기준을 만족
+- [x] `GenerateFactoryReport`가 Bedrock mock으로 report.md 생성
+- [x] Bedrock output invariant validation 구현
+- [x] `generation-metadata.json` 저장
+- [x] `infra/reporting/` Terraform root module 생성
+- [x] Lambda IAM role에 S3/Bedrock/Logs 권한 최소 부여
+- [x] Step Functions role에 Lambda invoke 권한 부여
+- [x] EventBridge Scheduler role에 `states:StartExecution` 권한 부여
+- [x] CloudWatch log retention 14일 설정
+- [x] `scripts/build/build-reporting.sh` 추가
+- [x] `scripts/destroy/destroy-reporting.sh` 추가
+- [x] `docs/ops/24_daily_factory_report.md` 운영 문서 추가
+- [x] 1~2시간 fixture dry run 성공
 - [ ] 24시간 dry run 성공
 - [ ] 실제 S3 prefix 대상 수동 Step Functions 실행 성공
 - [ ] factory별 `report-context.json`과 `report.md` 생성 확인
 
-### 9. 첫 구현 세션 권장 순서
+### 9. 다음 구현 세션 권장 순서
 
-첫 구현 세션에서는 인프라보다 로컬 로직을 먼저 완성한다.
+로컬 구현은 진행됐으므로 다음 세션에서는 검증과 AWS 실행을 우선한다.
 
 ```text
-1. apps/daily-report-generator skeleton 생성
-2. fixture 생성
-3. time_window/s3_keys 구현
-4. aggregate_hour reducer 구현
-5. aggregate_hour tests 통과
-6. merge_daily 구현
-7. merge_daily tests 통과
-8. context_builder 구현
-9. GenerateFactoryReport를 Bedrock mock으로 구현
-10. validation 구현
-11. infra/reporting Terraform 추가
-12. build/destroy scripts 추가
-13. AWS 수동 실행 검증
+1. 로컬 pytest/compileall 재실행
+2. terraform validate 재실행
+3. enriched v2 Bedrock 실호출
+4. Bedrock 출력 invariant와 보고서 품질 검토
+5. 24시간 daily merge 검증
+6. reporting stack AWS 배포
+7. Step Functions 수동 실행 검증
+8. S3 reports/daily 산출물 확인
 ```
 
-이 순서를 지키면 Bedrock과 Terraform에 들어가기 전에 보고서 품질을 결정하는 핵심 reducer/merge 로직을 먼저 검증할 수 있다.
+이 순서를 지키면 이미 구현한 reducer/merge/prompt 품질을 실제 Bedrock 출력과 AWS 실행 경로에서 검증할 수 있다.
 
 ## Acceptance Criteria
 
@@ -2920,7 +2915,7 @@ MVP 완료 조건:
 
 ## 다음 세션 시작 상태
 
-2026-05-27 세션 종료 기준 상태다. 다음 세션에서 사용자가 "`17_llm_daily_factory_report_plan.md` 파일 확인하고 바로 보고서 생성 파이프라인 진행하자"고 요청하면, 이 섹션을 확인한 뒤 별도 설계 재논의 없이 구현을 시작한다.
+2026-05-27 세션 최신 기준 상태다. 다음 세션에서 사용자가 "`17_llm_daily_factory_report_plan.md` 파일 확인하고 바로 보고서 생성 파이프라인 진행하자"고 요청하면, 이 섹션을 확인한 뒤 별도 설계 재논의 없이 구현을 이어간다.
 
 현재 완료 상태:
 
@@ -2944,6 +2939,13 @@ MVP 완료 조건:
 - LLM daily report는 MVP 포함으로 확정.
 - Bedrock에는 S3 raw 원본 전체를 직접 넣지 않고, Lambda가 만든 `report-context.json`만 전달한다.
 - `infra/reporting/`은 foundation remote state를 읽지 않고 `data_bucket_name` variable + `data.aws_s3_bucket` 조회 방식으로 구현한다.
+- `apps/daily-report-generator/` skeleton과 핵심 로컬 로직 구현을 진행했다.
+- `AggregateFactoryHour`는 `not_ready_nodes`, `unhealthy_workloads`를 infra summary에 구조화하고, node 이름이 비어 있으면 `control-plane:Unknown`, `worker:Unknown`처럼 추적 가능한 fallback label을 사용한다.
+- `MergeFactoryDaily`는 `ai_spike_event_count`, `ai_spike_event_examples`, `likely_infra_causes`, rule 기반 `recommended_checks`를 context에 포함한다.
+- `recommended_checks`는 risk degradation, sensor threshold, AI spike, abnormal sound, node readiness, unhealthy workload, data gap, restart 조건을 기준으로 priority/reason/evidence message id를 구성한다.
+- `PromptBuilder`는 AI spike evidence, infra cause, recommended checks, S3 processed/raw 한계, testbed/dummy 해석, LLM 초안 검토 필요를 보고서에 반영하도록 갱신했다.
+- `factory-b` `hh=03` enriched v2 테스트 context/prompt/hourly summary와 검토 노트를 `/home/vicbear/Aegis/test_paper/`에 저장했다.
+- enriched v2 Bedrock 실호출과 AWS 배포는 아직 수행하지 않았다.
 
 이미 최신화한 문서:
 
@@ -2956,16 +2958,26 @@ MVP 완료 조건:
 - `docs/specs/data_storage_pipeline.md`
 - `apps/data-processor/README.md`
 - `docs/issues/SESSION_STATE.md`
+- `/home/vicbear/Aegis/test_paper/factory-b-hh03-enriched-v2-test-note.md`
+- `/home/vicbear/Aegis/0527-daily-report-session.md`
+
+검증 상태:
+
+- `python -m pytest -q`: 통과, 9 passed.
+- `python -m compileall -q apps/daily-report-generator`: 통과.
+- `terraform fmt -check -diff`: 통과.
+- `terraform validate`: sandbox provider plugin 실행 제한으로 실패했고, escalated 재시도는 사용량 제한으로 거절되어 이번 세션에서 재검증하지 못했다. 이전 validate/plan은 통과했던 상태로 기록되어 있다.
+- `/home/vicbear/Aegis/test_paper/factory-b-hh03-report-context-enriched-v2.json`은 단일 `hh=03` 파티션 기반 테스트 context이므로 `missing_hour_count=23`이 정상이다. 24시간 전체 daily merge에서 `missing_hour_count=0`인지 별도 검증이 필요하다.
 
 다음 세션에서 바로 시작할 작업:
 
-1. `apps/daily-report-generator/` package skeleton 생성.
-2. `apps/daily-report-generator/tests/fixtures/`에 최신 processed 포맷 기반 fixture 작성.
-3. `AggregateFactoryHour` reducer unit test부터 작성.
-4. S3 reader는 실제 AWS 호출 전에 local fixture reader/mock으로 검증.
-5. `MergeFactoryDaily`의 hour boundary event merge, severity score, top N 테스트 작성.
-6. Bedrock은 mock client로 시작하고, `report-context.json` -> `report.md` 생성 경로를 먼저 완성.
-7. 그 다음 `infra/reporting/`, `build-reporting.sh`, `destroy-reporting.sh`를 추가.
+1. `git_clone/Aegis-pi` 기준으로 변경 파일 상태를 확인한다.
+2. `terraform validate`를 AWS/provider plugin 실행이 가능한 환경에서 재실행한다.
+3. enriched v2 context로 Bedrock 실호출을 수행하고 `factory-b-hh03-report.md` 또는 별도 v2 report 파일을 생성한다.
+4. 생성된 Markdown에서 factory/date/Risk Score/collection count/evidence id/recommended checks/S3 processed 한계가 context와 일치하는지 검증한다.
+5. 단일 hour 테스트와 별도로 24시간 daily merge fixture 또는 실제 processed day 입력으로 `missing_hour_count=0`, 24시간 count 합산, hour boundary event merge를 검증한다.
+6. `infra/reporting/`, `build-reporting.sh`, `destroy-reporting.sh`를 배포 전 기준으로 한 번 더 검토한다.
+7. AWS 배포 후 Step Functions reporting pipeline 수동 실행으로 S3 `reports/daily/` 산출물 저장까지 검증한다.
 
 구현 시작 전 실무 확인:
 
@@ -2978,10 +2990,10 @@ MVP 완료 조건:
 
 1. 이 문서와 `docs/ops/24_daily_factory_report.md`를 읽는다.
 2. 현재 결정값이 유지되는지 확인한다. 사용자가 바로 진행하라고 하면 확인 질문 없이 구현한다.
-3. `apps/daily-report-generator/` skeleton과 unit test fixture를 만든다.
-4. `AggregateFactoryHour`부터 구현한다. 이때 평균뿐 아니라 max/p95/p05, threshold 초과 구간, spike event, evidence message_id 보존 테스트를 먼저 작성한다.
-5. `MergeFactoryDaily` 구현 전 hour 경계 이벤트 병합과 severity_score top N 테스트를 작성한다.
-6. 실제 Bedrock 호출은 마지막에 붙이고, 먼저 mock Bedrock으로 `report.md` 생성까지 끝낸다.
-7. Bedrock output validation을 추가해 핵심 수치 mismatch를 잡는다.
-8. `infra/reporting/` Terraform과 build/destroy 스크립트를 추가한다.
+3. 로컬 테스트를 먼저 재실행한다.
+4. `terraform validate`를 재검증한다.
+5. enriched v2 Bedrock 실호출을 수행한다.
+6. Bedrock 출력 invariant와 문서 품질을 검토한다.
+7. 24시간 daily merge 검증을 추가한다.
+8. 검증이 끝나면 reporting stack을 배포하고 Step Functions 수동 실행으로 S3 산출물을 확인한다.
 9. 비용 기준 문서는 이미 기본 추정이 반영되어 있으므로, 실제 리소스 배포 후 단가/사용량이 달라지면 갱신한다.

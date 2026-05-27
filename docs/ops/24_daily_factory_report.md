@@ -1,6 +1,6 @@
 # Daily Factory Report
 
-상태: planned runbook
+상태: implementation runbook
 기준일: 2026-05-27
 
 ## 목적
@@ -8,6 +8,8 @@
 이 문서는 Bedrock 기반 factory별 일일 운영 보고서 생성 기능의 운영 기준을 정리한다.
 
 설계 source of truth는 `docs/planning/17_llm_daily_factory_report_plan.md`다. 이 문서는 배포, 점검, 장애 대응 시 운영자가 확인할 기준만 둔다.
+
+2026-05-27 기준 구현은 로컬 검증까지 진행됐다. `apps/daily-report-generator/`와 `infra/reporting/`은 생성됐고, pytest/compileall/terraform fmt는 통과했다. `terraform validate`, enriched v2 Bedrock 실호출, 24시간 daily merge 검증, AWS 배포는 다음 작업이다.
 
 ## 범위
 
