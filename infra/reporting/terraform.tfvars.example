@@ -1,0 +1,3 @@
+aws_region       = "ap-south-1"
+data_bucket_name = "aegis-bucket-data"
+
