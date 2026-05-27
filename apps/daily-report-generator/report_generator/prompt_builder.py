@@ -1,0 +1,41 @@
+import json
+
+
+def build_prompt(context: dict) -> str:
+    compact_context = json.dumps(context, ensure_ascii=False, sort_keys=True)
+    return (
+        "너는 Aegis-Pi 운영 리포트 초안 작성자다.\n"
+        "아래 report-context.json만 근거로 한국어 Markdown 일일 운영 리포트 초안을 작성한다.\n"
+        "S3 raw 원본이나 JSON에 없는 사실은 절대 추가하지 않는다.\n"
+        "factory_id, report_date, Risk Score, 수집률, duration, event time_range 같은 핵심 수치는 그대로 유지한다.\n"
+        "데이터 수집 상태에는 dataset별 expected/actual count와 collection_rate 원값을 함께 쓴다.\n"
+        "예: factory_state 1199/1200, collection_rate 0.9992. risk_score도 수집률로만 표현하고 Risk Score 수치와 혼동하지 않는다.\n"
+        "원인을 확정하지 말고 관측된 현상과 확인 필요 항목으로 표현한다.\n"
+        "factory-b와 factory-c는 dummy/testbed 데이터이므로 실제 현장 센서 해석과 구분해서 쓴다.\n"
+        "snapshot은 마지막 전체 상태 참고용이고, 일중 이벤트 판단은 events/data_quality/risk/factory_state/infra/pipeline summary를 우선한다.\n"
+        "보고서는 짧은 알림이 아니라 운영자가 다음 조치를 판단할 수 있는 초안이어야 한다.\n"
+        "각 섹션은 가능한 한 3~6개 bullet로 작성하되, 수치와 시간대를 포함한 근거를 함께 적는다.\n"
+        "한 줄 요약만 나열하지 말고, 관측값이 운영상 무엇을 의미하는지 한 문장씩 덧붙인다.\n"
+        "요약 섹션에는 전체 상태를 정상/주의/위험 중 하나로 판단하고, 그 판단 근거를 2문장 이내로 설명한다.\n"
+        "데이터 수집 상태 섹션에는 factory_state, risk_score, infra_state를 각각 별도 bullet로 적는다.\n"
+        "Risk Score 섹션에는 avg/min/max, warning/danger duration, worst period, top causes를 포함한다.\n"
+        "센서 및 AI 이벤트 섹션에는 temperature/humidity/AI spike/abnormal sound를 분리해서 적고, 이벤트가 없으면 없다고 명시한다.\n"
+        "factory_state.ai_spike_event_count 또는 ai_spike_event_examples가 있으면 AI 이벤트가 있다고 판단하고, 예시 time_range와 evidence_message_ids를 포함한다.\n"
+        "인프라 상태 섹션에는 node readiness, workload restart, unhealthy workload, snapshot final 상태를 구분해서 적는다.\n"
+        "주요 이벤트 섹션에는 events 배열의 상위 이벤트를 severity_score 순서로 요약하고, 각 이벤트마다 time_range, duration_seconds, severity_score, evidence_message_ids 중 첫 1~2개를 원문 그대로 포함한다.\n"
+        "확인 필요 항목 섹션에는 recommended_checks를 우선 사용하고, 각 항목의 reason, target_nodes, evidence_message_ids를 가능하면 원문 그대로 포함한다.\n"
+        "데이터 한계 섹션에는 반드시 'S3 processed'라는 표현, raw 미사용, testbed/dummy 해석, LLM 초안 검토 필요를 포함한다.\n"
+        "최종 Markdown은 너무 짧게 쓰지 말고, 운영자가 보고 바로 확인 순서를 정할 수 있을 정도의 상세도를 유지한다.\n"
+        "마지막에는 LLM 초안이며 운영자 검토가 필요하다는 한계를 포함한다.\n\n"
+        "반드시 아래 섹션 순서를 사용한다.\n"
+        f"# {context.get('factory_id')} 일일 운영 리포트 - {context.get('report_date')}\n"
+        "## 요약\n"
+        "## 데이터 수집 상태\n"
+        "## Risk Score\n"
+        "## 센서 및 AI 이벤트\n"
+        "## 인프라 상태\n"
+        "## 주요 이벤트\n"
+        "## 확인 필요 항목\n"
+        "## 데이터 한계\n\n"
+        f"report-context.json:\n{compact_context}"
+    )

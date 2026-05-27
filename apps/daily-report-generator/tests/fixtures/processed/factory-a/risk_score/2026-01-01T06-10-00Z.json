@@ -1,0 +1,14 @@
+{
+  "source_message_id": "factory-a:factory_state:worker2:2026-01-01T06:10:00Z",
+  "factory_id": "factory-a",
+  "source_timestamp": "2026-01-01T06:10:00Z",
+  "processed_at": "2026-01-01T06:10:01Z",
+  "data": {},
+  "risk": {
+    "score": 91.0,
+    "level": "safe",
+    "top_causes": []
+  },
+  "pipeline_status": {"status": "normal", "latest_infra_state_age_seconds": 1}
+}
+

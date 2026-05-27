@@ -1,0 +1,25 @@
+{
+  "source_message_id": "factory-a:infra_state:cluster:2026-01-01T06:10:00Z",
+  "factory_id": "factory-a",
+  "source_timestamp": "2026-01-01T06:10:00Z",
+  "processed_at": "2026-01-01T06:10:01Z",
+  "data": {
+    "agent_status": "running",
+    "cluster_name": "factory-a",
+    "nodes_total": 3,
+    "nodes_ready": 3,
+    "pods_ready": 6,
+    "pods_total": 6,
+    "nodes": [
+      {"node_id": "master", "ready": true},
+      {"node_id": "worker1", "ready": true},
+      {"node_id": "worker2", "ready": true}
+    ],
+    "workloads": [
+      {"namespace": "monitoring", "name": "bme280-sensor", "ready": true, "status": "Running", "restart_count": 2}
+    ],
+    "devices": {"bme280": {"available": true, "status": "available"}}
+  },
+  "pipeline_status": {"status": "normal", "latest_infra_state_age_seconds": 0}
+}
+

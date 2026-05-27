@@ -1,0 +1,17 @@
+{
+  "source_message_id": "factory-a:factory_state:worker2:2026-01-01T06:10:03Z",
+  "factory_id": "factory-a",
+  "source_timestamp": "2026-01-01T06:10:03Z",
+  "processed_at": "2026-01-01T06:10:04Z",
+  "data": {},
+  "risk": {
+    "score": 58.0,
+    "level": "warning",
+    "top_causes": [
+      {"field": "temperature", "value": 39.5, "contribution": 18.0},
+      {"field": "ai_event_rate", "value": 0.91, "contribution": 12.0}
+    ]
+  },
+  "pipeline_status": {"status": "normal", "latest_infra_state_age_seconds": 1}
+}
+

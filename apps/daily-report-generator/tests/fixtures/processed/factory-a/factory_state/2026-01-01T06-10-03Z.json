@@ -1,0 +1,19 @@
+{
+  "source_message_id": "factory-a:factory_state:worker2:2026-01-01T06:10:03Z",
+  "factory_id": "factory-a",
+  "source_timestamp": "2026-01-01T06:10:03Z",
+  "processed_at": "2026-01-01T06:10:04Z",
+  "data": {
+    "aggregation_window_seconds": 3,
+    "temperature_celsius": 39.5,
+    "humidity_percent": 71.0,
+    "pressure_hpa": 1011.8,
+    "sample_count": 5,
+    "fire_score": 0.03,
+    "fall_score": 0.91,
+    "bend_score": 0.02,
+    "abnormal_sound": "none",
+    "ai_sample_count": 3
+  }
+}
+

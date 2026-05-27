@@ -1,0 +1,36 @@
+{
+  "pk": "FACTORY#factory-a",
+  "sk": "HISTORY#STATE#2026-01-01T06:10:07.000Z",
+  "factory_id": "factory-a",
+  "schema_version": "0.1.0",
+  "factory_state": {
+    "message_id": "factory-a:factory_state:worker2:2026-01-01T06:10:06Z",
+    "source_timestamp": "2026-01-01T06:10:06Z",
+    "temperature_celsius": 42.8,
+    "humidity_percent": 72.5,
+    "pressure_hpa": 1010.9,
+    "fire_score": 0.04,
+    "fall_score": 0.88,
+    "bend_score": 0.33,
+    "abnormal_sound": "bang"
+  },
+  "infra_state": {
+    "message_id": "factory-a:infra_state:cluster:2026-01-01T06:10:20Z",
+    "source_timestamp": "2026-01-01T06:10:20Z",
+    "nodes_total": 3,
+    "nodes_ready": 2,
+    "pods_ready": 5,
+    "pods_total": 6
+  },
+  "risk": {
+    "score": 51.2,
+    "level": "warning"
+  },
+  "pipeline_status": {
+    "status": "warning",
+    "latest_infra_state_age_seconds": 20
+  },
+  "last_factory_state_at": "2026-01-01T06:10:06Z",
+  "last_infra_state_at": "2026-01-01T06:10:20Z",
+  "updated_at": "2026-01-01T06:10:07.000Z"
+}
