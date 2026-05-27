@@ -2,7 +2,7 @@ data "archive_file" "data_processor_zip" {
   type        = "zip"
   source_dir  = "${path.module}/../../apps/data-processor"
   output_path = "${path.module}/lambda_data_processor.zip"
-  excludes    = ["__pycache__", "*.pyc", "*.pyo", "tests", ".pytest_cache"]
+  excludes    = ["**/__pycache__/**", "**/*.pyc", "**/*.pyo", "tests/**", ".pytest_cache/**"]
 }
 
 resource "aws_cloudwatch_log_group" "data_processor" {
