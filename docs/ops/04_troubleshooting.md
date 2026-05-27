@@ -2248,3 +2248,228 @@ scripts/ops/manage-dummy-generators.sh status factory-b
 
 > 2026-05-26 기준: 이 선 위 트러블슈팅 항목은 Git Wiki / Issue 리포트 정리 완료.
 > 이후 이 선 아래에 추가되는 항목은 다음 트러블슈팅 정리 대상이다.
+
+## Factory-A `factory-a-log-adapter:main` rollout 중 `ErrImagePull` / ECR `403 Forbidden`
+
+### 현상
+
+GitOps에서 `factory-a-log-adapter` image를 `main` tag로 변경하고 ArgoCD sync를 수행했지만, 새 ReplicaSet Pod가 `ErrImagePull` 상태로 멈췄다.
+
+ArgoCD application tree에는 아래 메시지가 표시됐다.
+
+```text
+Back-off pulling image "611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/factory-a-log-adapter:main"
+failed to resolve reference ... unexpected status from HEAD request ... 403 Forbidden
+Waiting for rollout to finish: 0 of 1 updated replicas are available
+```
+
+### 원인
+
+Factory-A Spoke K3s는 EKS node가 아니므로 EKS node role의 ECR pull 권한을 상속받지 않는다. `ai-apps/ecr-registry` imagePullSecret에 들어 있는 ECR auth token이 만료되어 새 image pull이 거부됐다.
+
+ECR login password는 12시간 단위로 만료되므로 장시간 운영 후 새 rollout을 걸면 같은 증상이 재발할 수 있다.
+
+### 확인
+
+```bash
+kubectl -n argocd get application aegis-spoke-factory-a -o jsonpath='{.status.health.status}'
+
+kubectl --kubeconfig /home/vicbear/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig \
+  -n ai-apps get secret ecr-registry \
+  -o jsonpath='{.metadata.name} {.type} {.metadata.creationTimestamp}'
+```
+
+ArgoCD controller 내부에서 tree를 보면 remote Factory-A cluster의 Pod event까지 확인할 수 있다.
+
+```bash
+kubectl -n argocd exec argocd-application-controller-0 -- \
+  argocd --core app get aegis-spoke-factory-a -o tree=detailed
+```
+
+### 해결
+
+`ai-apps` namespace의 ECR pull secret을 갱신하고 rollout을 재시작한다.
+
+```bash
+ECR_PULL_SECRET_NAMESPACE=ai-apps \
+FACTORY_A_KUBECONFIG=/home/vicbear/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig \
+scripts/ops/refresh-factory-a-ecr-pull-secret.sh
+
+kubectl --kubeconfig /home/vicbear/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig \
+  -n ai-apps rollout restart deployment/aegis-spoke-factory-a-log-adapter
+
+kubectl --kubeconfig /home/vicbear/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig \
+  -n ai-apps rollout status deployment/aegis-spoke-factory-a-log-adapter --timeout=180s
+```
+
+### 재발 방지
+
+- Spoke cluster별 ECR pull secret 갱신 주기를 운영 작업에 포함한다.
+- GitOps rollout 전 `imagePullSecret` 생성 시각과 namespace를 확인한다.
+- 장기적으로는 external-secrets 또는 ECR credential refresh automation을 붙인다.
+
+## Lambda data processor 배포 후에도 processed output이 구 schema로 유지됨
+
+### 현상
+
+`apps/data-processor/processor/normalizer.py`를 수정하고 Terraform apply까지 완료했지만, S3 `processed/factory-a/infra_state`와 `state_snapshot`에는 구 schema가 계속 기록됐다.
+
+예시 증상:
+
+```json
+{
+  "nodes_ready": 0,
+  "nodes": [
+    {"name": "", "status": "Unknown", "cpu_usage_percent": 5.9}
+  ],
+  "pods_ready": 0,
+  "devices": {"bme280": {"status": "unknown"}}
+}
+```
+
+반면 CloudWatch Logs의 `AEGIS-Lambda-DataProcessor` 로그는 `nodes_ready=3/3`로 정상 처리하고 있었다.
+
+### 원인
+
+두 가지가 겹쳤다.
+
+1. Lambda zip archive에 `processor/__pycache__/*.pyc`가 포함되어 stale bytecode가 source 변경과 다른 동작을 만들 수 있었다.
+2. 별도 KJW IoT Rule이 같은 topic을 받아 구형 Lambda를 호출했고, 구형 Lambda가 같은 `processed/` key를 나중에 덮어썼다.
+
+### 확인
+
+Lambda 패키지에 pycache가 들어갔는지 확인한다.
+
+```bash
+python3 -m zipfile -l infra/data-pipeline/lambda_data_processor.zip
+```
+
+실제 Lambda zip도 내려받아 확인할 수 있다.
+
+```bash
+url=$(aws lambda get-function \
+  --region ap-south-1 \
+  --function-name AEGIS-Lambda-DataProcessor \
+  --query 'Code.Location' \
+  --output text)
+
+curl -sL "$url" -o /tmp/aegis-lambda-current.zip
+python3 -m zipfile -l /tmp/aegis-lambda-current.zip
+```
+
+CloudWatch에서 최신 처리 로그를 확인한다.
+
+```bash
+aws logs filter-log-events \
+  --region ap-south-1 \
+  --log-group-name /aws/lambda/AEGIS-Lambda-DataProcessor \
+  --filter-pattern 'infra_state done' \
+  --query 'reverse(sort_by(events,&timestamp))[:10].[timestamp,message]' \
+  --output json
+```
+
+### 해결
+
+`infra/data-pipeline/lambda.tf`의 archive exclude를 재귀 패턴으로 수정한다.
+
+```hcl
+excludes = ["**/__pycache__/**", "**/*.pyc", "**/*.pyo", "tests/**", ".pytest_cache/**"]
+```
+
+그 뒤 data-pipeline을 다시 배포한다.
+
+```bash
+scripts/build/build-data-pipe.sh
+```
+
+### 재발 방지
+
+- Lambda zip에는 source와 runtime dependency만 포함한다.
+- `python3 -m zipfile -l`로 배포 zip에 `__pycache__`가 없는지 확인한다.
+- Lambda 로그와 S3 processed output을 모두 확인해 실제 writer가 일치하는지 본다.
+
+## 중복 KJW IoT Rule이 `processed/` 결과를 덮어씀
+
+### 현상
+
+새 `AEGIS-Lambda-DataProcessor`는 정상 로그를 남겼지만, S3 `processed/factory-a/infra_state`에는 구형 필드가 계속 기록됐다. 같은 message timestamp의 processed object가 구 schema로 남아 있었고, file size도 구/신 schema 시점에 따라 달랐다.
+
+### 원인
+
+AWS IoT Core에 아래 중복 Rule이 활성화되어 있었다.
+
+```text
+KJW_AEGIS_Data_IoTRule_infra_state_processor
+KJW_AEGIS_Data_IoTRule_factory_state_processor
+```
+
+두 Rule은 각각 아래 SQL로 같은 topic을 수신하고 구형 Lambda를 호출했다.
+
+```text
+SELECT * FROM 'aegis/+/infra_state'
+SELECT * FROM 'aegis/+/factory_state'
+```
+
+대상 Lambda:
+
+```text
+KJW-AEGIS-Data-Lambda-data-processor
+```
+
+결과적으로 `AEGIS_IoTRule_factory_a/b/c_raw_s3`의 Lambda action과 KJW Rule이 동시에 실행되고, 구형 Lambda가 `processed/` 결과를 덮어썼다.
+
+### 확인
+
+```bash
+aws iot list-topic-rules --region ap-south-1 --query 'rules[].ruleName' --output text
+
+aws iot get-topic-rule \
+  --region ap-south-1 \
+  --rule-name KJW_AEGIS_Data_IoTRule_infra_state_processor \
+  --query 'rule.{sql:sql,disabled:ruleDisabled,actions:actions}' \
+  --output json
+```
+
+### 해결
+
+중복 KJW Rule을 비활성화한다.
+
+```bash
+aws iot disable-topic-rule \
+  --region ap-south-1 \
+  --rule-name KJW_AEGIS_Data_IoTRule_infra_state_processor
+
+aws iot disable-topic-rule \
+  --region ap-south-1 \
+  --rule-name KJW_AEGIS_Data_IoTRule_factory_state_processor
+```
+
+비활성화 확인:
+
+```bash
+aws iot get-topic-rule \
+  --region ap-south-1 \
+  --rule-name KJW_AEGIS_Data_IoTRule_infra_state_processor \
+  --query 'rule.ruleDisabled' \
+  --output text
+```
+
+### 정상 결과
+
+KJW Rule 비활성화 후 최신 `processed/factory-a/state_snapshot` 기준:
+
+```text
+nodes_ready=3/3
+pods_ready=6/6
+node_id=master,worker1,worker2
+status=Ready
+network_reachability=ok
+devices.*.available=true
+pipeline_status=normal
+```
+
+### 재발 방지
+
+- data pipeline Rule은 `AEGIS_IoTRule_factory_a/b/c_raw_s3` 세 개를 기준으로 관리한다.
+- 임시/legacy Rule은 name prefix와 owner를 문서화하고, 운영 검증 전 `aws iot list-topic-rules`로 중복 수신 Rule을 확인한다.
+- 같은 S3 `processed/` prefix를 쓰는 Lambda가 여러 개인지 반드시 확인한다.

@@ -738,6 +738,225 @@ VirtualBox NAT adapter만 사용하면 master/worker VM이 동일한 `10.0.2.15`
 
 VM Spoke 기준선에 NAT 단독 사용 금지, 고유 internal IP, flannel interface 고정 원칙을 포함한다.
 
+## 🐛 트러블슈팅 리포트 - Factory-A ECR pull secret 만료로 adapter rollout 실패
+
+### 📌 현상 요약
+
+GitOps에서 `factory-a-log-adapter`를 `main` tag로 배포했지만 새 Pod가 `ErrImagePull`로 멈췄다.
+
+### 🖥️ 환경 정보
+
+- 클러스터: factory-a K3s Spoke, Hub ArgoCD
+- 노드: worker2
+- 네임스페이스: ai-apps
+- 관련 컴포넌트/버전: Amazon ECR, Kubernetes imagePullSecret, ArgoCD, factory-a-log-adapter
+- 발생 시각: 2026-05-27
+
+### 🔁 재현 순서
+
+1. GitOps에서 `factory-a-log-adapter` image tag를 `main`으로 변경한다.
+2. ArgoCD sync를 실행한다.
+3. 새 ReplicaSet Pod 상태와 ArgoCD application tree를 확인한다.
+
+### ✅ 기대 동작
+
+Factory-A K3s가 ECR에서 새 `factory-a-log-adapter:main` 이미지를 pull하고 rollout이 완료되어야 한다.
+
+### ❌ 실제 동작
+
+```text
+Back-off pulling image "611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/factory-a-log-adapter:main"
+unexpected status from HEAD request ... 403 Forbidden
+ErrImagePull
+Waiting for rollout to finish: 0 of 1 updated replicas are available
+```
+
+### 🔍 시도한 것들
+
+- [x] ArgoCD `aegis-spoke-factory-a` sync/health 확인
+- [x] ArgoCD controller 내부 `argocd --core app get -o tree=detailed`로 remote Pod event 확인
+- [x] Factory-A `ai-apps/ecr-registry` Secret 생성 시각 확인
+- [x] ECR pull secret 갱신 후 rollout restart
+- [x] S3 raw publish 재개 확인
+
+### 🚨 심각도
+
+상
+
+### 🗂️ 영역
+
+Cloud / AWS Hub, Data Pipeline, K3s / Kubernetes, GitOps
+
+### 💡 해결 방법
+
+**근본 원인:**
+
+Factory-A Spoke K3s는 EKS node가 아니므로 EKS node role의 ECR pull 권한을 상속받지 않는다. `ai-apps/ecr-registry`에 저장된 ECR token이 만료되어 새 이미지 pull이 `403 Forbidden`으로 실패했다.
+
+**해결 방법:**
+
+```bash
+ECR_PULL_SECRET_NAMESPACE=ai-apps \
+FACTORY_A_KUBECONFIG=/home/vicbear/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig \
+scripts/ops/refresh-factory-a-ecr-pull-secret.sh
+
+kubectl --kubeconfig /home/vicbear/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig \
+  -n ai-apps rollout restart deployment/aegis-spoke-factory-a-log-adapter
+```
+
+**재발 방지:**
+
+Spoke cluster별 ECR pull secret 갱신 주기를 운영 절차에 포함한다. 장기적으로는 external-secrets 또는 ECR credential refresh automation을 붙인다.
+
+## 🐛 트러블슈팅 리포트 - Lambda stale bytecode로 processed schema 변경 미반영
+
+### 📌 현상 요약
+
+DataProcessor normalizer를 수정하고 Lambda를 배포했지만 S3 `processed/` 결과는 계속 구 schema로 보였다.
+
+### 🖥️ 환경 정보
+
+- 클러스터: AWS data-pipeline
+- 노드: N/A
+- 네임스페이스: N/A
+- 관련 컴포넌트/버전: AWS Lambda python3.12, Terraform `archive_file`, S3 processed, DynamoDB LATEST/HISTORY
+- 발생 시각: 2026-05-27
+
+### 🔁 재현 순서
+
+1. `apps/data-processor/processor/normalizer.py`를 수정한다.
+2. `scripts/build/build-data-pipe.sh`로 Lambda를 배포한다.
+3. CloudWatch Logs와 S3 `processed/factory-a/infra_state` 결과를 비교한다.
+
+### ✅ 기대 동작
+
+processed object와 state_snapshot이 `node_id`, `ready`, `status=Ready`, `pods_ready`, device `available` 필드를 포함해야 한다.
+
+### ❌ 실제 동작
+
+```json
+{
+  "nodes_ready": 0,
+  "nodes": [{"name": "", "status": "Unknown"}],
+  "pods_ready": 0,
+  "devices": {"bme280": {"status": "unknown"}}
+}
+```
+
+### 🔍 시도한 것들
+
+- [x] Lambda `CodeSha256`와 `LastModified` 확인
+- [x] 실제 Lambda zip을 내려받아 파일 목록 확인
+- [x] `python3 -m zipfile -l`로 `__pycache__` 포함 여부 확인
+- [x] Terraform archive exclude 패턴 수정
+- [x] Lambda 재배포 후 CloudWatch `nodes_ready=3/3` 로그 확인
+
+### 🚨 심각도
+
+상
+
+### 🗂️ 영역
+
+Cloud / AWS Hub, Data Pipeline, AWS Lambda, Terraform
+
+### 💡 해결 방법
+
+**근본 원인:**
+
+Lambda zip archive에 `processor/__pycache__/*.pyc`가 포함되어 source 변경과 실제 runtime 동작이 어긋날 수 있었다.
+
+**해결 방법:**
+
+Terraform `archive_file` exclude를 재귀 패턴으로 수정한다.
+
+```hcl
+excludes = ["**/__pycache__/**", "**/*.pyc", "**/*.pyo", "tests/**", ".pytest_cache/**"]
+```
+
+이후 `scripts/build/build-data-pipe.sh`로 Lambda를 다시 배포한다.
+
+**재발 방지:**
+
+Lambda zip 검증 시 `python3 -m zipfile -l infra/data-pipeline/lambda_data_processor.zip`로 `__pycache__`와 `*.pyc`가 없는지 확인한다.
+
+## 🐛 트러블슈팅 리포트 - 중복 KJW IoT Rule이 processed 결과를 덮어씀
+
+### 📌 현상 요약
+
+`AEGIS-Lambda-DataProcessor`는 정상적으로 `nodes_ready=3/3` 로그를 남겼지만, S3 `processed/` object는 구형 schema로 남았다.
+
+### 🖥️ 환경 정보
+
+- 클러스터: AWS IoT Core / data-pipeline
+- 노드: N/A
+- 네임스페이스: N/A
+- 관련 컴포넌트/버전: AWS IoT Rule, AWS Lambda, S3 processed, DynamoDB
+- 발생 시각: 2026-05-27
+
+### 🔁 재현 순서
+
+1. Factory-A에서 `aegis/factory-a/infra_state`로 메시지를 publish한다.
+2. `AEGIS-Lambda-DataProcessor` CloudWatch log를 확인한다.
+3. S3 `processed/factory-a/infra_state` object를 확인한다.
+4. IoT Rule 목록에서 같은 topic을 받는 Rule을 찾는다.
+
+### ✅ 기대 동작
+
+공식 DataProcessor 하나만 `processed/` 결과를 쓰고, canonical schema가 보존되어야 한다.
+
+### ❌ 실제 동작
+
+구형 Lambda가 같은 topic을 받아 `processed/` result를 나중에 덮어썼다.
+
+```text
+KJW_AEGIS_Data_IoTRule_infra_state_processor
+KJW_AEGIS_Data_IoTRule_factory_state_processor
+```
+
+각 Rule은 아래 topic을 수신했다.
+
+```text
+SELECT * FROM 'aegis/+/infra_state'
+SELECT * FROM 'aegis/+/factory_state'
+```
+
+### 🔍 시도한 것들
+
+- [x] `aws iot list-topic-rules`로 전체 Rule 확인
+- [x] KJW Rule SQL과 Lambda action 확인
+- [x] 중복 KJW Rule 비활성화
+- [x] 최신 processed infra_state와 state_snapshot 재검증
+
+### 🚨 심각도
+
+상
+
+### 🗂️ 영역
+
+Cloud / AWS Hub, Data Pipeline, AWS IoT Core, AWS Lambda, S3
+
+### 💡 해결 방법
+
+**근본 원인:**
+
+공식 `AEGIS_IoTRule_factory_a/b/c_raw_s3` 외에 legacy KJW Rule이 같은 topic을 수신해 구형 `KJW-AEGIS-Data-Lambda-data-processor`를 호출했다. 두 Lambda가 같은 S3 `processed/` prefix를 쓰면서 결과가 덮어써졌다.
+
+**해결 방법:**
+
+```bash
+aws iot disable-topic-rule \
+  --region ap-south-1 \
+  --rule-name KJW_AEGIS_Data_IoTRule_infra_state_processor
+
+aws iot disable-topic-rule \
+  --region ap-south-1 \
+  --rule-name KJW_AEGIS_Data_IoTRule_factory_state_processor
+```
+
+**재발 방지:**
+
+운영 검증 전 `aws iot list-topic-rules`로 중복 수신 Rule을 확인한다. 같은 S3 `processed/` prefix를 쓰는 Lambda가 여러 개인지도 함께 확인한다.
+
 ## 🐛 트러블슈팅 리포트 - 엣지 서버와 클라우드간 시각 비동기화
 
 ### 📌 현상 요약
@@ -797,4 +1016,3 @@ VM clock drift가 누적되었고, NTP daemon이 큰 오차를 자동 보정하�
 **재발 방지:**
 
 VM Spoke 운영 기준에 chrony 상태 점검과 clock drift alert 기준을 포함한다.
-

@@ -40,7 +40,7 @@ K3s, Raspberry Pi OS 설정, 네트워크 아키텍처, Longhorn, MetalLB, 모�
 | `automation-scripts.md` | 8, 25, 부록1, 부록2, 부록3 |
 | `operations-dr.md` | 30, 33, 34 |
 | `network.md` | 36, 38, 39, 40 |
-| `cloud-aws-hub.md` | AWS Hub, EKS, Terraform, ArgoCD, Tailscale, IoT/S3, VM Spoke cloud 연동 |
+| `cloud-aws-hub.md` | AWS Hub, EKS, Terraform, ArgoCD, Tailscale, IoT/S3, VM Spoke cloud 연동, data-pipeline overwrite |
 
 ## 우선 검토 대상
 
@@ -52,4 +52,3 @@ K3s, Raspberry Pi OS 설정, 네트워크 아키텍처, Longhorn, MetalLB, 모�
 4. `ai-hardware.md`의 31번 하드웨어 의존 Pod `Recreate` 전략
 5. `network.md`의 36번 flannel/default route 문제
 6. `cloud-aws-hub.md`의 EKS/Terraform/ArgoCD bootstrap 장애
-

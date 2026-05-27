@@ -102,6 +102,9 @@
 - [x] IoT Rule S3 raw 적재 실패
 - [x] factory-c Flannel DNS/MQTT 연결 실패
 - [x] 엣지 서버와 클라우드간 시각 비동기화
+- [x] Factory-A ECR pull secret 만료로 adapter rollout 실패
+- [x] Lambda stale bytecode로 processed schema 변경 미반영
+- [x] 중복 KJW IoT Rule이 processed 결과를 덮어씀
 
 ## GitHub Issue Comment Draft
 
@@ -111,3 +114,8 @@
 - 검증: 리포트 제목 목록과 필수 섹션 개수를 grep으로 확인했다.
 - 후속: 기준선 아래에 새 트러블슈팅이 추가되면 다음 정리 대상 issue로 분리한다.
 
+2026-05-27 추가 정리:
+
+- Factory-A ECR pull secret 만료로 adapter rollout 실패
+- Lambda stale bytecode로 processed schema 변경 미반영
+- 중복 KJW IoT Rule이 processed 결과를 덮어씀
