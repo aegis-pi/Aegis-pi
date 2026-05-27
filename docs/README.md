@@ -33,6 +33,7 @@
 - `factory-b/c` 데이터 플레인은 로컬 dummy generator가 worker node hostPath `/var/lib/aegis/outbox`에 canonical JSON을 쓰고, Hub ArgoCD가 배포한 공통 `edge-iot-publisher`가 같은 hostPath를 읽어 IoT Core로 전송하도록 구축했다. GitOps chart/values는 이 hostPath 기준으로 전환했다.
 - Risk Twin Dashboard는 후속 단계이며, 선행 작업인 IoT Core Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 저장 경로 구현과 검증은 완료했다.
 - 클라우드 인프라와 data-pipeline 관측 확장은 CloudWatch Metrics/Logs, Lambda EMF custom metrics, Grafana CloudWatch datasource, AMP, X-Ray/OpenTelemetry 역할 분리 기준을 따른다. 세부 기준은 `planning/15_cloud_architecture_final.md`와 `ops/23_data_pipeline.md`에 둔다.
+- Bedrock 기반 factory별 일일 운영 보고서 초안 생성은 MVP 포함으로 확정했다. 세부 설계는 `planning/17_llm_daily_factory_report_plan.md`, 운영 기준은 `ops/24_daily_factory_report.md`를 따른다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - Git Wiki에 옮길 수 있도록 재구성한 문서는 `docs/wiki/`에 둔다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
@@ -69,9 +70,12 @@
 22. `ops/20_tailscale_hub_spoke_runbook.md`
 23. `ops/21_hub_admin_ui_ingress.md`
 24. `ops/22_factory_bc_testbed_data_plane.md`
-25. `planning/16_m4_edge_data_plane_implementation.md`
-26. `issues/M0_factory-a_safe-edge-baseline.md`
-27. `issues/M1_hub-cloud.md`
+25. `ops/23_data_pipeline.md`
+26. `ops/24_daily_factory_report.md`
+27. `planning/16_m4_edge_data_plane_implementation.md`
+28. `planning/17_llm_daily_factory_report_plan.md`
+29. `issues/M0_factory-a_safe-edge-baseline.md`
+30. `issues/M1_hub-cloud.md`
 
 ## 문서 구조
 
@@ -108,7 +112,9 @@ docs/
 │   ├── 19_factory_c_windows_virtualbox_k3s.md
 │   ├── 20_tailscale_hub_spoke_runbook.md
 │   ├── 21_hub_admin_ui_ingress.md
-│   └── 22_factory_bc_testbed_data_plane.md
+│   ├── 22_factory_bc_testbed_data_plane.md
+│   ├── 23_data_pipeline.md
+│   └── 24_daily_factory_report.md
 ├── architecture/
 ├── planning/
 │   ├── 00_project_overview.md
@@ -122,7 +128,8 @@ docs/
 │   ├── 08_aws_cli_mfa_terraform_access.md
 │   ├── 09_m1_eks_vpc_decision_record.md
 │   ├── 10_portfolio_idea_assessment.md
-│   └── 11_delivery_ownership_flow.md
+│   ├── 11_delivery_ownership_flow.md
+│   └── 17_llm_daily_factory_report_plan.md
 ├── product/
 ├── specs/
 ├── demo/

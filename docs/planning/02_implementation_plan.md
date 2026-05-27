@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-05-20
+기준일: 2026-05-27
 
 ## 목적
 
@@ -16,8 +16,10 @@
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
 - M3는 Issue 1~5와 build/verify 기반 배포 검증 범위를 완료했다. Issue 6 manifest 자동 갱신 workflow는 M7 CI/CD hardening 때 재검토한다.
-- M4 Issue 1~5/8 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, 이미지화/GitOps chart, IoT Core -> S3 raw 적재와 `factory-a` raw data-plane 검증은 완료했다. 현재 다음 단계는 M4 Issue 6 Lambda data processor와 M4 Issue 7 `pipeline_status` 검증이다.
+- M4 Issue 1~8 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, 이미지화/GitOps chart, IoT Core -> S3 raw 적재, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, `pipeline_status` 검증은 완료했다.
 - M5는 `factory-b/c` 2-node VM K3s, Tailnet/Hub ArgoCD 등록, GitOps hostPath outbox 전환, local dummy generator systemd 실행, common `edge-iot-publisher` 배포, IoT Core -> S3 raw 분리 적재 검증까지 완료했다.
+- 2026-05-27 기준 `factory-a/b/c` data-pipeline은 실제 AWS 리소스로 end-to-end 검증됐고, `factory-a` 최신 processed `state_snapshot`은 `nodes_ready=3/3`, `pods_ready=6/6`, `pipeline_status=normal` 상태다.
+- Bedrock 기반 factory별 일일 운영 보고서는 MVP 포함으로 확정했다. 구현 기준은 `docs/planning/17_llm_daily_factory_report_plan.md`이며, reporting stack은 `ap-south-1`, S3 `processed/` 입력, `reports/daily/` 출력, `infra/reporting/` 별도 Terraform root module을 따른다.
 - 2026-05-20 세션에서 `factory-c` VirtualBox NAT 중복 IP로 인한 Flannel/CoreDNS 장애를 enp0s8 고정 IP와 `flannel-iface` 지정으로 해결했고, `factory-b` worker1 clock drift는 `chronyc makestep`으로 복구했다.
 - `docs/issues/` 하위 마일스톤 문서를 기준으로 구현 순서를 M0~M7로 관리한다.
 - 구현 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 source of truth로 삼는다.
@@ -208,7 +210,7 @@ Hub 생성 순서:
 - `edge-iot-publisher` 구현: canonical JSON을 AWS IoT Core로 MQTT publish
 - 두 컴포넌트를 이미지화하고 Hub ArgoCD가 `factory-a` K3s에 배포
 - IoT Core -> S3 raw object 적재 검증
-- Lambda data processor와 DynamoDB/S3 processed 연계 준비
+- Lambda data processor와 DynamoDB/S3 processed 연계
 - `pipeline_status` 집계 및 latest status 저장소 반영
 
 완료 조건:
@@ -218,6 +220,8 @@ Hub 생성 순서:
 - S3 raw prefix가 `factory_id/source_type/yyyy/mm/dd` 기준으로 확인됨
 - Hub ArgoCD가 두 data-plane workload를 `factory-a` K3s에 배포/복구할 수 있음
 - worker2 장애 시 data-plane workload가 worker1로 재스케줄되고 pipeline 관련 상태가 계속 송신
+- Lambda data processor가 DynamoDB LATEST/HISTORY와 S3 processed를 갱신함
+- `pipeline_status`가 `factory-a/b/c` LATEST와 processed state_snapshot에 반영됨
 
 ### Phase 6. M5 VM Spoke 확장 - `factory-b`, `factory-c`
 
@@ -264,6 +268,32 @@ Hub 생성 순서:
 
 - 상태 변화 -> Risk Score -> 관제 화면 반영 end-to-end 확인
 
+### Phase 7.5. MVP Daily Factory Report
+
+선행 조건:
+
+- Phase 5, 6 완료
+- S3 `processed/`에 `factory_state`, `risk_score`, `infra_state`가 factory별로 적재됨
+- `docs/planning/17_llm_daily_factory_report_plan.md` 결정값 유지
+
+주요 작업:
+
+- `apps/daily-report-generator/` package 생성
+- `PrepareReportWindow`, `AggregateFactoryHour`, `MergeFactoryDaily`, `GenerateFactoryReport` Lambda 구현
+- S3 processed hourly aggregation, daily merge, event severity/top N, recommended checks 구현
+- Bedrock mock 기반 `report-context.json`/`report.md` 로컬 테스트
+- Bedrock output invariant validation 구현
+- `infra/reporting/` Terraform root module 추가
+- `scripts/build/build-reporting.sh`, `scripts/destroy/destroy-reporting.sh` 추가
+- `docs/ops/24_daily_factory_report.md` 운영 기준 작성
+
+완료 조건:
+
+- `factory-a/b/c`별 `factory-daily-summary.json`, `report-context.json`, `report.md`, `generation-metadata.json`이 S3 `reports/daily/.../{factory_id}/`에 생성됨
+- Bedrock에는 S3 raw 원본 전체가 아니라 `report-context.json`만 전달됨
+- factory ID, report date, 핵심 수치 invariant validation이 수행됨
+- 한 factory의 보고서 생성 실패가 다른 factory의 생성을 막지 않음
+
 ### Phase 8. M7 통합 검증 및 문서 보정
 
 선행 조건:
@@ -293,9 +323,10 @@ Hub 생성 순서:
 | Phase 2 (M1) | 핵심 완료, Issue 0~10/12 완료, Issue 11 보류 | Hub 핵심 서비스 |
 | Phase 3 (M2) | 완료, Issue 1~6 완료 | Mesh 기반 `factory-a` 연결 |
 | Phase 4 (M3) | Issue 1~5 완료, Issue 6~8 보류 | ECR/GitHub Actions/Hub ArgoCD 배포 기준선 |
-| Phase 5 (M4) | raw 데이터 플레인 완료, Issue 6~7 다음 진행 | `factory-a` adapter/publisher, Lambda data processor |
+| Phase 5 (M4) | 완료, Issue 1~8 완료 | `factory-a` adapter/publisher, Lambda data processor, DynamoDB/S3 processed |
 | Phase 6 (M5) | 완료 | VM Spoke 확장, dummy generator, S3 raw 수집 |
 | Phase 7 (M6) | 다음 주요 단계 | Risk Twin + Dashboard VPC 관제 |
+| Phase 7.5 | 설계 확정, 구현 대기 | Bedrock 기반 factory별 일일 운영 보고서 |
 | Phase 8 (M7) | 후속 | 통합 검증 + 문서 보정 |
 
 ## 구현 중 테스트로 결정할 항목

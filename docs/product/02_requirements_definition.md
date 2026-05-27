@@ -1,7 +1,7 @@
 # Requirements Definition Traceability
 
 상태: source of truth
-기준일: 2026-05-15
+기준일: 2026-05-27
 
 ## 목적
 
@@ -93,7 +93,8 @@
 | DEC-21 | InfluxDB는 1일 retention, AI snapshot은 24시간 cleanup을 적용한다 | 로컬 저장소가 무한히 증가하지 않아야 한다 | 로컬 장기 보존 | `docs/ops/08_data_retention.md` |
 | DEC-22 | AWS Hub 비용은 active/destroy 상태를 기준으로 관리한다 | MVP 운영 비용을 설명하고 필요 시 0에 가깝게 낮출 수 있어야 한다 | 상시 리소스 비용 미관리 | `docs/ops/15_aws_cost_baseline.md` |
 | DEC-23 | Tailscale은 MVP Hub-Spoke 제어망으로 유지한다 | Site-to-Site VPN, TGW, Direct Connect, WireGuard보다 MVP 복잡도가 낮다 | 전용망을 즉시 구현 | `docs/planning/12_two_vpc_mvp_architecture_decision.md`, `docs/ops/20_tailscale_hub_spoke_runbook.md` |
-| DEC-24 | WAF/Cognito/OIDC, 장기 분석, 별도 이벤트 파이프라인은 MVP 후속으로 둔다 | MVP 핵심 검증 범위를 데이터 수집, Risk, 관제, 배포에 집중한다 | 모든 운영 자동화와 보안 기능을 MVP에 포함 | `docs/product/00_mvp_scope.md`, `docs/ops/21_hub_admin_ui_ingress.md` |
+| DEC-24 | WAF/Cognito/OIDC, 장기 분석, 별도 이벤트 파이프라인은 MVP 후속으로 둔다 | MVP 핵심 검증 범위를 데이터 수집, Risk, 관제, 배포, 일일 운영 보고서 초안에 집중한다 | 모든 운영 자동화와 보안 기능을 MVP에 포함 | `docs/product/00_mvp_scope.md`, `docs/ops/21_hub_admin_ui_ingress.md` |
+| DEC-25 | Bedrock 기반 factory별 일일 운영 보고서 초안 생성을 MVP에 포함한다 | 데이터 플레인과 Risk/Dashboard의 운영 가치를 설명하고, 모델/설정 업데이트 후보를 찾는 피드백 루프를 만든다 | S3 raw 원본 직접 LLM 분석, 전체 공장 통합 보고서, DOCX/PDF 자동 생성 | `docs/planning/17_llm_daily_factory_report_plan.md`, `docs/product/00_mvp_scope.md` |
 
 ## 요구사항 정의
 
@@ -115,6 +116,10 @@
 | `factory_state` payload 크기 | 약 0.6 KB | 3초 주기 전송이 IoT Core/S3 병목을 만들 가능성이 낮아야 한다. | compact JSON 기준 실제 payload 크기 측정 | `docs/specs/iot_data_format.md` |
 | `infra_state` payload 크기 | 약 1.6 KB | 20초 주기 상태 전송이 운영 부담 대비 충분한 헬스 체크 정보를 제공해야 한다. | compact JSON 기준 실제 payload 크기 측정 | `docs/specs/iot_data_format.md` |
 | 공장 1개 일일 raw payload | 약 25 MB/day | S3 raw 보존과 재처리 비용이 MVP 규모에서 감당 가능해야 한다. | M4/M7에서 실제 S3 object 크기 합산 | `docs/specs/iot_data_format.md` |
+| 일일 보고서 실행 주기 | 매일 00:30 KST | 전일 KST 기준 factory별 운영 보고서 초안을 생성해야 한다. | EventBridge Scheduler/Step Functions 실행 결과 확인 | `docs/planning/17_llm_daily_factory_report_plan.md` |
+| 일일 보고서 입력 범위 | S3 `processed/` | Bedrock이 raw payload를 직접 분석하지 않고 Lambda가 만든 구조화 context만 사용해야 한다. | `report-context.json` 생성 및 Bedrock prompt 검증 | `docs/planning/17_llm_daily_factory_report_plan.md` |
+| 보고서 대상 factory | `factory-a/b/c` 개별 보고서 | 운영형/테스트베드형 공장을 한 보고서로 섞지 않고 factory profile별 해석을 적용해야 한다. | `reports/daily/.../{factory_id}/report.md` 확인 | `docs/planning/17_llm_daily_factory_report_plan.md` |
+| report context event 수 | 기본 10개 | 보고서 품질에 필요한 상위 이벤트만 context에 넣어 비용과 hallucination 위험을 줄여야 한다. | `MAX_CONTEXT_EVENTS`와 context schema 확인 | `docs/planning/17_llm_daily_factory_report_plan.md` |
 | Risk Score 범위 | 0~100 | 공장 안전도를 단일 점수로 비교할 수 있어야 한다. 높을수록 안전하다. | 정상/주의/위험 시나리오별 score 산출 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
 | Risk 안전 구간 | 100~85 | 정상 상태 공장은 안전으로 분류되어야 한다. | 정상 입력 시 Risk Score 100~85 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
 | Risk 주의 구간 | 84~50 | 위험 징후가 있으나 즉시 위험은 아닌 상태를 구분해야 한다. | 주의 시나리오 입력 후 상태 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
@@ -144,6 +149,7 @@
 | BR-02 | 사용자는 위험 상태만 보는 것이 아니라, 그 공장이 왜 위험한지 센서/AI 축과 시스템 축으로 분리해 확인할 수 있어야 한다. | DEC-01, DEC-03, DEC-13 |
 | BR-03 | 사용자는 최근 상태 변화 시간과 흐름을 확인해 운영 대응 또는 상세 확인으로 이어질 수 있어야 한다. | DEC-01, DEC-03 |
 | BR-04 | 운영형 Spoke와 테스트베드형 Spoke는 같은 관제 구조 안에서 공장 단위로 식별되어야 한다. | DEC-02 |
+| BR-05 | 운영자는 매일 factory별 운영 보고서 초안을 통해 Risk, 센서/AI, 인프라, 데이터 파이프라인 상태와 확인 필요 항목을 검토할 수 있어야 한다. | DEC-25 |
 
 ### 기능 요구사항
 
@@ -156,6 +162,8 @@
 | FR-05 | 수신 원본 데이터는 S3 raw에 저장되어 재처리, 감사, 리포트 입력으로 사용할 수 있어야 한다. | DEC-06 |
 | FR-06 | Dashboard는 DynamoDB LATEST/HISTORY와 S3 processed result를 조회해 공장별 최신 상태, 원인, 로그를 제공해야 한다. | DEC-13, DEC-15 |
 | FR-07 | Hub ArgoCD는 `factory-a/b/c` Spoke의 Edge data-plane workload와 공통 구성요소를 공장별 값으로 배포할 수 있어야 한다. | DEC-02, DEC-17 |
+| FR-08 | Daily reporting pipeline은 S3 `processed/`의 `factory_state`, `risk_score`, `infra_state`를 factory/hour 단위로 집계해 `factory-daily-summary.json`과 `report-context.json`을 생성해야 한다. | DEC-25 |
+| FR-09 | `GenerateFactoryReport`는 `report-context.json`만 Bedrock 입력으로 사용해 한국어 Markdown 보고서 초안을 생성하고, 저장 전 factory ID/date/핵심 수치 invariant를 검증해야 한다. | DEC-25 |
 
 ### 비기능 요구사항
 
@@ -168,6 +176,8 @@
 | NFR-05 | AI 오탐 민감도를 낮추기 위해 순간 `0/1` 이벤트보다 최근 window 평균 score를 사용해야 한다. | 최근 3초 또는 최근 N개 평균 | DEC-10 |
 | NFR-06 | 로컬 저장소는 무한 증가하지 않도록 보존 정책을 가져야 한다. | InfluxDB 1일, AI snapshot 24시간 cleanup | DEC-21 |
 | NFR-07 | 장애 테스트 결과는 데이터 공백, failover/failback 시간, 중복 write 가능성을 측정 가능해야 한다. | 1초/10초 bucket 분석 | DEC-19 |
+| NFR-08 | 일일 보고서는 원본 raw payload 전체를 LLM prompt에 넣지 않고 compact context를 사용해야 한다. | `MAX_CONTEXT_BYTES=120000`, factory별 token target 8k~15k | DEC-25 |
+| NFR-09 | factory별 보고서 생성 실패는 다른 factory 보고서 생성을 막지 않아야 한다. | Step Functions Map branch 단위 실패 격리 | DEC-25 |
 
 ### 아키텍처/제약 요구사항
 
@@ -202,6 +212,7 @@
 | OPS-05 | GitHub Actions는 운영 클러스터에 직접 `kubectl apply`를 수행하지 않아야 한다. | DEC-17, DEC-18 |
 | OPS-06 | 운영형 `factory-a`는 failover/failback 기준선을 유지하고, AI snapshot 저장 구조는 failover를 방해하지 않아야 한다. | DEC-19, DEC-20 |
 | OPS-07 | 물리 장애 유발은 MVP에서 수동 유지하되, 상태 수집과 evidence pack 생성은 Ansible 자동화 대상으로 둔다. | DEC-18, DEC-19 |
+| OPS-08 | Reporting Terraform은 foundation remote state에 의존하지 않고 `data_bucket_name` variable과 `data.aws_s3_bucket` 조회로 기존 S3 bucket을 참조해야 한다. | DEC-18, DEC-25 |
 
 ### 비용/범위 요구사항
 
@@ -210,7 +221,8 @@
 | COST-01 | 새 AWS 상시 리소스가 추가되면 비용 baseline 문서를 함께 갱신해야 한다. | DEC-22 |
 | COST-02 | 장시간 사용하지 않는 Hub 리소스는 destroy 절차로 비용을 낮출 수 있어야 한다. | DEC-22 |
 | COST-03 | MVP는 데이터 수집, Risk Score, 관제, 배포 파이프라인 검증에 집중하고 장기 분석/완전 자동 운영은 후속으로 둔다. | DEC-24 |
-| COST-04 | LLM 기반 리포트는 전체 자동화가 아니라 운영 리포트 초안 생성 수준으로만 후속 검토한다. | DEC-24 |
+| COST-04 | LLM 기반 리포트는 전체 자동화가 아니라 운영 리포트 초안 생성 수준으로 MVP에 포함한다. | DEC-25 |
+| COST-05 | Reporting stack이 추가되면 Lambda, Step Functions, S3 request, CloudWatch Logs, Bedrock 사용량 기준을 비용 문서에 반영해야 한다. | DEC-22, DEC-25 |
 
 ## 요구사항-설계 추적표
 
@@ -222,6 +234,7 @@
 | FR-04, NFR-05 | Lambda data processor가 평균 score와 센서 요약값을 기반으로 Risk Score를 계산한다. | M6에서 Risk Score 변화가 화면에 반영되는지 확인 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
 | FR-05 | IoT Rule이 raw JSON을 `raw/{factory_id}/{source_type}/...` 경로에 저장한다. | M4에서 S3 raw object와 partition 확인 | `docs/planning/05_decision_rationale.md`, `docs/specs/iot_data_format.md` |
 | FR-06, NFR-03, NFR-04 | Dashboard Backend/API가 DynamoDB LATEST/HISTORY와 S3 processed result를 조회한다. | M6에서 일반 상태 10~35초, 장애 판정 40~60초 목표 확인 | `docs/specs/data_storage_pipeline.md`, `docs/planning/03_evaluation_plan.md` |
+| BR-05, FR-08, FR-09, NFR-08, NFR-09 | EventBridge Scheduler -> Step Functions -> 4개 reporting Lambda -> S3 `reports/daily/` 경로로 factory별 보고서를 생성한다. | `factory-a/b/c`별 `report-context.json`, `factory-daily-summary.json`, `report.md`, `generation-metadata.json` 확인 | `docs/planning/17_llm_daily_factory_report_plan.md` |
 | ARC-01, OPS-06 | `factory-a` K3s workload는 worker2 preferred, worker1 failover, 조건부 failback을 유지한다. | failover/failback 테스트 결과와 M0 회귀 확인 | `docs/ops/09_failover_failback_test_results.md` |
 | ARC-02, ARC-03 | K3s + adapter/generator + edge-iot-publisher + IoT Core 구조를 사용한다. | Edge data-plane 배포와 MQTT publish 확인 | `docs/planning/05_decision_rationale.md` |
 | ARC-04 | IoT Core 이후 IoT Rule/S3 raw와 Lambda/DynamoDB/S3 processed/Dashboard 흐름을 사용한다. | M4, M6, M7 통합 검증 | `docs/specs/data_storage_pipeline.md`, `docs/planning/15_cloud_architecture_final.md` |
@@ -242,7 +255,7 @@
 | M4 | IoT Core, S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed | FR-01 ~ FR-05, NFR-01, NFR-02 |
 | M5 | `factory-b/c` 테스트베드 추가와 3개 공장 Fleet 인식 | BR-04, FR-07 |
 | M6 | Risk Twin Dashboard, 상태 카드, 원인, 로그, 지연 목표 | BR-01 ~ BR-03, FR-06, NFR-03, NFR-04 |
-| M7 | 운영형/테스트베드형/장애/롤백 통합 시나리오 | 전체 요구사항 회귀 |
+| M7 | 운영형/테스트베드형/장애/롤백/일일 보고서 통합 시나리오 | 전체 요구사항 회귀 |
 
 ## MVP 제외 범위와 후속 요구사항
 
@@ -255,6 +268,9 @@
 | 별도 장기 실행 Risk 서비스/worker | MVP 제외 | Lambda 처리 한계, 복잡한 재처리, 별도 스케일링 요구가 확인되는 경우 |
 | 별도 이벤트 전용 파이프라인 | MVP 제외 | 평균 score 기반 Risk로 설명하기 어려운 이벤트 요구가 생기는 경우 |
 | 장기 이력 분석 계층 | MVP 후속 | Risk 보정, 리포트, near-miss 분석이 MVP 이후 주요 가치가 되는 경우 |
+| S3 raw 원본 직접 LLM 분석 | MVP 제외 | 별도 redaction/PII/비용 통제가 필요하고 processed context로 보고서 품질이 부족한 경우 |
+| DOCX/PDF 보고서 생성 | MVP 후속 | Markdown 초안 운영 검증 후 배포/공유 포맷이 필요해지는 경우 |
+| 전체 공장 통합 보고서 | MVP 후속 | factory별 보고서가 안정화되고 본사 단위 executive summary 요구가 생기는 경우 |
 | WAF/Cognito/OIDC 고도화 | MVP 후속 | 외부 사용자 접근과 인증 요구가 실제 운영 요구로 확정되는 경우 |
 | Site-to-Site VPN, TGW, Direct Connect, self-hosted WireGuard | MVP 후속 | Tailscale 운영 한계나 고객 네트워크 정책 요구가 확인되는 경우 |
 | 완전 자동 물리 장애 유발 | MVP 후속 | 정기 무인 장애 리허설이 운영 요구가 되는 경우 |

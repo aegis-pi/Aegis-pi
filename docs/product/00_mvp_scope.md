@@ -1,7 +1,7 @@
 # MVP 범위
 
 상태: source of truth
-기준일: 2026-05-20
+기준일: 2026-05-27
 
 ## 목적
 
@@ -12,6 +12,8 @@
 - MVP의 첫 기준선인 M0 `factory-a` Safe-Edge 구축과 실측 검증은 완료됐다.
 - AWS Hub EKS/ArgoCD, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a/b/c` IoT Thing/Policy/K3s Secret은 현재 build 스크립트와 factory별 등록 스크립트로 재생성/검증 가능하다. Hub는 `build-hub.sh`, Admin UI는 `build-admin-ui-after-ns.sh`, Tailnet UI는 `connect-hub-tailscale-ui.sh`, Spoke 등록은 `register-spoke-factory-a/b/c.sh`, 최종 확인은 `verify-complete.sh`가 담당한다.
 - 전체 MVP는 운영형 Spoke 1개와 테스트베드형 Spoke 2개를 포함한 멀티 공장 관제 구조를 목표로 한다.
+- 2026-05-27 기준 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed data-pipeline은 `factory-a/b/c` 기준으로 실제 AWS 리소스 검증을 완료했다.
+- Bedrock 기반 factory별 일일 운영 보고서 초안 생성은 MVP 포함 범위로 확정했다. 세부 설계 source of truth는 `docs/planning/17_llm_daily_factory_report_plan.md`다.
 
 ## 2026-05-13 멘토링 반영
 
@@ -25,9 +27,9 @@
 
 ### 보강 방향
 
-기존 MVP 범위는 유지하되, LLM 보고서를 전체 자동화 기능이 아니라 하루 1회 운영 리포트 초안 생성으로 제한해 포함하는 방향을 검토한다. 이 리포트는 자동 재학습이나 자동 배포가 아니라, Edge AI 판단의 실패/불확실 사례와 모델/설정 업데이트 후보를 찾는 용도다.
+기존 MVP 범위는 유지하되, LLM 보고서를 전체 자동화 기능이 아니라 하루 1회 운영 리포트 초안 생성으로 제한해 포함한다. 이 리포트는 자동 재학습이나 자동 배포가 아니라, Edge AI 판단의 실패/불확실 사례와 모델/설정 업데이트 후보를 찾는 용도다.
 
-추가로 Dashboard 최신 상태는 S3 raw를 직접 조회하는 방식이 아니라, DynamoDB LATEST/HISTORY를 통해 준실시간으로 조회한다. S3 raw는 원본 보존, 재처리, 감사, 리포트 입력으로 유지한다.
+추가로 Dashboard 최신 상태는 S3 raw를 직접 조회하는 방식이 아니라, DynamoDB LATEST/HISTORY를 통해 준실시간으로 조회한다. S3 raw는 원본 보존, 재처리, 감사용으로 유지한다. 일일 운영 보고서의 MVP 입력은 S3 `processed/`이며, Bedrock에는 원본 raw payload를 직접 넣지 않는다.
 
 ## 현재 완료 범위
 
@@ -49,6 +51,7 @@
 - IoT Rule -> S3 raw 적재
 - `factory-a` IoT Thing/certificate/policy 및 K3s Secret
 - `factory-b/c` VM K3s 테스트베드, local dummy generator, 공통 publisher, S3 raw 적재 검증
+- Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, `pipeline_status` 계산 및 `factory-a/b/c` end-to-end 검증
 
 ## MVP 포함 범위
 
@@ -58,6 +61,11 @@
 - Tailscale 기반 Hub-Spoke 연결
 - IoT Core -> S3 수집 경로
 - Risk Score 기반 `안전 / 주의 / 위험` 표현
+- Bedrock 기반 factory별 일일 운영 보고서 초안
+  - 매일 00:30 KST 기준 전일 KST 00:00:00~23:59:59 대상
+  - `factory-a/b/c`별 개별 Markdown 보고서
+  - S3 `processed/` 기반 집계, `report-context.json`, `factory-daily-summary.json`, `report.md`, `generation-metadata.json` 저장
+  - 운영자 검토용 초안이며 자동 재학습/자동 배포를 수행하지 않음
 - 메인 대시보드
   - 공장별 위험 상태 카드
   - 센서 현황
@@ -66,12 +74,14 @@
 
 ## MVP 제외 범위
 
-- LLM 기반 일일 보고서 자동 생성
 - event 기반 점수 반영
 - 별도 이벤트 전용 파이프라인
 - 공장별 상세 커스텀 정책 활성화
 - 완전 자동화된 장애/복구 리허설
 - 장기 이력 분석 계층
+- Bedrock을 통한 S3 raw 원본 직접 분석
+- DOCX/PDF 보고서 생성
+- 전체 공장 통합 보고서
 
 ## 후속 확장 범위
 
@@ -81,6 +91,8 @@
 - 세부 알람 정책
 - 운영 자동화 고도화
 - 장기 저장소와 리포트 자동화
+- DOCX/PDF 보고서 후처리 Lambda
+- 전체 공장 요약 보고서
 
 ## MVP 완료 판정
 
@@ -90,4 +102,5 @@ MVP는 아래 조건을 만족할 때 완료로 본다.
 - 운영형 `factory-a`는 실제 입력 기반 상태를 보낸다.
 - 테스트베드형 `factory-b`, `factory-c`는 Dummy 시나리오 기반 상태를 보낸다.
 - Hub 관제에서 공장별 `안전 / 주의 / 위험` 상태가 보인다.
+- S3 `processed/` 기반 factory별 일일 보고서 context와 Markdown 초안이 `reports/daily/.../{factory_id}/`에 생성된다.
 - 배포, 데이터 수집, 장애 시나리오가 문서와 일치한다.
