@@ -615,3 +615,13 @@ Grafana에는 AMP datasource와 CloudWatch datasource를 함께 둔다.
 | `infra/foundation/lambda.tf` | Lambda, IAM, CloudWatch 리소스 |
 | `infra/foundation/dynamodb.tf` | DynamoDB 테이블 리소스 |
 | `infra/foundation/iot_rule.tf` | IoT Topic Rule 리소스 |
+
+---
+
+## 2026-05-27 운영 메모
+
+- Factory-A `infra_state` raw payload는 Prometheus 기반 node CPU/memory/disk 사용률을 포함한다.
+- Factory-A adapter image는 GitOps에서 `factory-a-log-adapter:main`, `imagePullPolicy: Always`로 배포한다.
+- Spoke K3s는 EKS node role을 상속받지 않으므로 `ai-apps/ecr-registry` imagePullSecret을 주기적으로 갱신해야 한다. 만료되면 rollout 시 `403 Forbidden` / `ErrImagePull`이 발생한다.
+- `KJW_AEGIS_Data_IoTRule_infra_state_processor`, `KJW_AEGIS_Data_IoTRule_factory_state_processor`는 구형 Lambda가 `processed/` 결과를 덮어써 2026-05-27에 비활성화했다.
+- Lambda zip에는 `__pycache__`와 `*.pyc`를 포함하지 않는다. stale bytecode가 들어가면 source 변경과 실제 런타임 동작이 어긋날 수 있다.

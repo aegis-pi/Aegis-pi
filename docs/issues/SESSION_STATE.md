@@ -709,6 +709,16 @@ M4 Issue 2~5 완료:
   Hub EKS 재구성 + Hub ArgoCD ApplicationSet 기반 factory-a K3s 배포 자동화 구성
   -> 직접 배포 검증 이력을 GitOps 운영 경로로 전환 완료
   그 이후: M4 Issue 6~7 Lambda data processor / pipeline_status 구현 및 검증 완료
+
+2026-05-27 추가 진행:
+  factory-a infra_state raw/processed/state_snapshot 재검증 완료
+  factory-a-log-adapter:main 배포 및 Prometheus node CPU/memory/disk 수집 반영
+  factory-a ai-apps/ecr-registry imagePullSecret 만료로 ErrImagePull 발생, secret 갱신 후 rollout 복구
+  DataProcessor Lambda archive에서 __pycache__/pyc 제외 후 재배포
+  중복 KJW IoT Rule 2개 비활성화:
+    KJW_AEGIS_Data_IoTRule_infra_state_processor
+    KJW_AEGIS_Data_IoTRule_factory_state_processor
+  최신 processed state_snapshot 기준 nodes_ready=3/3, pods_ready=6/6, pipeline_status=normal 확인
 ```
 
 ## 갱신 규칙
