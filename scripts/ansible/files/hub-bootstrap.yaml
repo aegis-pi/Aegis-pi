@@ -31,7 +31,7 @@ metadata:
     app.kubernetes.io/part-of: aegis-hub
     aegis.io/component: observability
   annotations:
-    aegis.io/role: Grafana, AMP 연동 메트릭 관제
+    aegis.io/role: Grafana 관리 UI
 ---
 apiVersion: v1
 kind: LimitRange

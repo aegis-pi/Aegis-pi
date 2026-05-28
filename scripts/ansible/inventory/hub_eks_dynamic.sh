@@ -37,10 +37,6 @@ risk_normalizer_service_account_name="$(jq -r '.risk_normalizer_service_account.
 aws_lb_controller_irsa_role_arn="$(jq -r '.aws_lb_controller_irsa_role_arn.value // empty' <<<"${terraform_output}")"
 aws_lb_controller_service_account_namespace="$(jq -r '.aws_lb_controller_service_account.value.namespace // empty' <<<"${terraform_output}")"
 aws_lb_controller_service_account_name="$(jq -r '.aws_lb_controller_service_account.value.name // empty' <<<"${terraform_output}")"
-prometheus_remote_write_irsa_role_arn="$(jq -r '.prometheus_remote_write_irsa_role_arn.value // empty' <<<"${terraform_output}")"
-prometheus_remote_write_service_account_namespace="$(jq -r '.prometheus_remote_write_service_account.value.namespace // empty' <<<"${terraform_output}")"
-prometheus_remote_write_service_account_name="$(jq -r '.prometheus_remote_write_service_account.value.name // empty' <<<"${terraform_output}")"
-grafana_amp_query_irsa_role_arn="$(jq -r '.grafana_amp_query_irsa_role_arn.value // empty' <<<"${terraform_output}")"
 grafana_service_account_namespace="$(jq -r '.grafana_service_account.value.namespace // empty' <<<"${terraform_output}")"
 grafana_service_account_name="$(jq -r '.grafana_service_account.value.name // empty' <<<"${terraform_output}")"
 admin_ui_domain_name="$(jq -r '.admin_ui_domain_name.value // empty' <<<"${terraform_output}")"
@@ -48,8 +44,6 @@ admin_ui_argocd_host="$(jq -r '.admin_ui_argocd_host.value // empty' <<<"${terra
 admin_ui_grafana_host="$(jq -r '.admin_ui_grafana_host.value // empty' <<<"${terraform_output}")"
 admin_ui_route53_zone_id="$(jq -r '.admin_ui_route53_zone_id.value // empty' <<<"${terraform_output}")"
 admin_ui_certificate_arn="$(jq -r '.admin_ui_certificate_arn.value // empty' <<<"${terraform_output}")"
-amp_prometheus_endpoint="$(jq -r '.amp_prometheus_endpoint.value // empty' <<<"${terraform_output}")"
-amp_remote_write_endpoint="$(jq -r '.amp_remote_write_endpoint.value // empty' <<<"${terraform_output}")"
 
 if [[ -z "${cluster_name}" || -z "${aws_region}" ]]; then
   if [[ "${HUB_EKS_ALLOW_DEFAULTS:-false}" == "true" ]]; then
@@ -75,10 +69,6 @@ jq -n \
   --arg aws_lb_controller_irsa_role_arn "${aws_lb_controller_irsa_role_arn}" \
   --arg aws_lb_controller_service_account_namespace "${aws_lb_controller_service_account_namespace}" \
   --arg aws_lb_controller_service_account_name "${aws_lb_controller_service_account_name}" \
-  --arg prometheus_remote_write_irsa_role_arn "${prometheus_remote_write_irsa_role_arn}" \
-  --arg prometheus_remote_write_service_account_namespace "${prometheus_remote_write_service_account_namespace}" \
-  --arg prometheus_remote_write_service_account_name "${prometheus_remote_write_service_account_name}" \
-  --arg grafana_amp_query_irsa_role_arn "${grafana_amp_query_irsa_role_arn}" \
   --arg grafana_service_account_namespace "${grafana_service_account_namespace}" \
   --arg grafana_service_account_name "${grafana_service_account_name}" \
   --arg admin_ui_domain_name "${admin_ui_domain_name}" \
@@ -86,8 +76,6 @@ jq -n \
   --arg admin_ui_grafana_host "${admin_ui_grafana_host}" \
   --arg admin_ui_route53_zone_id "${admin_ui_route53_zone_id}" \
   --arg admin_ui_certificate_arn "${admin_ui_certificate_arn}" \
-  --arg amp_prometheus_endpoint "${amp_prometheus_endpoint}" \
-  --arg amp_remote_write_endpoint "${amp_remote_write_endpoint}" \
   '{
     hub_eks: {
       hosts: ["localhost"],
@@ -104,19 +92,13 @@ jq -n \
         aws_lb_controller_irsa_role_arn: $aws_lb_controller_irsa_role_arn,
         aws_lb_controller_service_account_namespace: $aws_lb_controller_service_account_namespace,
         aws_lb_controller_service_account_name: $aws_lb_controller_service_account_name,
-        prometheus_remote_write_irsa_role_arn: $prometheus_remote_write_irsa_role_arn,
-        prometheus_remote_write_service_account_namespace: $prometheus_remote_write_service_account_namespace,
-        prometheus_remote_write_service_account_name: $prometheus_remote_write_service_account_name,
-        grafana_amp_query_irsa_role_arn: $grafana_amp_query_irsa_role_arn,
         grafana_service_account_namespace: $grafana_service_account_namespace,
         grafana_service_account_name: $grafana_service_account_name,
         admin_ui_domain_name: $admin_ui_domain_name,
         admin_ui_argocd_host: $admin_ui_argocd_host,
         admin_ui_grafana_host: $admin_ui_grafana_host,
         admin_ui_route53_zone_id: $admin_ui_route53_zone_id,
-        admin_ui_certificate_arn: $admin_ui_certificate_arn,
-        amp_prometheus_endpoint: $amp_prometheus_endpoint,
-        amp_remote_write_endpoint: $amp_remote_write_endpoint
+        admin_ui_certificate_arn: $admin_ui_certificate_arn
       }
     },
     _meta: {

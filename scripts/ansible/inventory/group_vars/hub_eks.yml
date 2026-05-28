@@ -4,7 +4,7 @@ hub_namespaces:
     role: Hub에서 Spoke 배포 제어
   - name: observability
     component: observability
-    role: Grafana, AMP 연동 메트릭 관제
+    role: Grafana 관리 UI
   - name: risk
     component: risk
     role: M1 Hub 배포/IRSA 검증용 또는 임시 risk workload. 최신 MVP에서는 별도 Risk 계산 파드를 두지 않음
@@ -47,8 +47,6 @@ grafana_service_type: ClusterIP
 grafana_local_port: 30080
 grafana_remote_port: 80
 grafana_admin_secret_name: grafana-admin
-grafana_amp_datasource_name: AEGIS-AMP
-grafana_amp_datasource_uid: aegis-amp
 grafana_apply_on_each_build: true
 grafana_force_upgrade: false
 

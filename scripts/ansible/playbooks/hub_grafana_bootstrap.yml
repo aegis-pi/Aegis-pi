@@ -1,5 +1,5 @@
 ---
-- name: Bootstrap Hub internal Grafana with AMP datasource
+- name: Bootstrap Hub internal Grafana
   hosts: hub_eks
   gather_facts: false
 
