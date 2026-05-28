@@ -18,6 +18,8 @@ def generate_factory_report(
     generated_text = client.generate(prompt)
     draft_markdown = render_markdown_draft(generated_text)
     draft_markdown = _insert_key_metrics_table(draft_markdown, report_context)
+    draft_markdown = _insert_section_metric_tables(draft_markdown, report_context)
+    draft_markdown = _simplify_repeated_section_narratives(draft_markdown)
     narrative_errors = _validate_narrative_invariants(report_context, draft_markdown)
     markdown = _append_verification_metrics(draft_markdown, report_context)
     validation_errors = validate_report_invariants(report_context, markdown)
@@ -67,6 +69,113 @@ def _insert_key_metrics_table(markdown: str, report_context: dict) -> str:
         head, tail = markdown.split(marker, 1)
         return f"{head.rstrip()}\n\n{table}\n{marker}{tail}"
     return markdown.rstrip() + "\n\n" + table + "\n"
+
+
+def _insert_section_metric_tables(markdown: str, report_context: dict) -> str:
+    section_tables = (
+        ("## 데이터 수집 상태", _render_data_collection_table(report_context)),
+        ("## Risk Score", _render_risk_score_table(report_context)),
+        ("## 센서 및 AI 이벤트", _render_sensor_ai_table(report_context)),
+        ("## 인프라 상태", _render_infra_table(report_context)),
+        ("## 주요 이벤트", _render_events_table(report_context)),
+        ("## 확인 필요 항목", _render_recommended_checks_table(report_context)),
+    )
+    for heading, table in section_tables:
+        markdown = _insert_table_after_heading(markdown, heading, table)
+    return markdown
+
+
+def _insert_table_after_heading(markdown: str, heading: str, table: str) -> str:
+    if not table or table in markdown:
+        return markdown
+    marker = f"{heading}\n"
+    if marker not in markdown:
+        return markdown
+    return markdown.replace(marker, f"{heading}\n\n{table}\n\n", 1)
+
+
+def _simplify_repeated_section_narratives(markdown: str) -> str:
+    for heading in ("## 주요 이벤트", "## 확인 필요 항목"):
+        markdown = _replace_section_body(markdown, heading, _keep_first_table_only)
+
+    redundant_prefixes = {
+        "## Risk Score": (
+            "- 평균 Risk Score",
+            "- 최저 Risk Score",
+            "- 최고 Risk Score",
+            "- 주의 상태 누적 시간",
+            "- 위험 상태 누적 시간",
+            "- 주요 원인",
+        ),
+        "## 센서 및 AI 이벤트": (
+            "- 온도 센서",
+            "- 습도 센서",
+            "- AI 스코어 급등 횟수",
+            "- 비정상 소리 감지 횟수",
+        ),
+        "## 인프라 상태": (
+            "- 노드 준비 안됨",
+            "- 비정상 워크로드",
+            "- 워크로드 재시작",
+            "- 마지막 스냅샷",
+        ),
+    }
+    for heading, prefixes in redundant_prefixes.items():
+        markdown = _replace_section_body(markdown, heading, lambda body, p=prefixes: _drop_redundant_bullets(body, p))
+    return markdown
+
+
+def _replace_section_body(markdown: str, heading: str, transform) -> str:
+    marker = f"{heading}\n"
+    start = markdown.find(marker)
+    if start < 0:
+        return markdown
+    body_start = start + len(marker)
+    next_heading = markdown.find("\n## ", body_start)
+    if next_heading < 0:
+        body = markdown[body_start:]
+        return markdown[:body_start] + transform(body)
+    body = markdown[body_start:next_heading]
+    return markdown[:body_start] + transform(body).rstrip() + "\n" + markdown[next_heading:]
+
+
+def _keep_first_table_only(body: str) -> str:
+    lines = body.splitlines()
+    kept = []
+    table_started = False
+    table_finished = False
+    for line in lines:
+        if not table_started:
+            kept.append(line)
+            if line.startswith("| "):
+                table_started = True
+            continue
+        if line.startswith("| "):
+            kept.append(line)
+            continue
+        if not line.strip():
+            kept.append(line)
+            table_finished = True
+            continue
+        if table_finished:
+            break
+        kept.append(line)
+    return "\n".join(kept).rstrip() + "\n"
+
+
+def _drop_redundant_bullets(body: str, prefixes: tuple[str, ...]) -> str:
+    filtered = []
+    bullet_count = 0
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(prefixes):
+            continue
+        if stripped.startswith("- "):
+            bullet_count += 1
+            if bullet_count > 3:
+                continue
+        filtered.append(line)
+    return "\n".join(filtered).rstrip() + "\n"
 
 
 def _render_key_metrics_table(report_context: dict) -> str:
@@ -122,6 +231,129 @@ def _render_key_metrics_table(report_context: dict) -> str:
     return "\n".join(lines)
 
 
+def _render_data_collection_table(report_context: dict) -> str:
+    data_quality = report_context.get("data_quality", {})
+    rows = []
+    for dataset, label in (
+        ("factory_state", "공장 상태 데이터"),
+        ("risk_score", "위험 점수 데이터"),
+        ("infra_state", "인프라 상태 데이터"),
+    ):
+        actual = data_quality.get(f"{dataset}_actual_count")
+        expected = data_quality.get(f"{dataset}_expected_count")
+        rate = data_quality.get(f"{dataset}_collection_rate")
+        if actual is not None and expected is not None and rate is not None:
+            rows.append((label, f"{actual}/{expected}", _format_percent(rate), _collection_judgement(rate)))
+
+    if data_quality.get("max_gap_minutes") is not None:
+        rows.append(("최대 결측 구간", _gap_time_range(data_quality), f"{_format_number(data_quality.get('max_gap_minutes'))}분", _gap_judgement(data_quality.get("max_gap_minutes"))))
+
+    if not rows:
+        return ""
+    return _render_markdown_table(("데이터", "수집량/구간", "수집률/시간", "판단"), rows, align=(None, "right", "right", None))
+
+
+def _render_risk_score_table(report_context: dict) -> str:
+    risk = report_context.get("risk", {})
+    rows = []
+    for label, key, judgement in (
+        ("평균 Risk Score", "avg_score", "높을수록 안전에 가까움"),
+        ("최저 Risk Score", "min_score", None),
+        ("최고 Risk Score", "max_score", "정상 상한에 가까움"),
+    ):
+        if risk.get(key) is not None:
+            rows.append((label, _format_number(risk.get(key)), judgement or _risk_judgement(risk.get(key))))
+    if risk.get("warning_minutes") is not None:
+        rows.append(("주의 상태 누적 시간", f"{_format_number(risk.get('warning_minutes'))}분", _minutes_judgement(risk.get("warning_minutes"), "원인 확인 필요", "주의 구간 없음")))
+    if risk.get("danger_minutes") is not None:
+        rows.append(("위험 상태 누적 시간", f"{_format_number(risk.get('danger_minutes'))}분", _minutes_judgement(risk.get("danger_minutes"), "즉시 확인 필요", "즉시 위험 아님")))
+    if risk.get("min_score_time_ranges"):
+        rows.append(("최저 점수 발생 시각", ", ".join(str(value) for value in risk.get("min_score_time_ranges", [])[:5]), "해당 시간대 우선 확인"))
+    if risk.get("top_causes"):
+        rows.append(("주요 원인 후보", ", ".join(str(value) for value in risk.get("top_causes", [])[:3]), "확정 원인 아님"))
+
+    if not rows:
+        return ""
+    return _render_markdown_table(("항목", "값", "판단"), rows, align=(None, "right", None))
+
+
+def _render_sensor_ai_table(report_context: dict) -> str:
+    factory_state = report_context.get("factory_state", {})
+    rows = []
+    for label, key, suffix, judgement in (
+        ("최고 온도", "temperature_max", "", "임계값과 현장 조건 확인"),
+        ("최고 습도", "humidity_max", "%", "현장 조건 확인"),
+        ("AI 스코어 급등", "ai_spike_event_count", "회", "원인 샘플 확인"),
+        ("비정상 소리 감지", "abnormal_sound_count", "회", "소리 샘플 검토"),
+        ("낙상 스코어 최고", "max_fall_score", "", "testbed/dummy 여부 구분"),
+    ):
+        value = factory_state.get(key)
+        if value is not None:
+            rows.append((label, f"{_format_number(value)}{suffix}", _count_judgement(value, judgement) if suffix == "회" else judgement))
+    if factory_state.get("ai_spike_event_examples"):
+        examples = factory_state.get("ai_spike_event_examples", [])[:3]
+        ranges = [str(example.get("time_range")) for example in examples if example.get("time_range")]
+        if ranges:
+            rows.append(("AI 스코어 급등 예시", ", ".join(ranges), "예시 구간 우선 확인"))
+
+    if not rows:
+        return _render_markdown_table(("항목", "값", "판단"), [("센서/AI 이벤트", "없음", "context 기준 특이 이벤트 없음")], align=(None, "right", None))
+    return _render_markdown_table(("항목", "값", "판단"), rows, align=(None, "right", None))
+
+
+def _render_infra_table(report_context: dict) -> str:
+    infra = report_context.get("infra", {})
+    rows = []
+    if infra.get("node_not_ready_count") is not None:
+        value = f"{infra.get('node_not_ready_count')}회"
+        if infra.get("node_not_ready_minutes") is not None:
+            value += f", {_format_number(infra.get('node_not_ready_minutes'))}분"
+        rows.append(("노드 준비 안됨", value, _count_judgement(infra.get("node_not_ready_count"), "원인 확인 필요")))
+    if infra.get("workload_restart_total") is not None:
+        rows.append(("워크로드 재시작", f"{infra.get('workload_restart_total')}회", _count_judgement(infra.get("workload_restart_total"), "재시작 원인 확인", "재시작 증거 없음")))
+    if infra.get("unhealthy_workload_count") is not None:
+        rows.append(("비정상 워크로드", f"{infra.get('unhealthy_workload_count')}개", _count_judgement(infra.get("unhealthy_workload_count"), "워크로드 상태 확인")))
+    if infra.get("final_snapshot_status"):
+        rows.append(("마지막 스냅샷 상태", str(infra.get("final_snapshot_status")), "현재 상태와 일중 이벤트를 분리해서 확인"))
+
+    if not rows:
+        return _render_markdown_table(("항목", "값", "판단"), [("인프라 이벤트", "없음", "context 기준 특이 이벤트 없음")], align=(None, "right", None))
+    return _render_markdown_table(("항목", "값", "판단"), rows, align=(None, "right", None))
+
+
+def _render_events_table(report_context: dict) -> str:
+    events = report_context.get("events", [])[:5]
+    if not events:
+        return _render_markdown_table(("시간", "유형", "심각도", "지속", "근거"), [("-", "주요 이벤트 없음", "-", "-", "-")], align=(None, None, "right", "right", None))
+
+    rows = []
+    for event in events:
+        rows.append((
+            event.get("time_range") or "-",
+            _event_type_label(event.get("type")),
+            _format_number(event.get("severity_score")),
+            _format_duration_seconds(event.get("duration_seconds")),
+            _first_evidence_id(event),
+        ))
+    return _render_markdown_table(("시간", "유형", "심각도", "지속", "근거"), rows, align=(None, None, "right", "right", None))
+
+
+def _render_recommended_checks_table(report_context: dict) -> str:
+    checks = report_context.get("recommended_checks", [])[:5]
+    if not checks:
+        return _render_markdown_table(("우선순위", "항목", "이유", "근거"), [("-", "권장 확인 항목 없음", "-", "-")])
+
+    rows = []
+    for check in checks:
+        rows.append((
+            _priority_label(check.get("priority")),
+            _check_item_label(check.get("item")),
+            check.get("reason") or "-",
+            _first_evidence_id(check),
+        ))
+    return _render_markdown_table(("우선순위", "항목", "이유", "근거"), rows)
+
+
 def _overall_status(data_quality: dict, risk: dict, infra: dict, pipeline: dict) -> str:
     if _positive(risk.get("danger_minutes")):
         return "위험"
@@ -171,6 +403,11 @@ def _gap_value(data_quality: dict) -> str:
     return f"{_format_number(data_quality.get('max_gap_minutes'))}분"
 
 
+def _gap_time_range(data_quality: dict) -> str:
+    window = (data_quality.get("top_gap_windows") or [{}])[0]
+    return window.get("time_range") or "-"
+
+
 def _gap_judgement(minutes) -> str:
     if _positive(minutes):
         return "데이터 공백 확인 필요"
@@ -209,6 +446,76 @@ def _format_number(value) -> str:
     if isinstance(value, float):
         return str(int(value)) if value.is_integer() else f"{value:.2f}".rstrip("0").rstrip(".")
     return str(value)
+
+
+def _format_duration_seconds(value) -> str:
+    if value is None:
+        return "-"
+    if value >= 60:
+        return f"{_format_number(value / 60)}분"
+    return f"{_format_number(value)}초"
+
+
+def _event_type_label(value) -> str:
+    labels = {
+        "node_not_ready": "노드 준비 안됨",
+        "unhealthy_workload": "비정상 워크로드",
+        "workload_restart": "워크로드 재시작",
+        "ai_spike": "AI 스코어 급등",
+        "abnormal_sound": "비정상 소리 감지",
+    }
+    return labels.get(value, str(value or "-"))
+
+
+def _priority_label(value) -> str:
+    labels = {
+        "high": "높음",
+        "medium": "중간",
+        "low": "낮음",
+    }
+    return labels.get(value, str(value or "-"))
+
+
+def _check_item_label(value) -> str:
+    labels = {
+        "Risk degradation window sensor and AI causes": "Risk 저하 구간 원인 분석",
+        "AI score spike source review": "AI 스코어 급등 원인 검토",
+        "Abnormal sound sample review": "비정상 소리 샘플 검토",
+        "Node readiness window evidence review": "노드 준비 상태 근거 검토",
+        "edge-iot-publisher logs and K3s node status": "edge-iot-publisher 로그와 K3s 노드 상태 점검",
+    }
+    return labels.get(value, str(value or "-"))
+
+
+def _first_evidence_id(item: dict) -> str:
+    evidence_ids = item.get("evidence_message_ids")
+    if evidence_ids:
+        return str(evidence_ids[0])
+    evidence = item.get("evidence") or {}
+    evidence_ids = evidence.get("evidence_message_ids")
+    if evidence_ids:
+        return str(evidence_ids[0])
+    return "-"
+
+
+def _render_markdown_table(headers: tuple[str, ...], rows: list[tuple], align: tuple[str | None, ...] | None = None) -> str:
+    align = align or tuple(None for _ in headers)
+    separator = []
+    for column_align in align:
+        separator.append("---:" if column_align == "right" else "---")
+    lines = [
+        "| " + " | ".join(_escape_table_cell(header) for header in headers) + " |",
+        "| " + " | ".join(separator) + " |",
+    ]
+    for row in rows:
+        lines.append("| " + " | ".join(_escape_table_cell(value) for value in row) + " |")
+    return "\n".join(lines)
+
+
+def _escape_table_cell(value) -> str:
+    if value is None:
+        return "-"
+    return str(value).replace("\n", " ").replace("|", "\\|")
 
 
 def _append_verification_metrics(markdown: str, report_context: dict) -> str:

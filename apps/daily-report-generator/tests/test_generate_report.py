@@ -8,10 +8,39 @@ def test_generate_factory_report_uses_context_only_and_returns_markdown_keys():
         "\n".join([
             "# factory-a 2026-01-01 일일 운영 리포트",
             "",
+            "## 요약",
+            "",
             "- Risk 최소 점수: 51.2",
             "- Risk 최대 점수: 99.0",
+            "",
+            "## 데이터 수집 상태",
+            "",
             "- factory_state 수집: 1000/1200, collection_rate 0.9986",
             "- infra_state 수집: 150/180, collection_rate 0.9949",
+            "",
+            "## Risk Score",
+            "",
+            "- 주의 상태 누적 시간은 원인 확인이 필요합니다.",
+            "",
+            "## 센서 및 AI 이벤트",
+            "",
+            "- 최고 온도와 낙상 스코어는 testbed 특성을 감안해 봅니다.",
+            "",
+            "## 인프라 상태",
+            "",
+            "- 워크로드 재시작 원인을 확인합니다.",
+            "",
+            "## 주요 이벤트",
+            "",
+            "- 주요 이벤트는 없습니다.",
+            "",
+            "## 확인 필요 항목",
+            "",
+            "- 권장 확인 항목은 없습니다.",
+            "- Risk degradation window sensor and AI causes (우선순위 높음)",
+            "",
+            "## 데이터 한계",
+            "",
             "- 이 초안은 운영자 검토가 필요합니다.",
         ])
     )
@@ -34,6 +63,17 @@ def test_generate_factory_report_uses_context_only_and_returns_markdown_keys():
     assert "| 공장 상태 데이터 수집률 | 1000/1200, 99.86% | 양호 |" in result["markdown"]
     assert "| 인프라 상태 데이터 수집률 | 150/180, 99.49% | 양호 |" in result["markdown"]
     assert "| 워크로드 재시작 | 4회 | 재시작 원인 확인 |" in result["markdown"]
+    assert result["markdown"].index("## 데이터 수집 상태") < result["markdown"].index("| 데이터 | 수집량/구간 | 수집률/시간 | 판단 |")
+    assert "| 공장 상태 데이터 | 1000/1200 | 99.86% | 양호 |" in result["markdown"]
+    assert "| 평균 Risk Score | 87.1 | 높을수록 안전에 가까움 |" in result["markdown"]
+    assert "| 주의 상태 누적 시간 | 35분 | 원인 확인 필요 |" in result["markdown"]
+    assert "| 최고 온도 | 42.8 | 임계값과 현장 조건 확인 |" in result["markdown"]
+    assert "| 낙상 스코어 최고 | 0.91 | testbed/dummy 여부 구분 |" in result["markdown"]
+    assert "| 노드 준비 안됨 | 1회 | 원인 확인 필요 |" in result["markdown"]
+    assert "| - | 주요 이벤트 없음 | - | - | - |" in result["markdown"]
+    assert "| - | 권장 확인 항목 없음 | - | - |" in result["markdown"]
+    assert "- 주요 이벤트는 없습니다." not in result["markdown"]
+    assert "Risk degradation window sensor and AI causes" not in result["markdown"]
     assert "## 검증 기준 수치" in result["markdown"]
     assert "보고서 window 원문: timezone=Asia/Seoul" in result["markdown"]
     assert "Risk Score 원문: avg_score=87.1, min_score=51.2, max_score=99.0" in result["markdown"]
