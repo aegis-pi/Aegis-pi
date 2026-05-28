@@ -36,6 +36,11 @@ def test_aggregate_factory_hour_preserves_stats_spikes_thresholds_and_evidence()
     }
     assert summary["data_quality"]["factory_state_collection_rate"] == 0.0025
     assert summary["data_quality"]["infra_state_collection_rate"] == 0.0111
+    assert summary["data_quality"]["data_gap_count"] > 0
+    assert summary["data_quality"]["max_gap_minutes"] > 40
+    assert summary["data_quality"]["gap_windows"][0]["dataset"] in ("factory_state", "risk_score")
+    assert summary["data_quality"]["gap_windows"][0]["gap_type"] == "hour_end"
+    assert summary["data_quality"]["gap_windows"][0]["duration_minutes"] > 49
 
     assert summary["risk"]["avg_score"] == 66.73
     assert summary["risk"]["min_score"] == 51.2
@@ -101,6 +106,53 @@ def test_aggregate_factory_hour_preserves_stats_spikes_thresholds_and_evidence()
         "factory-a:infra_state:cluster:2026-01-01T06:10:20Z"
     ]
     assert summary["events"] == sorted(summary["events"], key=lambda event: event["severity_score"], reverse=True)
+
+
+def test_aggregate_factory_hour_includes_millisecond_records_at_hour_end():
+    summary = aggregate_factory_hour_records(
+        factory_id="factory-a",
+        report_date="2026-01-01",
+        timezone="Asia/Seoul",
+        hour="15",
+        hour_window={
+            "start_kst": "2026-01-01T15:00:00+09:00",
+            "end_kst": "2026-01-01T15:59:59+09:00",
+        },
+        records_by_dataset={
+            "factory_state": [
+                {
+                    "factory_id": "factory-a",
+                    "source_message_id": "factory-state-ms",
+                    "source_timestamp": "2026-01-01T06:59:59.722Z",
+                    "data": {"temperature_celsius": 24.0},
+                }
+            ],
+            "risk_score": [
+                {
+                    "factory_id": "factory-a",
+                    "source_message_id": "risk-score-ms",
+                    "source_timestamp": "2026-01-01T06:59:59.722Z",
+                    "risk": {"score": 100, "level": "safe"},
+                    "pipeline_status": {"status": "normal"},
+                }
+            ],
+            "infra_state": [],
+            "state_snapshot": [
+                {
+                    "factory_id": "factory-a",
+                    "updated_at": "2026-01-01T06:59:59.722Z",
+                    "factory_state": {},
+                    "infra_state": {},
+                    "risk": {},
+                    "pipeline_status": {},
+                }
+            ],
+        },
+    )
+
+    assert summary["input_counts"]["factory_state"] == 1
+    assert summary["input_counts"]["risk_score"] == 1
+    assert summary["input_counts"]["state_snapshot"] == 1
 
 
 def _load_fixture_records():

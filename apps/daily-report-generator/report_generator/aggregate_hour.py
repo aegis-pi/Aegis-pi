@@ -25,13 +25,14 @@ def aggregate_factory_hour_records(
     thresholds = thresholds or aggregate_thresholds_from_env()
     start = parse_window_bound(hour_window["start_kst"])
     end = parse_window_bound(hour_window["end_kst"])
+    end_exclusive = _exclusive_end(end)
 
     normalized = {}
     invalid_records = 0
     duplicate_records = 0
     for dataset in (*DATASETS, *AUX_DATASETS):
         dataset_records, invalid, duplicate = _valid_unique_records(
-            records_by_dataset.get(dataset, []), factory_id, start, end
+            records_by_dataset.get(dataset, []), factory_id, start, end_exclusive
         )
         normalized[dataset] = dataset_records
         invalid_records += invalid
@@ -58,7 +59,7 @@ def aggregate_factory_hour_records(
         "status": "empty" if sum(len(normalized[dataset]) for dataset in DATASETS) == 0 else "success",
         "input_counts": input_counts,
         "expected_counts": expected_counts,
-        "data_quality": _data_quality(normalized, expected_counts),
+        "data_quality": _data_quality(normalized, expected_counts, start, end_exclusive, thresholds, timezone),
         "risk": _risk_summary(normalized["risk_score"], thresholds, timezone),
         "factory_state": _factory_state_summary(normalized["factory_state"], thresholds, timezone),
         "infra": _infra_summary(normalized["infra_state"], thresholds),
@@ -71,7 +72,7 @@ def aggregate_factory_hour_records(
     return summary
 
 
-def _valid_unique_records(records: list[dict], factory_id: str, start, end) -> tuple[list[dict], int, int]:
+def _valid_unique_records(records: list[dict], factory_id: str, start, end_exclusive) -> tuple[list[dict], int, int]:
     valid = []
     seen = set()
     invalid = 0
@@ -81,7 +82,7 @@ def _valid_unique_records(records: list[dict], factory_id: str, start, end) -> t
             if record.get("factory_id") != factory_id:
                 continue
             timestamp = parse_timestamp(record.get("source_timestamp") or record.get("processed_at") or record.get("updated_at"))
-            if timestamp < start or timestamp > end:
+            if timestamp < start or timestamp >= end_exclusive:
                 continue
             message_id = record.get("source_message_id") or record.get("message_id") or record.get("sk") or record.get("updated_at")
             if not message_id:
@@ -98,27 +99,109 @@ def _valid_unique_records(records: list[dict], factory_id: str, start, end) -> t
     return valid, invalid, duplicate
 
 
-def _data_quality(records_by_dataset: dict[str, list[dict]], expected_counts: dict[str, int]) -> dict:
+def _exclusive_end(end):
+    from datetime import timedelta
+
+    return end + timedelta(seconds=1)
+
+
+def _data_quality(
+    records_by_dataset: dict[str, list[dict]],
+    expected_counts: dict[str, int],
+    start,
+    end,
+    thresholds: AggregateThresholds,
+    timezone_name: str,
+) -> dict:
     quality = {}
     all_gaps = []
-    gap_count = 0
+    gap_windows = []
     for dataset in DATASETS:
         actual = len(records_by_dataset[dataset])
         expected = expected_counts[dataset]
         quality[f"{dataset}_collection_rate"] = round(actual / expected, 4) if expected else 0
-        gap = max_gap_seconds(record["_timestamp"] for record in records_by_dataset[dataset])
-        if gap:
-            all_gaps.append(gap)
-        expected_gap = 20 if dataset == "infra_state" else 3
-        gap_count += sum(
-            1
-            for a, b in zip(records_by_dataset[dataset], records_by_dataset[dataset][1:])
-            if int((b["_timestamp"] - a["_timestamp"]).total_seconds()) > expected_gap * 2
+        expected_gap = (
+            thresholds.infra_state_interval_seconds
+            if dataset == "infra_state"
+            else thresholds.factory_state_interval_seconds
         )
-    quality["data_gap_count"] = gap_count
+        dataset_gap_windows = _gap_windows_for_dataset(
+            dataset=dataset,
+            records=records_by_dataset[dataset],
+            start=start,
+            end=end,
+            expected_gap_seconds=expected_gap,
+            timezone_name=timezone_name,
+        )
+        gap_windows.extend(dataset_gap_windows)
+        all_gaps.extend(int(window["duration_seconds"]) for window in dataset_gap_windows)
+        legacy_gap = max_gap_seconds(record["_timestamp"] for record in records_by_dataset[dataset])
+        if legacy_gap:
+            all_gaps.append(legacy_gap)
+        quality[f"{dataset}_gap_minutes"] = round(
+            sum(float(window["duration_seconds"]) for window in dataset_gap_windows) / 60,
+            2,
+        )
+
+    gap_windows.sort(key=lambda window: window["duration_seconds"], reverse=True)
+    quality["data_gap_count"] = len(gap_windows)
     quality["max_gap_seconds"] = max(all_gaps) if all_gaps else 0
-    quality["gap_windows"] = []
+    quality["max_gap_minutes"] = round(quality["max_gap_seconds"] / 60, 2)
+    quality["gap_minutes"] = round(sum(float(window["duration_seconds"]) for window in gap_windows) / 60, 2)
+    quality["gap_windows"] = gap_windows[:10]
     return quality
+
+
+def _gap_windows_for_dataset(
+    *,
+    dataset: str,
+    records: list[dict],
+    start,
+    end,
+    expected_gap_seconds: int,
+    timezone_name: str,
+) -> list[dict]:
+    if not records:
+        return [
+            _gap_window(
+                dataset=dataset,
+                start=start,
+                end=end,
+                gap_type="hour_empty",
+                timezone_name=timezone_name,
+            )
+        ]
+
+    windows = []
+    first = records[0]["_timestamp"]
+    if (first - start).total_seconds() > expected_gap_seconds * 2:
+        windows.append(_gap_window(dataset, start, first, "hour_start", timezone_name))
+
+    for left, right in zip(records, records[1:]):
+        gap_seconds = int((right["_timestamp"] - left["_timestamp"]).total_seconds())
+        if gap_seconds > expected_gap_seconds * 2:
+            windows.append(_gap_window(dataset, left["_timestamp"], right["_timestamp"], "internal", timezone_name))
+
+    last = records[-1]["_timestamp"]
+    if (end - last).total_seconds() > expected_gap_seconds * 2:
+        windows.append(_gap_window(dataset, last, end, "hour_end", timezone_name))
+
+    return windows
+
+
+def _gap_window(dataset: str, start, end, gap_type: str, timezone_name: str) -> dict:
+    from report_generator.time_window import format_hhmm_range
+
+    duration_seconds = max(int((end - start).total_seconds()), 0)
+    return {
+        "dataset": dataset,
+        "gap_type": gap_type,
+        "start_utc": start.isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "end_utc": end.isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "time_range": format_hhmm_range(start, end, timezone_name),
+        "duration_seconds": duration_seconds,
+        "duration_minutes": round(duration_seconds / 60, 2),
+    }
 
 
 def _risk_summary(records: list[dict], thresholds: AggregateThresholds, timezone_name: str) -> dict:
@@ -373,16 +456,6 @@ def _events(summary: dict, normalized: dict[str, list[dict]], thresholds: Aggreg
     events.extend(temp_events)
     events.extend(summary["factory_state"]["spike_events"])
 
-    if summary["data_quality"]["data_gap_count"]:
-        events.append({
-            "time_range": f"hh={summary['hour']}",
-            "severity": "warning",
-            "type": "data_gap",
-            "summary": "Processed data gap detected",
-            "duration_seconds": summary["data_quality"]["max_gap_seconds"],
-            "magnitude": min(summary["data_quality"]["max_gap_seconds"] / 60, 10),
-            "evidence": {"evidence_message_ids": []},
-        })
     infra_samples = [
         {
             "timestamp": record["_timestamp"],

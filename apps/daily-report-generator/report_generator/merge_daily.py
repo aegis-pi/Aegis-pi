@@ -46,6 +46,7 @@ def merge_factory_daily(
         "factory_id": factory_id,
         "report_date": report_date,
         "timezone": timezone,
+        "report_window": _report_window(ordered, timezone),
         "factory_profile": FACTORY_PROFILES.get(factory_id, _default_factory_profile()),
         "data_quality": _merge_data_quality(ordered, missing_hour_count),
         "risk": _merge_risk(ordered),
@@ -103,6 +104,7 @@ def build_report_context(daily_summary: dict, max_context_events: int) -> dict:
         "factory_id": daily_summary["factory_id"],
         "report_date": daily_summary["report_date"],
         "timezone": daily_summary["timezone"],
+        "report_window": daily_summary["report_window"],
         "factory_profile": daily_summary["factory_profile"],
         "data_quality": daily_summary["data_quality"],
         "risk": daily_summary["risk"],
@@ -117,6 +119,28 @@ def build_report_context(daily_summary: dict, max_context_events: int) -> dict:
     return context
 
 
+def _report_window(summaries: list[dict], timezone: str) -> dict:
+    if not summaries:
+        return {
+            "timezone": timezone,
+            "start_local": None,
+            "end_local": None,
+            "start_utc": None,
+            "end_utc": None,
+            "s3_partition_timezone": "UTC",
+        }
+    first = summaries[0].get("hour_window", {})
+    last = summaries[-1].get("hour_window", {})
+    return {
+        "timezone": timezone,
+        "start_local": first.get("start_kst"),
+        "end_local": last.get("end_kst"),
+        "start_utc": first.get("start_utc") or first.get("start_kst"),
+        "end_utc": last.get("end_utc") or last.get("end_kst"),
+        "s3_partition_timezone": "UTC",
+    }
+
+
 def _merge_data_quality(summaries: list[dict], missing_hour_count: int) -> dict:
     expected = Counter()
     actual = Counter()
@@ -124,6 +148,8 @@ def _merge_data_quality(summaries: list[dict], missing_hour_count: int) -> dict:
     duplicate = 0
     data_gap_count = 0
     max_gap_seconds = 0
+    gap_windows = []
+    gap_minutes_by_dataset = Counter()
     for summary in summaries:
         for dataset in ("factory_state", "risk_score", "infra_state"):
             expected[dataset] += summary.get("expected_counts", {}).get(dataset, 0) or 0
@@ -132,6 +158,12 @@ def _merge_data_quality(summaries: list[dict], missing_hour_count: int) -> dict:
         duplicate += summary.get("input_counts", {}).get("duplicate_records", 0) or 0
         data_gap_count += summary.get("data_quality", {}).get("data_gap_count", 0) or 0
         max_gap_seconds = max(max_gap_seconds, summary.get("data_quality", {}).get("max_gap_seconds", 0) or 0)
+        for window in summary.get("data_quality", {}).get("gap_windows", []):
+            enriched = {**window, "hour": summary.get("hour")}
+            gap_windows.append(enriched)
+            gap_minutes_by_dataset[window.get("dataset", "unknown")] += float(window.get("duration_minutes", 0) or 0)
+
+    gap_windows.sort(key=lambda item: item.get("duration_seconds", 0), reverse=True)
 
     return {
         "factory_state_expected_count": expected["factory_state"],
@@ -146,6 +178,12 @@ def _merge_data_quality(summaries: list[dict], missing_hour_count: int) -> dict:
         "missing_hour_count": missing_hour_count,
         "data_gap_count": data_gap_count,
         "max_gap_minutes": round(max_gap_seconds / 60, 2),
+        "gap_minutes": round(sum(float(window.get("duration_seconds", 0) or 0) for window in gap_windows) / 60, 2),
+        "gap_minutes_by_dataset": [
+            {"dataset": dataset, "duration_minutes": round(minutes, 2)}
+            for dataset, minutes in gap_minutes_by_dataset.most_common()
+        ],
+        "top_gap_windows": gap_windows[:10],
         "duplicate_message_count": duplicate,
         "invalid_record_count": invalid,
     }

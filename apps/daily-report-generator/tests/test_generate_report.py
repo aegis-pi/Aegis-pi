@@ -27,6 +27,10 @@ def test_generate_factory_report_uses_context_only_and_returns_markdown_keys():
     assert result["metadata_key"] == "reports/daily/yyyy=2026/mm=01/dd=01/factory-a/generation-metadata.json"
     assert result["generation_metadata"]["model_id"] == "mock-bedrock"
     assert result["markdown"].endswith("\n")
+    assert "## 검증 기준 수치" in result["markdown"]
+    assert "보고서 window 원문: timezone=Asia/Seoul" in result["markdown"]
+    assert "Risk Score 원문: avg_score=87.1, min_score=51.2, max_score=99.0" in result["markdown"]
+    assert "factory_state 수집 원문: 1000/1200, collection_rate 0.9986" in result["markdown"]
     assert "report-context.json" in client.prompts[0]
     assert "factory-a" in client.prompts[0]
     assert "source_message_id" not in client.prompts[0]
@@ -53,6 +57,14 @@ def _report_context():
         "factory_id": "factory-a",
         "report_date": "2026-01-01",
         "timezone": "Asia/Seoul",
+        "report_window": {
+            "timezone": "Asia/Seoul",
+            "start_local": "2026-01-01T00:00:00+09:00",
+            "end_local": "2026-01-01T23:59:59+09:00",
+            "start_utc": "2025-12-31T15:00:00Z",
+            "end_utc": "2026-01-01T14:59:59Z",
+            "s3_partition_timezone": "UTC",
+        },
         "factory_profile": {
             "environment_type": "physical-rpi",
             "input_module_type": "sensor",

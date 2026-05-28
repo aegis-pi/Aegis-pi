@@ -68,11 +68,25 @@ def test_merge_factory_daily_merges_boundary_events_scores_top_n_and_context():
         "input_module_type": "sensor",
         "interpretation_mode": "production_edge",
     }
+    assert daily["report_window"] == {
+        "timezone": "Asia/Seoul",
+        "start_local": "2026-01-01T14:00:00+09:00",
+        "end_local": "2026-01-01T16:59:59+09:00",
+        "start_utc": "2026-01-01T05:00:00Z",
+        "end_utc": "2026-01-01T07:59:59Z",
+        "s3_partition_timezone": "UTC",
+    }
     assert daily["data_quality"]["factory_state_expected_count"] == 3600
     assert daily["data_quality"]["factory_state_actual_count"] == 3000
     assert daily["data_quality"]["factory_state_collection_rate"] == 0.8333
     assert daily["data_quality"]["missing_hour_count"] == 21
     assert daily["data_quality"]["duplicate_message_count"] == 1
+    assert daily["data_quality"]["gap_minutes"] == 9
+    assert daily["data_quality"]["gap_minutes_by_dataset"] == [
+        {"dataset": "factory_state", "duration_minutes": 5.0},
+        {"dataset": "risk_score", "duration_minutes": 4.0},
+    ]
+    assert daily["data_quality"]["top_gap_windows"][0]["time_range"] == "15:00~15:05"
 
     assert daily["risk"]["min_score"] == 51.2
     assert daily["risk"]["worst_level"] == "warning"
@@ -109,6 +123,7 @@ def test_merge_factory_daily_merges_boundary_events_scores_top_n_and_context():
     context = result["report_context"]
     assert context["context_type"] == "daily_factory_report"
     assert context["factory_id"] == "factory-a"
+    assert context["report_window"]["s3_partition_timezone"] == "UTC"
     assert len(context["events"]) == 2
     assert context["events"][0]["severity_score"] >= context["events"][1]["severity_score"]
     assert "Report is based on S3 processed data, not S3 raw payloads." in context["data_limitations"]
@@ -243,6 +258,12 @@ def _hourly_summary(hour, event=None, risk_min=91.0, temp_max=30.0, restarts=0):
         "factory_id": "factory-a",
         "report_date": "2026-01-01",
         "timezone": "Asia/Seoul",
+        "hour_window": {
+            "start_kst": f"2026-01-01T{hour}:00:00+09:00",
+            "end_kst": f"2026-01-01T{hour}:59:59+09:00",
+            "start_utc": f"2026-01-01T{(int(hour) - 9) % 24:02d}:00:00Z",
+            "end_utc": f"2026-01-01T{(int(hour) - 9) % 24:02d}:59:59Z",
+        },
         "hour": hour,
         "status": "success",
         "input_counts": {
@@ -261,9 +282,30 @@ def _hourly_summary(hour, event=None, risk_min=91.0, temp_max=30.0, restarts=0):
             "factory_state_collection_rate": 0.8333,
             "risk_score_collection_rate": 0.8333,
             "infra_state_collection_rate": 0.8333,
-            "data_gap_count": 0,
-            "max_gap_seconds": 18,
-            "gap_windows": [],
+            "data_gap_count": 2 if hour == "15" else 0,
+            "max_gap_seconds": 300 if hour == "15" else 18,
+            "max_gap_minutes": 5.0 if hour == "15" else 0.3,
+            "gap_minutes": 10.0 if hour == "15" else 0,
+            "gap_windows": [
+                {
+                    "dataset": "factory_state",
+                    "gap_type": "hour_start",
+                    "start_utc": "2026-01-01T06:00:00Z",
+                    "end_utc": "2026-01-01T06:05:00Z",
+                    "time_range": "15:00~15:05",
+                    "duration_seconds": 300,
+                    "duration_minutes": 5.0,
+                },
+                {
+                    "dataset": "risk_score",
+                    "gap_type": "hour_start",
+                    "start_utc": "2026-01-01T06:00:00Z",
+                    "end_utc": "2026-01-01T06:04:00Z",
+                    "time_range": "15:00~15:04",
+                    "duration_seconds": 240,
+                    "duration_minutes": 4.0,
+                },
+            ] if hour == "15" else [],
         },
         "risk": {
             "avg_score": 87.0,
