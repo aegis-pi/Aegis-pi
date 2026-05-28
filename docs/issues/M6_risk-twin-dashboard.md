@@ -1,9 +1,9 @@
 # M6. Risk Twin + 관제 화면
 
-> **마일스톤 목표**: 수집된 데이터를 기반으로 Risk Score를 계산하고 본사 관제 담당자가 사용할 Dashboard VPC 기반 관제 화면을 완성한다.
+> **마일스톤 목표**: 수집된 데이터를 기반으로 Risk Score와 Risk Twin 데이터 계약을 완성하고, 본사 관제 담당자가 사용할 Dashboard VPC 기반 관제 화면에 제공할 read model을 고정한다.
 > M2(Hub-Spoke 연결)와 M4(데이터 플레인) 완료 후 진행한다.  
 > 이 마일스톤이 완료되면 공장 상태 변화 → Risk Score 변화 → 관제 화면 반영이 end-to-end로 동작한다.
-> 외부 관리자 화면은 Grafana public 노출이 아니라 Route53/ALB/WAF/Auth 뒤의 Dashboard Web/API를 기본 방향으로 한다.
+> 외부 관리자 화면은 Grafana public 노출이 아니라 Route53/ALB/WAF/Auth 뒤의 Dashboard Web/API를 기본 방향으로 한다. 2026-05-28 기준 Dashboard page와 Dashboard VPC 구현은 별도 담당 범위로 분리하고, 이 repo에서는 Dashboard가 읽을 DynamoDB/S3 processed 데이터 계약과 Risk Twin 출력 구조를 우선 고도화한다.
 
 ---
 
@@ -47,7 +47,7 @@ MVP에서 제외하는 범위는 유지한다.
 
 즉, 일일 리포트는 자동 조치 시스템이 아니라 Edge AI 판단 결과를 다시 검토하고 모델/설정 업데이트 필요성을 발견하는 운영 피드백 루프다.
 
-2026-05-27 기준 daily report 구현은 `apps/daily-report-generator/`와 `infra/reporting/`에 진행 중이다. 로컬 pytest/compileall/fmt 검증은 통과했고, enriched v2 `factory-b` 단일 hour context/prompt/test note를 저장했다. Bedrock 실호출, 24시간 daily merge 검증, AWS 배포는 다음 단계다.
+2026-05-28 기준 daily report 구현은 `apps/daily-report-generator/`와 `infra/reporting/`에 완료됐다. 로컬 `compileall`, `pytest`, Terraform `fmt/init/validate`를 통과했고, Bedrock Sonnet 실호출과 `factory-b` 24시간 Step Functions 수동 실행을 검증했다. S3 `reports/daily/yyyy=2026/mm=05/dd=27/factory-b/` 산출물과 비용 기준 문서(`docs/ops/25_daily_factory_report_cost.md`)도 확인했다. 검증 후 reporting stack은 비용 방지를 위해 삭제했으며 S3 processed input과 report output은 보존한다.
 
 ---
 
@@ -61,36 +61,28 @@ IoT Core 메시지를 처리하는 Lambda data processor 안에 공장별 Risk S
 
 ### ✅ 완료 조건 (Definition of Done)
 
-- [ ] Lambda data processor의 Risk 계산 로직 구현
-- [ ] 가중치 초기안 하드코딩 적용
+- [x] Lambda data processor의 Risk 계산 로직 구현
+- [x] 가중치 초기안 하드코딩 적용
   - 온도 이상: `+15`
   - 습도 이상: `+10`
-  - 센서 무수신: `+15`
-  - 엣지 에이전트 이상: `+15`
-  - 노드 이상: `+20`
-  - 카메라 이상: `+10`
-  - 마이크 이상: `+10`
-  - 데이터 수집 파이프라인 이상: `+15`
-- [ ] 위험도 구간 적용
+  - AI 이벤트율: `+10`
+  - 센서 무수신/엣지 에이전트/노드/카메라/마이크/파이프라인 이상은 Risk Twin 출력 구조와 runtime-config 적용 단계에서 보강
+- [x] 위험도 구간 적용
   - 안전: `100~85`
   - 주의: `84~50`
   - 위험: `49~0`
 - [ ] 이상 판정 임계시간 적용
-  - 센서: 3분
-  - 엣지 에이전트: 2분
-  - 노드: 1분
-  - 카메라: 3분
-  - 마이크: 3분
-  - 데이터 수집 파이프라인: 2분
-- [ ] `event` 계열은 구조만 수용, 점수 반영은 후속 단계
+  - 현재 Lambda Risk 계산은 단일 `factory_state` message 기준이다.
+  - 시간 지속 조건은 `pipeline_status`, hourly/daily report aggregation, Risk Twin 출력 구조에서 보강한다.
+- [x] `event` 계열은 구조만 수용, 점수 반영은 후속 단계
 
 ### 🔍 Acceptance Criteria
 
-- Lambda data processor 실행 및 CloudWatch Logs 정상 처리 확인
-- 정상 입력 시 Risk Score 0~39 범위 출력
-- 노드 이상 입력 시 Score `+20` 반영 확인
-- 하드코딩된 초기 가중치/임계시간 기준으로 점수 계산 동작 확인
-- 3개 공장 각각 독립적으로 Risk Score 계산 확인
+- Lambda data processor 실행 및 CloudWatch Logs 정상 처리 확인 완료
+- 정상 입력 시 Risk Score `100.0`, `safe` 출력 확인
+- 온도/습도/AI 이벤트 입력별 score 하락과 `top_causes` 정렬 단위 테스트 확인
+- 3개 공장 각각 DynamoDB LATEST와 S3 processed `risk_score` 분리 적재 확인
+- 노드/파이프라인/지속시간 기반 기여도는 Issue 2~4에서 설정 기반 Risk Twin 출력으로 보강
 
 ---
 
@@ -100,6 +92,8 @@ IoT Core 메시지를 처리하는 Lambda data processor 안에 공장별 Risk S
 
 M1에서 작성한 `runtime-config.yaml` 구조를 Lambda data processor의 Risk 계산 로직이 실제로 읽어 동작하도록 연결한다.
 `display` / `risk_enabled` 필드 제어가 관제 화면 표시와 Risk 계산에 실제로 반영되어야 한다.
+
+2026-05-28 기준 `configs/runtime/runtime-config.yaml`은 존재하고 온도/습도/AI score 기준값 초안도 포함하지만, `apps/data-processor/processor/risk.py`는 아직 하드코딩 상수를 사용한다. 따라서 다음 구현 우선순위는 이 설정 파일을 Lambda package에 포함하거나 배포 시 주입하고, cold start에서 읽어 Risk 계산에 적용하는 것이다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
@@ -123,6 +117,8 @@ M1에서 작성한 `runtime-config.yaml` 구조를 Lambda data processor의 Risk
 
 Risk Score 계산에서 온도/습도 이상 판정에 사용할 기준값 초안을 결정하고 적용한다.  
 구체 수치는 실측 기반 보정 대상이므로, 초안을 적용 후 M7(통합 검증)에서 보정한다.
+
+2026-05-28 기준 초안 값은 `configs/runtime/runtime-config.yaml`에 이미 존재한다. 남은 작업은 Lambda data processor가 해당 값을 실제 계산에 사용하도록 연결하고, 테스트 체크리스트에 보정 대상으로 명시하는 것이다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
@@ -148,6 +144,8 @@ Risk Score 계산에서 온도/습도 이상 판정에 사용할 기준값 초�
 Lambda data processor의 공식 Risk Twin 출력 구조를 구현한다.
 관제 화면과 이후 확장 서비스(LLM 보고서 등)가 이 출력을 기준으로 데이터를 읽는다.  
 MVP 단계에서는 Risk Twin 결과를 DynamoDB LATEST/HISTORY와 S3 processed에 기록한다. Dashboard Web/API는 DynamoDB와 S3 processed를 read-only로 조회한다.
+
+Dashboard page/VPC 구현은 별도 담당 범위다. 이 이슈에서는 Dashboard 구현자가 의존할 `risk`/`dashboard` read model 필드를 DynamoDB와 S3 processed에 안정적으로 남기는 것을 완료 기준으로 본다.
 
 ### ✅ 완료 조건 (Definition of Done)
 
@@ -187,6 +185,8 @@ MVP 단계에서는 Risk Twin 결과를 DynamoDB LATEST/HISTORY와 S3 processed�
 ---
 
 ## Issue 5 - [관제/Dashboard] 메인 대시보드 - 공장별 위험도 카드
+
+> 2026-05-28 기준 Dashboard page 및 Dashboard VPC 구현은 별도 담당 범위다. 이 repo에서는 Issue 5~7의 화면 구현 대신, 해당 화면이 읽을 Risk Twin/DynamoDB/S3 processed 계약을 Issue 2~4에서 고정한다.
 
 ### 🎯 목표 (What & Why)
 

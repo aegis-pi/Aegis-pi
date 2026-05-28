@@ -110,13 +110,13 @@
 
 원본: `docs/issues/M6_risk-twin-dashboard.md`
 
-- [ ] Issue 1 - [Risk/Lambda] Lambda Risk 계산 로직 구현 (가중치 초기안)
+- [x] Issue 1 - [Risk/Lambda] Lambda Risk 계산 로직 구현 (가중치 초기안)
 - [ ] Issue 2 - [Risk/Config] `runtime-config.yaml` 전역 설정 적용 및 필드 제어 구현
 - [ ] Issue 3 - [Risk/Config] 온도/습도 이상 기준값 초안 적용
 - [ ] Issue 4 - [Risk/Twin] Risk Twin 출력 구조 구현
-- [ ] Issue 5 - [관제/Dashboard] 메인 대시보드 - 공장별 위험도 카드
-- [ ] Issue 6 - [관제/Dashboard] 메인 대시보드 - 센서 현황 + 이상 시스템 목록
-- [ ] Issue 7 - [관제/Dashboard] 메인 대시보드 - 하단 이벤트/상태 변화 로그
+- [ ] Issue 5 - [관제/Dashboard] 메인 대시보드 - 공장별 위험도 카드 (별도 담당 범위)
+- [ ] Issue 6 - [관제/Dashboard] 메인 대시보드 - 센서 현황 + 이상 시스템 목록 (별도 담당 범위)
+- [ ] Issue 7 - [관제/Dashboard] 메인 대시보드 - 하단 이벤트/상태 변화 로그 (별도 담당 범위)
 - [ ] Issue 8 - [검증/Risk] 시나리오별 Risk Score 변화 확인
 
 ## M7. 통합 검증

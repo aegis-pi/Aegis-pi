@@ -1,7 +1,7 @@
 # Data Storage Pipeline and Formats
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-05-28
 
 ## 목적
 
@@ -20,6 +20,8 @@ DynamoDB HISTORY
 
 MVP 기준 Dashboard의 현재 상태 조회는 S3 `latest/` 객체가 아니라 DynamoDB LATEST item을 기준으로 한다. S3는 raw 원본 보존과 processed 장기 이력 저장소로 사용한다.
 Bedrock 기반 일일 운영 보고서의 MVP 입력도 S3 `processed/`를 기준으로 하며, S3 `raw/` 원본 전체를 Bedrock에 직접 전달하지 않는다.
+
+2026-05-28 기준 Dashboard page와 Dashboard VPC 구현은 별도 담당 범위로 분리한다. 이 repo의 현재 책임은 Dashboard가 읽을 DynamoDB/S3 processed 계약, Risk output 구조, Daily Factory Report 산출물 계약을 최신 상태로 유지하는 것이다.
 
 ## 전체 데이터 흐름
 
@@ -49,7 +51,7 @@ Dashboard API/Web
 | IoT Core | factory별 MQTT 데이터 수신 진입점 |
 | IoT Rule | 수신 원본을 S3 raw에 저장 |
 | Lambda | 메시지 정규화, Risk 계산, latest/history/processed 저장 |
-| DynamoDB LATEST | Dashboard 카드와 현재 상태 조회 |
+| DynamoDB LATEST | Dashboard 카드와 현재 상태 조회용 read model |
 | DynamoDB HISTORY | 최근 1시간/2시간 그래프 조회 |
 | S3 raw | Edge data-plane 원본 JSON 장기 보존 |
 | S3 processed | Lambda 계산 결과와 상태 요약 이력 보존 |
@@ -141,6 +143,12 @@ Processed object body 기준:
 - `processed/{factory_id}/infra_state/`는 인프라 상태와 pipeline status 계산 결과를 담는다.
 - `processed/{factory_id}/state_snapshot/`은 DynamoDB `HISTORY#STATE`와 같은 전체 상태 snapshot을 담되, DynamoDB TTL 정책 필드인 `ttl`은 저장하지 않는다.
 - S3 processed는 장기 이력과 재처리 비교용이며, Dashboard current state의 1차 조회 대상은 아니다.
+
+Risk 계산 현재 상태:
+
+- `apps/data-processor/processor/risk.py`에는 기본 Risk Score 계산이 구현되어 있으며, 온도/습도/AI event 기반 가중치와 safe/warning/danger band를 적용한다.
+- `configs/runtime/runtime-config.yaml`에는 weight/threshold/factory override 초안이 있으나, 2026-05-28 기준 Lambda Risk 계산은 아직 이 파일을 읽지 않는다.
+- 다음 계약 고도화는 runtime config를 Lambda package 또는 배포 입력으로 연결하고, Risk Twin/Dashboard가 읽을 `risk.score`, `risk.level`, `risk.top_causes`, `risk.calculation_version`, `risk.calculated_at` 필드의 안정성을 테스트로 고정하는 것이다.
 
 ## DynamoDB Table
 
@@ -427,6 +435,8 @@ infra_state
 | `S3 processed` | 20초 상태 요약 | 운영 이력/리포트 |
 
 ## Dashboard 조회 기준
+
+Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다. 아래 기준은 해당 구현이 조회할 데이터 계약이며, 이 repo에서는 DynamoDB/S3 processed 쪽 read model을 유지한다.
 
 | 화면 요소 | 기본 조회 저장소 | 설명 |
 | --- | --- | --- |

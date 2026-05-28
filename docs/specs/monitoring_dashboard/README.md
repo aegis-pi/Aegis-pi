@@ -16,4 +16,6 @@
 ## 기준
 
 - 현재 로컬 Grafana 기준과 후속 Data / Dashboard VPC 기준을 구분해 작성한다.
-- 실제 대시보드 구현이 진행되면 API와 데이터 모델을 먼저 갱신한다.
+- 2026-05-28 기준 Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다.
+- 이 repo에서는 Dashboard 구현이 조회할 DynamoDB/S3 processed read model, Risk output 필드, API/data-model 초안을 유지한다.
+- 실제 대시보드 구현이 진행되면 API와 데이터 모델을 먼저 갱신하고, 구현 담당 범위와 repo 데이터 계약 변경 범위를 분리해 기록한다.

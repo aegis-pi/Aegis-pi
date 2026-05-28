@@ -1,7 +1,7 @@
 # Data Pipeline 구현 레퍼런스
 
 상태: 구현 기준 source of truth
-기준일: 2026-05-21
+기준일: 2026-05-28
 관련 스펙: `docs/specs/data_storage_pipeline.md`
 
 ---
@@ -13,6 +13,8 @@ Aegis 데이터 파이프라인은 Edge factory에서 발생한 센서·인프�
 - **실시간 현황 조회** → DynamoDB LATEST
 - **그래프·이력 조회** → DynamoDB HISTORY
 - **장기 보존·재처리** → S3 processed / raw
+
+2026-05-28 기준 `factory-a/b/c` IoT -> Lambda -> DynamoDB/S3 processed 적재와 기본 Risk Score 계산은 검증 완료 상태다. `configs/runtime/runtime-config.yaml`은 아직 Lambda Risk 계산에 연결되지 않았으며, 다음 고도화는 runtime config 기반 weight/threshold/factory override 적용과 Risk Twin read model 안정화다.
 
 ---
 

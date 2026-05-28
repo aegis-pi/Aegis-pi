@@ -2,6 +2,8 @@
 
 이 디렉터리는 공장별 필드 표시 여부와 Risk 계산 가중치를 제어하는 런타임 설정 파일을 둔다.
 
+2026-05-28 기준 이 설정 파일은 source of truth 후보이지만, `apps/data-processor/processor/risk.py`는 아직 하드코딩 상수를 사용한다. 다음 M6 작업에서 Lambda data processor가 이 파일의 weight/threshold/risk_enabled/factory override를 읽도록 연결한다.
+
 ## 파일
 
 | 파일 | 역할 |

@@ -1,7 +1,7 @@
 # 사용자 플로우
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-05-28
 
 ## 목적
 
@@ -11,6 +11,8 @@
 
 - 현재 구현된 사용자 흐름은 `factory-a` 현장 Grafana 확인 흐름이다.
 - 최종 MVP 사용자 흐름은 본사 관제 담당자가 여러 공장의 위험 상태를 확인하는 흐름이다.
+- 2026-05-28 기준 Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다. 이 repo에서는 아래 사용자 흐름이 조회할 DynamoDB/S3 processed read model과 Risk output 계약을 유지한다.
+- Daily Factory Report는 별도 운영자 검토 흐름으로 로컬/AWS 수동 실행 검증을 완료했다.
 
 ## 주요 사용자
 

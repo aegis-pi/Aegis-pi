@@ -1,7 +1,7 @@
 # data-processor
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-05-28
 
 ## 목적
 
@@ -78,6 +78,18 @@ s3://aegis-bucket-data/processed/{factory_id}/state_snapshot/yyyy={YYYY}/mm={MM}
 | `normal` | latest `infra_state` age <= 40초 |
 | `warning` | latest `infra_state` age > 40초 |
 | `critical` | latest `infra_state` age > 60초 |
+
+## Risk 계산 상태
+
+현재 `processor/risk.py`는 온도, 습도, AI event rate를 기준으로 `score`, `level`, `top_causes`를 계산한다.
+
+```text
+safe: score >= 85
+warning: score >= 50
+danger: score < 50
+```
+
+`configs/runtime/runtime-config.yaml`에는 전역 weight/threshold/factory override 초안이 있지만, 현재 Lambda Risk 계산은 아직 해당 파일을 읽지 않고 하드코딩 상수를 사용한다. 다음 고도화 작업은 runtime config를 Lambda package 또는 배포 입력으로 연결하고, DynamoDB/S3 processed에 Dashboard가 읽을 Risk Twin read model을 안정적으로 남기는 것이다.
 
 ## S3 processed 저장 경로
 

@@ -1,7 +1,7 @@
 # Requirements Definition Traceability
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-05-28
 
 ## 목적
 
@@ -228,19 +228,19 @@
 
 | 요구사항 | 설계 반영 | 검증 방법 | 근거 문서 |
 | --- | --- | --- | --- |
-| BR-01, BR-02 | 메인 Dashboard에 공장별 상태 카드, 원인, 이상 시스템 목록, 로그를 둔다. | M6에서 상태 카드/이상 목록/로그 패널 확인 | `docs/product/01_user_flow.md`, `docs/planning/03_evaluation_plan.md` |
+| BR-01, BR-02 | 메인 Dashboard에 공장별 상태 카드, 원인, 이상 시스템 목록, 로그를 둔다. Dashboard page/VPC 구현은 별도 담당 범위이고, 이 repo는 조회 데이터 계약을 제공한다. | M6/M7에서 DynamoDB/S3 processed read model과 Dashboard 조회 필드 계약 확인 | `docs/product/01_user_flow.md`, `docs/planning/03_evaluation_plan.md` |
 | FR-01, FR-02, NFR-01 | `factory-a-log-adapter`가 `factory_state`를 canonical JSON으로 만들고 `edge-iot-publisher`가 3초 주기 데이터를 publish한다. | M4에서 IoT Core -> S3 raw 적재와 Risk 처리 확인 | `docs/specs/iot_data_format.md`, `docs/issues/M4_data-plane.md` |
 | FR-03, NFR-02 | Edge data-plane이 `infra_state`를 20초 주기로 publish하고 cloud-side가 pipeline 상태를 계산한다. | M4에서 infra 상태 적재와 latest 반영 확인 | `docs/specs/iot_data_format.md`, `docs/planning/03_evaluation_plan.md` |
-| FR-04, NFR-05 | Lambda data processor가 평균 score와 센서 요약값을 기반으로 Risk Score를 계산한다. | M6에서 Risk Score 변화가 화면에 반영되는지 확인 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
+| FR-04, NFR-05 | Lambda data processor가 평균 score와 센서 요약값을 기반으로 Risk Score를 계산한다. | M6 Issue 1에서 기본 Risk Score 계산 확인. 후속은 runtime-config 연결과 read model 필드 고정 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
 | FR-05 | IoT Rule이 raw JSON을 `raw/{factory_id}/{source_type}/...` 경로에 저장한다. | M4에서 S3 raw object와 partition 확인 | `docs/planning/05_decision_rationale.md`, `docs/specs/iot_data_format.md` |
 | FR-06, NFR-03, NFR-04 | Dashboard Backend/API가 DynamoDB LATEST/HISTORY와 S3 processed result를 조회한다. | M6에서 일반 상태 10~35초, 장애 판정 40~60초 목표 확인 | `docs/specs/data_storage_pipeline.md`, `docs/planning/03_evaluation_plan.md` |
-| BR-05, FR-08, FR-09, NFR-08, NFR-09 | EventBridge Scheduler -> Step Functions -> 4개 reporting Lambda -> S3 `reports/daily/` 경로로 factory별 보고서를 생성한다. | `factory-a/b/c`별 `report-context.json`, `factory-daily-summary.json`, `report.md`, `generation-metadata.json` 확인 | `docs/planning/17_llm_daily_factory_report_plan.md` |
+| BR-05, FR-08, FR-09, NFR-08, NFR-09 | EventBridge Scheduler -> Step Functions -> 4개 reporting Lambda -> S3 `reports/daily/` 경로로 factory별 보고서를 생성한다. | 2026-05-28 `factory-b` 수동 실행에서 `report-context.json`, `factory-daily-summary.json`, `report.md`, `generation-metadata.json` 확인 완료. `factory-a/c`는 후속 반복 검증 | `docs/planning/17_llm_daily_factory_report_plan.md`, `docs/ops/24_daily_factory_report.md` |
 | ARC-01, OPS-06 | `factory-a` K3s workload는 worker2 preferred, worker1 failover, 조건부 failback을 유지한다. | failover/failback 테스트 결과와 M0 회귀 확인 | `docs/ops/09_failover_failback_test_results.md` |
 | ARC-02, ARC-03 | K3s + adapter/generator + edge-iot-publisher + IoT Core 구조를 사용한다. | Edge data-plane 배포와 MQTT publish 확인 | `docs/planning/05_decision_rationale.md` |
 | ARC-04 | IoT Core 이후 IoT Rule/S3 raw와 Lambda/DynamoDB/S3 processed/Dashboard 흐름을 사용한다. | M4, M6, M7 통합 검증 | `docs/specs/data_storage_pipeline.md`, `docs/planning/15_cloud_architecture_final.md` |
 | ARC-05, SEC-01 | Dashboard와 Control plane을 네트워크/권한 경계로 분리한다. | M1/M6에서 Dashboard가 ArgoCD/Tailscale/EKS/Spoke API를 직접 조회하지 않음을 확인 | `docs/planning/12_two_vpc_mvp_architecture_decision.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
 | OPS-01 ~ OPS-05 | Terraform, Ansible, GitHub Actions, ArgoCD 책임 경계를 따른다. | M3에서 push -> ECR -> ArgoCD rollout 확인 | `docs/planning/11_delivery_ownership_flow.md` |
-| COST-01, COST-02 | 비용 baseline과 destroy 절차를 운영 문서에 유지한다. | AWS 리소스 추가 시 비용 문서 갱신 여부 확인 | `docs/ops/15_aws_cost_baseline.md` |
+| COST-01, COST-02 | 비용 baseline과 destroy 절차를 운영 문서에 유지한다. | AWS 리소스 추가 시 비용 문서 갱신 여부 확인. Daily Factory Report 1회 비용 기준은 별도 cost baseline으로 관리 | `docs/ops/15_aws_cost_baseline.md`, `docs/ops/25_daily_factory_report_cost.md` |
 
 ## 검증 기준
 
@@ -254,7 +254,7 @@
 | M3 | CI/CD와 ArgoCD rollout | OPS-01 ~ OPS-05 |
 | M4 | IoT Core, S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed | FR-01 ~ FR-05, NFR-01, NFR-02 |
 | M5 | `factory-b/c` 테스트베드 추가와 3개 공장 Fleet 인식 | BR-04, FR-07 |
-| M6 | Risk Twin Dashboard, 상태 카드, 원인, 로그, 지연 목표 | BR-01 ~ BR-03, FR-06, NFR-03, NFR-04 |
+| M6 | 기본 Risk 계산, Risk Twin read model, Dashboard 조회 계약. Dashboard page/VPC 구현은 별도 담당 범위 | BR-01 ~ BR-03, FR-04, FR-06, NFR-03, NFR-04 |
 | M7 | 운영형/테스트베드형/장애/롤백/일일 보고서 통합 시나리오 | 전체 요구사항 회귀 |
 
 ## MVP 제외 범위와 후속 요구사항
