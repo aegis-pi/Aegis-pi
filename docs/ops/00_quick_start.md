@@ -119,3 +119,57 @@ Daily Factory Report local/AWS manual execution 검증
 5. Grafana/dashboard 스펙을 실제 InfluxDB + Prometheus 기준으로 유지한다.
 6. M1 Issue 9 AWS Load Balancer Controller, M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress, M1 Issue 12 `runtime-config.yaml` 구조 초안, M3 Issue 1~5/7/8 배포 기준선, M4 Issue 1~8 data-pipeline 검증, M5 factory-b/c 테스트베드 수집 검증, 기본 Risk Score 계산, Bedrock 기반 Daily Factory Report MVP 검증은 완료됐다.
 7. 다음 repo 작업은 `runtime-config.yaml`을 Lambda Risk 계산에 연결하고, Risk Twin read model을 DynamoDB/S3 processed 계약에 맞춰 고정하는 것이다. Daily Report는 S3 read 병렬화, `state_snapshot` 입력 축소, `generation-metadata.json` 비용 관측값 보강이 후속 고도화다.
+
+## 개발 환경 빌드/종료 퀵스타트
+
+### 시작
+
+| 순서 | 명령 | 생성/복구되는 리소스 |
+| --- | --- | --- |
+| 1 | `scripts/build/build-foundation.sh [MFA_OTP]` | S3 `aegis-bucket-data`, ECR x3, DynamoDB `AEGIS-DynamoDB-FactoryStatus`, GitHub Actions OIDC/IAM, Admin UI Route53 Hosted Zone/ACM certificate. AMP는 active 구성에서 제거됨 |
+| 2 | `scripts/build/build-hub.sh [MFA_OTP]` | Hub VPC, Subnet x4, NAT Gateway x1, EKS Cluster/NodeGroup, EKS-bound IRSA, Hub platform(ArgoCD/Grafana/AWS LB Controller, Prometheus Agent cleanup). Admin UI DNS/ACM은 foundation output 참조 |
+| 3 | `scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]` | 선택: ArgoCD/Grafana HTTPS Ingress, ALB/TargetGroup/SecurityGroup, Route53 record |
+| 4 | `scripts/build/connect-hub-tailscale-ui.sh [MFA_OTP]` | 선택: Tailnet 경유 ArgoCD/Grafana UI 접근 |
+| 5 | `scripts/build/register-spoke-factory-a.sh [MFA_OTP]` | factory-a Tailscale egress, ArgoCD cluster Secret, `aegis-spoke-factory-a` Application |
+| 6 | `scripts/build/register-spoke-factory-b.sh [MFA_OTP]` | factory-b Tailscale egress, ArgoCD cluster Secret, `aegis-spoke-factory-b` Application |
+| 7 | `scripts/build/register-spoke-factory-c.sh [MFA_OTP]` | factory-c Tailscale egress, ArgoCD cluster Secret, `aegis-spoke-factory-c` Application |
+| 8 | `scripts/ops/manage-dummy-generators.sh start factory-b` | factory-b worker SSH -> `aegis-factory-b-dummy-generator.service` 시작 |
+| 9 | `scripts/ops/manage-dummy-generators.sh start factory-c` | factory-c worker SSH -> `aegis-factory-c-dummy-generator.service` 시작 |
+| 10 | `scripts/build/build-data-pipe.sh [MFA_OTP]` | IoT Topic Rule x3, Lambda `AEGIS-Lambda-DataProcessor`, CloudWatch Log Group, IAM role/policy, S3 `processed/` 적재 경로 |
+| 11 | `scripts/build/build-reporting.sh [MFA_OTP]` | 선택/on-demand: reporting Lambda x4, Step Functions, EventBridge Scheduler, CloudWatch Log Groups, IAM role/policy. 입력은 S3 `processed/`, 출력은 S3 `reports/daily/` |
+
+### 종료
+
+| 순서 | 명령 | 삭제/정지되는 리소스 |
+| --- | --- | --- |
+| 1 | `scripts/destroy/stop-dummy-generators.sh` | factory-b/c worker 더미 generator systemd service 정지. 데이터 수집 유지 모드에서는 실행하지 않음 |
+| 2 | `scripts/destroy/destroy-reporting.sh [MFA_OTP]` | EventBridge Scheduler, Step Functions, reporting Lambda x4, CloudWatch Log Groups, IAM role/policy. S3 `processed/`와 `reports/daily/` 객체는 보존 |
+| 3 | `scripts/destroy/destroy-data-pipe.sh [MFA_OTP]` | IoT Rules x3, Lambda DataProcessor, CloudWatch Log Group, IAM role/policy. DynamoDB/S3 데이터는 보존 |
+| 4 | `scripts/destroy/destroy-hub.sh [MFA_OTP]` | Hub EKS/NodeGroup, VPC/Subnet, NAT Gateway/EIP, EKS-bound IRSA, Hub platform 리소스. Route53 Hosted Zone/ACM은 foundation에 보존 |
+| - | `DESTROY_FOUNDATION=true scripts/destroy/destroy-foundation.sh [MFA_OTP]` | 선택/완전 삭제: S3, ECR x3, DynamoDB, GitHub Actions OIDC/IAM, Admin UI Route53/ACM. S3 데이터와 ECR 이미지는 복구 불가 |
+
+### 데이터 수집 유지 모드
+
+퇴근 후에도 데이터를 계속 쌓아야 하면 data-pipeline과 Spoke publisher는 유지하고 Hub만 내린다.
+
+| 시점 | 명령 | 목적 |
+| --- | --- | --- |
+| 퇴근 | `scripts/destroy/destroy-hub.sh [MFA_OTP]` | Hub EKS/VPC/NAT 고정비만 제거 |
+| 출근 | `scripts/build/build-hub.sh [MFA_OTP]` | Hub 제어 plane 복구 |
+| 출근 | `HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a.sh [MFA_OTP]` | 기존 factory-a pod를 건드리지 않고 Hub ArgoCD 제어 경로 재연결 |
+| 출근 | `HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-b.sh [MFA_OTP]` | 기존 factory-b publisher 유지하며 재연결 |
+| 출근 | `HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-c.sh [MFA_OTP]` | 기존 factory-c publisher 유지하며 재연결 |
+| 확인 | `scripts/ops/check-spoke-publisher-safety.sh` | factory별 `edge-iot-publisher` 중복 pod와 rollout strategy 확인 |
+
+### 보고서 파이프라인 메모
+
+| 항목 | 기준 |
+| --- | --- |
+| 리전 | `ap-south-1` |
+| 기본 Bedrock 모델 | `anthropic.claude-3-sonnet-20240229-v1:0` |
+| 입력 | S3 `processed/{factory_id}/{factory_state,risk_score,infra_state,state_snapshot}/...` |
+| primary source | `factory_state`, `risk_score`, `infra_state` |
+| auxiliary source | `state_snapshot` |
+| 출력 prefix | `s3://aegis-bucket-data/reports/daily/yyyy=YYYY/mm=MM/dd=DD/{factory_id}/` |
+| 필수 산출물 | `intermediate/hourly/hh=00..23.json`, `factory-daily-summary.json`, `report-context.json`, `report.md`, `generation-metadata.json` |
+| 운영 기준 | 수동 검증 후 stack은 `destroy-reporting.sh`로 삭제 가능. S3 input/output 객체는 보존 |

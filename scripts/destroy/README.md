@@ -21,8 +21,9 @@ Layer 0a│ Data-pipeline│ IoT Rule × 3, Lambda(DataProcessor), CloudWatch, I
         │              │ 때문에 foundation destroy 이전에 반드시 먼저 삭제해야 함.
 Layer 0a│ Reporting    │ EventBridge Scheduler, Step Functions, reporting Lambda, CloudWatch, IAM.
         │              │ foundation S3 data source를 참조하므로 foundation destroy 이전에 먼저 삭제해야 함.
-Layer 0b│ Foundation   │ 영구 리소스(S3, ECR, DynamoDB). 기본 제외. DESTROY_FOUNDATION=true 필요.
-Layer 1 │ Hub Infra    │ VPC, EKS, IRSA, Route53, ACM (Terraform destroy)
+Layer 0b│ Foundation   │ 영구 리소스(S3, ECR, DynamoDB, Admin UI Route53/ACM).
+        │              │ 기본 제외. DESTROY_FOUNDATION=true 필요.
+Layer 1 │ Hub Infra    │ VPC, EKS, IRSA (Terraform destroy)
 Layer 2 │ Hub Platform │ ALB 등 K8s Controller가 만든 AWS 리소스 선정리 (Ansible cleanup)
 Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 ```
@@ -69,12 +70,12 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
    - infra/hub Terraform destroy
    - EKS, VPC, node group, NAT Gateway 삭제
    - IRSA IAM role/policy 삭제 (LB Controller, Risk Normalizer)
-   - Route53 Hosted Zone, ACM certificate 삭제
+   - Route53 Hosted Zone, ACM certificate는 foundation에 보존
    - infra/hub가 Foundation outputs를 참조하므로 foundation tfstate 필요
 
 5. foundation (기본 제외, 명시적 실행 필요)
    - infra/foundation Terraform destroy
-   - S3 data bucket, ECR, DynamoDB, GitHub Actions OIDC
+   - S3 data bucket, ECR, DynamoDB, GitHub Actions OIDC, Admin UI Route53/ACM
    - ⚠️ data-pipeline이 먼저 삭제된 상태여야 함
 ```
 
@@ -275,6 +276,26 @@ scripts/ops/manage-dummy-generators.sh start factory-b
 scripts/ops/manage-dummy-generators.sh start factory-c
 ```
 
+## Hub-only 비용 절감 + 데이터 수집 유지 흐름
+
+데이터를 계속 쌓아야 하는 개발 기간에는 data-pipeline과 Spoke K3s workload를 유지하고 Hub만 내린다. 이 흐름에서는 `destroy-all.sh`를 쓰지 않는다. `destroy-all.sh`의 기본값은 `DESTROY_DATA_PIPE=true`라 IoT Rule과 Lambda data processor까지 삭제하기 때문이다.
+
+```bash
+# 퇴근 시
+scripts/destroy/destroy-hub.sh [MFA_OTP]
+
+# 출근 시
+scripts/build/build-hub.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-c.sh [MFA_OTP]
+scripts/ops/check-spoke-publisher-safety.sh
+```
+
+이 모드에서는 `stop-dummy-generators.sh`를 실행하지 않는다. factory-b/c dummy generator와 Spoke K3s `edge-iot-publisher`가 계속 동작해야 밤새 데이터가 누적된다.
+
+`HUB_ONLY_RECONNECT=true`는 register 단계에서 ArgoCD `app sync`와 ECR pull secret refresh/restart를 기본 비활성화한다. 기존 Spoke Deployment를 Hub ArgoCD에 다시 붙이되, 불필요한 rollout을 피하기 위한 모드다.
+
 ## 주의
 
 - `destroy-all.sh`는 Hub EKS와 NAT Gateway를 삭제한다.
@@ -282,6 +303,8 @@ scripts/ops/manage-dummy-generators.sh start factory-c
 - `destroy-hub.sh`는 Tailscale OAuth client, Tailscale Admin Console device, `factory-a-master` Tailscale 상태를 삭제하거나 revoke하지 않는다.
 - `factory-a-master` Tailscale은 라즈베리파이 OS 레벨 상태이므로 비용이 없고 유지한다.
 - Hub를 다시 올린 뒤 ALB/Admin UI HTTPS는 `scripts/build/build-admin-ui-after-ns.sh`, Tailnet UI가 필요할 때는 `scripts/build/connect-hub-tailscale-ui.sh`, factory별 Spoke 등록은 `scripts/build/register-spoke-factory-a.sh`, `scripts/build/register-spoke-factory-b.sh`, `scripts/build/register-spoke-factory-c.sh`가 `~/Aegis/.aegis/secrets/tailscale/operator.env`를 사용해 생성/검증한다.
+- 기존 Spoke workload를 유지하는 재연결에서는 `HUB_ONLY_RECONNECT=true`를 사용한다. GitOps 변경을 반영해야 할 때만 `SYNC_SPOKE_APP=true`를 명시한다.
+- `scripts/ops/check-spoke-publisher-safety.sh`로 `edge-iot-publisher` Deployment가 `Recreate` 전략이고 running pod가 factory별 1개 이하인지 확인한다.
 - `destroy-hub-infra.sh`는 `infra/hub`가 Foundation outputs를 참조하므로 `infra/foundation/terraform.tfstate`가 있어야 한다.
 - CLI로 만든 IoT 리소스는 Terraform state에 없으므로 이 디렉터리의 destroy 스크립트로 정리한다.
 - K3s Secret은 Terraform state에 없으므로 SSH 기반 `kubectl delete secret`로 정리한다.

@@ -1,7 +1,7 @@
 # Hub Run Commands
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-05-28
 
 ## Hub-only 재시작 실행 순서
 
@@ -17,6 +17,32 @@ scripts/ops/manage-dummy-generators.sh start factory-c
 ```
 
 현재 표준 순서는 Hub -> Admin UI -> factory별 Spoke 등록 -> factory-b/c local dummy generator start다. Hub만 삭제/재생성한 경우 IoT Core Thing/certificate와 Spoke K3s Secret은 다시 만들지 않는다.
+
+개발 중 데이터 수집을 계속 유지하면서 비용만 줄이는 경우에는 아래 Hub-only reconnect 절차를 우선 사용한다.
+
+```bash
+# 퇴근 시: data-pipeline과 Spoke publisher는 유지하고 Hub만 내림
+scripts/destroy/destroy-hub.sh [MFA_OTP]
+
+# 출근 시: Hub 제어 plane만 복구
+scripts/build/build-hub.sh [MFA_OTP]
+
+# 기존 Spoke pod를 건드리지 않고 Hub ArgoCD/ApplicationSet 제어 경로만 재연결
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-c.sh [MFA_OTP]
+
+# 재연결 전후 publisher 중복/rollout 안전성 확인
+scripts/ops/check-spoke-publisher-safety.sh
+```
+
+`HUB_ONLY_RECONNECT=true`는 `SYNC_SPOKE_APP=false`, `REFRESH_SPOKE_ECR_PULL_SECRET=false`, `RESTART_SPOKE_AFTER_ECR_SECRET_REFRESH=false`를 기본값으로 둔다. 이 모드는 Hub 재생성 후 새 ArgoCD가 기존 Spoke workload를 불필요하게 sync/restart하지 않게 하기 위한 개발용 안전 모드다.
+
+GitOps 변경을 실제로 반영해야 할 때만 명시적으로 sync를 켠다.
+
+```bash
+HUB_ONLY_RECONNECT=true SYNC_SPOKE_APP=true scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+```
 
 `build-hub.sh`는 Hub AWS 인프라와 Hub Kubernetes platform을 올린다. 이 단계는 factory-a K3s 가용성에 의존하지 않으며 ArgoCD, legacy Prometheus Agent cleanup, Grafana, AWS Load Balancer Controller까지만 준비한다.
 
@@ -49,13 +75,13 @@ factory-b/c K3s: cluster Secret, Application 생성, hostPath data-plane 전환 
 
 ## Admin UI HTTPS 준비
 
-Hub build는 Terraform apply 직후 Gabia 위임용 Route53 NS 파일을 자동 갱신한다.
+Hub build는 foundation output을 통해 Gabia 위임용 Route53 NS 파일을 자동 갱신한다. 일반적인 Hub-only destroy/build에서는 Route53 Hosted Zone과 ACM certificate가 foundation에 남으므로 가비아 네임서버를 다시 바꿀 필요가 없다.
 
 ```bash
 cat secret/admin-ui-nameservers.txt
 ```
 
-`minsoo-tech.cloud`를 Gabia에서 위 파일의 NS 4개로 위임한 뒤 ACM certificate가 `ISSUED`가 되면 Admin UI Ingress를 활성화한다.
+최초 1회 `minsoo-tech.cloud`를 Gabia에서 위 파일의 NS 4개로 위임한 뒤 ACM certificate가 `ISSUED`가 되면 Admin UI Ingress를 활성화한다. 이후 foundation Hosted Zone을 destroy/recreate한 경우에만 가비아 NS를 다시 설정한다.
 
 ```bash
 aws acm describe-certificate \
@@ -87,6 +113,8 @@ scripts/destroy/destroy-hub.sh
 ```
 
 `stop-dummy-generators.sh`는 Hub가 내려간 뒤에도 factory-b/c worker outbox가 계속 쌓이는 것을 막는다. legacy local publisher unit이 설치돼 있으면 함께 정지하지만, 현재 표준 publish 경로는 K3s `edge-iot-publisher`다. `destroy-hub.sh`는 Hub EKS/VPC/NAT Gateway/node group과 EKS 내부 ArgoCD/Tailscale/ApplicationSet 리소스를 제거한다. Foundation S3/ECR/DynamoDB, IoT 리소스와 Spoke K3s Secret은 별도 삭제 대상이다.
+
+데이터를 계속 쌓는 개발 모드에서는 `stop-dummy-generators.sh`를 실행하지 않는다. 이 경우 Hub ArgoCD self-heal은 멈추지만, 기존 Spoke K3s `edge-iot-publisher`와 data-pipeline이 살아 있으면 IoT Core -> S3 raw -> Lambda -> DynamoDB/S3 processed 흐름은 계속 유지된다.
 
 ## 전체 삭제
 

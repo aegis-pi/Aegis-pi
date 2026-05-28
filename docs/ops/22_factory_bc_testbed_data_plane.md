@@ -1,7 +1,7 @@
 # Factory B/C Testbed Data Plane
 
 상태: source of truth  
-기준일: 2026-05-21
+기준일: 2026-05-28
 
 ## 목적
 
@@ -201,6 +201,18 @@ scripts/ops/manage-dummy-generators.sh status factory-c
 접속 정보 기본값은 `scripts/ops/dummy-generators.env`에서 읽는다. 다른 값을 쓰려면 `AEGIS_DUMMY_GENERATORS_ENV=/path/to/file`을 지정한다.
 
 `manage-dummy-generators.sh start/status`는 local dummy generator만 다룬다. `stop`은 generator를 멈추고, legacy local dummy publisher unit이 설치돼 있으면 함께 멈춘다. 현재 publish는 K3s `edge-iot-publisher`가 담당하므로 local publisher service가 없는 것은 정상이다.
+
+개발 중 Hub 비용 절감을 위해 Hub만 내리고 data-pipeline을 유지하는 경우에는 dummy generator를 멈추지 않는다. Hub ArgoCD가 내려가도 기존 Spoke K3s `edge-iot-publisher` pod가 Running이면 outbox -> IoT Core publish는 계속 가능하다.
+
+출근 후 Hub를 다시 올리고 Spoke를 다시 등록할 때는 기존 publisher pod를 불필요하게 재시작하지 않도록 Hub-only reconnect 모드를 사용한다.
+
+```bash
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-c.sh [MFA_OTP]
+scripts/ops/check-spoke-publisher-safety.sh factory-b factory-c
+```
+
+GitOps values/image 변경을 실제 반영해야 하는 경우에만 `SYNC_SPOKE_APP=true`를 명시한다.
 
 ## 진행 순서
 
