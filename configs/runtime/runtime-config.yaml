@@ -72,7 +72,6 @@ global:
       processed: processed
       latest: latest
     iot_topic_root: aegis
-    amp_workspace_alias: AEGIS-AMP-hub
     prometheus_cluster_label: AEGIS-EKS
 
   dummy_data_defaults:
@@ -114,7 +113,6 @@ factories:
       iot_thing_name: AEGIS-IoTThing-factory-a
       iot_topic_prefix: aegis/factory-a
       s3_partition_prefix: factory-a
-      amp_cluster_label: AEGIS-EKS
     fields: {}
     dummy_data:
       enabled: false
@@ -157,7 +155,6 @@ factories:
       iot_thing_name: AEGIS-IoTThing-factory-b
       iot_topic_prefix: aegis/factory-b
       s3_partition_prefix: factory-b
-      amp_cluster_label: factory-b
     fields: {}
     dummy_data:
       enabled: true
@@ -219,7 +216,6 @@ factories:
       iot_thing_name: AEGIS-IoTThing-factory-c
       iot_topic_prefix: aegis/factory-c
       s3_partition_prefix: factory-c
-      amp_cluster_label: factory-c
     fields:
       network_reachability:
         weight: 10
