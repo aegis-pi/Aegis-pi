@@ -153,19 +153,7 @@ variable "grafana_namespace" {
 }
 
 variable "grafana_service_account" {
-  description = "Kubernetes service account name used by internal Grafana for AMP query access."
+  description = "Kubernetes service account name used by internal Grafana."
   type        = string
   default     = "grafana"
-}
-
-variable "prometheus_remote_write_namespace" {
-  description = "Kubernetes namespace for the Prometheus remote_write service account."
-  type        = string
-  default     = "observability"
-}
-
-variable "prometheus_remote_write_service_account" {
-  description = "Kubernetes service account name used by Prometheus or Prometheus Agent for AMP remote_write."
-  type        = string
-  default     = "prometheus-agent"
 }

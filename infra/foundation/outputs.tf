@@ -23,31 +23,6 @@ output "processed_object_key_template" {
   value       = "processed/{factory_id}/{dataset}/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json"
 }
 
-output "amp_workspace_alias" {
-  description = "Alias of the Hub Amazon Managed Service for Prometheus workspace."
-  value       = aws_prometheus_workspace.hub.alias
-}
-
-output "amp_workspace_id" {
-  description = "Identifier of the Hub Amazon Managed Service for Prometheus workspace."
-  value       = aws_prometheus_workspace.hub.id
-}
-
-output "amp_workspace_arn" {
-  description = "ARN of the Hub Amazon Managed Service for Prometheus workspace."
-  value       = aws_prometheus_workspace.hub.arn
-}
-
-output "amp_prometheus_endpoint" {
-  description = "Prometheus endpoint for the Hub AMP workspace."
-  value       = aws_prometheus_workspace.hub.prometheus_endpoint
-}
-
-output "amp_remote_write_endpoint" {
-  description = "Remote write endpoint for Prometheus Agent or Prometheus remote_write."
-  value       = "${aws_prometheus_workspace.hub.prometheus_endpoint}api/v1/remote_write"
-}
-
 output "edge_agent_ecr_repository_name" {
   description = "ECR repository name for the edge-agent image."
   value       = aws_ecr_repository.edge_agent.name
@@ -112,4 +87,3 @@ output "dynamodb_table_arn" {
   description = "DynamoDB table ARN for factory status."
   value       = aws_dynamodb_table.factory_status.arn
 }
-
