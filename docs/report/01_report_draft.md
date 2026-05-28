@@ -78,13 +78,13 @@ AI snapshot: 24시간 초과 자동 삭제
 
 - failover 시 전원 장애 기준 약 65-75초의 데이터 공백이 있었다.
 - failback 전환 구간에서 중복 write 후보가 있다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, Hub Prometheus Agent, Grafana/AMP datasource, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, IRSA S3/AMP 권한은 현재 build/등록 스크립트로 재생성/검증 가능하다. Hub-only 재시작은 `build-hub.sh` 이후 UI 연결과 `register-spoke-factory-a/b/c.sh`를 단계별 실행한다. Dashboard VPC/Risk Twin 구조는 아직 후속 단계다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/ECR/DynamoDB, IoT Rule, Lambda data processor, DynamoDB/S3 processed 경로는 현재 build/등록 스크립트로 재생성/검증 가능하다. AMP/Prometheus Agent는 비용 최적화 기준에서 active 구성에서 제거했다. Daily Factory Report는 로컬/AWS 수동 실행 검증까지 완료했으며 reporting stack은 검증 후 삭제했다. Dashboard page/VPC 구현은 별도 담당 범위로 분리하고, 이 repo는 DynamoDB/S3 processed read model과 Risk output 계약을 유지한다.
 - NFS Cold Storage와 Ansible tiering은 보류했다.
 
 ## 7. 다음 단계
 
-1. IoT Core Lambda data processor 구현
-2. DynamoDB LATEST/HISTORY와 S3 processed 저장
-3. `pipeline_status` 계산 검증
-4. Dashboard VPC 기반 관리자 관제 화면
-5. Risk Twin dashboard 구현
+1. `runtime-config.yaml`을 Lambda Risk 계산에 연결
+2. Risk Twin read model을 DynamoDB/S3 processed 계약으로 고정
+3. Daily Factory Report S3 read 병렬화와 `state_snapshot` 입력 축소
+4. `generation-metadata.json`에 object count, Lambda duration, Bedrock token usage 같은 비용 관측값 보강
+5. Dashboard page/VPC 담당 구현과 조회 필드 계약 맞추기

@@ -1,11 +1,11 @@
 # 요약 보고서
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-05-28
 
 ## 한 줄 요약
 
-`factory-a` Raspberry Pi 3-node Safe-Edge 기준선을 구축하고, GitOps 배포, Grafana 관제, Longhorn 저장소, 장애 복구 검증까지 완료했다.
+`factory-a` Raspberry Pi 3-node Safe-Edge 기준선을 시작점으로 Hub, 멀티 factory data-plane, 기본 Risk 계산, Daily Factory Report MVP 수동 검증까지 완료했다.
 
 ## 현재 완료한 것
 
@@ -46,18 +46,17 @@ worker2 재연결 -> AI/audio/BME worker2 failback 성공
 ## 현재 남은 과제
 
 ```text
-중복 write 처리 정책 결정
-데이터 공백 허용 범위 결정
-writer node tag 또는 active writer guard 검토
-M0 문서 전체 정합성 보정
-AWS Hub / factory-b / factory-c 확장
+runtime-config 기반 Risk weight/threshold 적용
+Risk Twin read model 계약 고정
+Daily Factory Report S3 read 성능/비용 관측 개선
+Dashboard page/VPC 담당 구현과 조회 필드 계약 정합성 확인
+M7 통합 검증과 문서 최종 보정
 ```
 
 ## 후속 방향
 
-1. `factory-a` 문서 정합성 완료
-2. AWS EKS Hub 기준선 설계/구축
-3. Hub-Spoke 연결
-4. IoT Core / S3 데이터 플레인
-5. Dashboard VPC 기반 관리자 관제 화면
-6. Risk Twin dashboard
+1. `runtime-config.yaml`을 Lambda Risk 계산에 연결
+2. Risk Twin read model을 DynamoDB/S3 processed 계약으로 고정
+3. Daily Factory Report S3 read 성능과 비용 관측값 개선
+4. Dashboard page/VPC 담당 구현과 조회 필드 계약 맞추기
+5. M7 통합 검증 시나리오와 문서 정합성 보정

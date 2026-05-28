@@ -1,7 +1,7 @@
 # Quick Start
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-05-28
 
 ## 목적
 
@@ -22,8 +22,10 @@
 - AWS Load Balancer Controller와 Admin UI HTTPS Ingress는 `scripts/build/build-admin-ui-after-ns.sh`로 ACM 발급 확인 후 활성화한다.
 - `factory-b`, `factory-c`는 VM 테스트베드 Spoke로 Hub ArgoCD cluster 등록, ApplicationSet Application 생성, GitOps `hostPath` outbox 전환, local dummy generator systemd 실행, K3s `edge-iot-publisher` 활성화, IoT Core -> S3 raw prefix 분리 적재까지 완료했다.
 - Lambda data processor(`apps/data-processor/`) 구현 완료. DynamoDB는 `LATEST`와 `HISTORY#STATE#{updated_at}` 단일 snapshot 이력 구조를 사용하며, history에는 `LATEST`와 같은 구조에 TTL 48h만 추가한다. Terraform 인프라(`infra/data-pipeline/`) 구현 완료.
-- 다음 단계는 실제 AWS 배포 후 IoT → Lambda → DynamoDB/S3 processed end-to-end 검증 및 pipeline_status 동작 확인이다.
-- Dashboard VPC는 후속 단계다. ECR/GitHub Actions CI, Tailscale Hub-Spoke, `factory-a` ApplicationSet data-plane 배포 기준선은 준비됐다.
+- IoT -> Lambda -> DynamoDB/S3 processed end-to-end 검증과 pipeline_status 동작 확인은 `factory-a/b/c` 기준 완료됐다.
+- Lambda data processor의 기본 Risk Score 계산은 구현/검증 완료됐다. 다음 Risk 작업은 `configs/runtime/runtime-config.yaml`을 실제 Lambda Risk 계산에 연결하고, Risk Twin/Dashboard가 읽을 read model 필드를 고정하는 것이다.
+- Dashboard page와 Dashboard VPC는 별도 담당 범위다. 이 repo에서는 DynamoDB/S3 processed 데이터 계약과 report 산출물 계약을 유지한다.
+- Daily Factory Report는 로컬 테스트, Bedrock Sonnet 실호출, `infra/reporting` AWS 배포, `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. 비용 방지를 위해 reporting stack은 검증 후 삭제했으며 S3 input/output object는 보존한다.
 - 후속 구현은 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD 기준을 따른다.
 
 ## 현재 운영 주소
@@ -49,6 +51,8 @@
 7. `docs/changes/README.md`
 8. `docs/ops/14_hub_run_commands.md`
 9. `docs/ops/22_factory_bc_testbed_data_plane.md`
+10. `docs/ops/24_daily_factory_report.md`
+11. `docs/ops/25_daily_factory_report_cost.md`
 
 ## 빠른 상태 확인
 
@@ -102,6 +106,8 @@ factory-b/factory-c Hub ArgoCD cluster 등록 및 Application 생성
 factory-b/factory-c local dummy generator 및 K3s edge-iot-publisher 활성화
 factory-a/factory-b/factory-c IoT Core -> S3 raw 적재 검증
 factory-a/factory-b/factory-c IoT Core -> Lambda -> DynamoDB/S3 processed 적재 검증
+Lambda data processor 기본 Risk Score 계산 검증
+Daily Factory Report local/AWS manual execution 검증
 ```
 
 ## 다음 단계
@@ -111,4 +117,5 @@ factory-a/factory-b/factory-c IoT Core -> Lambda -> DynamoDB/S3 processed 적재
 3. 계획과 실제 구현이 달라진 항목은 `docs/changes/`에 Change Record로 남긴다.
 4. `README.md`, `docs/README.md`, architecture 문서를 현재 `factory-a/b/c` 기준으로 유지한다.
 5. Grafana/dashboard 스펙을 실제 InfluxDB + Prometheus 기준으로 유지한다.
-6. M1 Issue 9 AWS Load Balancer Controller, M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress, M1 Issue 12 `runtime-config.yaml` 구조 초안, M3 Issue 1~5/7/8 배포 기준선, M4 Issue 1~8 data-pipeline 검증, M5 factory-b/c 테스트베드 수집 검증은 완료됐다. Bedrock 기반 daily factory report는 로컬 구현과 enriched v2 context/prompt 저장까지 진행됐다. 다음 작업은 `terraform validate` 재검증, enriched v2 Bedrock 실호출, 24시간 daily merge 검증, reporting stack 배포/Step Functions 수동 실행이다. M6 Risk Twin/Dashboard 구현도 병행 우선순위다.
+6. M1 Issue 9 AWS Load Balancer Controller, M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress, M1 Issue 12 `runtime-config.yaml` 구조 초안, M3 Issue 1~5/7/8 배포 기준선, M4 Issue 1~8 data-pipeline 검증, M5 factory-b/c 테스트베드 수집 검증, 기본 Risk Score 계산, Bedrock 기반 Daily Factory Report MVP 검증은 완료됐다.
+7. 다음 repo 작업은 `runtime-config.yaml`을 Lambda Risk 계산에 연결하고, Risk Twin read model을 DynamoDB/S3 processed 계약에 맞춰 고정하는 것이다. Daily Report는 S3 read 병렬화, `state_snapshot` 입력 축소, `generation-metadata.json` 비용 관측값 보강이 후속 고도화다.

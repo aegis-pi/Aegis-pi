@@ -1,7 +1,7 @@
 # Aegis-Pi Docs
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-05-28
 
 ## 목적
 
@@ -29,10 +29,10 @@
 - M4 Issue 1~8에서 Raw 데이터 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR 이미지, GitOps chart, IoT Core -> S3 raw 적재, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, `pipeline_status` 검증을 완료했다.
 - 2026-05-20 기준 `factory-b`, `factory-c`는 2-node VM K3s, Tailnet 참여, Hub ArgoCD cluster Secret, ApplicationSet 기반 `aegis-spoke-factory-b/c` Application 생성 및 동기화를 완료하고, 로컬 dummy generator 및 publisher를 통한 S3 raw 적재와 시각 동기화(Chrony) 검증까지 최종 완료했다.
 - `factory-b/c` 데이터 플레인은 로컬 dummy generator가 worker node hostPath `/var/lib/aegis/outbox`에 canonical JSON을 쓰고, Hub ArgoCD가 배포한 공통 `edge-iot-publisher`가 같은 hostPath를 읽어 IoT Core로 전송하도록 구축했다. GitOps chart/values는 이 hostPath 기준으로 전환했다.
-- Risk Twin Dashboard는 후속 단계이며, 선행 작업인 IoT Core Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 저장 경로 구현과 검증은 완료했다.
+- Risk Twin Dashboard page 및 Dashboard VPC는 별도 담당 범위로 분리한다. 이 repo에서는 Dashboard가 읽을 수 있는 DynamoDB/S3 processed 데이터 계약, Risk output 구조, 운영 리포트 산출물을 우선 고도화한다.
 - 클라우드 인프라와 data-pipeline 관측 확장은 CloudWatch Metrics/Logs, Lambda EMF custom metrics, Grafana CloudWatch datasource, X-Ray/OpenTelemetry 역할 분리 기준을 따른다. AMP는 비용 최적화 기준에서 제거했다. 세부 기준은 `planning/15_cloud_architecture_final.md`와 `ops/23_data_pipeline.md`에 둔다.
-- Bedrock 기반 factory별 일일 운영 보고서 초안 생성은 MVP 포함으로 확정했다. 세부 설계는 `planning/17_llm_daily_factory_report_plan.md`, 운영 기준은 `ops/24_daily_factory_report.md`를 따른다.
-- 2026-05-27 기준 `apps/daily-report-generator/`와 `infra/reporting/` 구현을 진행했고, 로컬 pytest/compileall/fmt 검증을 완료했다. enriched v2 `factory-b` 단일 hour context/prompt/test note는 `/home/vicbear/Aegis/test_paper/`에 저장했다. Bedrock 실호출, 24시간 daily merge 검증, AWS 배포는 다음 작업이다.
+- Bedrock 기반 factory별 일일 운영 보고서 초안 생성은 MVP 포함으로 확정했다. 세부 설계는 `planning/17_llm_daily_factory_report_plan.md`, 운영 기준은 `ops/24_daily_factory_report.md`, 비용 기준은 `ops/25_daily_factory_report_cost.md`를 따른다.
+- 2026-05-28 기준 `apps/daily-report-generator/`와 `infra/reporting/`은 로컬 검증과 AWS 수동 실행 검증을 완료했다. `factory-b`, `report_date=2026-05-27`, `timezone=Asia/Seoul` 기준 Step Functions 실행은 `SUCCEEDED`였고 S3 `reports/daily/yyyy=2026/mm=05/dd=27/factory-b/`에 hourly summary 24개, `factory-daily-summary.json`, `report-context.json`, `report.md`, `generation-metadata.json` 산출물을 확인했다. 비용 방지를 위해 reporting stack은 검증 후 삭제했으며 S3 input/output object는 보존한다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - Git Wiki에 옮길 수 있도록 재구성한 문서는 `docs/wiki/`에 둔다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
@@ -71,10 +71,11 @@
 24. `ops/22_factory_bc_testbed_data_plane.md`
 25. `ops/23_data_pipeline.md`
 26. `ops/24_daily_factory_report.md`
-27. `planning/16_m4_edge_data_plane_implementation.md`
-28. `planning/17_llm_daily_factory_report_plan.md`
-29. `issues/M0_factory-a_safe-edge-baseline.md`
-30. `issues/M1_hub-cloud.md`
+27. `ops/25_daily_factory_report_cost.md`
+28. `planning/16_m4_edge_data_plane_implementation.md`
+29. `planning/17_llm_daily_factory_report_plan.md`
+30. `issues/M0_factory-a_safe-edge-baseline.md`
+31. `issues/M1_hub-cloud.md`
 
 ## 문서 구조
 

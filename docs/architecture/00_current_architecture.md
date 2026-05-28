@@ -1,7 +1,7 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-05-28
 
 ## 목적
 
@@ -13,7 +13,10 @@
 - AWS Hub는 M1 Issue 0~10에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3 권한, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress를 검증했다. 과거 AMP/Prometheus Agent/Grafana AMP datasource 검증 이력은 보존하지만, 2026-05-27 비용 최적화 기준에서는 active 구성에서 제거한다. 현재 build 흐름은 Hub platform, Spoke cluster 등록, Spoke workload 배포를 분리한다.
 - M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록, IoT Rule -> S3 raw 적재 검증을 완료했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
-- `factory-b`, `factory-c`는 VM K3s/Tailnet/ArgoCD cluster/Application 등록, worker `hostPath` outbox, 로컬 dummy generator, IoT Secret, `edge-iot-publisher` 활성화와 S3 raw 적재 검증까지 완료했다. Dashboard VPC는 아직 구축 전이다.
+- `factory-b`, `factory-c`는 VM K3s/Tailnet/ArgoCD cluster/Application 등록, worker `hostPath` outbox, 로컬 dummy generator, IoT Secret, `edge-iot-publisher` 활성화와 S3 raw 적재 검증까지 완료했다.
+- Lambda data processor는 DynamoDB LATEST/HISTORY와 S3 processed 적재, `pipeline_status`, 기본 Risk Score 계산까지 검증했다.
+- Daily Factory Report는 로컬 검증, Bedrock Sonnet 실호출, AWS reporting stack 배포, `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. reporting stack은 검증 후 삭제했으며 S3 input/output object는 보존한다.
+- Dashboard page와 Dashboard VPC는 별도 담당 범위다. 이 repo의 현재 책임은 Dashboard가 조회할 DynamoDB/S3 processed read model과 Risk output 계약을 유지하는 것이다.
 - 이 문서는 현재 동작 중인 로컬 기준선과 rebuild 가능한 Hub 기준선을 함께 기록한다.
 
 ## 물리 / 클러스터 구조
@@ -290,19 +293,21 @@ LAN 제거 InfluxDB 공백:
 
 ## 현재 구조 밖의 항목
 
-다음 항목은 현재 구조가 아니라 후속 목표 구조다.
+다음 항목은 현재 구조가 아니라 후속 목표 구조 또는 별도 담당 범위다.
 
 ```text
-factory-b / factory-c
-Lambda data processor / Risk calculation
 Dashboard VPC / Risk Twin UI
+runtime-config 기반 Risk weight/threshold 적용
+Risk Twin read model 고도화
 ```
 
-2026-05-19 기준 아래 항목은 구조에 포함됐다.
+2026-05-28 기준 아래 항목은 구조에 포함됐다.
 
 ```text
 IoT Core         Thing/certificate/policy/Rule (검증 완료)
 S3               aegis-bucket-data raw 적재 (검증 완료)
+Lambda           DataProcessor DynamoDB/S3 processed 적재와 기본 Risk 계산 (검증 완료)
+Daily Report     reporting stack 수동 검증 완료, 현재 stack은 삭제, S3 산출물 보존
 ECR              aegis/factory-a-log-adapter, aegis/edge-iot-publisher (sha-f71a104)
 GitHub Actions   ARM64 matrix 빌드 (검증 완료)
 Tailscale        Hub -> factory-a K3s API egress 및 ArgoCD cluster Secret 자동화

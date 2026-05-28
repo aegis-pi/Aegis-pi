@@ -1,7 +1,7 @@
 # MVP 범위
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-05-28
 
 ## 목적
 
@@ -12,8 +12,10 @@
 - MVP의 첫 기준선인 M0 `factory-a` Safe-Edge 구축과 실측 검증은 완료됐다.
 - AWS Hub EKS/ArgoCD, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a/b/c` IoT Thing/Policy/K3s Secret은 현재 build 스크립트와 factory별 등록 스크립트로 재생성/검증 가능하다. Hub는 `build-hub.sh`, Admin UI는 `build-admin-ui-after-ns.sh`, Tailnet UI는 `connect-hub-tailscale-ui.sh`, Spoke 등록은 `register-spoke-factory-a/b/c.sh`, 최종 확인은 `verify-complete.sh`가 담당한다.
 - 전체 MVP는 운영형 Spoke 1개와 테스트베드형 Spoke 2개를 포함한 멀티 공장 관제 구조를 목표로 한다.
-- 2026-05-27 기준 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed data-pipeline은 `factory-a/b/c` 기준으로 실제 AWS 리소스 검증을 완료했다.
-- Bedrock 기반 factory별 일일 운영 보고서 초안 생성은 MVP 포함 범위로 확정했다. 세부 설계 source of truth는 `docs/planning/17_llm_daily_factory_report_plan.md`다.
+- 2026-05-28 기준 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed data-pipeline은 `factory-a/b/c` 기준으로 실제 AWS 리소스 검증을 완료했다.
+- Lambda data processor의 기본 Risk Score 계산은 구현/검증 완료 상태다. runtime-config 기반 weight/threshold/factory override 연결과 Risk Twin read model 고정은 후속 고도화다.
+- Bedrock 기반 factory별 일일 운영 보고서 초안 생성은 MVP 포함 범위로 확정했고, 로컬 테스트, Bedrock Sonnet 실호출, AWS reporting stack 배포, `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. reporting stack은 비용 방지를 위해 검증 후 삭제했으며 S3 input/output object는 보존한다. 세부 설계 source of truth는 `docs/planning/17_llm_daily_factory_report_plan.md`다.
+- Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다. 이 repo에서는 Dashboard가 조회할 DynamoDB/S3 processed read model과 Risk output 계약을 유지한다.
 
 ## 2026-05-13 멘토링 반영
 
@@ -52,6 +54,8 @@
 - `factory-a` IoT Thing/certificate/policy 및 K3s Secret
 - `factory-b/c` VM K3s 테스트베드, local dummy generator, 공통 publisher, S3 raw 적재 검증
 - Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, `pipeline_status` 계산 및 `factory-a/b/c` end-to-end 검증
+- Lambda data processor 기본 Risk Score 계산
+- Daily Factory Report MVP local/AWS manual execution 검증
 
 ## MVP 포함 범위
 
@@ -66,7 +70,7 @@
   - `factory-a/b/c`별 개별 Markdown 보고서
   - S3 `processed/` 기반 집계, `report-context.json`, `factory-daily-summary.json`, `report.md`, `generation-metadata.json` 저장
   - 운영자 검토용 초안이며 자동 재학습/자동 배포를 수행하지 않음
-- 메인 대시보드
+- 메인 대시보드 - page/VPC 구현은 별도 담당 범위, 이 repo는 조회 데이터 계약 제공
   - 공장별 위험 상태 카드
   - 센서 현황
   - 이상 시스템 목록

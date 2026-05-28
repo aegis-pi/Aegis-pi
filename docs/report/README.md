@@ -12,4 +12,4 @@
 ## 기준
 
 - 보고서는 운영 결과와 검증 수치를 근거로 작성한다.
-- 아직 구현되지 않은 Hub, IoT Core, Dashboard VPC 범위는 후속 계획으로 구분한다.
+- Hub, IoT Core, data-pipeline, Daily Factory Report처럼 이미 검증된 범위와 Dashboard page/VPC처럼 별도 담당 범위로 분리된 범위를 구분한다.

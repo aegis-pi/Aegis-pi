@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-05-27
+기준일: 2026-05-28
 
 ## 목적
 
@@ -67,12 +67,15 @@
 | M5 | Issue 5 - 로컬 Dummy generator 구현 및 실행 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
 | M5 | Issue 6 - 테스트베드 동기화 및 롤백 정책 | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
 | M5 | Issue 7 - 데이터 플레인 연결 확인 (S3 적재) | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
+| M6 | Issue 1 - Lambda Risk 계산 로직 | 완료 | `docs/issues/M6_risk-twin-dashboard.md` |
+| Daily Report | Reporting stack 로컬/AWS 수동 실행 검증 | 완료 | `docs/ops/24_daily_factory_report.md` |
 
 현재 바로 이어서 할 이슈/작업:
 
 ```text
-Daily Factory Report - terraform validate 재검증, enriched v2 Bedrock 실호출, 24시간 daily merge 검증, reporting stack 배포
-M6 Issue 1~4 - Risk 계산, runtime-config 적용, Risk Twin 출력 구조 구현
+M6 Issue 2~4 - runtime-config 적용, 온도/습도 기준값 계산 연결, Risk Twin 출력 구조 구현
+Daily Factory Report 고도화 - S3 read 병렬화/state_snapshot 축소, generation metadata 비용 관측 필드 추가
+Dashboard page 및 Dashboard VPC - 별도 담당 범위. 이 repo는 DynamoDB/S3 processed read model과 Risk 계약을 제공
 ```
 
 ## 다음 세션 시작 지점
@@ -102,7 +105,7 @@ scripts/destroy/stop-dummy-generators.sh
 scripts/destroy/destroy-hub.sh <MFA_OTP>
 ```
 
-Hub 상태와 무관하게 다음 구현 작업은 daily factory report 검증/AWS 실행을 먼저 마무리한 뒤 M6 Issue 1~4를 병행한다. daily report는 `apps/daily-report-generator/`와 `infra/reporting/` 로컬 구현이 진행된 상태이며, Bedrock 실호출과 24시간 검증, AWS 배포가 남았다.
+Hub 상태와 무관하게 다음 구현 작업은 M6 Risk 데이터 계약 고도화와 Daily Factory Report 성능/관측성 개선이다. Daily report는 `apps/daily-report-generator/`와 `infra/reporting/` 로컬 구현, Bedrock Sonnet 실호출, 24시간 `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. 검증 후 reporting stack은 `destroy-reporting.sh`로 삭제했고 S3 `processed/` 입력과 `reports/daily/` 출력은 보존한다.
 
 ## 2026-05-27 Hub Cost Optimization 상태
 
@@ -175,7 +178,7 @@ Lambda:
 ## 현재 큰 상태
 
 ```text
-현재 단계: M6 Risk Twin/Dashboard 및 MVP Daily Factory Report 구현 진행 (2026-05-27)
+현재 단계: M6 Risk 데이터 계약 고도화 및 MVP Daily Factory Report 검증 완료 상태 (2026-05-28)
 
 완료: M3 Issue 1~5 배포 파이프라인 전체
 완료: M4 Issue 1~5/8 raw 데이터 플레인
@@ -195,6 +198,28 @@ Lambda:
   - risk: factory-a/b/c 모두 safe 확인
   - DynamoDB TTL: ttl ENABLED, HISTORY 보존 48h 기준
   - S3 bucket 설정: ap-south-1, versioning enabled, SSE-S3 AES256, public access block 전체 true, BucketOwnerEnforced, raw/processed lifecycle 적용
+
+완료: M6 Issue 1 Lambda Risk 계산 로직 구현
+  - apps/data-processor/processor/risk.py 에 score/level/top_causes 계산 구현
+  - 현재 계산 대상: temperature, humidity, AI event rate
+  - 위험도 구간: safe >= 85, warning >= 50, danger < 50
+  - 단위 테스트: apps/data-processor/tests/test_risk.py
+  - 남은 보강: runtime-config.yaml 적용, risk_enabled/override 반영, Risk Twin 공식 출력 구조
+
+완료: MVP Daily Factory Report AWS 수동 실행 검증
+  - python -m compileall -q apps/daily-report-generator 통과
+  - python -m pytest -q apps/daily-report-generator 통과 (10 passed)
+  - terraform -chdir=infra/reporting fmt/init/validate 통과
+  - scripts/build/build-reporting.sh 로 reporting stack apply 완료 (17 added)
+  - Step Functions manual execution: manual-factory-report-20260528T012107Z, SUCCEEDED
+  - 검증 input: report_date=2026-05-27, timezone=Asia/Seoul, factories=["factory-b"], report_type=daily_factory_operations_draft
+  - S3 output: s3://aegis-bucket-data/reports/daily/yyyy=2026/mm=05/dd=27/factory-b/
+  - hourly hh=00~23, factory-daily-summary.json, report-context.json, report.md, generation-metadata.json 확인
+  - report_window: KST 2026-05-27T00:00:00+09:00~23:59:59+09:00, UTC 2026-05-26T15:00:00Z~2026-05-27T14:59:59Z 확인
+  - generation-metadata model_id: anthropic.claude-3-sonnet-20240229-v1:0 확인
+  - report.md는 S3 processed 기반/raw 미사용/testbed dummy 해석/검증 기준 수치 섹션 포함 확인
+  - 비용 기준: docs/ops/25_daily_factory_report_cost.md 추가
+  - 검증 후 scripts/destroy/destroy-reporting.sh 로 reporting stack destroy 완료 (17 destroyed), S3 input/output object 보존
 
 버그 수정 이력 (2026-05-18 세션):
   - fix 1: factory-a-log-adapter CMD --once -> --loop (CrashLoopBackOff)
@@ -250,8 +275,9 @@ Hub-only 삭제/재생성 운영 순서:
   - connect-hub-tailscale-ui.sh는 ALB/Admin UI HTTPS가 아닌 Tailnet UI 직접 접근이 필요할 때만 선택 실행
   - 이 경로에서는 IoT Core Thing/certificate와 Spoke K3s Secret을 다시 만들지 않는다.
 
-다음 우선: M6 Issue 1~4 Risk 계산 보강, runtime-config 적용, 온도/습도 기준값 초안, Risk Twin 출력 구조 구현
-보류: M3 Issue 6 manifest 자동 갱신 workflow, M6 Dashboard 세부 화면, M7 전체 통합 검증
+다음 우선: M6 Issue 2~4 runtime-config 적용, 온도/습도 기준값 계산 연결, Risk Twin 출력 구조 구현
+보류/별도 담당: M3 Issue 6 manifest 자동 갱신 workflow, M6 Dashboard page/VPC 세부 화면, M7 전체 통합 검증
+고도화 후보: Daily Report S3 read 병렬화, state_snapshot 읽기 축소, generation-metadata에 Bedrock token usage/input object count 저장
 후속 리팩토링: M7 Issue 0에서 repo 분리 및 OIDC CI/CD 고도화
 
 완료: M0 factory-a Safe-Edge 기준선
@@ -522,45 +548,38 @@ secret exists, DATA=4
 
 ## 다음에 할 일
 
-### 1. Daily Factory Report 검증과 AWS 실행
+### 1. M6 Risk 데이터 계약 고도화
 
-로컬 구현은 진행됐고, 다음 세션에서는 실제 실행 경로 검증을 우선한다.
+Daily Factory Report AWS 수동 실행 검증은 완료됐다. 다음 세션에서는 Dashboard 담당자가 읽을 수 있는 Risk 데이터 계약을 먼저 고정한다.
 
 ```text
 1. cd /home/vicbear/Aegis/git_clone/Aegis-pi
 2. git status --short 로 변경 파일 확인
-3. python -m pytest -q 재실행
-4. python -m compileall -q apps/daily-report-generator 재실행
-5. terraform fmt -check -diff 재실행
-6. infra/reporting 기준 terraform validate 재실행
-7. /home/vicbear/Aegis/test_paper/factory-b-hh03-report-context-enriched-v2.json 기반 enriched v2 Bedrock 실호출
-8. 생성 Markdown에서 factory/date/Risk Score/collection count/evidence id/recommended checks/S3 processed 한계 검증
-9. 24시간 daily merge fixture 또는 실제 processed day 입력으로 missing_hour_count=0, count 합산, hour boundary event merge 검증
-10. scripts/build/build-reporting.sh 로 reporting stack 배포
-11. Step Functions DailyFactoryReportStateMachine 수동 실행
-12. S3 reports/daily/.../{factory_id}/ 산출물 확인
+3. apps/data-processor/processor/risk.py 현재 하드코딩 상수와 configs/runtime/runtime-config.yaml 비교
+4. Risk output 계약 확정: score/level/top_causes + Risk Twin read model 필드
+5. runtime-config.yaml을 Lambda package 또는 배포 입력으로 읽는 방식 결정
+6. risk_enabled/weight/threshold/factory override 적용
+7. DynamoDB LATEST/HISTORY와 S3 processed risk_score/state_snapshot에 Risk Twin 필드 반영
+8. apps/data-processor 단위 테스트와 필요한 fixture 갱신
 ```
 
 주의:
 
 ```text
-factory-b hh=03 enriched v2 context는 단일 hour 테스트라 missing_hour_count=23이 정상.
-24시간 daily merge에서는 missing_hour_count=0 여부를 별도 검증해야 함.
-terraform validate는 sandbox provider plugin 실행 제한으로 이전 세션에서 재검증하지 못했음.
-AWS Bedrock 실호출은 외부 호출 승인/사용량 제한 때문에 아직 수행하지 못했음.
+Dashboard page 및 Dashboard VPC 구현은 별도 담당 범위다.
+이 repo의 우선 작업은 Dashboard가 조회할 DynamoDB/S3 processed 계약과 Risk Twin 출력 구조다.
+Daily Report reporting stack은 현재 삭제된 상태이며, 필요할 때 scripts/build/build-reporting.sh 로 다시 올린다.
 ```
 
-### 2. M6 Risk Twin/Dashboard 구현
+### 2. Daily Factory Report 고도화
 
-Daily report 검증을 마친 뒤 M6 Issue 1~4를 진행한다.
+보고서 기능은 검증 완료 상태다. 다음 개선은 비용/성능/관측성 중심이다.
 
 ```text
-1. Lambda data processor Risk 계산 보강
-2. runtime-config.yaml 적용
-3. 온도/습도 기준값 초안 적용
-4. Risk Twin 출력 구조 구현
-5. Dashboard Web/API 또는 Grafana 관제 화면 구현
-6. DynamoDB LATEST/HISTORY와 S3 processed read-only 조회 검증
+1. S3ProcessedReader에서 S3_GET_CONCURRENCY를 실제 사용해 GetObject 병렬화
+2. state_snapshot 전체 읽기 대신 latest N개 또는 hour별 마지막 snapshot만 읽는 방식 검토
+3. generation-metadata.json에 Bedrock token usage, context bytes, output bytes, input object count 저장
+4. docs/ops/25_daily_factory_report_cost.md를 실측 기반으로 갱신
 ```
 
 ### 3. Hub 재기동 순서
@@ -749,15 +768,15 @@ a65216f docs: record mentoring-based MVP and architecture updates
 현재 세션 정리 내용:
 
 ```text
-2026-05-27 세션 저장 기준
+2026-05-28 세션 저장 기준
 
 M4/M5 완료 상태:
   factory-a/b/c data-pipeline은 IoT Core -> S3 raw, IoT Core -> Lambda -> DynamoDB/S3 processed 흐름 검증 완료.
   factory-b/c는 2-node VM K3s 테스트베드, local dummy generator, common edge-iot-publisher, Chrony 시각 동기화 기준으로 검증 완료.
   factory-a 최신 processed state_snapshot 기준 nodes_ready=3/3, pods_ready=6/6, pipeline_status=normal 확인.
 
-Daily Factory Report 구현 진행:
-  apps/daily-report-generator/ package와 4개 Lambda handler 구현 진행.
+Daily Factory Report 검증 완료:
+  apps/daily-report-generator/ package와 4개 Lambda handler 구현 완료.
   AggregateFactoryHour:
     not_ready_nodes, unhealthy_workloads 구조화.
     node 이름이 비어 있으면 control-plane:Unknown, worker:Unknown 같은 fallback label 사용.
@@ -767,7 +786,7 @@ Daily Factory Report 구현 진행:
     recommended_checks를 rule 기반으로 생성하고 evidence message id 1~2개 포함.
   PromptBuilder:
     AI spike evidence, infra cause, recommended_checks, S3 processed/raw 한계, testbed/dummy 해석 반영.
-  infra/reporting/ Terraform root module 추가.
+  infra/reporting/ Terraform root module 추가 및 AWS apply 검증 완료.
   scripts/build/build-reporting.sh, scripts/destroy/destroy-reporting.sh 추가.
 
 저장된 테스트 산출물:
@@ -777,26 +796,26 @@ Daily Factory Report 구현 진행:
   /home/vicbear/Aegis/test_paper/factory-b-hh03-enriched-v2-test-note.md
 
 검증:
-  python -m pytest -q 통과: 9 passed
+  python -m pytest -q apps/daily-report-generator 통과: 10 passed
   python -m compileall -q apps/daily-report-generator 통과
-  terraform fmt -check -diff 통과
-  terraform validate는 sandbox provider plugin 실행 제한으로 실패했고, escalated 재시도는 사용량 제한으로 거절되어 이번 세션에서 재검증하지 못함.
+  terraform -chdir=infra/reporting fmt -check -diff 통과
+  terraform -chdir=infra/reporting init/validate 통과
+  scripts/build/build-reporting.sh 실행: 17 resources added
+  Step Functions manual execution manual-factory-report-20260528T012107Z: SUCCEEDED
+  S3 reports/daily/yyyy=2026/mm=05/dd=27/factory-b/ 산출물 확인
+  scripts/destroy/destroy-reporting.sh 실행: 17 resources destroyed, S3 processed input과 reports/daily output 보존
 
 주의:
-  factory-b hh=03 enriched v2 context는 단일 hour 테스트라 missing_hour_count=23이 정상.
-  24시간 daily merge에서는 missing_hour_count=0, 24시간 count 합산, hour boundary event merge를 별도 검증해야 함.
-  enriched v2 Bedrock 실호출과 AWS reporting stack 배포는 아직 하지 않음.
+  reporting stack은 현재 내려간 상태다. 필요할 때 build-reporting.sh로 다시 배포한다.
+  Daily Report 실행 병목은 작은 S3 processed object 다량 순차 GetObject이며, 비용/성능 개선 후보로 남긴다.
+  Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다.
 
 다음 세션 우선 작업:
   1. git status --short 로 변경 파일 확인
-  2. 로컬 pytest/compileall/fmt 재실행
-  3. terraform validate 재실행
-  4. enriched v2 Bedrock 실호출
-  5. Bedrock 출력 invariant와 보고서 품질 검토
-  6. 24시간 daily merge 검증
-  7. reporting stack 배포
-  8. Step Functions 수동 실행과 S3 reports/daily 산출물 확인
-  9. 이후 M6 Risk 계산/runtime-config/Risk Twin 출력 구조 구현
+  2. Risk output 계약과 Dashboard read model 필드 확정
+  3. runtime-config.yaml을 Lambda data processor Risk 계산에 연결
+  4. Risk Twin 출력 구조를 DynamoDB LATEST/HISTORY와 S3 processed에 반영
+  5. Daily Report S3 read 병렬화/state_snapshot 축소/metadata 비용 관측 필드 중 하나를 선택해 고도화
 ```
 
 ## 갱신 규칙

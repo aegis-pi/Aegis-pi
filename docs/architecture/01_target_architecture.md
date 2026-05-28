@@ -1,7 +1,7 @@
 # 목표 확장 아키텍처
 
 상태: draft
-기준일: 2026-05-15
+기준일: 2026-05-28
 
 ## 목적
 
@@ -9,9 +9,9 @@
 
 ## 최신 기준
 
-2026-05-09 기준 확정된 클라우드 리소스 배치와 VPC 명명은 `docs/planning/15_cloud_architecture_final.md`를 source of truth로 한다.
+2026-05-28 기준 확정된 클라우드 리소스 배치와 VPC 명명은 `docs/planning/15_cloud_architecture_final.md`를 source of truth로 한다.
 
-이 문서는 기존 목표 Hub/Spoke 구조를 설명하는 보조 문서다. 최신 기준의 VPC 경계는 아래와 같다.
+이 문서는 기존 목표 Hub/Spoke 구조를 설명하는 보조 문서다. Dashboard page와 Dashboard VPC 구현은 별도 담당 범위이며, 이 repo에서는 Dashboard가 조회할 DynamoDB/S3 processed read model과 Risk output 계약을 유지한다. 최신 기준의 VPC 경계는 아래와 같다.
 
 ```text
 1번 VPC: Data / Dashboard VPC
@@ -25,18 +25,20 @@ Factory Spoke: factory-a / factory-b / factory-c
 
 ```text
 factory-a 로컬 Safe-Edge 기준선
-M1 Issue 0~4 Hub EKS/VPC/namespace/ArgoCD bootstrap 및 foundation S3 기준선 검증 후 destroy
-M1 Issue 5 factory-a IoT Thing/Policy/K3s Secret 생성 완료
+M1 Issue 0~10/12 Hub EKS/VPC/namespace/ArgoCD bootstrap, foundation, IoT, Admin UI 기준선
+M4 data-pipeline Lambda/DynamoDB/S3 processed 검증
+M5 factory-b/c 테스트베드 Spoke 확장과 S3 raw/processed 검증
+M6 Issue 1 기본 Risk 계산 구현
+Daily Factory Report 로컬/AWS 수동 실행 검증 후 reporting stack destroy
 ```
 
 후속 목표:
 
 ```text
-AWS EKS Hub
-1번 Data / Dashboard VPC
-2번 Control / Management VPC
-factory-a / factory-b / factory-c 멀티 Spoke
-중앙 배포 / 중앙 수집 / Risk Twin 관제
+runtime-config 기반 Risk weight/threshold 적용
+Risk Twin read model 고도화
+Dashboard page/VPC 담당 구현과 조회 필드 계약 연결
+M7 통합 검증
 ```
 
 구현 책임 경계:
@@ -193,23 +195,20 @@ event
 4. Tailscale 또는 동등한 Hub-Spoke 연결 방식 확정
 5. GitHub Actions / ECR / ArgoCD ApplicationSet 구성
 6. Edge data-plane adapter/publisher 구현 및 IoT Core / S3 데이터 수집 경로 구성
-7. 1번 Data / Dashboard VPC, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 및 dashboard 구현
-8. `factory-b`, `factory-c` 테스트베드 확장
+7. Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 및 기본 Risk 계산 구현 완료
+8. `factory-b`, `factory-c` 테스트베드 확장 완료
+9. Daily Factory Report MVP 검증 완료
+10. 1번 Data / Dashboard VPC와 dashboard 구현은 별도 담당 범위로 분리
 
 ## 현재 구조로 가져오면 안 되는 것
 
-현재 `factory-a` 문서에는 아래를 완료된 것으로 쓰지 않는다.
+현재 `factory-a` 로컬-only 문서에는 아래를 완료된 것으로 쓰지 않는다. 전체 repo 현재 상태는 `README.md`, `docs/README.md`, `docs/issues/SESSION_STATE.md`를 우선한다.
 
 ```text
-AWS EKS Hub
-IoT Core / S3
-ECR
-GitHub Actions
-Tailscale
 Data / Dashboard VPC
-factory-b / factory-c
-Lambda data processor / Risk calculation
-LLM 보고서
+Dashboard page
+runtime-config 기반 Risk weight/threshold 적용
+Risk Twin read model 고도화
 ```
 
 이 항목들은 목표 구조 또는 후속 계획 문서에서만 관리한다.

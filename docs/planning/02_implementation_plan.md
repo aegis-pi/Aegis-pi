@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-05-28
 
 ## 목적
 
@@ -257,16 +257,17 @@ Hub 생성 순서:
 
 주요 작업:
 
-- Lambda data processor Risk 계산 로직 구현
-- `runtime-config.yaml` 적용
+- Lambda data processor Risk 계산 로직 구현 - 기본 구현 완료
+- `runtime-config.yaml` 적용 - 설정 파일 초안은 있으나 Lambda 연결은 후속
 - 온도/습도 기준 초안 반영
 - Risk Twin 출력 구조 구현
-- Dashboard Web/API 또는 Grafana 관제 화면 구현
-- Dashboard VPC에서 ALB/WAF/Auth를 통해 접근하고, DynamoDB LATEST/HISTORY와 S3 processed를 read-only로 조회
+- Dashboard Web/API 또는 Grafana 관제 화면 구현 - Dashboard page/VPC는 별도 담당 범위
+- Dashboard VPC에서 ALB/WAF/Auth를 통해 접근하고, DynamoDB LATEST/HISTORY와 S3 processed를 read-only로 조회 - 이 repo는 조회 대상 데이터 계약을 제공
 
 완료 조건:
 
-- 상태 변화 -> Risk Score -> 관제 화면 반영 end-to-end 확인
+- 상태 변화 -> Risk Score -> DynamoDB/S3 processed read model 반영 확인
+- Dashboard 담당 구현에서 해당 read model을 조회할 수 있는 필드 계약 확인
 
 ### Phase 7.5. MVP Daily Factory Report
 
@@ -279,17 +280,19 @@ Hub 생성 순서:
 주요 작업:
 
 - `apps/daily-report-generator/` package 생성 - 완료
-- `PrepareReportWindow`, `AggregateFactoryHour`, `MergeFactoryDaily`, `GenerateFactoryReport` Lambda 구현 - 로컬 구현 진행
-- S3 processed hourly aggregation, daily merge, event severity/top N, recommended checks 구현 - 로컬 구현 진행
+- `PrepareReportWindow`, `AggregateFactoryHour`, `MergeFactoryDaily`, `GenerateFactoryReport` Lambda 구현 - 완료
+- S3 processed hourly aggregation, daily merge, event severity/top N, recommended checks 구현 - 완료
 - Bedrock mock 기반 `report-context.json`/`report.md` 로컬 테스트 - pytest 통과
-- Bedrock output invariant validation 구현 - 기본 검증 구현, enriched v2 실출력 검토 필요
-- `infra/reporting/` Terraform root module 추가 - 완료, validate 재검증 필요
+- Bedrock output invariant validation 구현 - 기본 검증 및 Bedrock Sonnet 실호출 검토 완료
+- `infra/reporting/` Terraform root module 추가 - 완료, fmt/init/validate 및 AWS apply 검증 완료
 - `scripts/build/build-reporting.sh`, `scripts/destroy/destroy-reporting.sh` 추가 - 완료
 - `docs/ops/24_daily_factory_report.md` 운영 기준 작성 - 완료
+- `factory-b`, `report_date=2026-05-27`, `timezone=Asia/Seoul` 기준 Step Functions 수동 실행 검증 - 완료
+- 검증 후 reporting stack destroy - 완료. S3 `processed/` input과 `reports/daily/` output은 보존
 
 완료 조건:
 
-- `factory-a/b/c`별 `factory-daily-summary.json`, `report-context.json`, `report.md`, `generation-metadata.json`이 S3 `reports/daily/.../{factory_id}/`에 생성됨
+- 최소 1개 factory의 `factory-daily-summary.json`, `report-context.json`, `report.md`, `generation-metadata.json`이 S3 `reports/daily/.../{factory_id}/`에 생성됨 - `factory-b` 기준 완료
 - Bedrock에는 S3 raw 원본 전체가 아니라 `report-context.json`만 전달됨
 - factory ID, report date, 핵심 수치 invariant validation이 수행됨
 - 한 factory의 보고서 생성 실패가 다른 factory의 생성을 막지 않음
@@ -325,8 +328,8 @@ Hub 생성 순서:
 | Phase 4 (M3) | Issue 1~5 완료, Issue 6~8 보류 | ECR/GitHub Actions/Hub ArgoCD 배포 기준선 |
 | Phase 5 (M4) | 완료, Issue 1~8 완료 | `factory-a` adapter/publisher, Lambda data processor, DynamoDB/S3 processed |
 | Phase 6 (M5) | 완료 | VM Spoke 확장, dummy generator, S3 raw 수집 |
-| Phase 7 (M6) | 다음 주요 단계 | Risk Twin + Dashboard VPC 관제 |
-| Phase 7.5 | 구현 진행/로컬 검증 완료 | Bedrock 기반 factory별 일일 운영 보고서. Bedrock 실호출, 24시간 검증, AWS 배포 미완료 |
+| Phase 7 (M6) | 진행 중 | 기본 Risk 계산 완료. 다음은 runtime-config 연결, Risk Twin read model 고정. Dashboard page/VPC는 별도 담당 범위 |
+| Phase 7.5 | MVP 검증 완료 | Bedrock 기반 factory별 일일 운영 보고서. 로컬 테스트, Bedrock 실호출, AWS 배포, `factory-b` Step Functions 수동 실행, S3 산출물 검증 완료. reporting stack은 검증 후 destroy |
 | Phase 8 (M7) | 후속 | 통합 검증 + 문서 보정 |
 
 ## 구현 중 테스트로 결정할 항목
