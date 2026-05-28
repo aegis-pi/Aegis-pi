@@ -27,6 +27,13 @@ def test_generate_factory_report_uses_context_only_and_returns_markdown_keys():
     assert result["metadata_key"] == "reports/daily/yyyy=2026/mm=01/dd=01/factory-a/generation-metadata.json"
     assert result["generation_metadata"]["model_id"] == "mock-bedrock"
     assert result["markdown"].endswith("\n")
+    assert "## 핵심 지표 표" in result["markdown"]
+    assert result["markdown"].index("## 핵심 지표 표") < result["markdown"].index("## 검증 기준 수치")
+    assert "| 평균 Risk Score | 87.1 | 높을수록 안전에 가까움 |" in result["markdown"]
+    assert "| 최저 Risk Score | 51.2 | 위험 기준 접근 |" in result["markdown"]
+    assert "| 공장 상태 데이터 수집률 | 1000/1200, 99.86% | 양호 |" in result["markdown"]
+    assert "| 인프라 상태 데이터 수집률 | 150/180, 99.49% | 양호 |" in result["markdown"]
+    assert "| 워크로드 재시작 | 4회 | 재시작 원인 확인 |" in result["markdown"]
     assert "## 검증 기준 수치" in result["markdown"]
     assert "보고서 window 원문: timezone=Asia/Seoul" in result["markdown"]
     assert "Risk Score 원문: avg_score=87.1, min_score=51.2, max_score=99.0" in result["markdown"]

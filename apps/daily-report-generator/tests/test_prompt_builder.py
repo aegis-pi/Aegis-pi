@@ -14,6 +14,7 @@ def test_build_prompt_contains_operational_constraints_and_fixed_sections():
     assert "snapshot은 마지막 전체 상태 참고용" in prompt
     assert "expected/actual count와 수집률" in prompt
     assert "collection_rate 같은 필드명을 쓰지 않는다" in prompt
+    assert "핵심 지표 표는 코드가 report-context.json 값으로 자동 삽입" in prompt
     assert "공장 상태 데이터는 28800건 중 28064건" in prompt
     assert "Risk Score 점수와 혼동하지 않는다" in prompt
     assert "JSON 필드명이나 변수명을 그대로 제목처럼 쓰지 않는다" in prompt

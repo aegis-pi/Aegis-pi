@@ -16,6 +16,7 @@ def build_prompt(context: dict) -> str:
         "snapshot은 마지막 전체 상태 참고용이고, 일중 이벤트 판단은 events/data_quality/risk/factory_state/infra/pipeline summary를 우선한다.\n"
         "보고서는 짧은 알림이 아니라 운영자가 다음 조치를 판단할 수 있는 초안이어야 한다.\n"
         "각 섹션은 가능한 한 3~6개 bullet로 작성하되, 수치와 시간대를 포함한 근거를 함께 적는다.\n"
+        "핵심 지표 표는 코드가 report-context.json 값으로 자동 삽입하므로 너는 별도 표를 만들지 않는다.\n"
         "본문 섹션에서는 JSON 필드명이나 변수명을 그대로 제목처럼 쓰지 않는다. avg_score는 '평균 Risk Score', min_score는 '최저 Risk Score', max_score는 '최고 Risk Score', warning_minutes는 '주의 상태 누적 시간', danger_minutes는 '위험 상태 누적 시간', collection_rate는 '수집률'처럼 사람이 읽는 표현으로 바꾼다.\n"
         "본문에서는 factory_state는 '공장 상태 데이터', risk_score는 '위험 점수 데이터', infra_state는 '인프라 상태 데이터', node_not_ready는 '노드 준비 안됨', unhealthy_workload는 '비정상 워크로드', ai_spike_event_count는 'AI 스코어 급등 횟수'처럼 풀어서 쓴다. 필요하면 괄호 안에 원문 dataset명을 한 번만 병기한다.\n"
         "단, 원문 필드명과 exact literal 값은 별도 '검증 기준 수치' 섹션에 코드가 추가하므로 본문에서는 운영자 친화적인 용어를 우선한다.\n"
