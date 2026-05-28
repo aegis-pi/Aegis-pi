@@ -122,3 +122,21 @@ variable "dynamodb_table_name" {
   type        = string
   default     = "AEGIS-DynamoDB-FactoryStatus"
 }
+
+variable "admin_ui_domain_name" {
+  description = "Base domain name delegated to Route53 for Admin UI."
+  type        = string
+  default     = "minsoo-tech.cloud"
+}
+
+variable "admin_ui_argocd_host" {
+  description = "FQDN for the ArgoCD Admin UI. Defaults to argocd.<admin_ui_domain_name>."
+  type        = string
+  default     = null
+}
+
+variable "admin_ui_grafana_host" {
+  description = "FQDN for the Grafana Admin UI. Defaults to grafana.<admin_ui_domain_name>."
+  type        = string
+  default     = null
+}

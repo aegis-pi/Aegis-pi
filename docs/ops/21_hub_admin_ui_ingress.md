@@ -1,7 +1,7 @@
 # Hub Admin UI HTTPS Ingress
 
 상태: source of truth
-기준일: 2026-05-08
+기준일: 2026-05-28
 
 ## 목적
 
@@ -13,7 +13,8 @@ MVP 기준은 Public ALB 1개, host 기반 Ingress, ACM public certificate, Rout
 
 | 영역 | 담당 | 내용 |
 | --- | --- | --- |
-| Terraform `infra/hub` | AWS 인프라 | Route53 Hosted Zone, ACM certificate, ACM DNS validation record, AWS Load Balancer Controller IRSA |
+| Terraform `infra/foundation` | 영속 AWS 인프라 | Route53 Hosted Zone, ACM certificate, ACM DNS validation record |
+| Terraform `infra/hub` | Hub AWS 인프라 | AWS Load Balancer Controller IRSA, EKS/VPC |
 | Ansible `scripts/ansible` | EKS bootstrap | AWS Load Balancer Controller Helm release, Admin UI Ingress apply/verify/cleanup |
 | AWS Load Balancer Controller | Kubernetes -> AWS 연동 | Ingress를 보고 ALB, listener, target group, security group 생성/삭제 |
 | Gabia | 도메인 등록기관 | `minsoo-tech.cloud` 네임서버를 Route53 NS로 위임 |
@@ -26,23 +27,23 @@ ArgoCD와 Grafana Kubernetes Service는 계속 `ClusterIP`로 유지한다. 외�
 Domain: minsoo-tech.cloud
 ArgoCD host: argocd.minsoo-tech.cloud
 Grafana host: grafana.minsoo-tech.cloud
-Route53 Hosted Zone: deleted on 2026-05-08 destroy
-ACM certificate: deleted on 2026-05-08 destroy
-ACM status: recreate and wait for ISSUED before enabling Ingress
+Route53 Hosted Zone: Z04285032XLZT6GPVQEE4 (foundation-owned)
+ACM certificate: arn:aws:acm:ap-south-1:611058323802:certificate/528e603a-9109-4427-bfea-c20f3a619be6
+ACM status: ISSUED
 Admin Ingress default: disabled
-Current ALB: none
+Current ALB: created only when Admin UI Ingress is enabled
 ```
 
 Route53 name servers:
 
 ```text
-ns-1079.awsdns-06.org
-ns-1913.awsdns-47.co.uk
-ns-7.awsdns-00.com
-ns-872.awsdns-45.net
+ns-1418.awsdns-49.org
+ns-1719.awsdns-22.co.uk
+ns-191.awsdns-23.com
+ns-665.awsdns-19.net
 ```
 
-`build-hub.sh`는 Hub Terraform apply 직후 현재 Route53 Hosted Zone의 NS 목록을 아래 파일에 다시 쓴다. Hosted Zone을 destroy/recreate하면 NS가 바뀔 수 있으므로 Gabia에 입력하기 전에는 이 파일을 확인한다.
+`build-hub.sh`는 foundation output을 통해 현재 Route53 Hosted Zone의 NS 목록을 아래 파일에 다시 쓴다. 일반적인 Hub destroy/build에서는 Hosted Zone이 유지되므로 Gabia NS를 다시 바꿀 필요가 없다. `DESTROY_FOUNDATION=true`로 foundation Hosted Zone을 삭제하고 재생성한 경우에만 이 파일을 확인해 Gabia NS를 다시 설정한다.
 
 ```text
 secret/admin-ui-nameservers.txt
@@ -56,7 +57,7 @@ scripts/ops/admin-ui-nameservers.sh
 
 ## 활성화 절차
 
-1. Gabia 관리 화면에서 `minsoo-tech.cloud`의 네임서버를 `secret/admin-ui-nameservers.txt`에 적힌 Route53 NS 4개로 변경한다.
+1. 최초 1회만 Gabia 관리 화면에서 `minsoo-tech.cloud`의 네임서버를 `secret/admin-ui-nameservers.txt`에 적힌 Route53 NS 4개로 변경한다.
 2. DNS 전파 후 ACM certificate가 `ISSUED`인지 확인한다.
 
 ```bash
@@ -114,13 +115,13 @@ Grafana Service: ClusterIP
 
 ACM certificate가 `ISSUED`가 되기 전에는 HTTPS listener가 정상 구성될 수 없다. 그래서 `ADMIN_UI_INGRESS_ENABLED=false`를 기본값으로 둔다.
 
-이 기본값에서는 `build-hub.sh`가 Route53, ACM, IRSA, AWS Load Balancer Controller까지 준비하지만 Admin Ingress와 ALB는 만들지 않는다. Gabia NS 위임 전에도 build가 실패하지 않고, 불필요한 ALB 비용도 발생하지 않는다.
+이 기본값에서는 foundation이 Route53/ACM을 보존하고, `build-hub.sh`가 IRSA와 AWS Load Balancer Controller까지 준비하지만 Admin Ingress와 ALB는 만들지 않는다. Gabia NS 위임 전에도 build가 실패하지 않고, 불필요한 ALB 비용도 발생하지 않는다.
 
 ## 삭제 기준
 
 `scripts/destroy/destroy-hub.sh`는 Terraform destroy 전에 `hub_admin_ingress_cleanup.yml`을 먼저 실행한다. Admin Ingress가 켜져 있었다면 이 단계에서 Route53 CNAME, Kubernetes Ingress, AWS Load Balancer Controller가 만든 ALB/TargetGroup/SecurityGroup 삭제를 기다린다.
 
-이후 Terraform destroy가 Route53 Hosted Zone, ACM certificate, LBC IRSA, EKS/VPC 리소스를 삭제한다.
+이후 Terraform destroy가 LBC IRSA와 EKS/VPC 리소스를 삭제한다. Route53 Hosted Zone과 ACM certificate는 foundation에 보존된다.
 
 ## 비용 기준
 

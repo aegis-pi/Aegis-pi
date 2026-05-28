@@ -17,7 +17,7 @@ Options:
                        Safe to re-run against an existing data-pipeline deployment.
   --admin-ui-after-ns  Enable Admin UI HTTPS Ingress/ALB after Gabia NS delegation.
   --iot                Include factory-a IoT Thing/certificate and K3s Secret registration.
-  --admin-ui           Deprecated no-op; Hub build always creates Route53/ACM and prints NS.
+  --admin-ui           Deprecated no-op; Foundation owns Route53/ACM and Hub reuses those outputs.
   --admin-ui-ingress   Deprecated alias for --admin-ui-after-ns.
   -h, --help           Show this help.
 USAGE
@@ -32,7 +32,7 @@ while [[ "$#" -gt 0 ]]; do
       BUILD_DATA_PIPE=true
       ;;
     --admin-ui)
-      echo "--admin-ui is now a no-op. Hub build always creates Route53/ACM and prints NS."
+      echo "--admin-ui is now a no-op. Foundation owns Route53/ACM and Hub reuses those outputs."
       ;;
     --admin-ui-ingress)
       echo "--admin-ui-ingress is deprecated; using --admin-ui-after-ns."

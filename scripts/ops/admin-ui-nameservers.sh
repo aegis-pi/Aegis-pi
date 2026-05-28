@@ -31,7 +31,7 @@ certificate_arn="$(jq -r '.admin_ui_certificate_arn.value // empty' <<<"${output
 mapfile -t name_servers < <(jq -r '.admin_ui_route53_name_servers.value[]? // empty' <<<"${outputs_json}")
 
 if [[ -z "${domain}" || -z "${hosted_zone_id}" || "${#name_servers[@]}" -eq 0 ]]; then
-  echo "admin UI Route53 outputs are not available. Run infra/hub Terraform apply first." >&2
+  echo "admin UI Route53 outputs are not available. Run infra/foundation and infra/hub Terraform apply first." >&2
   exit 1
 fi
 

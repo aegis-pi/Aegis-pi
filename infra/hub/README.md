@@ -2,7 +2,7 @@
 
 이 디렉터리는 Hub EKS를 실행하기 위한 AWS 네트워크와 클러스터 기준선을 관리한다.
 
-현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. EKS OIDC에 묶인 IRSA IAM Role/Policy, Route53 Hosted Zone, ACM certificate는 Terraform으로 관리하고, Kubernetes namespace, LimitRange, ArgoCD, Grafana, AWS Load Balancer Controller, ServiceAccount annotation, Admin Ingress 같은 클러스터 bootstrap 리소스는 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다.
+현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. EKS OIDC에 묶인 IRSA IAM Role/Policy는 이 Terraform root가 관리하고, Admin UI Route53 Hosted Zone과 ACM certificate는 `infra/foundation`의 영속 리소스로 관리한다. Kubernetes namespace, LimitRange, ArgoCD, Grafana, AWS Load Balancer Controller, ServiceAccount annotation, Admin Ingress 같은 클러스터 bootstrap 리소스는 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다.
 
 전체 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 따른다. 이 디렉터리는 Terraform 기반 AWS 인프라만 담당한다.
 
@@ -31,7 +31,6 @@ infra/hub/
 ├── locals.tf
 ├── variables.tf
 ├── main.tf
-├── admin_ui_dns.tf
 ├── aws_load_balancer_controller_iam_policy.json
 ├── irsa_aws_load_balancer_controller.tf
 ├── irsa_risk_normalizer.tf
@@ -43,9 +42,9 @@ infra/hub/
 최소 분리 기준:
 
 ```text
-infra/hub         Control / Management VPC, subnet, single NAT Gateway, EKS cluster, node group, Route53/ACM, EKS-bound IRSA IAM roles
+infra/hub         Control / Management VPC, subnet, single NAT Gateway, EKS cluster, node group, EKS-bound IRSA IAM roles
 scripts/ansible   kubeconfig, Kubernetes namespace, LimitRange, ArgoCD bootstrap, AWS Load Balancer Controller, Admin Ingress, ServiceAccount annotation
-infra/foundation  S3, ECR, DynamoDB처럼 EKS destroy와 분리할 영속 리소스
+infra/foundation  S3, ECR, DynamoDB, Admin UI Route53/ACM처럼 EKS destroy와 분리할 영속 리소스
 ```
 
 ## MVP 기본값
@@ -181,9 +180,11 @@ cd /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ansible
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
 ```
 
-## 현재 AWS 상태
+## Historical AWS 상태
 
 2026-05-08 기준 Hub 인프라는 검증 후 비용 정리를 위해 `scripts/destroy/destroy-all.sh`로 삭제했다. `AEGIS-EKS`, `AEGIS-VPC`, node group, NAT Gateway, Admin UI ALB, Route53 Hosted Zone, ACM certificate, Hub IRSA IAM Role/Policy는 삭제 확인했다. EKS encryption용 AEGIS KMS key는 AWS KMS 삭제 대기 정책에 따라 `PendingDeletion` 상태로 남는다.
+
+2026-05-28 기준 Admin UI Route53 Hosted Zone과 ACM certificate는 `infra/foundation`으로 이동했다. 이후 `destroy-hub.sh`는 EKS/VPC/IRSA/ALB 생명주기만 다루며, Hosted Zone과 ACM certificate는 foundation destroy 전까지 유지한다.
 
 | 항목 | 값 |
 | --- | --- |

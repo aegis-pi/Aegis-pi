@@ -106,8 +106,8 @@ Admin UI: https://argocd.minsoo-tech.cloud and https://grafana.minsoo-tech.cloud
 Terraform root:
 
 ```text
-infra/hub         VPC, subnet, single NAT Gateway, EKS cluster, node group, Route53/ACM, IRSA
-infra/foundation  S3/ECR/DynamoDB
+infra/hub         VPC, subnet, single NAT Gateway, EKS cluster, node group, IRSA
+infra/foundation  S3/ECR/DynamoDB, Admin UI Route53/ACM
 infra/data-pipeline IoT Rule, Lambda data processor
 ```
 

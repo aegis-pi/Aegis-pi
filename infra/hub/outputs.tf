@@ -77,7 +77,7 @@ output "grafana_service_account" {
 
 output "admin_ui_domain_name" {
   description = "Base Route53 hosted zone domain for Admin UI."
-  value       = var.admin_ui_domain_name
+  value       = local.admin_ui_domain_name
 }
 
 output "admin_ui_argocd_host" {
@@ -92,26 +92,20 @@ output "admin_ui_grafana_host" {
 
 output "admin_ui_route53_zone_id" {
   description = "Route53 hosted zone ID for Admin UI."
-  value       = aws_route53_zone.admin_ui.zone_id
+  value       = try(data.terraform_remote_state.foundation.outputs.admin_ui_route53_zone_id, null)
 }
 
 output "admin_ui_route53_name_servers" {
   description = "Route53 name servers to configure at the domain registrar."
-  value       = aws_route53_zone.admin_ui.name_servers
+  value       = try(data.terraform_remote_state.foundation.outputs.admin_ui_route53_name_servers, [])
 }
 
 output "admin_ui_certificate_arn" {
   description = "ACM certificate ARN for Admin UI hostnames."
-  value       = aws_acm_certificate.admin_ui.arn
+  value       = try(data.terraform_remote_state.foundation.outputs.admin_ui_certificate_arn, null)
 }
 
 output "admin_ui_certificate_validation_records" {
   description = "DNS validation records created in the Admin UI hosted zone."
-  value = {
-    for domain, record in aws_route53_record.admin_ui_certificate_validation : domain => {
-      name    = record.name
-      type    = record.type
-      records = record.records
-    }
-  }
+  value       = try(data.terraform_remote_state.foundation.outputs.admin_ui_certificate_validation_records, {})
 }

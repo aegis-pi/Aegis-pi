@@ -14,3 +14,7 @@ ecr_edge_agent_keep_sha_images         = 50
 ecr_edge_agent_expire_untagged_days    = 7
 
 dynamodb_table_name = "AEGIS-DynamoDB-FactoryStatus"
+
+admin_ui_domain_name = "minsoo-tech.cloud"
+# admin_ui_argocd_host  = "argocd.minsoo-tech.cloud"
+# admin_ui_grafana_host = "grafana.minsoo-tech.cloud"

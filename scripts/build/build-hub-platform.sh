@@ -35,5 +35,5 @@ ansible-playbook \
   playbooks/hub_aws_load_balancer_controller_bootstrap.yml \
   -e "aws_lb_controller_force_upgrade=${FORCE_AWS_LB_CONTROLLER_UPGRADE}"
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aws_load_balancer_controller_verify.yml
-echo "Skipped Admin UI HTTPS Ingress. Run scripts/build/build-admin-ui-after-ns.sh after Route53 NS delegation."
+echo "Skipped Admin UI HTTPS Ingress. Run scripts/build/build-admin-ui-after-ns.sh after foundation Route53 NS delegation."
 echo "Skipped Hub-Spoke Tailscale and ApplicationSet. Run scripts/build/register-spoke-factory-a.sh, register-spoke-factory-b.sh, and register-spoke-factory-c.sh when each Spoke K3s API is reachable."

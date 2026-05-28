@@ -14,7 +14,8 @@
 리소스를 생애주기 기준으로 4개 레이어로 나눈다.
 
 ```text
-Layer 0 │ Foundation      │ S3 data bucket, ECR, DynamoDB, GitHub Actions OIDC
+Layer 0 │ Foundation      │ S3 data bucket, ECR, DynamoDB, GitHub Actions OIDC,
+        │                 │ Admin UI Route53 Hosted Zone, ACM certificate
         │                 │ 영구 리소스. 최초 1회 생성 후 일반 빌드 흐름에서 제외.
 
 Layer 0 │ Data-pipeline   │ IoT Rule (factory-a/b/c), Lambda (data-processor)
@@ -24,7 +25,7 @@ Layer 0 │ Data-pipeline   │ IoT Rule (factory-a/b/c), Lambda (data-processor
 Layer 0 │ Reporting       │ EventBridge Scheduler, Step Functions, reporting Lambda, IAM/Logs.
         │                 │ foundation S3 bucket을 data source로 조회. build-reporting.sh / destroy-reporting.sh 로 관리.
 
-Layer 1 │ Hub Infra    │ VPC, NAT GW, EKS 클러스터, IRSA Role, Route53, ACM
+Layer 1 │ Hub Infra    │ VPC, NAT GW, EKS 클러스터, IRSA Role
         │ (Terraform)  │ 비용 주요 발생원. 개발 중단 시 삭제, 재개 시 재생성.
 
 Layer 2 │ Hub Platform │ ArgoCD, legacy Prometheus Agent cleanup, Grafana, AWS LB Controller,
@@ -42,12 +43,12 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 0a. foundation (최초 1회만)
    - infra/foundation Terraform apply
    - S3 data bucket, ECR, GitHub Actions OIDC, DynamoDB(AEGIS-DynamoDB-FactoryStatus)
+   - Admin UI Route53 Hosted Zone, ACM certificate, ACM validation record
 
 1. hub-infra
    - infra/hub Terraform apply
    - VPC, subnet, NAT Gateway, EKS 클러스터, node group
    - IRSA Role (LB Controller / Risk Normalizer)
-   - Route53 Hosted Zone, ACM certificate
 
 2. hub-platform
    - Ansible Hub bootstrap (EKS 위 K8s 워크로드)
@@ -93,7 +94,7 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 | `build-foundation.sh` | `infra/foundation` Terraform apply. 최초 1회 단독 실행. |
 | `build-data-pipe.sh` | `infra/data-pipeline` Terraform apply. IoT Rule × 3, Lambda, CloudWatch, IAM 생성. foundation의 S3/DynamoDB를 data source로 참조하므로 foundation이 먼저 존재해야 함. |
 | `build-reporting.sh` | `apps/daily-report-generator` Lambda package 생성 후 `infra/reporting` Terraform apply. daily report Scheduler/Step Functions/Lambda/IAM/Logs 생성. |
-| `build-hub-infra.sh` | `infra/hub` Terraform apply (VPC, EKS, IRSA, Route53, ACM) |
+| `build-hub-infra.sh` | `infra/hub` Terraform apply (VPC, EKS, IRSA). Admin UI DNS/ACM은 foundation output 참조 |
 | `build-hub-platform.sh` | Ansible bootstrap (ArgoCD, legacy Prometheus cleanup, Grafana, LB Controller) |
 | `build-hub.sh` | `build-hub-infra.sh` → `build-hub-platform.sh` 순서 실행 wrapper |
 | `build-iot-factory-a.sh` | `factory-a` IoT Thing/certificate, K3s Secret, Hub-Spoke Tailscale, ArgoCD cluster Secret, ApplicationSet 등록 |
@@ -115,7 +116,7 @@ scripts/build/build-foundation.sh [MFA_OTP]
 
 ## 일반 개발 사이클 (Hub)
 
-Foundation이 이미 존재하는 상태에서 Hub를 올린다. Hub Terraform은 이 단계에서 Route53 Hosted Zone, ACM Certificate, ACM validation record를 만들고 `secret/admin-ui-nameservers.txt`를 갱신한다. Admin UI Ingress/ALB는 기본 생성하지 않는다.
+Foundation이 이미 존재하는 상태에서 Hub를 올린다. Route53 Hosted Zone, ACM Certificate, ACM validation record는 foundation이 보존하고, Hub Terraform은 foundation output을 참조한다. Admin UI Ingress/ALB는 기본 생성하지 않는다.
 
 ```bash
 scripts/build/build-all.sh [MFA_OTP]
@@ -234,22 +235,22 @@ scripts/build/build-all.sh --admin-ui-after-ns --iot [MFA_OTP]
 
 ### Admin UI NS 재확인
 
-Hub를 destroy하면 Route53 Hosted Zone과 ACM Certificate가 함께 삭제된다.
-Hub를 재생성하면 Hosted Zone이 새로 만들어지며 NS 값이 바뀔 수 있다.
+Hub를 destroy해도 Route53 Hosted Zone과 ACM Certificate는 foundation에 남는다.
+Hub를 재생성해도 가비아 네임서버를 다시 바꿀 필요는 없다.
 
-Hub 재생성 직후 반드시 NS 값을 확인하고 Gabia와 비교한다.
+최초 위임값 또는 foundation Hosted Zone 상태를 확인해야 할 때만 NS 값을 확인한다.
 
 ```bash
 cat secret/admin-ui-nameservers.txt
 ```
 
-NS 값이 이전과 다르면 Gabia 관리 콘솔에서 네임서버를 업데이트한 뒤 ACM 발급을 기다린다.
+foundation Hosted Zone을 destroy/recreate한 경우에만 Gabia 관리 콘솔에서 네임서버를 업데이트한 뒤 ACM 발급을 기다린다.
 
 ```bash
 scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]
 ```
 
-NS 값이 같으면 ACM 재검증이 빠르게 끝나거나 이미 ISSUED 상태일 수 있다.
+일반적인 Hub-only rebuild에서는 ACM이 이미 `ISSUED` 상태다.
 ACM 상태는 AWS 콘솔 또는 아래 명령으로 확인한다.
 
 ```bash
@@ -359,13 +360,13 @@ BUILD_HUB=false scripts/build/build-all.sh
 
 ## Admin UI NS 위임 포함 재생성 순서
 
-Admin UI HTTPS Ingress는 기본값에서 비활성화된다. `minsoo-tech.cloud`를 Gabia에서 Route53 Hosted Zone NS로 위임하고 ACM certificate가 `ISSUED`가 된 뒤에만 Admin UI Ingress를 활성화한다.
+Admin UI HTTPS Ingress는 기본값에서 비활성화된다. `minsoo-tech.cloud`를 Gabia에서 foundation Route53 Hosted Zone NS로 위임하고 ACM certificate가 `ISSUED`가 된 뒤에만 Admin UI Ingress를 활성화한다.
 
-Hub build는 Terraform apply 직후 `secret/admin-ui-nameservers.txt`를 갱신한다. Gabia에 입력할 NS는 문서에 적힌 값보다 이 파일을 우선한다.
+Hub build는 foundation output을 통해 `secret/admin-ui-nameservers.txt`를 갱신한다. Gabia에 입력할 NS는 문서에 적힌 값보다 이 파일을 우선한다.
 
 ### 1. 전체 리소스 1차 생성
 
-이 단계에서 Hub EKS, ArgoCD, legacy Prometheus Agent cleanup, Grafana, AWS Load Balancer Controller를 실행하고, Admin UI용 Route53 Hosted Zone NS를 출력한다. Foundation과 IoT까지 포함하려면 `--foundation`, `--iot`를 명시한다.
+이 단계에서 Hub EKS, ArgoCD, legacy Prometheus Agent cleanup, Grafana, AWS Load Balancer Controller를 실행하고, foundation이 보존하는 Admin UI Route53 Hosted Zone NS를 출력한다. Foundation과 IoT까지 포함하려면 `--foundation`, `--iot`를 명시한다.
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
@@ -399,7 +400,7 @@ secret/admin-ui-nameservers.txt
 
 Gabia 관리 콘솔에서 `minsoo-tech.cloud`의 네임서버를 1단계에서 출력된 NS 4개로 변경한다.
 
-Hosted Zone을 destroy/recreate하면 NS 값이 바뀔 수 있다. 재생성할 때마다 기존 문서나 기억한 값을 쓰지 말고, 반드시 방금 출력된 값 또는 `secret/admin-ui-nameservers.txt`를 다시 확인한다.
+foundation Hosted Zone을 destroy/recreate하면 NS 값이 바뀔 수 있다. 일반적인 Hub destroy/build에서는 NS 값이 유지된다. foundation을 재생성한 경우에는 기존 문서나 기억한 값을 쓰지 말고, 반드시 방금 출력된 값 또는 `secret/admin-ui-nameservers.txt`를 다시 확인한다.
 
 ### 3. Admin UI HTTPS Ingress 활성화
 

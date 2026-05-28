@@ -43,8 +43,15 @@ locals {
   grafana_subject           = "system:serviceaccount:${var.grafana_namespace}:${var.grafana_service_account}"
   nat_gateway_zone_name     = local.zone_names[0]
 
-  admin_ui_argocd_host  = coalesce(var.admin_ui_argocd_host, "argocd.${var.admin_ui_domain_name}")
-  admin_ui_grafana_host = coalesce(var.admin_ui_grafana_host, "grafana.${var.admin_ui_domain_name}")
+  admin_ui_domain_name = try(data.terraform_remote_state.foundation.outputs.admin_ui_domain_name, var.admin_ui_domain_name)
+  admin_ui_argocd_host = try(
+    data.terraform_remote_state.foundation.outputs.admin_ui_argocd_host,
+    coalesce(var.admin_ui_argocd_host, "argocd.${local.admin_ui_domain_name}")
+  )
+  admin_ui_grafana_host = try(
+    data.terraform_remote_state.foundation.outputs.admin_ui_grafana_host,
+    coalesce(var.admin_ui_grafana_host, "grafana.${local.admin_ui_domain_name}")
+  )
 
   zone_config = {
     for index, zone in local.zone_names : zone => {

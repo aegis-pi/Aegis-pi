@@ -1,9 +1,9 @@
 resource "aws_route53_zone" "admin_ui" {
   name = var.admin_ui_domain_name
 
-  tags = {
+  tags = merge(local.tags, {
     Name = "${local.naming_prefix}-Route53Zone-admin-ui"
-  }
+  })
 }
 
 resource "aws_acm_certificate" "admin_ui" {
@@ -20,9 +20,9 @@ resource "aws_acm_certificate" "admin_ui" {
     create_before_destroy = true
   }
 
-  tags = {
+  tags = merge(local.tags, {
     Name = "${local.naming_prefix}-ACM-admin-ui"
-  }
+  })
 }
 
 resource "aws_route53_record" "admin_ui_certificate_validation" {

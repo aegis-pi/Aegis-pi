@@ -157,9 +157,9 @@ Windows operator PC Tailscale IPv4: 100.67.181.8
 ```text
 AWS actual state: Hub/Foundation/IoT/Admin UI are rebuildable through scripts/build; Hub destroy removes EKS-scoped resources, foundation/IoT/ECR are separate
 Hub bootstrap roots:
-- infra/hub: VPC/EKS/node group, Route53/ACM, IRSA
+- infra/hub: VPC/EKS/node group, IRSA
 - scripts/ansible: namespace/LimitRange/ArgoCD/legacy Prometheus Agent cleanup/Grafana/AWS Load Balancer Controller/Admin UI Ingress/Tailscale/Spoke ApplicationSet bootstrap
-- infra/foundation: S3 data bucket, ECR, DynamoDB (FactoryStatus) — 영구 보존 리소스
+- infra/foundation: S3 data bucket, ECR, DynamoDB (FactoryStatus), Admin UI Route53/ACM — 영구 보존 리소스
 - infra/data-pipeline: IoT Rule × 3 (factory-a/b/c), Lambda (DataProcessor) — on-demand, build-data-pipe.sh / destroy-data-pipe.sh
 Build entrypoint: scripts/build/build-hub.sh
 Admin UI post-NS entrypoint: scripts/build/build-admin-ui-after-ns.sh

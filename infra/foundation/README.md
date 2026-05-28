@@ -10,8 +10,11 @@
 - DynamoDB 테이블: `AEGIS-DynamoDB-FactoryStatus` (LATEST/HISTORY, PAY_PER_REQUEST, TTL 48h)
 - ECR repository: `aegis/edge-agent`, `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`
 - GitHub Actions OIDC provider와 ECR push role: `AEGIS-GitHubActions-ECRPush`
+- Admin UI Route53 Hosted Zone: `minsoo-tech.cloud`
+- Admin UI ACM certificate: `minsoo-tech.cloud`, `argocd.minsoo-tech.cloud`, `grafana.minsoo-tech.cloud`
 
 IoT Rule × 3 (factory-a/b/c)와 Lambda DataProcessor는 `infra/data-pipeline/` on-demand 레이어에서 관리한다.
+Hub Admin UI Ingress가 만드는 ALB는 `infra/hub`/Ansible 생명주기를 따르지만, registrar NS 위임과 ACM 인증서는 이 foundation root가 보존한다.
 
 ## DynamoDB 기준
 
@@ -38,6 +41,22 @@ DynamoDB Streams는 M6 Risk Twin/Dashboard 구현을 위한 change-data-capture 
 DynamoDB `HISTORY#STATE`는 갱신된 `LATEST`와 같은 구조를 저장하고 `ttl`만 추가한다. 같은 snapshot은 S3 processed `state_snapshot/`에도 저장하되 S3에는 `ttl`을 제외한다.
 
 DynamoDB는 Hub EKS destroy와 무관하게 유지한다. `infra/data-pipeline/`에서 `data "aws_dynamodb_table"`로 참조하므로, data-pipeline destroy는 반드시 foundation destroy 이전에 먼저 수행해야 한다.
+
+## Admin UI DNS / ACM 기준
+
+```text
+domain:          minsoo-tech.cloud
+argocd host:     argocd.minsoo-tech.cloud
+grafana host:    grafana.minsoo-tech.cloud
+hosted zone id:  Z04285032XLZT6GPVQEE4
+certificate arn: arn:aws:acm:ap-south-1:611058323802:certificate/528e603a-9109-4427-bfea-c20f3a619be6
+```
+
+Route53 Hosted Zone과 ACM certificate는 Hub 비용 절감을 위한 `destroy-hub.sh` 대상이 아니다.
+가비아 네임서버는 foundation Hosted Zone 생성 후 최초 1회만 Route53 NS 4개로 위임한다.
+이 foundation root를 destroy해서 Hosted Zone을 새로 만들 때만 가비아 NS 재설정이 필요하다.
+
+Hub Admin UI ALB는 매번 Hub/Ingress 재생성 때 바뀔 수 있으며, `scripts/build/build-admin-ui-after-ns.sh`가 기존 Hosted Zone의 `argocd.*`/`grafana.*` record를 현재 ALB로 다시 연결한다.
 
 ## ECR 기준
 
