@@ -1,7 +1,7 @@
 # AWS Cost Baseline
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-05-28
 리전: `ap-south-1` / Asia Pacific (Mumbai)
 
 ## 목적
@@ -36,7 +36,7 @@
 | EKS workload | ArgoCD (7 pod), Grafana | active | observability/argocd ns |
 | EKS workload | AWS LB Controller × 2, Tailscale Operator + 3 proxy | active | kube-system/tailscale ns |
 | CloudWatch Logs | `/aws/eks/AEGIS-EKS/cluster` | 1 | 보존 여부 별도 확인 필요 |
-| Reporting | Daily factory report stack | 0 | 설계 확정, 아직 미배포 |
+| Reporting | Daily factory report stack | 0 | 수동 검증 완료 후 destroy, 필요 시 on-demand 재배포 |
 
 2026-05-08 destroy 이후 KMS key `775cd837-1961-4660-893f-f220d9f250be` 등 이전 키는 `PendingDeletion` 상태(삭제 예정일 2026-06-07)이며 대기 기간 동안 monthly key storage charge는 없다.
 
@@ -132,7 +132,7 @@ AMP는 2026-05-27 비용 최적화 기준에서 active 구성에서 제거했다
 
 ### Daily Factory Report Reporting Stack
 
-2026-05-27 기준 Bedrock 기반 factory별 일일 운영 보고서는 MVP 포함으로 확정했지만 아직 배포되지 않았다. 배포 후에는 `infra/reporting/`이 별도 Terraform root module로 관리되며, Region은 `ap-south-1`이다.
+2026-05-28 기준 Bedrock 기반 factory별 일일 운영 보고서는 `infra/reporting/` 별도 Terraform root module로 배포/검증했다. `factory-b`, `report_date=2026-05-27` 수동 Step Functions 실행은 `SUCCEEDED`였고 S3 `reports/daily/` 산출물을 확인했다. 검증 후 자동 실행 비용 방지를 위해 `destroy-reporting.sh`로 stack을 삭제했다.
 
 설계 기준:
 
@@ -143,12 +143,22 @@ Lambda: PrepareReportWindow 1회/day
 Lambda: AggregateFactoryHour 72회/day
 Lambda: MergeFactoryDaily 3회/day
 Lambda: GenerateFactoryReport 3회/day
-S3 input: processed/factory-a,b,c/{factory_state,risk_score,infra_state}
+S3 input: processed/factory-a,b,c/{factory_state,risk_score,infra_state,state_snapshot}
 S3 output: reports/daily/yyyy=YYYY/mm=MM/dd=DD/{factory_id}/
 Bedrock input: report-context.json only
 ```
 
-월간 MVP 추정 비용:
+factory-b 기준 실측 근사 비용은 `docs/ops/25_daily_factory_report_cost.md`를 source of truth로 둔다.
+
+| 실행 범위 | 비용 추정 |
+| --- | ---: |
+| factory 1개 report 1회 | `$0.12~$0.18` |
+| factory 3개 daily run 1일 | `$0.36~$0.54` |
+| factory 3개 daily run 30일 | `$10.8~$16.2/month` |
+
+이 비용은 Free Tier 제외 marginal cost 기준이다. 주요 변수는 Bedrock token, Lambda billed duration, S3 `GetObject` request count다.
+
+기존 설계 시점의 월간 MVP 추정 비용은 아래와 같았으나, 실제 factory-b 실행에서는 Claude 3 Sonnet과 `state_snapshot` 입력이 포함되어 더 높게 잡는다.
 
 | 항목 | 월 추정 비용 | 비고 |
 | --- | ---: | --- |
@@ -162,11 +172,13 @@ Bedrock input: report-context.json only
 
 비용 통제 기준:
 
-- S3 `raw/`와 `state_snapshot/` 전체를 매일 읽지 않는다.
+- S3 `raw/`는 Bedrock에 직접 넣지 않는다.
+- `state_snapshot/` 전체 읽기는 비용/성능 병목이므로 latest N개 또는 hour별 마지막 snapshot으로 축소한다.
 - Bedrock에는 `report-context.json`만 전달한다.
 - `MAX_CONTEXT_EVENTS=10`, `MAX_CONTEXT_BYTES=120000` 기본값을 유지한다.
 - Lambda 로그에는 raw payload와 Bedrock prompt 전문을 남기지 않는다.
 - reporting Terraform은 `data_bucket_name` variable로 기존 S3 bucket을 조회하고, foundation remote state에 의존하지 않는다.
+- reporting stack은 필요할 때만 `build-reporting.sh`로 올리고, 검증 후 `destroy-reporting.sh`로 내린다.
 
 ## 주요 비용 원인 분석 (2026-05-19 기준)
 

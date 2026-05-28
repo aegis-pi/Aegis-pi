@@ -1,7 +1,7 @@
 # LLM Daily Factory Report Plan
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-05-28
 범위: MVP 포함 기능
 
 ## 목적
@@ -2997,3 +2997,66 @@ MVP 완료 조건:
 7. 24시간 daily merge 검증을 추가한다.
 8. 검증이 끝나면 reporting stack을 배포하고 Step Functions 수동 실행으로 S3 산출물을 확인한다.
 9. 비용 기준 문서는 이미 기본 추정이 반영되어 있으므로, 실제 리소스 배포 후 단가/사용량이 달라지면 갱신한다.
+
+## 2026-05-28 검증 결과
+
+이 섹션이 위의 2026-05-27 handoff 문구보다 최신이다.
+
+검증 완료:
+
+- `python -m compileall -q apps/daily-report-generator` 통과.
+- `python -m pytest -q apps/daily-report-generator` 통과, 10 passed.
+- `terraform -chdir=infra/reporting fmt -check -diff` 통과.
+- `terraform -chdir=infra/reporting init` 통과.
+- `terraform -chdir=infra/reporting validate` 통과.
+- `scripts/build/build-reporting.sh` 실행 완료, Terraform apply 결과 17 added.
+- Terraform output 확인:
+  - `state_machine_name=AEGIS-DailyFactoryReportStateMachine`
+  - `state_machine_arn=arn:aws:states:ap-south-1:611058323802:stateMachine:AEGIS-DailyFactoryReportStateMachine`
+  - `scheduler_name=AEGIS-Schedule-DailyFactoryReport`
+  - `data_bucket_name=aegis-bucket-data`
+- Step Functions 수동 실행 완료:
+  - execution name: `manual-factory-report-20260528T012107Z`
+  - status: `SUCCEEDED`
+  - input: `report_date=2026-05-27`, `timezone=Asia/Seoul`, `factories=["factory-b"]`, `report_type=daily_factory_operations_draft`
+- S3 output 확인:
+  - `s3://aegis-bucket-data/reports/daily/yyyy=2026/mm=05/dd=27/factory-b/`
+  - `intermediate/hourly/hh=00.json`~`hh=23.json`
+  - `factory-daily-summary.json`
+  - `report-context.json`
+  - `report.md`
+  - `generation-metadata.json`
+- `report-context.json` 확인:
+  - KST report window: `2026-05-27T00:00:00+09:00`~`2026-05-27T23:59:59+09:00`
+  - UTC S3 query window: `2026-05-26T15:00:00Z`~`2026-05-27T14:59:59Z`
+  - `s3_partition_timezone=UTC`
+  - `data_limitations`에 S3 processed 기반/raw 미사용/testbed dummy 해석 포함
+- `generation-metadata.json` 확인:
+  - `model_id=anthropic.claude-3-sonnet-20240229-v1:0`
+- `report.md` 확인:
+  - 사용자 친화적 용어 사용
+  - 검증 기준 수치 섹션에 원문 field 유지
+  - 결측 구간을 `top_gap_window`와 분 단위 `duration_minutes`로 표현
+  - S3 processed 기반, S3 raw 미사용, factory-b/c testbed dummy 해석 명시
+
+검증 후 운영 상태:
+
+- 자동 실행 비용 방지를 위해 `scripts/destroy/destroy-reporting.sh`를 실행했다.
+- Terraform destroy 결과 17 destroyed.
+- 삭제 대상은 Scheduler, Step Functions, reporting Lambda 4개, 관련 IAM role/policy, CloudWatch LogGroup이다.
+- S3 `processed/` 입력과 `reports/daily/` 산출물은 삭제하지 않고 보존한다.
+
+비용/성능 관찰:
+
+- 기준 실행의 입력 object 수는 약 65,050개였다.
+- `state_snapshot`만 약 27,915개였고, 일부 hour에서 `AggregateFactoryHour`가 수분 단위로 실행됐다.
+- 병목은 report output 크기가 아니라 작은 S3 processed object 다량 순차 `GetObject`다.
+- 현재 1회 factory report 비용은 Free Tier 제외 기준 약 `0.12~0.18 USD`로 추정한다.
+- 상세 비용 기준은 `docs/ops/25_daily_factory_report_cost.md`에 둔다.
+
+후속 고도화:
+
+1. `S3ProcessedReader`가 `S3_GET_CONCURRENCY`를 실제로 사용하도록 병렬 `GetObject`를 구현한다.
+2. `state_snapshot` 전체를 읽지 않고 latest N개 또는 hour별 마지막 snapshot만 읽도록 줄인다.
+3. `generation-metadata.json`에 Bedrock token usage, input context bytes, output bytes, input object count를 저장한다.
+4. reporting stack은 필요할 때만 `scripts/build/build-reporting.sh`로 다시 올리고, 검증/실행 후 `scripts/destroy/destroy-reporting.sh`로 내린다.

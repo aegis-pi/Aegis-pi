@@ -1,7 +1,7 @@
 # Daily Factory Report
 
-상태: implementation runbook
-기준일: 2026-05-27
+상태: validated runbook
+기준일: 2026-05-28
 
 ## 목적
 
@@ -9,7 +9,7 @@
 
 설계 source of truth는 `docs/planning/17_llm_daily_factory_report_plan.md`다. 이 문서는 배포, 점검, 장애 대응 시 운영자가 확인할 기준만 둔다.
 
-2026-05-27 기준 구현은 로컬 검증까지 진행됐다. `apps/daily-report-generator/`와 `infra/reporting/`은 생성됐고, pytest/compileall/terraform fmt는 통과했다. `terraform validate`, enriched v2 Bedrock 실호출, 24시간 daily merge 검증, AWS 배포는 다음 작업이다.
+2026-05-28 기준 구현은 로컬 검증, Bedrock Sonnet 실호출, AWS 배포, Step Functions 수동 실행까지 완료됐다. `factory-b`, `report_date=2026-05-27`, `timezone=Asia/Seoul` 실행은 `SUCCEEDED`였고, S3 `reports/daily/yyyy=2026/mm=05/dd=27/factory-b/` 산출물을 확인했다. 검증 후 reporting stack은 비용 방지를 위해 삭제했으며, S3 `processed/` 입력과 `reports/daily/` 산출물은 보존한다.
 
 ## 범위
 
@@ -71,7 +71,7 @@ reports/daily/yyyy=YYYY/mm=MM/dd=DD/{factory_id}/
   generation-metadata.json
 ```
 
-`state_snapshot/`은 기본 입력이 아니다. 기본 dataset만으로 보고서 필드가 부족할 때 제한적으로 보조 입력으로 검토한다.
+`state_snapshot/`은 현재 보조 입력으로 함께 읽는다. 다만 기준 실행에서 `state_snapshot` object 수가 많아 비용/성능 병목이 확인됐으므로, 후속 고도화에서는 latest N개 또는 hour별 마지막 snapshot만 읽도록 줄이는 것을 우선 검토한다.
 
 ## 구성 요소
 
@@ -111,6 +111,8 @@ MVP에서는 foundation remote state를 읽지 않는다. Reporting stack이 필
 
 비용 산정 기준은 `docs/ops/25_daily_factory_report_cost.md`를 따른다.
 
+현재 reporting stack은 검증 후 삭제된 상태다. 필요할 때만 `scripts/build/build-reporting.sh [MFA_OTP]`로 올리고, 검증 또는 수동 실행 후 `scripts/destroy/destroy-reporting.sh [MFA_OTP]`로 내린다.
+
 ## 운영 점검
 
 배포 후 일일 점검 항목:
@@ -147,6 +149,7 @@ aws s3 ls s3://aegis-bucket-data/reports/daily/yyyy=2026/mm=05/dd=27/factory-a/ 
 
 ## 후속 검증
 
-- 실제 운영 기준인 KST 하루치 입력으로 factory별 end-to-end 실행을 검증한다.
-- 예: `report_date=2026-05-27`, `timezone=Asia/Seoul`이면 UTC `2026-05-26T15:00:00Z~2026-05-27T14:59:59Z` 범위의 S3 processed 데이터를 읽는지 확인한다.
-- KST day boundary에서 `23:59:59.xxx` timestamp가 해당 날짜에 포함되고, 다음 날짜 `00:00:00.000` 이후 데이터가 섞이지 않는지 확인한다.
+- factory-a/c도 실제 운영 기준인 KST 하루치 입력으로 end-to-end 실행을 검증한다.
+- KST day boundary에서 `23:59:59.xxx` timestamp가 해당 날짜에 포함되고, 다음 날짜 `00:00:00.000` 이후 데이터가 섞이지 않는지 주기적으로 확인한다.
+- `S3ProcessedReader`의 순차 `GetObject` 병목을 줄이기 위해 `S3_GET_CONCURRENCY` 병렬화를 구현한다.
+- `generation-metadata.json`에 Bedrock token usage, context bytes, output bytes, input object count를 남긴다.
