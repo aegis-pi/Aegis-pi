@@ -16,8 +16,9 @@ def test_build_prompt_contains_operational_constraints_and_fixed_sections():
     assert "collection_rate 같은 필드명을 쓰지 않는다" in prompt
     assert "핵심 지표 표와 각 섹션의 기본 표는 코드가 report-context.json 값으로 자동 삽입" in prompt
     assert "너는 Markdown 표를 만들지 않는다" in prompt
-    assert "표의 행을 다시 읽어주는 식의 반복을 피한다" in prompt
-    assert "본문 bullet은 한 섹션당 최대 3개로 제한" in prompt
+    assert "상세 분석은 각 본문 섹션에서 풀어 쓴다" in prompt
+    assert "표의 행을 기계적으로 다시 읽는 식의 반복을 피한다" in prompt
+    assert "주요 이벤트와 확인 필요 항목 섹션은 표가 있더라도 반드시 운영 영향 분석" in prompt
     assert "공장 상태 데이터는 28800건 중 28064건" in prompt
     assert "Risk Score 점수와 혼동하지 않는다" in prompt
     assert "JSON 필드명이나 변수명을 그대로 제목처럼 쓰지 않는다" in prompt

@@ -19,7 +19,8 @@ def generate_factory_report(
     draft_markdown = render_markdown_draft(generated_text)
     draft_markdown = _insert_key_metrics_table(draft_markdown, report_context)
     draft_markdown = _insert_section_metric_tables(draft_markdown, report_context)
-    draft_markdown = _simplify_repeated_section_narratives(draft_markdown)
+    draft_markdown = _normalize_report_terms(draft_markdown)
+    draft_markdown = _remove_simple_metric_repetition(draft_markdown)
     narrative_errors = _validate_narrative_invariants(report_context, draft_markdown)
     markdown = _append_verification_metrics(draft_markdown, report_context)
     validation_errors = validate_report_invariants(report_context, markdown)
@@ -94,34 +95,46 @@ def _insert_table_after_heading(markdown: str, heading: str, table: str) -> str:
     return markdown.replace(marker, f"{heading}\n\n{table}\n\n", 1)
 
 
-def _simplify_repeated_section_narratives(markdown: str) -> str:
-    for heading in ("## 주요 이벤트", "## 확인 필요 항목"):
-        markdown = _replace_section_body(markdown, heading, _keep_first_table_only)
+def _normalize_report_terms(markdown: str) -> str:
+    replacements = {
+        "Risk degradation window sensor and AI causes": "Risk 저하 구간 원인 분석",
+        "AI score spike source review": "AI 스코어 급등 원인 검토",
+        "Abnormal sound sample review": "비정상 소리 샘플 검토",
+        "Node readiness window evidence review": "노드 준비 상태 근거 검토",
+        "edge-iot-publisher logs and K3s node status": "edge-iot-publisher 로그와 K3s 노드 상태 점검",
+        "node_not_ready": "노드 준비 안됨",
+        "unhealthy_workload": "비정상 워크로드",
+        "workload_restart": "워크로드 재시작",
+        "risk_degradation": "Risk 저하",
+    }
+    for source, target in replacements.items():
+        markdown = markdown.replace(source, target)
+    return markdown
 
-    redundant_prefixes = {
+
+def _remove_simple_metric_repetition(markdown: str) -> str:
+    simple_metric_prefixes = {
         "## Risk Score": (
-            "- 평균 Risk Score",
-            "- 최저 Risk Score",
-            "- 최고 Risk Score",
-            "- 주의 상태 누적 시간",
-            "- 위험 상태 누적 시간",
-            "- 주요 원인",
+            "- 평균 Risk Score:",
+            "- 최고 Risk Score:",
+            "- 최저 Risk Score:",
+            "- 주의 상태 누적 시간:",
+            "- 위험 상태 누적 시간:",
+            "- 평균 Risk Score는",
+            "- 최저 Risk Score는",
+            "- 최고 Risk Score는",
+            "- 주의 상태(",
+            "- 위험 상태(",
         ),
         "## 센서 및 AI 이벤트": (
-            "- 온도 센서",
-            "- 습도 센서",
-            "- AI 스코어 급등 횟수",
-            "- 비정상 소리 감지 횟수",
-        ),
-        "## 인프라 상태": (
-            "- 노드 준비 안됨",
-            "- 비정상 워크로드",
-            "- 워크로드 재시작",
-            "- 마지막 스냅샷",
+            "- 온도 센서:",
+            "- 습도 센서:",
+            "- AI 스코어 급등 횟수:",
+            "- 비정상 소리 감지 횟수:",
         ),
     }
-    for heading, prefixes in redundant_prefixes.items():
-        markdown = _replace_section_body(markdown, heading, lambda body, p=prefixes: _drop_redundant_bullets(body, p))
+    for heading, prefixes in simple_metric_prefixes.items():
+        markdown = _replace_section_body(markdown, heading, lambda body, p=prefixes: _drop_lines_starting_with(body, p))
     return markdown
 
 
@@ -139,43 +152,13 @@ def _replace_section_body(markdown: str, heading: str, transform) -> str:
     return markdown[:body_start] + transform(body).rstrip() + "\n" + markdown[next_heading:]
 
 
-def _keep_first_table_only(body: str) -> str:
-    lines = body.splitlines()
-    kept = []
-    table_started = False
-    table_finished = False
-    for line in lines:
-        if not table_started:
-            kept.append(line)
-            if line.startswith("| "):
-                table_started = True
-            continue
-        if line.startswith("| "):
-            kept.append(line)
-            continue
-        if not line.strip():
-            kept.append(line)
-            table_finished = True
-            continue
-        if table_finished:
-            break
-        kept.append(line)
-    return "\n".join(kept).rstrip() + "\n"
-
-
-def _drop_redundant_bullets(body: str, prefixes: tuple[str, ...]) -> str:
-    filtered = []
-    bullet_count = 0
+def _drop_lines_starting_with(body: str, prefixes: tuple[str, ...]) -> str:
+    lines = []
     for line in body.splitlines():
-        stripped = line.strip()
-        if stripped.startswith(prefixes):
+        if line.strip().startswith(prefixes):
             continue
-        if stripped.startswith("- "):
-            bullet_count += 1
-            if bullet_count > 3:
-                continue
-        filtered.append(line)
-    return "\n".join(filtered).rstrip() + "\n"
+        lines.append(line)
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _render_key_metrics_table(report_context: dict) -> str:
