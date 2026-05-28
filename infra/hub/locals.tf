@@ -2,18 +2,16 @@ locals {
   naming_prefix = "AEGIS"
 
   resource_names = {
-    eks_cluster                  = "${local.naming_prefix}-EKS"
-    eks_cluster_iam_role         = "${local.naming_prefix}-IAMRole-EKS-cluster"
-    eks_cluster_security         = "${local.naming_prefix}-SG-EKS"
-    eks_node_group               = "${local.naming_prefix}-EKS-node"
-    eks_node_iam_role            = "${local.naming_prefix}-IAMRole-EKS-node"
-    eks_node_launch_template     = "${local.naming_prefix}-LT-EKS-node"
-    aws_lb_controller_irsa       = "${local.naming_prefix}-IAMRole-IRSA-aws-load-balancer-controller"
-    aws_lb_controller_policy     = "${local.naming_prefix}-IAMPolicy-IRSA-aws-load-balancer-controller"
-    grafana_amp_query_irsa       = "${local.naming_prefix}-IAMRole-IRSA-grafana-amp-query"
-    prometheus_remote_write_irsa = "${local.naming_prefix}-IAMRole-IRSA-prometheus-remote-write"
-    risk_normalizer_irsa         = "${local.naming_prefix}-IAMRole-IRSA-risk-normalizer"
-    vpc                          = "${local.naming_prefix}-VPC"
+    eks_cluster              = "${local.naming_prefix}-EKS"
+    eks_cluster_iam_role     = "${local.naming_prefix}-IAMRole-EKS-cluster"
+    eks_cluster_security     = "${local.naming_prefix}-SG-EKS"
+    eks_node_group           = "${local.naming_prefix}-EKS-node"
+    eks_node_iam_role        = "${local.naming_prefix}-IAMRole-EKS-node"
+    eks_node_launch_template = "${local.naming_prefix}-LT-EKS-node"
+    aws_lb_controller_irsa   = "${local.naming_prefix}-IAMRole-IRSA-aws-load-balancer-controller"
+    aws_lb_controller_policy = "${local.naming_prefix}-IAMPolicy-IRSA-aws-load-balancer-controller"
+    risk_normalizer_irsa     = "${local.naming_prefix}-IAMRole-IRSA-risk-normalizer"
+    vpc                      = "${local.naming_prefix}-VPC"
   }
 
   azs = [
@@ -40,10 +38,10 @@ locals {
     for zone in local.zone_names : "${local.naming_prefix}-Subnet-private-${zone}"
   ]
 
-  risk_normalizer_subject         = "system:serviceaccount:${var.risk_normalizer_namespace}:${var.risk_normalizer_service_account}"
-  aws_lb_controller_subject       = "system:serviceaccount:${var.aws_lb_controller_namespace}:${var.aws_lb_controller_service_account}"
-  grafana_amp_query_subject       = "system:serviceaccount:${var.grafana_namespace}:${var.grafana_service_account}"
-  prometheus_remote_write_subject = "system:serviceaccount:${var.prometheus_remote_write_namespace}:${var.prometheus_remote_write_service_account}"
+  risk_normalizer_subject   = "system:serviceaccount:${var.risk_normalizer_namespace}:${var.risk_normalizer_service_account}"
+  aws_lb_controller_subject = "system:serviceaccount:${var.aws_lb_controller_namespace}:${var.aws_lb_controller_service_account}"
+  grafana_subject           = "system:serviceaccount:${var.grafana_namespace}:${var.grafana_service_account}"
+  nat_gateway_zone_name     = local.zone_names[0]
 
   admin_ui_argocd_host  = coalesce(var.admin_ui_argocd_host, "argocd.${var.admin_ui_domain_name}")
   admin_ui_grafana_host = coalesce(var.admin_ui_grafana_host, "grafana.${var.admin_ui_domain_name}")

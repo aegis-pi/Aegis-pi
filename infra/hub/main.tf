@@ -65,25 +65,21 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_eip" "nat" {
-  for_each = local.zone_config
-
   domain = "vpc"
 
   tags = {
-    Name = "${local.naming_prefix}-EIP-NAT-public-${each.key}"
+    Name = "${local.naming_prefix}-EIP-NAT-public-${local.nat_gateway_zone_name}"
   }
 
   depends_on = [aws_internet_gateway.hub]
 }
 
 resource "aws_nat_gateway" "public" {
-  for_each = local.zone_config
-
-  allocation_id = aws_eip.nat[each.key].id
-  subnet_id     = aws_subnet.public[each.key].id
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public[local.nat_gateway_zone_name].id
 
   tags = {
-    Name = "${local.naming_prefix}-NAT-public-${each.key}"
+    Name = "${local.naming_prefix}-NAT-public-${local.nat_gateway_zone_name}"
   }
 
   depends_on = [aws_internet_gateway.hub]
@@ -104,7 +100,7 @@ resource "aws_route" "private_nat_gateway" {
 
   route_table_id         = aws_route_table.private[each.key].id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.public[each.key].id
+  nat_gateway_id         = aws_nat_gateway.public.id
 }
 
 resource "aws_route_table_association" "private" {
