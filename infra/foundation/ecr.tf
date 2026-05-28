@@ -1,6 +1,7 @@
 resource "aws_ecr_repository" "edge_agent" {
   name                 = var.ecr_edge_agent_repository_name
   image_tag_mutability = var.ecr_edge_agent_image_tag_mutability
+  force_delete         = var.ecr_repository_force_delete
 
   image_scanning_configuration {
     scan_on_push = var.ecr_edge_agent_scan_on_push
@@ -49,6 +50,7 @@ resource "aws_ecr_lifecycle_policy" "edge_agent" {
 resource "aws_ecr_repository" "factory_a_log_adapter" {
   name                 = var.ecr_factory_a_log_adapter_repository_name
   image_tag_mutability = var.ecr_edge_agent_image_tag_mutability
+  force_delete         = var.ecr_repository_force_delete
 
   image_scanning_configuration {
     scan_on_push = var.ecr_edge_agent_scan_on_push
@@ -97,6 +99,7 @@ resource "aws_ecr_lifecycle_policy" "factory_a_log_adapter" {
 resource "aws_ecr_repository" "edge_iot_publisher" {
   name                 = var.ecr_edge_iot_publisher_repository_name
   image_tag_mutability = var.ecr_edge_agent_image_tag_mutability
+  force_delete         = var.ecr_repository_force_delete
 
   image_scanning_configuration {
     scan_on_push = var.ecr_edge_agent_scan_on_push

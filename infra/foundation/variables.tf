@@ -28,12 +28,6 @@ variable "data_bucket_force_destroy" {
   default     = true
 }
 
-variable "amp_workspace_alias" {
-  description = "Alias for the Amazon Managed Service for Prometheus workspace."
-  type        = string
-  default     = "AEGIS-AMP-hub"
-}
-
 variable "raw_archive_transition_days" {
   description = "Days before raw objects transition from Standard to Glacier Instant Retrieval."
   type        = number
@@ -71,6 +65,12 @@ variable "ecr_edge_agent_image_tag_mutability" {
 
 variable "ecr_edge_agent_scan_on_push" {
   description = "Whether ECR scans edge-agent images when they are pushed."
+  type        = bool
+  default     = true
+}
+
+variable "ecr_repository_force_delete" {
+  description = "Whether Terraform destroy should delete images before deleting ECR repositories."
   type        = bool
   default     = true
 }
@@ -122,4 +122,3 @@ variable "dynamodb_table_name" {
   type        = string
   default     = "AEGIS-DynamoDB-FactoryStatus"
 }
-
