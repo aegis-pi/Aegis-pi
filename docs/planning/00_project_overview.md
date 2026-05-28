@@ -12,11 +12,9 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~8, M5 Issue 1~7이다.
 - `factory-a`는 로컬 K3s 3노드, ArgoCD, Helm, Longhorn, InfluxDB, Grafana, AI 앱 failover/failback 기준선을 갖는다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/AMP, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 현재 build/등록 스크립트로 재생성/검증 가능하다. Hub-only 재시작은 `build-hub.sh` 이후 필요 시 `build-admin-ui-after-ns.sh`, `register-spoke-factory-a/b/c.sh`, `manage-dummy-generators.sh start factory-b/c`를 순서대로 실행한다. `connect-hub-tailscale-ui.sh`는 Tailnet UI 직접 접근이 필요할 때만 선택 실행한다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/ECR/DynamoDB, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 현재 build/등록 스크립트로 재생성/검증 가능하다. 2026-05-27 비용 최적화 기준으로 AMP/Prometheus Agent는 active 구성에서 제거하고 Hub NAT Gateway는 단일 NAT로 전환한다. Hub-only 재시작은 `build-hub.sh` 이후 필요 시 `build-admin-ui-after-ns.sh`, `register-spoke-factory-a/b/c.sh`, `manage-dummy-generators.sh start factory-b/c`를 순서대로 실행한다. `connect-hub-tailscale-ui.sh`는 Tailnet UI 직접 접근이 필요할 때만 선택 실행한다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 M1 검증용 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다. 최신 데이터 처리 방향은 별도 risk-normalizer 파드가 아니라 Lambda data processor와 DynamoDB/S3 processed다.
-- M1 Issue 6에서 AMP Workspace와 `observability/prometheus-agent` IRSA remote_write 권한 검증을 완료했다.
-- M1 Issue 7에서 Hub Prometheus Agent를 설치하고 AMP Query API로 기본 메트릭 수신을 검증했다.
-- M1 Issue 8에서 내부 Grafana를 설치하고 AMP datasource query를 검증했다.
+- M1 Issue 6~8에서 AMP Workspace, Hub Prometheus Agent, Grafana AMP datasource 검증을 완료한 이력은 보존한다. 2026-05-27 비용 최적화 기준에서는 active 구성에서 제거한다.
 - M1 Issue 9에서 AWS Load Balancer Controller를 설치하고 IRSA/subnet discovery 기준을 검증했다.
 - M1 Issue 10에서 ArgoCD/Grafana HTTPS Admin Ingress를 공유 Public ALB로 검증했다.
 - 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
@@ -101,7 +99,7 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 | AI snapshot 1일 보존 | 완료 | `/app/snapshots` cleanup sidecar |
 | AWS Hub | 완료/재생성 검증 | M1 Issue 0~10/12와 M2 Issue 3~6 검증 완료. 2026-05-15 기준 Hub/Foundation/IoT/Admin UI 재생성 및 M3 ApplicationSet 검증 완료, Issue 11 보류 |
 | Foundation S3 | 완료/재생성 검증 | `aegis-bucket-data`와 IoT Rule raw/processed 적재 검증 완료 |
-| AMP/Grafana | 완료/재생성 검증 | `AEGIS-AMP-hub`, `observability/prometheus-agent` remote_write 수신, Grafana datasource query와 HTTPS Admin UI 검증 완료 |
+| Grafana | 완료/재생성 검증 | 내부 Grafana UI와 HTTPS Admin UI 검증 완료. AMP datasource는 비용 최적화 기준에서 제거 |
 | IoT Core | 완료/재생성 검증 | `factory-a` Thing/certificate/policy, K3s Secret, IoT Rule/S3 적재 검증 완료 |
 | M3 배포 기준선 | 완료/일부 보류 | ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a` 보수적 rollout/rollback 완료. Manifest 자동 갱신은 M4 이미지 확정 후 재개 |
 | AWS 비용 기준 | 완료 | `docs/ops/15_aws_cost_baseline.md`, destroy 이후 `$0.0000/hour` |

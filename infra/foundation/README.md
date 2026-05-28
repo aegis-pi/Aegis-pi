@@ -7,7 +7,6 @@
 ## 현재 관리 리소스
 
 - S3 데이터 버킷: `aegis-bucket-data`
-- AMP Workspace: `AEGIS-AMP-hub`
 - DynamoDB 테이블: `AEGIS-DynamoDB-FactoryStatus` (LATEST/HISTORY, PAY_PER_REQUEST, TTL 48h)
 - ECR repository: `aegis/edge-agent`, `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`
 - GitHub Actions OIDC provider와 ECR push role: `AEGIS-GitHubActions-ECRPush`
@@ -17,13 +16,17 @@ IoT Rule × 3 (factory-a/b/c)와 Lambda DataProcessor는 `infra/data-pipeline/` 
 ## DynamoDB 기준
 
 ```text
-table:        AEGIS-DynamoDB-FactoryStatus
-billing_mode: PAY_PER_REQUEST
-hash_key:     pk (String)
-range_key:    sk (String)
-TTL:          ttl (enabled, 48h)
-PITR:         enabled
+table:            AEGIS-DynamoDB-FactoryStatus
+billing_mode:     PAY_PER_REQUEST
+hash_key:         pk (String)
+range_key:        sk (String)
+TTL:              ttl (enabled, 48h)
+PITR:             enabled
+stream_enabled:   true
+stream_view_type: NEW_AND_OLD_IMAGES
 ```
+
+DynamoDB Streams는 M6 Risk Twin/Dashboard 구현을 위한 change-data-capture 기반 확장 경로 확보 목적으로 활성화했다. 현재 소비자는 없으며 비용 추가는 없다.
 
 아이템 구조:
 
@@ -57,6 +60,8 @@ Lambda data processor는 zip 배포(`lambda_data_processor.zip`)를 기본으로
 - `aegis/edge-agent`: M3 smoke image 검증용
 - `aegis/factory-a-log-adapter`: factory-a raw/log → canonical JSON 변환
 - `aegis/edge-iot-publisher`: local spool/outbox → IoT Core publish (factory-a/b/c 공통)
+
+모든 ECR repository에 `force_delete = true`를 설정해 `terraform destroy` 시 이미지가 남아있어도 repository를 삭제할 수 있도록 했다.
 
 ```text
 deployment tag: sha-<7-char-git-sha>
@@ -96,19 +101,6 @@ terraform destroy target: aws_ecr_lifecycle_policy.edge_agent, aws_ecr_repositor
 destroy result: 0 added, 0 changed, 2 destroyed
 current AWS state: deleted, RepositoryNotFoundException 확인
 ```
-
-## AMP Workspace 기준
-
-```text
-alias: AEGIS-AMP-hub
-last verified workspace id before destroy: ws-762fb9c1-ad1f-433d-991b-20f768186759
-current state: deleted
-terraform apply: 10 added, 0 changed, 0 destroyed
-```
-
-AMP Workspace는 `infra/foundation`에서 관리한다. Hub EKS를 비용 절감을 위해 destroy/recreate해도 메트릭 저장소의 생명주기를 EKS와 분리하기 위해서다.
-
-Prometheus/Agent가 이 Workspace로 remote_write할 IAM/IRSA Role은 EKS OIDC provider에 묶이므로 `infra/hub`에서 관리한다.
 
 ## S3 데이터 버킷 기준
 
@@ -204,6 +196,6 @@ RestrictPublicBuckets true
 aws s3api get-bucket-encryption:
 SSEAlgorithm AES256
 
-terraform output amp_workspace_id:
-ws-6a8853dc-0eb4-43e7-9b97-efade5b75765
+AMP Workspace:
+removed from foundation Terraform on 2026-05-27
 ```

@@ -11,10 +11,9 @@
 | `start_test.yml` | master에 접속해 K3s, MetalLB, Longhorn, ArgoCD, monitoring, ai-apps, master `wlan0` 인터넷 경로, Tailscale 상태를 검증하고 evidence를 생성 |
 | `hub_argocd_bootstrap.yml` | Hub EKS kubeconfig 갱신, namespace/LimitRange 적용, IRSA ServiceAccount 적용, ArgoCD Helm 설치/업그레이드, Ready 검증 |
 | `hub_argocd_verify.yml` | Hub namespace, ArgoCD pod, Helm release, IRSA ServiceAccount annotation 상태 확인 |
-| `hub_prometheus_agent_bootstrap.yml` | `observability/prometheus-agent`로 Prometheus Agent와 AMP remote_write 설정 적용 |
-| `hub_prometheus_agent_verify.yml` | Prometheus Agent pod, IRSA annotation, remote_write 로그 상태 확인 |
-| `hub_grafana_bootstrap.yml` | 내부 Grafana Helm release, AMP datasource, admin Secret, ClusterIP 설정 적용 |
-| `hub_grafana_verify.yml` | Grafana pod, IRSA annotation, ClusterIP, Grafana API 경유 AMP query 확인 |
+| `hub_prometheus_agent_cleanup.yml` | legacy `observability/prometheus-agent` 리소스 제거 |
+| `hub_grafana_bootstrap.yml` | 내부 Grafana Helm release, admin Secret, ClusterIP 설정 적용 |
+| `hub_grafana_verify.yml` | Grafana pod, ClusterIP, Grafana health API 확인 |
 | `hub_aws_load_balancer_controller_bootstrap.yml` | AWS Load Balancer Controller ServiceAccount/CRD/Helm release 적용 |
 | `hub_aws_load_balancer_controller_verify.yml` | AWS Load Balancer Controller Deployment, IRSA annotation, subnet discovery, recent log 확인 |
 | `hub_admin_ingress_bootstrap.yml` | ACM 발급 상태 확인 후 선택적으로 ArgoCD/Grafana HTTPS Ingress와 Route53 CNAME 적용 |

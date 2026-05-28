@@ -2,7 +2,7 @@
 
 이 디렉터리는 Hub EKS를 실행하기 위한 AWS 네트워크와 클러스터 기준선을 관리한다.
 
-현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. EKS OIDC에 묶인 IRSA IAM Role/Policy, Route53 Hosted Zone, ACM certificate는 Terraform으로 관리하고, Kubernetes namespace, LimitRange, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, ServiceAccount annotation, Admin Ingress 같은 클러스터 bootstrap 리소스는 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다.
+현재 MVP 구성은 M1 Issue 1의 VPC/EKS 기준선이다. EKS OIDC에 묶인 IRSA IAM Role/Policy, Route53 Hosted Zone, ACM certificate는 Terraform으로 관리하고, Kubernetes namespace, LimitRange, ArgoCD, Grafana, AWS Load Balancer Controller, ServiceAccount annotation, Admin Ingress 같은 클러스터 bootstrap 리소스는 `scripts/ansible`의 Hub bootstrap playbook에서 관리한다.
 
 전체 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 따른다. 이 디렉터리는 Terraform 기반 AWS 인프라만 담당한다.
 
@@ -34,9 +34,8 @@ infra/hub/
 ├── admin_ui_dns.tf
 ├── aws_load_balancer_controller_iam_policy.json
 ├── irsa_aws_load_balancer_controller.tf
-├── irsa_grafana_amp_query.tf
-├── irsa_prometheus_remote_write.tf
 ├── irsa_risk_normalizer.tf
+├── moved.tf
 ├── outputs.tf
 └── terraform.tfvars.example
 ```
@@ -44,9 +43,9 @@ infra/hub/
 최소 분리 기준:
 
 ```text
-infra/hub         Control / Management VPC, subnet, NAT Gateway, EKS cluster, node group, Route53/ACM, EKS-bound IRSA IAM roles
+infra/hub         Control / Management VPC, subnet, single NAT Gateway, EKS cluster, node group, Route53/ACM, EKS-bound IRSA IAM roles
 scripts/ansible   kubeconfig, Kubernetes namespace, LimitRange, ArgoCD bootstrap, AWS Load Balancer Controller, Admin Ingress, ServiceAccount annotation
-infra/foundation  S3, AMP, IoT Core처럼 EKS destroy와 분리할 영속 리소스. ECR은 M3 이미지 파이프라인 단계에서 추가 예정
+infra/foundation  S3, ECR, DynamoDB처럼 EKS destroy와 분리할 영속 리소스
 ```
 
 ## MVP 기본값
@@ -58,7 +57,7 @@ infra/foundation  S3, AMP, IoT Core처럼 EKS destroy와 분리할 영속 리소
 | VPC CIDR | `10.0.0.0/16` |
 | AZ | 2개: `ap-south-1a`, `ap-south-1c` |
 | Subnets | public 2개 + private 2개 |
-| NAT Gateway | AZ별 1개, 총 2개 |
+| NAT Gateway | 단일 NAT Gateway 1개 (`ap-south-1a`) |
 | Resource naming | `AEGIS-[resource]-[feature]-[zone]` |
 | EKS cluster name | `AEGIS-EKS` |
 | Kubernetes version | `1.34` |
@@ -105,7 +104,7 @@ AEGIS-[resource]-[feature]-[zone]
 | `aegis-pi-hub-mvp-vpc-public-ap-south-1c` | `AEGIS-Subnet-public-Czone` |
 | `aegis-pi-hub-mvp-vpc-private-ap-south-1a` | `AEGIS-Subnet-private-Azone` |
 | `aegis-pi-hub-mvp-vpc-private-ap-south-1c` | `AEGIS-Subnet-private-Czone` |
-| 단일 NAT Gateway | `AEGIS-NAT-public-Azone`, `AEGIS-NAT-public-Czone` |
+| 단일 NAT Gateway | `AEGIS-NAT-public-Azone` |
 | 단일 private route table | `AEGIS-RouteTable-private-Azone`, `AEGIS-RouteTable-private-Czone` |
 | `aegis-pi-hub-mvp` | `AEGIS-EKS` |
 | `aegis-pi-hub-mvp-nodes` | `AEGIS-EKS-node` |
@@ -119,7 +118,7 @@ AEGIS-[resource]-[feature]-[zone]
 
 ## 다음 적용 목표
 
-현재 Terraform 기준으로 다시 적용하면 VPC는 `10.0.0.0/16`, AZ는 `ap-south-1a`와 `ap-south-1c`로 구성된다. private subnet은 각 AZ의 NAT Gateway를 바라보는 별도 route table에 연결된다.
+현재 Terraform 기준으로 다시 적용하면 VPC는 `10.0.0.0/16`, AZ는 `ap-south-1a`와 `ap-south-1c`로 구성된다. 비용 절감을 위해 NAT Gateway는 `ap-south-1a`에 1개만 유지하고, 두 private route table 모두 이 NAT Gateway를 바라본다. AZ 장애 격리는 약해지지만 MVP/개인 프로젝트 비용 기준에서는 단일 NAT를 표준으로 둔다.
 
 | 리소스 | 이름 | AZ | CIDR/역할 |
 | --- | --- | --- | --- |
@@ -128,32 +127,29 @@ AEGIS-[resource]-[feature]-[zone]
 | Public subnet | `AEGIS-Subnet-public-Czone` | `ap-south-1c` | `10.0.1.0/24` |
 | Private subnet | `AEGIS-Subnet-private-Azone` | `ap-south-1a` | `10.0.10.0/24` |
 | Private subnet | `AEGIS-Subnet-private-Czone` | `ap-south-1c` | `10.0.11.0/24` |
-| NAT Gateway | `AEGIS-NAT-public-Azone` | `ap-south-1a` | private Azone egress |
-| NAT Gateway | `AEGIS-NAT-public-Czone` | `ap-south-1c` | private Czone egress |
+| NAT Gateway | `AEGIS-NAT-public-Azone` | `ap-south-1a` | private A/C egress |
 | Public route table | `AEGIS-RouteTable-public` | - | IGW route |
-| Private route table | `AEGIS-RouteTable-private-Azone` | `ap-south-1a` | NAT Azone route |
-| Private route table | `AEGIS-RouteTable-private-Czone` | `ap-south-1c` | NAT Czone route |
+| Private route table | `AEGIS-RouteTable-private-Azone` | `ap-south-1a` | single NAT route |
+| Private route table | `AEGIS-RouteTable-private-Czone` | `ap-south-1c` | single NAT route |
 | EKS cluster | `AEGIS-EKS` | - | Kubernetes `1.34` |
 | EKS node group | `AEGIS-EKS-node` | private A/C | `t3.medium`, desired `2` |
 | IRSA role | `AEGIS-IAMRole-IRSA-risk-normalizer` | - | `risk/risk-normalizer` S3 access |
-| IRSA role | `AEGIS-IAMRole-IRSA-prometheus-remote-write` | - | `observability/prometheus-agent` AMP remote_write |
-| IRSA role | `AEGIS-IAMRole-IRSA-grafana-amp-query` | - | `observability/grafana` AMP query |
 | IRSA role | `AEGIS-IAMRole-IRSA-aws-load-balancer-controller` | - | `kube-system/aws-load-balancer-controller` ALB management |
 | Route53 hosted zone | `minsoo-tech.cloud` | - | Admin UI DNS delegation |
 | ACM certificate | `minsoo-tech.cloud` + Admin UI SANs | `ap-south-1` | ALB HTTPS certificate |
 
 ## Hub Bootstrap 기준
 
-Issue 2~3/7~10 기준 Hub namespace, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin Ingress는 Ansible local bootstrap으로 관리한다. Ansible은 EC2 SSH가 아니라 로컬/CI에서 EKS Kubernetes API에 접근한다.
+Issue 2~3/8~10 기준 Hub namespace, ArgoCD, Grafana, AWS Load Balancer Controller, Admin Ingress는 Ansible local bootstrap으로 관리한다. Ansible은 EC2 SSH가 아니라 로컬/CI에서 EKS Kubernetes API에 접근한다.
 
 | Namespace | 역할 | 관리 위치 |
 | --- | --- | --- |
 | `argocd` | Hub에서 Spoke 배포 제어 | `scripts/ansible/files/hub-bootstrap.yaml` |
-| `observability` | Grafana, AMP 연동 메트릭 관제 | `scripts/ansible/files/hub-bootstrap.yaml` |
+| `observability` | Grafana 관리 UI | `scripts/ansible/files/hub-bootstrap.yaml` |
 | `risk` | M1 Hub 배포/IRSA 검증용 또는 임시 risk workload. 최신 MVP에서는 별도 Risk 계산 파드를 두지 않음 | `scripts/ansible/files/hub-bootstrap.yaml` |
 | `ops-support` | M1 보조 namespace. 최신 목표에서는 `pipeline_status` 갱신을 Lambda data processor가 담당 | `scripts/ansible/files/hub-bootstrap.yaml` |
 
-M1 검증용 `risk/risk-normalizer`, `observability/prometheus-agent`, `observability/grafana`, `kube-system/aws-load-balancer-controller` ServiceAccount는 Hub bootstrap playbook이 생성하거나 확인하고 Terraform output의 IRSA role ARN으로 annotation한다.
+M1 검증용 `risk/risk-normalizer`와 `kube-system/aws-load-balancer-controller` ServiceAccount는 Hub bootstrap playbook이 생성하거나 확인하고 Terraform output의 IRSA role ARN으로 annotation한다. `observability/grafana`는 내부 관리 UI로 Helm chart가 ServiceAccount를 관리하며, AMP query IRSA는 더 이상 사용하지 않는다.
 
 M1 검증용 risk-normalizer IRSA 권한 범위:
 
@@ -176,21 +172,7 @@ latest write: s3://aegis-bucket-data/latest/factory-a/irsa-test.json
 raw write denied: s3://aegis-bucket-data/raw/factory-a/irsa-denied.txt
 ```
 
-Prometheus remote_write IRSA 권한 범위:
-
-```text
-role: AEGIS-IAMRole-IRSA-prometheus-remote-write
-service account: observability/prometheus-agent
-workspace: arn:aws:aps:ap-south-1:611058323802:workspace/ws-6a8853dc-0eb4-43e7-9b97-efade5b75765
-allowed action: aps:RemoteWrite
-```
-
-검증 결과:
-
-```text
-assumed role: arn:aws:sts::611058323802:assumed-role/AEGIS-IAMRole-IRSA-prometheus-remote-write/botocore-session-1778037092
-remote_write endpoint: https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-6a8853dc-0eb4-43e7-9b97-efade5b75765/api/v1/remote_write
-```
+AMP/Prometheus Agent는 2026-05-27 비용 최적화 기준에서 제거 대상으로 전환했다. `build-hub-platform.sh`는 legacy `observability/prometheus-agent` Kubernetes 리소스를 cleanup한 뒤 Grafana를 bootstrap한다.
 
 검증:
 
@@ -215,8 +197,8 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
 | Hub namespaces | deleted with EKS |
 | ArgoCD | deleted with EKS |
 | IRSA role | deleted (`AEGIS-IAMRole-IRSA-risk-normalizer`) |
-| Prometheus remote_write IRSA role | deleted (`AEGIS-IAMRole-IRSA-prometheus-remote-write`) |
-| Grafana AMP query IRSA role | deleted (`AEGIS-IAMRole-IRSA-grafana-amp-query`) |
+| Prometheus remote_write IRSA role | removed from Terraform |
+| Grafana AMP query IRSA role | removed from Terraform |
 | AWS Load Balancer Controller | deleted with EKS |
 | Admin UI Route53 zone | deleted (`minsoo-tech.cloud`) |
 | Admin UI ACM certificate | deleted |
@@ -261,6 +243,7 @@ terraform plan
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi/scripts/ansible
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_cleanup.yml
 ```
 
 ## 테스트 후 정리 원칙

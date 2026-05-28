@@ -39,6 +39,17 @@ ap-south-1
 
 ## 입력과 출력
 
+보고서 기준일은 운영자 기준인 KST 하루다. S3 processed partition은 UTC 기준을 유지한다.
+
+예를 들어 `report_date=2026-05-27`, `timezone=Asia/Seoul`이면 보고서 기준과 S3 조회 범위는 아래처럼 달라진다.
+
+```text
+보고서 기준: 2026-05-27 KST 00:00:00~23:59:59
+S3 조회 범위: 2026-05-26T15:00:00Z~2026-05-27T14:59:59Z
+```
+
+`PrepareReportWindow`가 KST 기준 hour window와 UTC 조회 window를 함께 만들고, `S3ProcessedReader`가 UTC partition prefix를 계산한다. Hour boundary는 `start <= timestamp < next_hour` 기준으로 처리해 `23:59:59.xxx` 같은 millisecond timestamp가 누락되지 않게 한다.
+
 입력 prefix:
 
 ```text
@@ -98,6 +109,8 @@ data_bucket_name variable + data.aws_s3_bucket lookup
 
 MVP에서는 foundation remote state를 읽지 않는다. Reporting stack이 필요한 foundation 출력은 현재 S3 bucket name/ARN뿐이며, bucket 생성/삭제 소유권은 foundation에 남긴다.
 
+비용 산정 기준은 `docs/ops/25_daily_factory_report_cost.md`를 따른다.
+
 ## 운영 점검
 
 배포 후 일일 점검 항목:
@@ -131,3 +144,9 @@ aws s3 ls s3://aegis-bucket-data/reports/daily/yyyy=2026/mm=05/dd=27/factory-a/ 
 - Lambda가 계산한 수치, 날짜, factory ID를 Bedrock이 바꾸면 저장 전 validation 실패로 처리한다.
 - 로그에 raw payload, Bedrock prompt 전문, secret, token, certificate 원문을 남기지 않는다.
 - `factory-b/c`는 테스트베드형 공장이므로 보고서 문구에서 실제 현장 장애로 단정하지 않는다.
+
+## 후속 검증
+
+- 실제 운영 기준인 KST 하루치 입력으로 factory별 end-to-end 실행을 검증한다.
+- 예: `report_date=2026-05-27`, `timezone=Asia/Seoul`이면 UTC `2026-05-26T15:00:00Z~2026-05-27T14:59:59Z` 범위의 S3 processed 데이터를 읽는지 확인한다.
+- KST day boundary에서 `23:59:59.xxx` timestamp가 해당 날짜에 포함되고, 다음 날짜 `00:00:00.000` 이후 데이터가 섞이지 않는지 확인한다.

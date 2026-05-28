@@ -104,6 +104,74 @@ scripts/destroy/destroy-hub.sh <MFA_OTP>
 
 Hub 상태와 무관하게 다음 구현 작업은 daily factory report 검증/AWS 실행을 먼저 마무리한 뒤 M6 Issue 1~4를 병행한다. daily report는 `apps/daily-report-generator/`와 `infra/reporting/` 로컬 구현이 진행된 상태이며, Bedrock 실호출과 24시간 검증, AWS 배포가 남았다.
 
+## 2026-05-27 Hub Cost Optimization 상태
+
+결정:
+
+- AMP는 사용자가 EKS 상태 확인에 직접 사용하지 않으므로 active 구성에서 제거한다.
+- Hub NAT Gateway는 조건 없이 1개만 유지한다.
+- 단일 NAT는 `ap-south-1a`의 `AEGIS-NAT-public-Azone`을 보존하고, A/C private route table이 모두 이를 사용한다.
+- 데이터 수집/처리 경로는 IoT Core -> Lambda data processor -> DynamoDB/S3 processed이며, Hub EKS의 AMP/Prometheus/Grafana 변경과 직접 연결되지 않는다.
+
+반영한 코드:
+
+```text
+infra/foundation/amp.tf 삭제
+infra/foundation/outputs.tf AMP output 제거
+infra/hub/irsa_prometheus_remote_write.tf 삭제
+infra/hub/irsa_grafana_amp_query.tf 삭제
+infra/hub/main.tf 단일 NAT Gateway 구성
+infra/hub/moved.tf Azone NAT/EIP state move 추가
+scripts/ansible/playbooks/hub_prometheus_agent_cleanup.yml 추가
+scripts/ansible/templates/prometheus-agent.yaml.j2 삭제
+scripts/ansible/templates/grafana-values.yaml.j2 AMP datasource 제거
+scripts/build/build-hub-platform.sh legacy Prometheus Agent cleanup 호출
+configs/runtime/runtime-config.yaml AMP 설정 제거
+```
+
+적용/검증 결과:
+
+```text
+foundation apply: AMP workspace ws-60897fc1-019b-417e-acb7-60fbcad61a2b destroy 완료
+hub apply: Azone NAT/EIP preserve, Czone NAT nat-0c31e93d9cdf730f1/EIP destroy 완료
+hub apply: Czone private route -> Azone NAT nat-0db2f6d136046bcb8 변경 완료
+hub apply: Grafana AMP query IRSA, Prometheus remote_write IRSA 삭제 완료
+terraform plan: infra/foundation, infra/hub 모두 No changes
+AWS AMP: AEGIS-AMP-hub list-workspaces 결과 빈 배열
+AWS NAT: AEGIS-NAT-public-Azone nat-0db2f6d136046bcb8 available, Czone NAT deleted
+Hub EKS: observability/prometheus-agent Deployment/Service/ConfigMap/ServiceAccount, ClusterRole/ClusterRoleBinding cleanup 완료
+Grafana: Helm 재적용 완료, availableReplicas=1, Service=ClusterIP, /api/health database ok
+```
+
+데이터 수집/처리 영향:
+
+```text
+IoT Core, Lambda data processor, DynamoDB, S3 raw/processed는 Hub EKS 변경과 독립이다.
+Hub apply 중 ArgoCD/Grafana/EKS 내부 UI와 EKS private subnet egress는 일시 영향 가능성이 있다.
+factory-a/b/c publisher와 IoT Rule/Lambda 경로는 Hub EKS가 잠시 불안정해도 계속 동작하는 구조다.
+단일 NAT는 비용을 줄이는 대신 NAT AZ 장애 시 두 private subnet의 외부 egress가 함께 영향을 받는다.
+```
+
+실제 확인:
+
+```text
+DynamoDB AEGIS-DynamoDB-FactoryStatus LATEST:
+- factory-a updated_at 2026-05-27T09:03:31.859Z, pipeline_status normal, risk safe
+- factory-b updated_at 2026-05-27T09:03:23.647Z, pipeline_status normal, risk safe
+- factory-c updated_at 2026-05-27T09:03:21.884Z, pipeline_status normal, risk safe
+
+S3 raw:
+- factory-b raw object at 2026-05-27T09:04:36Z
+- factory-c raw object at 2026-05-27T09:04:36Z
+
+S3 processed:
+- factory-b processed/state_snapshot at 2026-05-27T09:05:02Z
+- factory-c processed/state_snapshot at 2026-05-27T09:04:36Z
+
+Lambda:
+- AEGIS-Lambda-DataProcessor State=Active, LastUpdateStatus=Successful, Runtime=python3.12
+```
+
 ## 현재 큰 상태
 
 ```text
@@ -135,7 +203,7 @@ Hub 상태와 무관하게 다음 구현 작업은 daily factory report 검증/A
   - fix 4: factory-a-log-adapter outbox 파일 chmod 0o640 (NamedTemporaryFile 기본 600 -> cross-user 읽기 불가)
 
 현재 배포 방식:
-  - build-hub.sh: Hub EKS/ArgoCD/Prometheus/Grafana/AWS Load Balancer Controller 등록
+  - build-hub.sh: Hub EKS/ArgoCD/legacy Prometheus Agent cleanup/Grafana/AWS Load Balancer Controller 등록
   - build-admin-ui-after-ns.sh: Admin UI HTTPS Ingress 활성화
   - connect-hub-tailscale-ui.sh: ArgoCD/Grafana Tailscale UI Service 연결/검증
   - register-spoke-factory-a.sh: 기존 IoT Secret 유지, factory-a egress/cluster Secret/ApplicationSet/app sync 복구
@@ -209,7 +277,7 @@ Hub-only 삭제/재생성 운영 순서:
 보류: EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 상태: 2026-05-27 기준 Hub/Foundation/IoT/Admin UI/data-pipeline 리소스 활성. Hub EKS, foundation S3/AMP/ECR/DynamoDB, IoT Rule 3개, Lambda data processor, `factory-a/b/c` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태.
+AWS 실제 리소스 상태: 2026-05-27 기준 Hub/Foundation/IoT/Admin UI/data-pipeline 리소스 활성. Hub EKS, foundation S3/ECR/DynamoDB, IoT Rule 3개, Lambda data processor, `factory-a/b/c` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태. AMP workspace는 삭제 완료. Hub NAT Gateway는 Azone 단일 NAT로 전환 완료.
 Terraform state: infra/hub apply 완료, infra/foundation apply 완료, infra/data-pipeline apply 완료
 다음 작업 우선순위: daily factory report 검증/AWS 실행 완료 후 M6 Risk Twin/Dashboard 구현.
 ```
@@ -288,10 +356,10 @@ Terraform state: infra/hub apply 완료, infra/foundation apply 완료, infra/da
 
 ```text
 Terraform roots:
-- infra/hub: VPC, subnet, NAT Gateway, EKS cluster, node group
-- infra/foundation: S3, ECR, AMP, IoT Core처럼 EKS destroy와 분리할 영속 리소스
+- infra/hub: VPC, subnet, single NAT Gateway, EKS cluster, node group
+- infra/foundation: S3, ECR, DynamoDB처럼 EKS destroy와 분리할 영속 리소스
 Ansible bootstrap:
-- scripts/ansible: kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, 검증
+- scripts/ansible: kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, legacy Prometheus Agent cleanup, Grafana/LB Controller 검증
 Region: ap-south-1
 VPC: 신규 생성
 VPC CIDR: 10.0.0.0/16
@@ -300,8 +368,8 @@ Target cluster name: AEGIS-EKS
 Target Kubernetes version: 1.34
 AZ: ap-south-1a, ap-south-1c
 Subnets: public 2개 + private 2개
-NAT Gateway: public Azone/Czone에 각 1개
-Private route table: Azone/Czone 별도 구성
+NAT Gateway: public Azone에 1개
+Private route table: Azone/Czone 모두 단일 NAT Gateway 사용
 EKS endpoint: public endpoint
 EKS endpoint CIDR: 0.0.0.0/0 (MVP bootstrap 임시 기준)
 Node subnet: private subnet
@@ -344,10 +412,10 @@ Private subnets: subnet-06e29617d5f8fa880, subnet-0887213fcdb8222d2
 Public subnets: subnet-0bd88736ba79c8bc1, subnet-0aeab1c105fff4ac9
 ArgoCD: argo-cd-9.5.11 / app v3.3.9, all pods Running
 Grafana: grafana-10.5.15 / app 12.3.1, pod Running
-Prometheus Agent: pod Running, AMP remote_write 검증 완료
+Prometheus Agent: active 구성에서 제거, legacy 리소스 cleanup 대상
 AWS Load Balancer Controller: 2 pods Running
 Foundation S3 bucket: aegis-bucket-data active
-AMP Workspace ID: ws-c46e6ad0-9259-4a06-9fa8-da92aa2891a8
+AMP Workspace: active Terraform 구성에서 제거, 다음 foundation plan/apply에서 destroy 확인 필요
 ECR repositories: aegis/edge-agent, aegis/factory-a-log-adapter, aegis/edge-iot-publisher active
 IoT Thing: AEGIS-IoTThing-factory-a active
 IoT Policy: AEGIS-IoTPolicy-factory-a active
@@ -388,13 +456,10 @@ Terraform state: infra/hub destroyed, infra/foundation destroyed
 Ansible bootstrap: namespace, LimitRange, ArgoCD Helm release 재생성 기준 추가
 ArgoCD Helm release: argocd / argo-cd-9.5.11 / app v3.3.9
 S3 bucket: aegis-bucket-data
-AMP Workspace: AEGIS-AMP-hub / ws-762fb9c1-ad1f-433d-991b-20f768186759
-AMP remote_write endpoint: https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-762fb9c1-ad1f-433d-991b-20f768186759/api/v1/remote_write
+AMP Workspace: 과거 검증 이력. 2026-05-27 비용 최적화 기준에서는 active 구성에서 제거
 IoT Rule: AEGIS_IoTRule_factory_a_raw_s3
 IRSA Role: AEGIS-IAMRole-IRSA-risk-normalizer
 IRSA ServiceAccount: risk/risk-normalizer
-IRSA Role: AEGIS-IAMRole-IRSA-prometheus-remote-write
-IRSA ServiceAccount: observability/prometheus-agent
 ```
 
 현재 Terraform 기준 이름:

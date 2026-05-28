@@ -347,7 +347,7 @@ http://prometheus-svc.monitoring.svc.cluster.local:9090
 | Lambda IAM Role | `AEGIS-IAMRole-Lambda-DataProcessor` | DynamoDB GetItem/PutItem/UpdateItem, S3 PutObject processed/* |
 | Lambda IAM Policy | `AEGIS-IAMPolicy-Lambda-DataProcessor` | CloudWatch Logs + DynamoDB + S3 |
 | CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-DataProcessor` | 보존 30일 |
-| DynamoDB Table | `AEGIS-DynamoDB-FactoryStatus` | PAY_PER_REQUEST, PITR 활성화 |
+| DynamoDB Table | `AEGIS-DynamoDB-FactoryStatus` | PAY_PER_REQUEST, PITR 활성화, Streams NEW_AND_OLD_IMAGES |
 | IoT Rule (factory-a) | `AEGIS_IoTRule_factory_a_raw_s3` | S3 + Lambda 액션 |
 | IoT Rule (factory-b) | `AEGIS_IoTRule_factory_b_raw_s3` | S3 + Lambda 액션 |
 | IoT Rule (factory-c) | `AEGIS_IoTRule_factory_c_raw_s3` | S3 + Lambda 액션 |
@@ -543,11 +543,11 @@ DynamoDB `HISTORY#STATE`와 같은 전체 상태 snapshot이다. S3에서는 Dyn
 | DynamoDB 기본 지표 | CloudWatch Metrics | SuccessfulRequestLatency, ThrottledRequests, ConsumedRead/WriteCapacityUnits, SystemErrors |
 | S3 요청 지표 | CloudWatch Metrics | prefix 단위 request/error/latency. 비용을 보고 필요한 prefix만 활성화 |
 | IoT Rule 실행 지표 | CloudWatch Metrics | rule execution/error/throttle 계열 지표 |
-| Hub/EKS/Pod 지표 | Prometheus Agent -> AMP | Kubernetes와 앱 Prometheus metric |
+| Hub/EKS/Pod 지표 | CloudWatch/EKS/kubectl 또는 후속 경량 Prometheus | Kubernetes와 앱 Prometheus metric |
 | Lambda 처리 로그 | CloudWatch Logs / Logs Insights | message_id, factory_id, source_type, 오류 원인 추적 |
 | Lambda 호출 구간 trace | X-Ray 또는 OpenTelemetry | DynamoDB/S3 호출 시간과 전체 처리 지연 breakdown |
 
-AMP는 Prometheus metric 저장소로 유지한다. S3 encryption/lifecycle, IoT Rule action, Lambda environment, IAM policy 같은 AWS 리소스 설정 검증은 AWS API, Terraform state, AWS Config 후속 확장으로 확인한다.
+AMP는 2026-05-27 비용 최적화 기준에서 active 구성에서 제거한다. S3 encryption/lifecycle, IoT Rule action, Lambda environment, IAM policy 같은 AWS 리소스 설정 검증은 AWS API, Terraform state, AWS Config 후속 확장으로 확인한다.
 
 ### Lambda custom metric 후보
 
@@ -578,7 +578,7 @@ error_type
 
 ### Grafana 운영 패널 후보
 
-Grafana에는 AMP datasource와 CloudWatch datasource를 함께 둔다.
+Grafana는 내부 관리 UI로 유지하고, 필요 시 CloudWatch datasource 또는 후속 경량 Prometheus datasource를 별도 검토한다.
 
 | 패널 | Datasource | 목적 |
 |---|---|---|
@@ -589,7 +589,7 @@ Grafana에는 AMP datasource와 CloudWatch datasource를 함께 둔다.
 | S3 processed write latency | CloudWatch | `S3PutLatencyMs` |
 | skipped/failed message count | CloudWatch | schema 오류와 처리 실패 분리 |
 | pipeline age | CloudWatch | `PipelineStatusAgeSeconds` |
-| Hub/EKS workload 상태 | AMP | Pod/node/service 상태 |
+| Hub/EKS workload 상태 | EKS/CloudWatch/kubectl 또는 후속 경량 Prometheus | Pod/node/service 상태 |
 
 ### 구현 우선순위
 

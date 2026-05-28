@@ -11,10 +11,10 @@ Aegis-Pi는 이 기준선을 먼저 `factory-a`로 복구하고, 이후 AWS Hub�
 | --- | --- |
 | 프로젝트명 | Aegis-Pi Risk Twin |
 | 현재 단계 | M6 Risk Twin/Dashboard 및 MVP Daily Factory Report 구현 진행 |
-| 현재 완료 범위 | M0 `factory-a`, M1 Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~8, M5 Issue 1~7 완료. EKS Hub Tailscale Operator, ArgoCD/Grafana Tailscale IP UI 접근, ArgoCD `factory-a/b/c` cluster 등록, `aegis-spoke-factory-a/b/c` Application 생성, IoT Rule -> S3 raw 적재, IoT Rule -> Lambda -> DynamoDB LATEST/HISTORY + S3 processed 적재, IRSA S3/AMP 권한, Hub Prometheus Agent -> AMP remote_write, 내부 Grafana -> AMP query, AWS Load Balancer Controller, Admin UI HTTPS Ingress, `factory-a-master`와 `factory-b/c` VM Tailnet 참여, `aegis-pi-gitops` GitOps 저장소 구조와 manifest validation, ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a/b/c` 전체 데이터 플레인 S3 raw/processed 적재 및 시간 동기화(Chrony), VirtualBox Flannel/CoreDNS 네트워크 중복 IP(enp0s8 고정) 장애 해결, Lambda data processor(`apps/data-processor/`) 및 Terraform(`infra/data-pipeline/`) 배포/검증 완료 |
+| 현재 완료 범위 | M0 `factory-a`, M1 Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~8, M5 Issue 1~7 완료. EKS Hub Tailscale Operator, ArgoCD/Grafana Tailscale IP UI 접근, ArgoCD `factory-a/b/c` cluster 등록, `aegis-spoke-factory-a/b/c` Application 생성, IoT Rule -> S3 raw 적재, IoT Rule -> Lambda -> DynamoDB LATEST/HISTORY + S3 processed 적재, IRSA S3 권한, AWS Load Balancer Controller, Admin UI HTTPS Ingress, `factory-a-master`와 `factory-b/c` VM Tailnet 참여, `aegis-pi-gitops` GitOps 저장소 구조와 manifest validation, ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a/b/c` 전체 데이터 플레인 S3 raw/processed 적재 및 시간 동기화(Chrony), VirtualBox Flannel/CoreDNS 네트워크 중복 IP(enp0s8 고정) 장애 해결, Lambda data processor(`apps/data-processor/`) 및 Terraform(`infra/data-pipeline/`) 배포/검증 완료. 2026-05-27 비용 최적화 기준으로 AMP/Prometheus Agent는 제거 대상, Hub NAT Gateway는 단일 NAT로 전환 |
 | 현재 AWS 상태 | 2026-05-27 기준 Hub/Foundation/IoT/Admin UI/data-pipeline 리소스 활성 및 검증 완료. S3 `aegis-bucket-data`는 versioning/SSE-S3/public access block/lifecycle 적용. IoT Rule 3개는 Lambda + S3 raw action 연결. Lambda `AEGIS-Lambda-DataProcessor` Active/Successful. DynamoDB `AEGIS-DynamoDB-FactoryStatus`는 `factory-a/b/c` LATEST 갱신 및 TTL 활성 |
 | 다음 작업 | Bedrock 기반 daily factory report의 enriched v2 실호출, 24시간 daily merge 검증, `terraform validate` 재검증, reporting stack 배포/Step Functions 수동 실행. 병행 우선순위는 M6 Risk 계산 보강, `runtime-config.yaml` 적용, 온도/습도 기준값 초안, Risk Twin 출력 구조 구현 |
-| 비용 기준 | Hub/Foundation/IoT/Admin UI/data-pipeline 활성 여부에 따라 비용이 달라진다. Hub EKS와 Admin UI ALB가 켜져 있으면 기존 기준상 약 `~$0.36/hour` 수준으로 계산한다. 상세 기준은 `docs/ops/15_aws_cost_baseline.md` |
+| 비용 기준 | Hub/Foundation/IoT/Admin UI/data-pipeline 활성 여부에 따라 비용이 달라진다. AMP 제거 및 단일 NAT 전환 후 Hub EKS 기준은 ALB 제외 약 `~$0.26/hour`, ALB 포함 약 `~$0.30/hour` 수준으로 계산한다. 상세 기준은 `docs/ops/15_aws_cost_baseline.md` |
 
 ## 현재 완료된 Factory-A 기준선
 
@@ -107,7 +107,7 @@ Public ALB: 단기 유지
 
 ## 현재 Hub bootstrap 기준
 
-M1 Issue 0~10에서는 AWS MFA/Terraform 접근, Hub EKS/VPC 기준선, Hub namespace 기준선, Hub ArgoCD bootstrap, foundation S3 data bucket `aegis-bucket-data`, AMP Workspace `AEGIS-AMP-hub`, `factory-a` IoT Thing/certificate/policy/K3s Secret, IoT Rule -> S3 `raw/` prefix 적재, M1 검증용 `risk/risk-normalizer` IRSA S3 권한, `observability/prometheus-agent` 설치 및 AMP remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, ArgoCD/Grafana HTTPS Admin Ingress를 검증했다.
+M1 Issue 0~10에서는 AWS MFA/Terraform 접근, Hub EKS/VPC 기준선, Hub namespace 기준선, Hub ArgoCD bootstrap, foundation S3 data bucket `aegis-bucket-data`, `factory-a` IoT Thing/certificate/policy/K3s Secret, IoT Rule -> S3 `raw/` prefix 적재, M1 검증용 `risk/risk-normalizer` IRSA S3 권한, AWS Load Balancer Controller, Route53/ACM, ArgoCD/Grafana HTTPS Admin Ingress를 검증했다. 과거 AMP/Prometheus Agent/Grafana AMP datasource 검증 이력은 보존하지만, 2026-05-27 비용 최적화 기준에서는 active 구성에서 제거한다.
 
 2026-05-21 기준 `scripts/build/build-hub.sh`는 Hub EKS와 Hub 내부 플랫폼까지만 자동 복구/검증한다. Tailscale Operator, Spoke egress, ArgoCD/Grafana Tailscale UI, ArgoCD cluster Secret, ApplicationSet은 Hub 이후 단계에서 실행한다. 기본 전체 재생성은 `scripts/build/build-all.sh`, Admin UI까지 포함한 재생성은 `scripts/build/build-all.sh --admin-ui-after-ns`, 전체 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. Hub 삭제 전에는 `scripts/destroy/stop-dummy-generators.sh`로 factory-b/c VM 데이터 생성을 먼저 멈추고, 그 다음 `destroy-hub.sh` 또는 `destroy-all.sh`를 실행한다. Hub만 삭제/재생성했고 Spoke K3s Secret과 IoT Core Thing/certificate가 유지된 경우에는 `build-hub.sh` 이후 `build-admin-ui-after-ns.sh`, `register-spoke-factory-a.sh`, `register-spoke-factory-b.sh`, `register-spoke-factory-c.sh`, factory-b/c dummy generator start를 필요 순서대로 개별 실행한다. ALB 기반 Admin UI를 쓰는 경우 `connect-hub-tailscale-ui.sh`는 선택 사항이다. 비용 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.
 
@@ -118,8 +118,8 @@ M1 Issue 0~10에서는 AWS MFA/Terraform 접근, Hub EKS/VPC 기준선, Hub name
 | 경로 | 역할 | 현재 상태 |
 | --- | --- | --- |
 | `infra/hub` | VPC, subnet, NAT Gateway, EKS cluster, node group, Route53/ACM, EKS OIDC 기반 IRSA | destroy 완료, rebuild 시 Terraform/Ansible 재실행 |
-| `scripts/ansible/playbooks` | kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, Prometheus Agent remote_write, Grafana AMP datasource, AWS Load Balancer Controller, Admin UI Ingress bootstrap/검증 | rebuild 시 재실행 |
-| `infra/foundation` | S3, AMP Workspace, ECR, DynamoDB 같은 Hub EKS destroy와 분리할 영속 리소스 | 유지, destroy 시 `DESTROY_FOUNDATION=true` 명시 필요 |
+| `scripts/ansible/playbooks` | kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, legacy Prometheus Agent cleanup, Grafana, AWS Load Balancer Controller, Admin UI Ingress bootstrap/검증 | rebuild 시 재실행 |
+| `infra/foundation` | S3, ECR, DynamoDB 같은 Hub EKS destroy와 분리할 영속 리소스 | 유지, destroy 시 `DESTROY_FOUNDATION=true` 명시 필요 |
 | `infra/data-pipeline` | IoT Rule × 3, Lambda DataProcessor on-demand 레이어 | `build-data-pipe.sh` / `destroy-data-pipe.sh`로 개별 관리 |
 
 Hub 기본값:
@@ -200,7 +200,7 @@ AWS EKS Hub
     └── factory-c  (등록 완료, Windows VM 테스트베드)
 
 2번 VPC: Control / Management
-    └── EKS Hub / Hub ArgoCD / Tailscale / Prometheus Agent / Grafana
+    └── EKS Hub / Hub ArgoCD / Tailscale / Grafana
 
 1번 VPC: Data / Dashboard
     └── ALB / WAF / Dashboard Web/API / Lambda data processor / DynamoDB LATEST+HISTORY / S3 processed
@@ -286,7 +286,7 @@ docs/
 
 ```text
 infra/
-├── foundation/    # 영구: S3, AMP, ECR, DynamoDB
+├── foundation/    # 영구: S3, ECR, DynamoDB
 ├── data-pipeline/ # on-demand: IoT Rule × 3, Lambda
 ├── hub/           # on-demand: EKS, VPC, NAT GW
 ├── safe-edge/

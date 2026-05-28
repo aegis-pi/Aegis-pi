@@ -21,7 +21,7 @@ Layer 0a│ Data-pipeline│ IoT Rule × 3, Lambda(DataProcessor), CloudWatch, I
         │              │ 때문에 foundation destroy 이전에 반드시 먼저 삭제해야 함.
 Layer 0a│ Reporting    │ EventBridge Scheduler, Step Functions, reporting Lambda, CloudWatch, IAM.
         │              │ foundation S3 data source를 참조하므로 foundation destroy 이전에 먼저 삭제해야 함.
-Layer 0b│ Foundation   │ 영구 리소스(S3, AMP, ECR, DynamoDB). 기본 제외. DESTROY_FOUNDATION=true 필요.
+Layer 0b│ Foundation   │ 영구 리소스(S3, ECR, DynamoDB). 기본 제외. DESTROY_FOUNDATION=true 필요.
 Layer 1 │ Hub Infra    │ VPC, EKS, IRSA, Route53, ACM (Terraform destroy)
 Layer 2 │ Hub Platform │ ALB 등 K8s Controller가 만든 AWS 리소스 선정리 (Ansible cleanup)
 Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
@@ -68,13 +68,13 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 4. hub-infra
    - infra/hub Terraform destroy
    - EKS, VPC, node group, NAT Gateway 삭제
-   - IRSA IAM role/policy 삭제 (LB Controller, Grafana, Prometheus, Risk Normalizer)
+   - IRSA IAM role/policy 삭제 (LB Controller, Risk Normalizer)
    - Route53 Hosted Zone, ACM certificate 삭제
    - infra/hub가 Foundation outputs를 참조하므로 foundation tfstate 필요
 
 5. foundation (기본 제외, 명시적 실행 필요)
    - infra/foundation Terraform destroy
-   - S3 data bucket, AMP Workspace, ECR, DynamoDB, GitHub Actions OIDC
+   - S3 data bucket, ECR, DynamoDB, GitHub Actions OIDC
    - ⚠️ data-pipeline이 먼저 삭제된 상태여야 함
 ```
 
@@ -105,16 +105,15 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 ──────────────────────────────────────────────────────────────────
 EKS 컨트롤 플레인               ~$73            ✓ 삭제 (Hub Infra)
 EC2 노드 t3.medium × 2         ~$61            ✓ 삭제 (Hub Infra)
-NAT Gateway × 2                ~$64            ✓ 삭제 (Hub Infra)
+NAT Gateway × 1                ~$41            ✓ 삭제 (Hub Infra)
 ALB (Admin Ingress 활성화 시)  ~$16+           ✓ 삭제 (Hub Platform cleanup)
-EIP × 2                        ~$7             ✓ 삭제 (Hub Infra)
+EIP × 1                        ~$4             ✓ 삭제 (Hub Infra)
 Lambda (data-processor)        ~$0             △ 삭제 권장 (Data-pipeline destroy)
 IoT Rules × 3                  ~$0             △ 삭제 권장 (Data-pipeline destroy)
 CloudWatch log group           ~$0             △ 삭제 권장 (Data-pipeline destroy)
 ──────────────────────────────────────────────────────────────────
 DynamoDB (FactoryStatus)       ~$0             ✗ 보존 (foundation 영구 리소스)
 S3 data bucket                 ~$1-3           ✗ 보존 (데이터 손실 방지)
-AMP Workspace                  ~$5-20          ✗ 보존 (메트릭 이력 보존)
 ECR 리포지토리                  ~$0.06          ✗ 보존 (이미지 이력 보존)
 IoT Thing/Policy/Certificate   ~$0             ✗ 보존 (재등록 번거로움 대비 비용 없음)
 K3s Secret                     $0              ✗ 보존 (Pi에 존재, 비용 없음)
@@ -128,7 +127,7 @@ ACM Certificate                $0              ✗ 보존 (재발급 + ACM 검�
 
 ```text
 삭제: VM dummy generator 정지 → Data-pipeline (IoT Rules, Lambda) → Hub Platform (ALB) → Hub Infra (EKS, NAT GW, VPC)
-보존: Foundation(S3, AMP, ECR, DynamoDB), IoT Thing/Certificate, Spoke K3s Secret
+보존: Foundation(S3, ECR, DynamoDB), IoT Thing/Certificate, Spoke K3s Secret
 절약: ~$200/월
 재개: build-hub.sh + build-data-pipe.sh 이후 UI/Spoke 등록 스크립트를 단계별 실행
 ```
@@ -153,7 +152,7 @@ scripts/build/build-data-pipe.sh [MFA_OTP]
 
 ```text
 삭제: IoT → Hub → Foundation (S3 데이터 포함 전체 삭제)
-주의: S3 데이터, AMP 메트릭, ECR 이미지 복구 불가
+주의: S3 데이터, ECR 이미지 복구 불가
 ```
 
 ```bash
@@ -168,7 +167,7 @@ K3s Secret은 라즈베리파이에 존재하며 AWS 비용이 전혀 없다.
 
 ## 일반 개발 중단 (Hub 삭제, Foundation/IoT 보존)
 
-개발을 중단할 때 비용이 나가는 Hub 리소스만 내린다. Foundation(S3 데이터, AMP 메트릭, ECR 이미지)과 IoT Thing/certificate/K3s Secret은 보존된다.
+개발을 중단할 때 비용이 나가는 Hub 리소스만 내린다. Foundation(S3 데이터, ECR 이미지, DynamoDB)과 IoT Thing/certificate/K3s Secret은 보존된다.
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
@@ -243,7 +242,7 @@ scripts/destroy/destroy-k3s-iot-secret.sh
 
 ### Foundation 삭제 (명시적 플래그 필수)
 
-S3 데이터, AMP 메트릭, ECR 이미지가 모두 삭제된다. 복구 불가.
+S3 데이터와 ECR 이미지가 모두 삭제된다. 복구 불가.
 
 ```bash
 DESTROY_FOUNDATION=true scripts/destroy/destroy-foundation.sh [MFA_OTP]

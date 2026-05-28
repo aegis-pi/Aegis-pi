@@ -22,8 +22,8 @@
 | `13_hub_namespace_baseline.md` | Hub EKS namespace 기준 |
 | `14_hub_run_commands.md` | Hub/Admin UI/IoT/Spoke 배포와 최종 검증 실행 명령어 |
 | `15_aws_cost_baseline.md` | AWS Hub 시간당 비용 기준과 갱신 규칙 |
-| `16_hub_prometheus_amp.md` | Hub Prometheus Agent와 AMP remote_write 운영 기준 |
-| `17_hub_grafana_amp.md` | Hub 내부 Grafana와 AMP datasource 운영 기준 |
+| `16_hub_prometheus_amp.md` | retired Hub Prometheus Agent/AMP 기준과 cleanup 절차 |
+| `17_hub_grafana_amp.md` | Hub 내부 Grafana 운영 기준 |
 | `18_factory_b_mac_utm_k3s.md` | Mac UTM 기반 `factory-b` 테스트베드 K3s 구성 사전 |
 | `19_factory_c_windows_virtualbox_k3s.md` | Windows VirtualBox 기반 `factory-c` 테스트베드 K3s 구성 사전 |
 | `20_tailscale_hub_spoke_runbook.md` | Tailscale 기반 Hub-Spoke 연결 실행 절차 |
@@ -31,6 +31,7 @@
 | `22_factory_bc_testbed_data_plane.md` | `factory-b/c` 로컬 dummy generator, hostPath outbox, 공통 publisher 기준 |
 | `23_data_pipeline.md` | IoT Rule, Lambda data processor, DynamoDB/S3 processed 운영 기준 |
 | `24_daily_factory_report.md` | Bedrock 기반 factory별 일일 운영 보고서 운영 기준 |
+| `25_daily_factory_report_cost.md` | Daily Factory Report 1회/월간 비용 산정 기준 |
 
 ## 기준
 

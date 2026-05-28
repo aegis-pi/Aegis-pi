@@ -42,10 +42,9 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | `ansible/inventory/hub_eks_dynamic.sh` | `infra/hub` Terraform output 기반 Hub EKS dynamic inventory |
 | `ansible/playbooks/hub_argocd_bootstrap.yml` | Hub namespace, LimitRange, ArgoCD Helm 설치 및 검증 |
 | `ansible/playbooks/hub_argocd_verify.yml` | Hub ArgoCD bootstrap 상태 확인 |
-| `ansible/playbooks/hub_prometheus_agent_bootstrap.yml` | Hub Prometheus Agent와 AMP remote_write 설정 |
-| `ansible/playbooks/hub_prometheus_agent_verify.yml` | Hub Prometheus Agent와 AMP remote_write 상태 확인 |
-| `ansible/playbooks/hub_grafana_bootstrap.yml` | Hub 내부 Grafana와 AMP datasource 설정 |
-| `ansible/playbooks/hub_grafana_verify.yml` | Hub 내부 Grafana와 AMP datasource query 상태 확인 |
+| `ansible/playbooks/hub_prometheus_agent_cleanup.yml` | legacy Hub Prometheus Agent 리소스 정리 |
+| `ansible/playbooks/hub_grafana_bootstrap.yml` | Hub 내부 Grafana 설정 |
+| `ansible/playbooks/hub_grafana_verify.yml` | Hub 내부 Grafana 상태 확인 |
 | `ansible/playbooks/hub_aws_load_balancer_controller_bootstrap.yml` | AWS Load Balancer Controller 설치 |
 | `ansible/playbooks/hub_aws_load_balancer_controller_verify.yml` | AWS Load Balancer Controller와 IRSA 검증 |
 | `ansible/playbooks/hub_admin_ingress_bootstrap.yml` | Admin UI HTTPS Ingress 선택 적용 |

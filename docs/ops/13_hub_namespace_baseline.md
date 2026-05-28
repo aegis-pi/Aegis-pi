@@ -1,7 +1,7 @@
 # Hub Namespace Baseline
 
-상태: Ansible bootstrap 기준 전환 완료, 현재 Hub EKS deleted
-기준일: 2026-05-08
+상태: Ansible bootstrap 기준
+기준일: 2026-05-27
 
 ## 목적
 
@@ -12,7 +12,7 @@ Hub EKS 내부 기능을 namespace 단위로 분리해 ArgoCD, 운영 관측, �
 | Namespace | 역할 |
 | --- | --- |
 | `argocd` | Hub에서 Spoke 배포 제어 |
-| `observability` | Grafana, AMP 연동 메트릭 관제 |
+| `observability` | Grafana 관리 UI |
 | `risk` | M1 검증용 또는 임시 risk workload. 최신 MVP에서는 별도 Risk 계산 파드를 두지 않음 |
 | `ops-support` | legacy `pipeline_status` 집계 보조 기능 후보. 최신 MVP에서는 Lambda data processor가 `pipeline_status`를 계산 |
 
@@ -52,7 +52,7 @@ ops-support     Active
 
 각 namespace에 `default-limits` LimitRange가 생성되어 있다.
 
-2026-05-19 기준 Hub EKS는 `build-hub.sh`로 재생성/검증한다. rebuild 시 M1 검증용 `risk/risk-normalizer`와 `observability/prometheus-agent` ServiceAccount는 각각 S3 처리 검증과 AMP remote_write용 IRSA role로 annotation된다. 단, `risk/risk-normalizer`는 과거 IRSA 검증용 workload이며 최신 데이터 처리 구현 대상은 Lambda data processor다.
+2026-05-27 기준 Hub EKS는 `build-hub.sh`로 재생성/검증한다. rebuild 시 M1 검증용 `risk/risk-normalizer` ServiceAccount는 S3 처리 검증용 IRSA role로 annotation된다. `observability/prometheus-agent`는 AMP 제거에 따라 더 이상 재설치하지 않고 cleanup 대상이다. `risk/risk-normalizer`는 과거 IRSA 검증용 workload이며 최신 데이터 처리 구현 대상은 Lambda data processor다.
 
 나중에 Hub EKS를 destroy/recreate하면 `scripts/build/build-hub.sh` 실행 시 Ansible bootstrap playbook이 `argocd`, `observability`, `risk`, `ops-support` namespace, `default-limits` LimitRange, IRSA ServiceAccount, Hub ArgoCD Helm release를 다시 생성한다.
 

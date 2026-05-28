@@ -1,7 +1,7 @@
 # Quick Start
 
 상태: source of truth
-기준일: 2026-05-21
+기준일: 2026-05-27
 
 ## 목적
 
@@ -12,13 +12,13 @@
 - `factory-a` 로컬 Raspberry Pi 3-node K3s 기준선 구축이 완료됐다.
 - ArgoCD, Longhorn, Grafana, InfluxDB, AI/Audio/BME280 워크로드가 동작한다.
 - AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선은 `scripts/build/build-hub.sh`로 재생성 가능하다. 현재 build 흐름은 Hub와 factory cluster 등록을 먼저 끝내고, IoT Secret 준비 후 Spoke ApplicationSet을 배포하도록 분리되어 있다.
-- Foundation S3 bucket `aegis-bucket-data`, AMP Workspace `AEGIS-AMP-hub`, ECR, DynamoDB `AEGIS-DynamoDB-FactoryStatus`는 Hub/data-pipeline destroy와 분리되는 foundation 영구 리소스다.
+- Foundation S3 bucket `aegis-bucket-data`, ECR, DynamoDB `AEGIS-DynamoDB-FactoryStatus`는 Hub/data-pipeline destroy와 분리되는 foundation 영구 리소스다. AMP는 비용 최적화 기준에서 active 구성에서 제거한다.
 - IoT Rule(factory-a/b/c), Lambda(DataProcessor)는 `infra/data-pipeline` 레이어로 분리되어 `scripts/build/build-data-pipe.sh` / `scripts/destroy/destroy-data-pipe.sh`로 개별 관리된다.
 - IoT Core `factory-a` Thing/certificate/policy와 K3s Secret은 `scripts/build/build-iot-factory-a.sh`에서 생성/갱신한다. 같은 단계에서 ArgoCD ApplicationSet을 적용해 `factory-a` data-plane workload 배포를 시작한다.
 - Hub만 삭제/재생성한 경우에는 IoT Core Thing/certificate와 Spoke K3s Secret을 다시 만들지 않는다. `scripts/build/build-hub.sh` 이후 UI 연결과 `factory-a/b/c` ArgoCD cluster 등록을 각각 별도 실행 파일로 복구한다.
-- `risk/risk-normalizer` IRSA S3 권한과 `observability/prometheus-agent` AMP remote_write 수신은 검증 완료 상태다. 단, `risk/risk-normalizer`는 M1 권한 검증 이력이며 최신 데이터 처리 구현 대상은 Lambda data processor와 DynamoDB/S3 processed다.
-- Hub Prometheus Agent는 rebuild 시 `observability` 네임스페이스에서 재설치되며, 이전 검증에서는 AMP Query API로 `up{cluster="AEGIS-EKS"}` 수신을 확인했다.
-- 내부 Grafana는 rebuild 시 `observability` 네임스페이스에서 재설치되며, 이전 검증에서는 AMP datasource `AEGIS-AMP`가 SigV4 + IRSA로 query 가능했다.
+- `risk/risk-normalizer` IRSA S3 권한은 M1 검증 이력이며 최신 데이터 처리 구현 대상은 Lambda data processor와 DynamoDB/S3 processed다.
+- Hub Prometheus Agent는 rebuild 시 재설치하지 않는다. 기존 클러스터에 남은 `observability/prometheus-agent`는 cleanup playbook으로 제거한다.
+- 내부 Grafana는 rebuild 시 `observability` 네임스페이스에서 재설치되며, AMP datasource 없이 Grafana health를 검증한다.
 - AWS Load Balancer Controller와 Admin UI HTTPS Ingress는 `scripts/build/build-admin-ui-after-ns.sh`로 ACM 발급 확인 후 활성화한다.
 - `factory-b`, `factory-c`는 VM 테스트베드 Spoke로 Hub ArgoCD cluster 등록, ApplicationSet Application 생성, GitOps `hostPath` outbox 전환, local dummy generator systemd 실행, K3s `edge-iot-publisher` 활성화, IoT Core -> S3 raw prefix 분리 적재까지 완료했다.
 - Lambda data processor(`apps/data-processor/`) 구현 완료. DynamoDB는 `LATEST`와 `HISTORY#STATE#{updated_at}` 단일 snapshot 이력 구조를 사용하며, history에는 `LATEST`와 같은 구조에 TTL 48h만 추가한다. Terraform 인프라(`infra/data-pipeline/`) 구현 완료.

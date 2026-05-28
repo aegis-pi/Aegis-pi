@@ -6,13 +6,13 @@ Safe-Edge 반복 점검과 Hub EKS bootstrap 자동화를 관리한다.
 
 Hub EKS의 ArgoCD bootstrap은 SSH를 사용하지 않는다. Ansible은 `localhost`에서 실행되고, `infra/hub` Terraform output을 dynamic inventory로 읽은 뒤 EKS Kubernetes API에 접근한다.
 
-현재 bootstrap은 namespace/LimitRange, ArgoCD Helm release, M1 검증용 `risk/risk-normalizer` IRSA ServiceAccount, `observability/prometheus-agent` AMP remote_write IRSA ServiceAccount, Prometheus Agent remote_write 구성, 내부 Grafana AMP datasource, AWS Load Balancer Controller, 선택적 Admin UI HTTPS Ingress, Hub Tailscale Operator/egress/UI/cluster Secret 구성을 적용한다. 최신 목표에서 IoT Core 이후 정규화, Risk 계산, `pipeline_status` 갱신은 Lambda data processor와 DynamoDB/S3 processed가 담당한다.
+현재 bootstrap은 namespace/LimitRange, ArgoCD Helm release, M1 검증용 `risk/risk-normalizer` IRSA ServiceAccount, legacy Prometheus Agent cleanup, 내부 Grafana, AWS Load Balancer Controller, 선택적 Admin UI HTTPS Ingress, Hub Tailscale Operator/egress/UI/cluster Secret 구성을 적용한다. 최신 목표에서 IoT Core 이후 정규화, Risk 계산, `pipeline_status` 갱신은 Lambda data processor와 DynamoDB/S3 processed가 담당한다.
 
 선행 조건:
 
 - AWS MFA 세션이 현재 shell에 설정되어 있음
 - `infra/hub` Terraform apply가 완료되어 output을 조회할 수 있음
-- `infra/foundation` Terraform apply가 완료되어 AMP/S3/IoT Rule output을 조회할 수 있음
+- `infra/foundation` Terraform apply가 완료되어 S3/ECR/DynamoDB output을 조회할 수 있음
 - `aws`, `kubectl`, `helm`, `terraform`, `jq`, `ansible-playbook` 사용 가능
 - Hub Tailscale 자동화를 실행할 때 `~/Aegis/.aegis/secrets/tailscale/operator.env`에 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET` 존재
 
@@ -21,7 +21,7 @@ Hub EKS의 ArgoCD bootstrap은 SSH를 사용하지 않는다. Ansible은 `localh
 ```bash
 cd scripts/ansible
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_bootstrap.yml
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_bootstrap.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_cleanup.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_grafana_bootstrap.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aws_load_balancer_controller_bootstrap.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_bootstrap.yml
@@ -32,7 +32,6 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_tailscale_bootstr
 
 ```bash
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_verify.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_grafana_verify.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aws_load_balancer_controller_verify.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_verify.yml

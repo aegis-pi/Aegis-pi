@@ -14,7 +14,7 @@
 리소스를 생애주기 기준으로 4개 레이어로 나눈다.
 
 ```text
-Layer 0 │ Foundation      │ S3 data bucket, AMP Workspace, ECR, GitHub Actions OIDC
+Layer 0 │ Foundation      │ S3 data bucket, ECR, DynamoDB, GitHub Actions OIDC
         │                 │ 영구 리소스. 최초 1회 생성 후 일반 빌드 흐름에서 제외.
 
 Layer 0 │ Data-pipeline   │ IoT Rule (factory-a/b/c), Lambda (data-processor)
@@ -27,7 +27,7 @@ Layer 0 │ Reporting       │ EventBridge Scheduler, Step Functions, reporting
 Layer 1 │ Hub Infra    │ VPC, NAT GW, EKS 클러스터, IRSA Role, Route53, ACM
         │ (Terraform)  │ 비용 주요 발생원. 개발 중단 시 삭제, 재개 시 재생성.
 
-Layer 2 │ Hub Platform │ ArgoCD, Prometheus Agent, Grafana, AWS LB Controller,
+Layer 2 │ Hub Platform │ ArgoCD, legacy Prometheus Agent cleanup, Grafana, AWS LB Controller,
         │ (Ansible)    │ Hub 내부 K8s 워크로드.
         │              │ Layer 1 위에 올라가는 K8s 워크로드.
 
@@ -41,19 +41,19 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 ```text
 0a. foundation (최초 1회만)
    - infra/foundation Terraform apply
-   - S3 data bucket, AMP Workspace, ECR, GitHub Actions OIDC, DynamoDB(AEGIS-DynamoDB-FactoryStatus)
+   - S3 data bucket, ECR, GitHub Actions OIDC, DynamoDB(AEGIS-DynamoDB-FactoryStatus)
 
 1. hub-infra
    - infra/hub Terraform apply
    - VPC, subnet, NAT Gateway, EKS 클러스터, node group
-   - IRSA Role (LB Controller / Grafana / Prometheus / Risk Normalizer)
+   - IRSA Role (LB Controller / Risk Normalizer)
    - Route53 Hosted Zone, ACM certificate
 
 2. hub-platform
    - Ansible Hub bootstrap (EKS 위 K8s 워크로드)
    - ArgoCD install/verify
-   - Prometheus Agent install/verify and AMP remote_write
-   - internal Grafana install/verify and AMP datasource query
+   - legacy Prometheus Agent cleanup
+   - internal Grafana install/verify
    - local secret/hub-ui-credentials.txt 출력
    - AWS Load Balancer Controller install/verify
 
@@ -94,7 +94,7 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 | `build-data-pipe.sh` | `infra/data-pipeline` Terraform apply. IoT Rule × 3, Lambda, CloudWatch, IAM 생성. foundation의 S3/DynamoDB를 data source로 참조하므로 foundation이 먼저 존재해야 함. |
 | `build-reporting.sh` | `apps/daily-report-generator` Lambda package 생성 후 `infra/reporting` Terraform apply. daily report Scheduler/Step Functions/Lambda/IAM/Logs 생성. |
 | `build-hub-infra.sh` | `infra/hub` Terraform apply (VPC, EKS, IRSA, Route53, ACM) |
-| `build-hub-platform.sh` | Ansible bootstrap (ArgoCD, Prometheus, Grafana, LB Controller) |
+| `build-hub-platform.sh` | Ansible bootstrap (ArgoCD, legacy Prometheus cleanup, Grafana, LB Controller) |
 | `build-hub.sh` | `build-hub-infra.sh` → `build-hub-platform.sh` 순서 실행 wrapper |
 | `build-iot-factory-a.sh` | `factory-a` IoT Thing/certificate, K3s Secret, Hub-Spoke Tailscale, ArgoCD cluster Secret, ApplicationSet 등록 |
 | `connect-hub-tailscale-ui.sh` | Tailnet UI가 필요할 때 Hub ArgoCD/Grafana Tailscale UI Service만 연결/검증. Spoke cluster Secret은 등록하지 않음 |
@@ -365,7 +365,7 @@ Hub build는 Terraform apply 직후 `secret/admin-ui-nameservers.txt`를 갱신�
 
 ### 1. 전체 리소스 1차 생성
 
-이 단계에서 Hub EKS, ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller를 생성하고, Admin UI용 Route53 Hosted Zone NS를 출력한다. Foundation과 IoT까지 포함하려면 `--foundation`, `--iot`를 명시한다.
+이 단계에서 Hub EKS, ArgoCD, legacy Prometheus Agent cleanup, Grafana, AWS Load Balancer Controller를 실행하고, Admin UI용 Route53 Hosted Zone NS를 출력한다. Foundation과 IoT까지 포함하려면 `--foundation`, `--iot`를 명시한다.
 
 ```bash
 cd /home/vicbear/Aegis/git_clone/Aegis-pi

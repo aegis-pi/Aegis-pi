@@ -1,7 +1,7 @@
 # Hub Run Commands
 
 상태: source of truth
-기준일: 2026-05-21
+기준일: 2026-05-27
 
 ## Hub-only 재시작 실행 순서
 
@@ -18,7 +18,7 @@ scripts/ops/manage-dummy-generators.sh start factory-c
 
 현재 표준 순서는 Hub -> Admin UI -> factory별 Spoke 등록 -> factory-b/c local dummy generator start다. Hub만 삭제/재생성한 경우 IoT Core Thing/certificate와 Spoke K3s Secret은 다시 만들지 않는다.
 
-`build-hub.sh`는 Hub AWS 인프라와 Hub Kubernetes platform을 올린다. 이 단계는 factory-a K3s 가용성에 의존하지 않으며 ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller까지만 준비한다.
+`build-hub.sh`는 Hub AWS 인프라와 Hub Kubernetes platform을 올린다. 이 단계는 factory-a K3s 가용성에 의존하지 않으며 ArgoCD, legacy Prometheus Agent cleanup, Grafana, AWS Load Balancer Controller까지만 준비한다.
 
 `build-admin-ui-after-ns.sh`는 Gabia NS 위임 이후 ACM certificate가 `ISSUED`가 될 때까지 기다린 뒤 ArgoCD/Grafana HTTPS Ingress를 활성화한다.
 
@@ -41,7 +41,7 @@ scripts/build/verify-complete.sh
 검증 범위:
 
 ```text
-Hub: ArgoCD, Prometheus Agent, Grafana, AWS Load Balancer Controller, Admin UI Ingress, Hub-Spoke Tailscale, Spoke ApplicationSet
+Hub: ArgoCD, legacy Prometheus Agent cleanup, Grafana, AWS Load Balancer Controller, Admin UI Ingress, Hub-Spoke Tailscale, Spoke ApplicationSet
 AWS IoT: Thing, Policy, certificate ACTIVE, attachment
 factory-a K3s: IoT Secret, edge-iot-publisher rollout, factory-a-log-adapter rollout
 factory-b/c K3s: cluster Secret, Application 생성, hostPath data-plane 전환 후 publisher rollout
@@ -86,7 +86,7 @@ scripts/destroy/stop-dummy-generators.sh
 scripts/destroy/destroy-hub.sh
 ```
 
-`stop-dummy-generators.sh`는 Hub가 내려간 뒤에도 factory-b/c worker outbox가 계속 쌓이는 것을 막는다. legacy local publisher unit이 설치돼 있으면 함께 정지하지만, 현재 표준 publish 경로는 K3s `edge-iot-publisher`다. `destroy-hub.sh`는 Hub EKS/VPC/NAT Gateway/node group과 EKS 내부 ArgoCD/Tailscale/ApplicationSet 리소스를 제거한다. Foundation S3/AMP/ECR/IoT 리소스와 Spoke K3s Secret은 별도 삭제 대상이다.
+`stop-dummy-generators.sh`는 Hub가 내려간 뒤에도 factory-b/c worker outbox가 계속 쌓이는 것을 막는다. legacy local publisher unit이 설치돼 있으면 함께 정지하지만, 현재 표준 publish 경로는 K3s `edge-iot-publisher`다. `destroy-hub.sh`는 Hub EKS/VPC/NAT Gateway/node group과 EKS 내부 ArgoCD/Tailscale/ApplicationSet 리소스를 제거한다. Foundation S3/ECR/DynamoDB, IoT 리소스와 Spoke K3s Secret은 별도 삭제 대상이다.
 
 ## 전체 삭제
 

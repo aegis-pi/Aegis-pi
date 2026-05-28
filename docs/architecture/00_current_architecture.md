@@ -1,7 +1,7 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-05-20
+기준일: 2026-05-27
 
 ## 목적
 
@@ -9,8 +9,8 @@
 
 ## 현재 상태
 
-- 현재 구현 범위는 운영형 `factory-a` Spoke와 테스트베드 `factory-b/c` Spoke다. `factory-b/c`는 Hub ArgoCD cluster/Application 등록, hostPath outbox 전환, local dummy generator, 공통 publisher, S3 raw 적재 검증까지 완료했다. Hub EKS/ArgoCD/Prometheus Agent/Grafana/Admin UI HTTPS 기준선은 `scripts/build/build-hub.sh`와 `scripts/build/build-admin-ui-after-ns.sh`로 재생성 가능하다.
-- AWS Hub는 M1 Issue 0~10에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/AMP/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3/AMP 권한, Prometheus Agent remote_write 수신, Grafana AMP datasource query, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress를 검증했다. 2026-05-20 기준 build 흐름은 Hub platform, Spoke cluster 등록, Spoke workload 배포를 분리한다.
+- 현재 구현 범위는 운영형 `factory-a` Spoke와 테스트베드 `factory-b/c` Spoke다. `factory-b/c`는 Hub ArgoCD cluster/Application 등록, hostPath outbox 전환, local dummy generator, 공통 publisher, S3 raw 적재 검증까지 완료했다. Hub EKS/ArgoCD/Grafana/Admin UI HTTPS 기준선은 `scripts/build/build-hub.sh`와 `scripts/build/build-admin-ui-after-ns.sh`로 재생성 가능하다.
+- AWS Hub는 M1 Issue 0~10에서 EKS/VPC/namespace/ArgoCD bootstrap, foundation S3/IoT Rule, IoT Thing/certificate/policy/K3s Secret, IRSA S3 권한, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress를 검증했다. 과거 AMP/Prometheus Agent/Grafana AMP datasource 검증 이력은 보존하지만, 2026-05-27 비용 최적화 기준에서는 active 구성에서 제거한다. 현재 build 흐름은 Hub platform, Spoke cluster 등록, Spoke workload 배포를 분리한다.
 - M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록, IoT Rule -> S3 raw 적재 검증을 완료했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - `factory-b`, `factory-c`는 VM K3s/Tailnet/ArgoCD cluster/Application 등록, worker `hostPath` outbox, 로컬 dummy generator, IoT Secret, `edge-iot-publisher` 활성화와 S3 raw 적재 검증까지 완료했다. Dashboard VPC는 아직 구축 전이다.
@@ -89,27 +89,29 @@ safe-edge-ai-apps
 M1 Hub 기준선은 Terraform과 Ansible로 생성/검증했고, 필요할 때 `scripts/build/build-hub.sh`로 재생성한다. Hub build는 Hub 내부 platform까지만 수행하고, Spoke cluster 등록과 Spoke workload ApplicationSet은 IoT/Spoke 등록 단계에서 적용한다.
 
 ```text
-AWS actual state: Hub EKS is ephemeral/rebuildable; foundation S3/AMP/ECR/IoT are separate durable baseline resources
+AWS actual state: Hub EKS is ephemeral/rebuildable; foundation S3/ECR/DynamoDB and IoT are separate durable baseline resources
 EKS: AEGIS-EKS target
 VPC CIDR: 10.0.0.0/16 target on rebuild
 AZ: ap-south-1a, ap-south-1c
+NAT Gateway: single Azone NAT target
 Hub namespaces: recreated by Ansible bootstrap
-Prometheus Agent: observability/prometheus-agent remote_writes to AMP
-Grafana: observability/grafana queries AMP through SigV4 + IRSA
+Prometheus Agent: retired, legacy resources cleaned up during Hub platform build
+Grafana: observability/grafana internal management UI, no AMP datasource
 Admin UI: https://argocd.minsoo-tech.cloud and https://grafana.minsoo-tech.cloud through shared Public ALB after DNS/ACM readiness
 ```
 
 Terraform root:
 
 ```text
-infra/hub         VPC, subnet, NAT Gateway, EKS cluster, node group, Route53/ACM, IRSA
-infra/foundation  S3/AMP/IoT Rule
+infra/hub         VPC, subnet, single NAT Gateway, EKS cluster, node group, Route53/ACM, IRSA
+infra/foundation  S3/ECR/DynamoDB
+infra/data-pipeline IoT Rule, Lambda data processor
 ```
 
 Hub Kubernetes bootstrap:
 
 ```text
-scripts/ansible  kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, Prometheus Agent remote_write, Grafana AMP datasource, AWS Load Balancer Controller, Admin UI Ingress, Tailscale, ArgoCD cluster Secret, Spoke ApplicationSet. 기본 Hub build는 ArgoCD/Prometheus/Grafana/LB Controller까지만 실행하고, Admin UI와 factory-a/b/c K3s 의존 단계는 별도 entrypoint 또는 playbook에서 실행한다.
+scripts/ansible  kubeconfig 갱신, namespace, LimitRange, ArgoCD Helm install, legacy Prometheus Agent cleanup, Grafana, AWS Load Balancer Controller, Admin UI Ingress, Tailscale, ArgoCD cluster Secret, Spoke ApplicationSet. 기본 Hub build는 ArgoCD/Grafana/LB Controller까지만 실행하고, Admin UI와 factory-a/b/c K3s 의존 단계는 별도 entrypoint 또는 playbook에서 실행한다.
 ```
 
 ## 데이터 구조
