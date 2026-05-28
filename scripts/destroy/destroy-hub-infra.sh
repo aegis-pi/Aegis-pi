@@ -15,7 +15,7 @@ source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"
 source "${REPO_ROOT}/scripts/lib/terraform.sh"
 
 if [[ ! -f "${FOUNDATION_STATE}" ]]; then
-  echo "Hub destroy requires ${FOUNDATION_STATE} because infra/hub reads foundation outputs for AMP/IRSA wiring." >&2
+  echo "Hub destroy requires ${FOUNDATION_STATE} because infra/hub reads foundation outputs for shared resources." >&2
   echo "Restore the foundation state file before destroying hub resources." >&2
   exit 1
 fi

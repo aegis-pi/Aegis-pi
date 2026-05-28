@@ -36,6 +36,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 OTP="${1:-}"
 FORCE_TAILSCALE_OPERATOR_UPGRADE="${FORCE_TAILSCALE_OPERATOR_UPGRADE:-false}"
 SYNC_SPOKE_APP="${SYNC_SPOKE_APP:-true}"
+REFRESH_SPOKE_ECR_PULL_SECRET="${REFRESH_SPOKE_ECR_PULL_SECRET:-true}"
+RESTART_SPOKE_AFTER_ECR_SECRET_REFRESH="${RESTART_SPOKE_AFTER_ECR_SECRET_REFRESH:-true}"
 ARGOCD_APP_NAMESPACE="${ARGOCD_APP_NAMESPACE:-argocd}"
 HUB_TERRAFORM_STATE="${REPO_ROOT}/infra/hub/terraform.tfstate"
 
@@ -82,6 +84,22 @@ ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_appli
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aegis_spoke_applicationset_verify.yml
 
 cd "${REPO_ROOT}"
+
+if [[ "${FACTORY_TARGET}" == "factory-a" && "${REFRESH_SPOKE_ECR_PULL_SECRET}" == "true" ]]; then
+  FACTORY_A_KUBECONFIG_FILE="${AEGIS_FACTORY_A_DIRECT_KUBECONFIG:-${HOME}/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig}"
+  FACTORY_A_KUBECONFIG="${AEGIS_FACTORY_A_DIRECT_KUBECONFIG:-${HOME}/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig}" \
+  ECR_PULL_SECRET_NAMESPACE="${ECR_PULL_SECRET_NAMESPACE:-ai-apps}" \
+  ECR_PULL_SECRET_NAME="${ECR_PULL_SECRET_NAME:-ecr-registry}" \
+    "${REPO_ROOT}/scripts/ops/refresh-factory-a-ecr-pull-secret.sh" "${OTP}"
+
+  if [[ "${RESTART_SPOKE_AFTER_ECR_SECRET_REFRESH}" == "true" ]]; then
+    kubectl --kubeconfig "${FACTORY_A_KUBECONFIG_FILE}" \
+      -n "${ECR_PULL_SECRET_NAMESPACE:-ai-apps}" \
+      rollout restart deployment/aegis-spoke-factory-a-log-adapter
+  fi
+elif [[ "${REFRESH_SPOKE_ECR_PULL_SECRET}" != "true" ]]; then
+  echo "Skipped ${FACTORY_TARGET} ECR pull secret refresh. Set REFRESH_SPOKE_ECR_PULL_SECRET=true to enable it."
+fi
 
 if [[ "${SYNC_SPOKE_APP}" == "true" ]]; then
   ARGOCD_CORE_KUBECONFIG="$(mktemp)"

@@ -10,7 +10,7 @@ aegis_load_config "${REPO_ROOT}"
 
 REGION="${AWS_REGION:-${AEGIS_AWS_REGION}}"
 REGISTRY="${ECR_REGISTRY:-611058323802.dkr.ecr.${REGION}.amazonaws.com}"
-NAMESPACE="${ECR_PULL_SECRET_NAMESPACE:-aegis-spoke-system}"
+NAMESPACE="${ECR_PULL_SECRET_NAMESPACE:-ai-apps}"
 SECRET_NAME="${ECR_PULL_SECRET_NAME:-ecr-registry}"
 KUBECONFIG_FILE="${FACTORY_A_KUBECONFIG:-${HOME}/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig}"
 OTP="${1:-}"
@@ -21,7 +21,7 @@ Usage: scripts/ops/refresh-factory-a-ecr-pull-secret.sh [MFA_OTP]
 
 Creates or updates factory-a Kubernetes docker-registry Secret for ECR pulls.
 Defaults:
-  namespace: aegis-spoke-system
+  namespace: ai-apps
   secret:    ecr-registry
 USAGE
 }

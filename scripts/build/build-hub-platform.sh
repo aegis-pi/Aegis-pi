@@ -23,8 +23,7 @@ ansible-playbook \
   playbooks/hub_argocd_bootstrap.yml \
   -e "argocd_force_upgrade=${FORCE_ARGOCD_UPGRADE}"
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_bootstrap.yml
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_verify.yml
+ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_cleanup.yml
 ansible-playbook \
   -i inventory/hub_eks_dynamic.sh \
   playbooks/hub_grafana_bootstrap.yml \
@@ -37,4 +36,4 @@ ansible-playbook \
   -e "aws_lb_controller_force_upgrade=${FORCE_AWS_LB_CONTROLLER_UPGRADE}"
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aws_load_balancer_controller_verify.yml
 echo "Skipped Admin UI HTTPS Ingress. Run scripts/build/build-admin-ui-after-ns.sh after Route53 NS delegation."
-echo "Skipped Hub-Spoke Tailscale and ApplicationSet. Run scripts/build/build-iot-factory-a.sh when factory-a K3s is reachable."
+echo "Skipped Hub-Spoke Tailscale and ApplicationSet. Run scripts/build/register-spoke-factory-a.sh, register-spoke-factory-b.sh, and register-spoke-factory-c.sh when each Spoke K3s API is reachable."

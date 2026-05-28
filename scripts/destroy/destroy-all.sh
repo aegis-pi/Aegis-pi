@@ -10,6 +10,7 @@ source "${REPO_ROOT}/scripts/lib/config.sh"
 aegis_load_config "${REPO_ROOT}"
 
 DESTROY_IOT="${DESTROY_IOT:-false}"
+DESTROY_REPORTING="${DESTROY_REPORTING:-true}"
 DESTROY_DATA_PIPE="${DESTROY_DATA_PIPE:-true}"
 DESTROY_HUB="${DESTROY_HUB:-true}"
 DESTROY_FOUNDATION="${DESTROY_FOUNDATION:-false}"
@@ -24,17 +25,26 @@ if [[ "${DESTROY_IOT}" == "true" ]]; then
   export SKIP_K3S_IOT_SECRET_DESTROY=true
 fi
 
-if [[ "${DESTROY_IOT}" == "true" || "${DESTROY_DATA_PIPE}" == "true" || \
+if [[ "${DESTROY_IOT}" == "true" || "${DESTROY_REPORTING}" == "true" || \
+  "${DESTROY_DATA_PIPE}" == "true" || \
   "${DESTROY_HUB}" == "true" || "${DESTROY_FOUNDATION}" == "true" ]]; then
   # shellcheck disable=SC1091
   source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"
   aegis_ensure_aws_mfa "${OTP}"
 fi
 
-echo "Destroy scope: iot=${DESTROY_IOT}, data-pipe=${DESTROY_DATA_PIPE}, hub=${DESTROY_HUB}, foundation=${DESTROY_FOUNDATION}"
+echo "Destroy scope: iot=${DESTROY_IOT}, reporting=${DESTROY_REPORTING}, data-pipe=${DESTROY_DATA_PIPE}, hub=${DESTROY_HUB}, foundation=${DESTROY_FOUNDATION}"
 
 if [[ "${DESTROY_IOT}" == "true" ]]; then
   scripts/destroy/destroy-iot-factory-a.sh "${OTP}"
+fi
+
+if [[ "${DESTROY_REPORTING}" == "true" ]]; then
+  if [[ -f "${REPO_ROOT}/infra/reporting/terraform.tfstate" ]]; then
+    scripts/destroy/destroy-reporting.sh "${OTP}"
+  else
+    echo "Skipped reporting destroy: no terraform.tfstate found (not deployed or already destroyed)."
+  fi
 fi
 
 if [[ "${DESTROY_DATA_PIPE}" == "true" ]]; then
@@ -47,7 +57,7 @@ fi
 
 if [[ "${DESTROY_HUB}" == "true" ]]; then
   if [[ ! -f "${FOUNDATION_STATE}" ]]; then
-    echo "Hub destroy requires ${FOUNDATION_STATE} because infra/hub reads foundation outputs for AMP/IRSA wiring." >&2
+    echo "Hub destroy requires ${FOUNDATION_STATE} because infra/hub reads foundation outputs for shared resources." >&2
     echo "Restore the foundation state file, or set DESTROY_HUB=false if hub resources are already gone." >&2
     exit 1
   fi

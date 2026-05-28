@@ -63,7 +63,6 @@ CERTIFICATE_ID="$(<"${SECRET_DIR}/certificate-id.txt")"
 echo "Verifying Hub Kubernetes platform."
 cd "${REPO_ROOT}/scripts/ansible"
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_argocd_verify.yml
-ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_prometheus_agent_verify.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_grafana_verify.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_aws_load_balancer_controller_verify.yml
 ansible-playbook -i inventory/hub_eks_dynamic.sh playbooks/hub_admin_ingress_verify.yml
