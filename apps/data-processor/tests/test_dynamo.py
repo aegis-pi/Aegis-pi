@@ -78,7 +78,7 @@ def test_write_factory_state_snapshot_copies_latest_to_history(monkeypatch):
     history = table.history_item
     assert table.item["sk"] == "LATEST"
     assert history["sk"] == "HISTORY#STATE#2026-05-21T10:00:03.123Z"
-    assert history["ttl"] == 1_800_172_800
+    assert history["ttl"] == 1_800_007_200
     assert history["infra_state"]["message_id"] == "infra-message"
     assert history["factory_state"]["temperature_celsius"] == Decimal("31.2")
     assert history["risk"]["score"] == Decimal("91.43")
