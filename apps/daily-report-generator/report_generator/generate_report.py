@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 
 from report_generator.bedrock_client import BedrockReportClient
 from report_generator.prompt_builder import build_prompt
@@ -89,10 +90,14 @@ def _insert_section_metric_tables(markdown: str, report_context: dict) -> str:
 def _insert_table_after_heading(markdown: str, heading: str, table: str) -> str:
     if not table or table in markdown:
         return markdown
-    marker = f"{heading}\n"
-    if marker not in markdown:
+    heading_text = re.escape(heading.strip())
+    pattern = re.compile(rf"(?m)^({heading_text})[ \t]*\r?\n")
+    match = pattern.search(markdown)
+    if not match:
         return markdown
-    return markdown.replace(marker, f"{heading}\n\n{table}\n\n", 1)
+    insert_at = match.end()
+    normalized_heading = match.group(1)
+    return f"{markdown[:match.start()]}{normalized_heading}\n\n{table}\n\n{markdown[insert_at:]}"
 
 
 def _normalize_report_terms(markdown: str) -> str:

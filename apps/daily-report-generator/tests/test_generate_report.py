@@ -98,6 +98,38 @@ def test_generate_factory_report_rejects_missing_context_invariants():
     assert "report_key" not in result
 
 
+def test_generate_factory_report_inserts_tables_after_headings_with_trailing_space():
+    context = _report_context()
+    client = MockBedrockReportClient(
+        "\n".join([
+            "# factory-a 일일 운영 리포트 - 2026-01-01",
+            "",
+            "## 요약",
+            "",
+            "factory-a 2026-01-01 요약입니다.",
+            "",
+            "## 인프라 상태 ",
+            "",
+            "현재는 회복됐지만 당시 원인은 확인 필요합니다.",
+            "",
+            "## 데이터 한계",
+            "",
+            "S3 processed 기반이며 raw 원본은 사용하지 않았습니다.",
+        ])
+    )
+
+    result = generate_factory_report(
+        report_context=context,
+        output_prefix="reports/daily/yyyy=2026/mm=01/dd=01/factory-a",
+        bedrock_client=client,
+    )
+
+    assert result["status"] == "success"
+    assert "## 인프라 상태 \n" not in result["markdown"]
+    assert "## 인프라 상태\n\n| 항목 | 값 | 판단 |" in result["markdown"]
+    assert "| 노드 준비 안됨 | 1회 | 원인 확인 필요 |" in result["markdown"]
+
+
 def _report_context():
     return {
         "schema_version": "0.1.0",
