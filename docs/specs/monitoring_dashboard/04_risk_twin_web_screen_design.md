@@ -1,7 +1,7 @@
 # Risk Twin Web Screen Design
 
 상태: source of truth
-기준일: 2026-05-14
+기준일: 2026-05-29
 
 ## 목적
 
@@ -41,9 +41,9 @@ Risk Twin Web은 MVP 기준으로 두 단계 화면을 가진다.
 | 화면 영역 | 저장소 |
 | --- | --- |
 | 현재 상태 카드 | `DynamoDB LATEST` |
-| Risk / 환경 그래프 | `DynamoDB HISTORY#STATE` |
-| 노드/워크로드 그래프 | `DynamoDB HISTORY#STATE` |
-| 상세 이력/감사 | `S3 processed`, 필요 시 `S3 raw` |
+| Risk / 환경 그래프 | `DynamoDB GRAPH#5M` |
+| 노드/워크로드 그래프 | `DynamoDB GRAPH#5M` |
+| 상세 이력/감사 | `DynamoDB HISTORY#STATE`, `S3 processed`, 필요 시 `S3 raw` |
 
 ## 1. Fleet Overview
 
@@ -91,7 +91,7 @@ Risk Twin Web은 MVP 기준으로 두 단계 화면을 가진다.
 | 주요 원인 | `risk.top_causes` | `DynamoDB LATEST` |
 | 노드 상태 | `infra_state.node_summary.ready/total` | `DynamoDB LATEST` |
 | 최종 갱신 | `updated_at`, `last_factory_state_at`, `last_infra_state_at` | `DynamoDB LATEST` |
-| 최근 상태 변화 | risk/pipeline/node 변화 이벤트 | `DynamoDB HISTORY`, 필요 시 `S3 processed` |
+| 최근 상태 변화 | risk/pipeline/node 변화 이벤트 | `DynamoDB HISTORY#STATE`, 필요 시 `S3 processed` |
 
 정렬 기준:
 
@@ -192,11 +192,11 @@ Risk Twin Web은 MVP 기준으로 두 단계 화면을 가진다.
 
 | 그래프 | 필드 | 저장소 | 해상도 |
 | --- | --- | --- | --- |
-| Risk Score | `risk_score` | `DynamoDB HISTORY#STATE` | 30초 |
-| Temperature | `temperature_celsius_avg` | `DynamoDB HISTORY#STATE` | 30초 |
-| Humidity | `humidity_percent_avg` | `DynamoDB HISTORY#STATE` | 30초 |
-| Pressure | `pressure_hpa_avg` | `DynamoDB HISTORY#STATE` | 30초 |
-| AI Score | `fire_score`, `fall_score`, `bend_score` | `DynamoDB HISTORY#STATE` | 30초 |
+| Risk Score | `risk.score` aggregate | `DynamoDB GRAPH#5M` | 5분 |
+| Temperature | `sensor.temperature_celsius` aggregate | `DynamoDB GRAPH#5M` | 5분 |
+| Humidity | `sensor.humidity_percent` aggregate | `DynamoDB GRAPH#5M` | 5분 |
+| Pressure | `sensor.pressure_hpa` aggregate | `DynamoDB GRAPH#5M` | 5분 |
+| AI Score | `ai_detection.by_type` | `DynamoDB GRAPH#5M` | 5분 |
 
 시간 범위:
 
@@ -265,11 +265,11 @@ MVP 기본값:
 
 | 그래프 | 필드 | 저장소 | 해상도 |
 | --- | --- | --- | --- |
-| Node CPU | `nodes[].cpu_usage_percent` | `DynamoDB HISTORY#STATE` | 20초 |
-| Node Memory | `nodes[].memory_usage_percent` | `DynamoDB HISTORY#STATE` | 20초 |
-| Node Disk | `nodes[].disk_usage_percent` | `DynamoDB HISTORY#STATE` | 20초 |
-| Ready node count | `node_summary.ready` | `DynamoDB HISTORY#STATE` | 20초 |
-| Unhealthy workload count | `workload_summary.unhealthy` | `DynamoDB HISTORY#STATE` | 20초 |
+| Node CPU | `infra.cpu_usage_percent` aggregate | `DynamoDB GRAPH#5M` | 5분 |
+| Node Memory | `infra.memory_usage_percent` aggregate | `DynamoDB GRAPH#5M` | 5분 |
+| Node Disk | `infra.disk_usage_percent` aggregate | `DynamoDB GRAPH#5M` | 5분 |
+| Ready node count | `quality` + `HISTORY#STATE` drill-down | `DynamoDB GRAPH#5M`, 필요 시 `DynamoDB HISTORY#STATE` | 5분 |
+| Unhealthy workload count | `HISTORY#STATE` drill-down | `DynamoDB HISTORY#STATE` | 상세 조회 |
 
 ## 5. Factory Detail - Timeline
 
@@ -312,7 +312,7 @@ MVP 기본값:
 기본 데이터 소스:
 
 ```text
-DynamoDB HISTORY
+DynamoDB HISTORY#STATE
 ```
 
 장기 상세 조회:
@@ -326,21 +326,22 @@ S3 processed
 | 화면 | 조회 대상 | 저장소 |
 | --- | --- | --- |
 | Fleet Overview cards | current risk, top causes, node summary, pipeline | `DynamoDB LATEST` |
-| Fleet Overview recent changes | status changes | `DynamoDB HISTORY`, `S3 processed` |
+| Fleet Overview recent changes | status changes | `DynamoDB HISTORY#STATE`, `S3 processed` |
 | Factory Overview | current risk, environment, infra | `DynamoDB LATEST` |
-| Environment Risk chart | risk score trend | `DynamoDB HISTORY#STATE` |
-| Environment sensor chart | temperature, humidity, pressure | `DynamoDB HISTORY#STATE` |
-| Environment AI chart | fire, fall, bend score | `DynamoDB HISTORY#STATE` |
+| Environment Risk chart | risk score trend | `DynamoDB GRAPH#5M` |
+| Environment sensor chart | temperature, humidity, pressure | `DynamoDB GRAPH#5M` |
+| Environment AI chart | fire, fall, bend score | `DynamoDB GRAPH#5M` |
 | Infrastructure current table | nodes, workloads, devices | `DynamoDB LATEST.infra_state` |
-| Infrastructure charts | CPU, memory, disk, ready count | `DynamoDB HISTORY#STATE` |
-| Timeline | risk/pipeline/node/device changes | `DynamoDB HISTORY`, `S3 processed` |
+| Infrastructure charts | CPU, memory, disk, ready count | `DynamoDB GRAPH#5M`, 필요 시 `DynamoDB HISTORY#STATE` |
+| Timeline | risk/pipeline/node/device changes | `DynamoDB HISTORY#STATE`, `S3 processed` |
 
 ## MVP 화면 원칙
 
 - 첫 화면은 그래프보다 공장별 현재 위험 카드가 우선이다.
 - 공장 상세는 현재 판단, 환경 추세, 인프라 신뢰성, 시간 흐름을 분리한다.
 - `DynamoDB LATEST`는 현재 상태 화면에 사용한다.
-- `DynamoDB HISTORY`는 최근 1시간/2시간 그래프에 사용한다.
+- `DynamoDB GRAPH#5M`은 최근 1시간/2시간/24시간 그래프의 기본 read model로 사용한다.
+- `DynamoDB HISTORY#STATE`는 상태 변화 timeline과 상세 drill-down에 사용한다.
 - `S3 raw`와 `S3 processed`는 기본 화면 조회보다 상세/감사/리포트에서 사용한다.
-- 환경 그래프는 30초 간격, 인프라 그래프는 20초 간격으로 표시한다.
+- MVP 그래프는 5분 bucket을 기본으로 표시한다. 더 촘촘한 drill-down이 필요하면 `HISTORY#STATE`를 별도 조회한다.
 - Risk 상태는 `안전 / 주의 / 위험`을 기본 표현으로 사용한다.

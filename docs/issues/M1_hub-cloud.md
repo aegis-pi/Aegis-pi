@@ -83,7 +83,7 @@ M1 Hub 인프라를 Terraform으로 생성하기 전에 로컬 터미널에서 A
 ### 목표 (What & Why)
 
 Aegis-Pi Hub의 실행 환경인 EKS 클러스터를 생성한다.  
-최신 클라우드 아키텍처 기준에서는 ArgoCD, Grafana 등 제어/관측 컴포넌트가 EKS Hub 위에서 동작하고, IoT Core 이후 데이터 처리는 Lambda data processor가 DynamoDB LATEST/HISTORY와 S3 processed로 저장한다.
+최신 클라우드 아키텍처 기준에서는 ArgoCD, Grafana 등 제어/관측 컴포넌트가 EKS Hub 위에서 동작하고, IoT Core 이후 데이터 처리는 Lambda data processor가 DynamoDB LATEST/HISTORY#STATE와 S3 processed로 저장한다.
 따라서 이 클러스터 구성은 중앙 배포와 운영 관측 영역의 기반이 된다.
 
 ### 완료 조건 (Definition of Done)
@@ -527,7 +527,7 @@ Hub 내부 관측에 사용할 Grafana 또는 AMP 조회 기준을 구성한다.
 - [x] 데이터 소스 연결
   - AMP (Prometheus 호환)
 - [x] Grafana 버전 및 설치 방식 기록
-- [x] Dashboard VPC가 조회할 DynamoDB LATEST/HISTORY와 S3 processed 후보를 문서에 명시
+- [x] Dashboard VPC가 조회할 DynamoDB LATEST/HISTORY#STATE와 S3 processed 후보를 문서에 명시
 
 ### 🔍 Acceptance Criteria
 
@@ -556,7 +556,7 @@ Hub 내부 관측에 사용할 Grafana 또는 AMP 조회 기준을 구성한다.
   - Grafana Service `ClusterIP`
   - Grafana API proxy로 `up{cluster="AEGIS-EKS"}` AMP query 성공
   - Query result: `kubernetes-apiservers`, `kubernetes-nodes`, `kubernetes-pods`, `prometheus-agent` 모두 `1`
-- Dashboard VPC 최신 상태 저장소 후보: 최신 기준은 DynamoDB LATEST/HISTORY와 S3 processed. M1 당시 S3 `latest/` prefix 후보는 과거 검토안으로만 남김
+- Dashboard VPC 최신 상태 저장소 후보: 최신 기준은 DynamoDB LATEST/HISTORY#STATE와 S3 processed. M1 당시 S3 `latest/` prefix 후보는 과거 검토안으로만 남김
 
 ### GitHub Issue Comment Draft
 
@@ -788,7 +788,7 @@ IoT Core
   -> IoT Rule -> S3 raw
   -> Lambda data processor
       -> DynamoDB LATEST
-      -> DynamoDB HISTORY
+      -> DynamoDB HISTORY#STATE
       -> S3 processed
 ```
 

@@ -1,7 +1,7 @@
 # MVP 범위
 
 상태: source of truth
-기준일: 2026-05-28
+기준일: 2026-05-29
 
 ## 목적
 
@@ -12,10 +12,10 @@
 - MVP의 첫 기준선인 M0 `factory-a` Safe-Edge 구축과 실측 검증은 완료됐다.
 - AWS Hub EKS/ArgoCD, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a/b/c` IoT Thing/Policy/K3s Secret은 현재 build 스크립트와 factory별 등록 스크립트로 재생성/검증 가능하다. Hub는 `build-hub.sh`, Admin UI는 `build-admin-ui-after-ns.sh`, Tailnet UI는 `connect-hub-tailscale-ui.sh`, Spoke 등록은 `register-spoke-factory-a/b/c.sh`, 최종 확인은 `verify-complete.sh`가 담당한다.
 - 전체 MVP는 운영형 Spoke 1개와 테스트베드형 Spoke 2개를 포함한 멀티 공장 관제 구조를 목표로 한다.
-- 2026-05-28 기준 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed data-pipeline은 `factory-a/b/c` 기준으로 실제 AWS 리소스 검증을 완료했다.
+- 2026-05-29 기준 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed, GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg data-pipeline은 `factory-a/b/c` 기준으로 실제 AWS 리소스 검증을 완료했다.
 - Lambda data processor의 기본 Risk Score 계산은 구현/검증 완료 상태다. runtime-config 기반 weight/threshold/factory override 연결과 Risk Twin read model 고정은 후속 고도화다.
 - Bedrock 기반 factory별 일일 운영 보고서 초안 생성은 MVP 포함 범위로 확정했고, 로컬 테스트, Bedrock Sonnet 실호출, AWS reporting stack 배포, `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. reporting stack은 비용 방지를 위해 검증 후 삭제했으며 S3 input/output object는 보존한다. 세부 설계 source of truth는 `docs/planning/17_llm_daily_factory_report_plan.md`다.
-- Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다. 이 repo에서는 Dashboard가 조회할 DynamoDB/S3 processed read model과 Risk output 계약을 유지한다.
+- Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다. 이 repo에서는 Dashboard가 조회할 DynamoDB/S3 processed/processed_agg read model과 Risk output 계약을 유지한다.
 
 ## 2026-05-13 멘토링 반영
 
@@ -31,7 +31,7 @@
 
 기존 MVP 범위는 유지하되, LLM 보고서를 전체 자동화 기능이 아니라 하루 1회 운영 리포트 초안 생성으로 제한해 포함한다. 이 리포트는 자동 재학습이나 자동 배포가 아니라, Edge AI 판단의 실패/불확실 사례와 모델/설정 업데이트 후보를 찾는 용도다.
 
-추가로 Dashboard 최신 상태는 S3 raw를 직접 조회하는 방식이 아니라, DynamoDB LATEST/HISTORY를 통해 준실시간으로 조회한다. S3 raw는 원본 보존, 재처리, 감사용으로 유지한다. 일일 운영 보고서의 MVP 입력은 S3 `processed/`이며, Bedrock에는 원본 raw payload를 직접 넣지 않는다.
+추가로 Dashboard 최신 상태는 S3 raw를 직접 조회하는 방식이 아니라, DynamoDB LATEST를 통해 준실시간으로 조회하고 최근 그래프는 DynamoDB GRAPH#5M을 우선 사용한다. 상세 drill-down은 HISTORY#STATE를 사용한다. S3 raw는 원본 보존, 재처리, 감사용으로 유지한다. 일일 운영 보고서의 MVP 입력은 S3 `processed/`이며, Bedrock에는 원본 raw payload를 직접 넣지 않는다.
 
 ## 현재 완료 범위
 
@@ -53,7 +53,8 @@
 - IoT Rule -> S3 raw 적재
 - `factory-a` IoT Thing/certificate/policy 및 K3s Secret
 - `factory-b/c` VM K3s 테스트베드, local dummy generator, 공통 publisher, S3 raw 적재 검증
-- Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, `pipeline_status` 계산 및 `factory-a/b/c` end-to-end 검증
+- Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed, `pipeline_status` 계산 및 `factory-a/b/c` end-to-end 검증
+- GraphAggregator5m, DynamoDB GRAPH#5M, S3 processed_agg 5분 그래프 집계 검증
 - Lambda data processor 기본 Risk Score 계산
 - Daily Factory Report MVP local/AWS manual execution 검증
 

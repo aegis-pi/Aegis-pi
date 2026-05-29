@@ -74,7 +74,7 @@
 
 ```text
 M6 Issue 2~4 - runtime-config 적용, 온도/습도 기준값 계산 연결, Risk Twin 출력 구조 구현
-Daily Factory Report 고도화 - S3 read 병렬화/state_snapshot 축소, generation metadata 비용 관측 필드 추가
+Daily Factory Report 고도화 - S3 read 병렬화/state_snapshot 축소, generation metadata 비용 관측 필드 추가, CloudWatch 기반 reporting pipeline health 보조 조회
 Dashboard page 및 Dashboard VPC - 별도 담당 범위. 이 repo는 DynamoDB/S3 processed read model과 Risk 계약을 제공
 ```
 
@@ -105,7 +105,7 @@ scripts/destroy/stop-dummy-generators.sh
 scripts/destroy/destroy-hub.sh <MFA_OTP>
 ```
 
-Hub 상태와 무관하게 다음 구현 작업은 M6 Risk 데이터 계약 고도화와 Daily Factory Report 성능/관측성 개선이다. Daily report는 `apps/daily-report-generator/`와 `infra/reporting/` 로컬 구현, Bedrock Sonnet 실호출, 24시간 `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. 검증 후 reporting stack은 `destroy-reporting.sh`로 삭제했고 S3 `processed/` 입력과 `reports/daily/` 출력은 보존한다.
+Hub 상태와 무관하게 다음 구현 작업은 M6 Risk 데이터 계약 고도화와 Daily Factory Report 성능/관측성 개선이다. Daily report는 `apps/daily-report-generator/`와 `infra/reporting/` 로컬 구현, Bedrock Sonnet 실호출, 24시간 `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. 2026-05-28 최종 검증에서는 `manual-factory-report-20260528T064840Z`가 `SUCCEEDED`였고, `report.md`의 핵심 지표/데이터 수집/Risk Score/센서 및 AI 이벤트/인프라 상태/주요 이벤트/확인 필요 항목 표와 분석 문단을 확인했다. 검증 후 reporting stack은 `destroy-reporting.sh`로 삭제했고 S3 `processed/` 입력과 `reports/daily/` 출력은 보존한다.
 
 ## 2026-05-27 Hub Cost Optimization 상태
 
@@ -196,7 +196,7 @@ Lambda:
   - DynamoDB: AEGIS-DynamoDB-FactoryStatus factory-a/b/c LATEST 갱신 확인
   - pipeline_status: factory-a/b/c 모두 normal 확인
   - risk: factory-a/b/c 모두 safe 확인
-  - DynamoDB TTL: ttl ENABLED, HISTORY 보존 48h 기준
+  - DynamoDB TTL: ttl ENABLED, HISTORY#STATE/GRAPH#5M 보존은 Terraform/Lambda TTL 변수 기준
   - S3 bucket 설정: ap-south-1, versioning enabled, SSE-S3 AES256, public access block 전체 true, BucketOwnerEnforced, raw/processed lifecycle 적용
 
 완료: M6 Issue 1 Lambda Risk 계산 로직 구현
@@ -208,18 +208,21 @@ Lambda:
 
 완료: MVP Daily Factory Report AWS 수동 실행 검증
   - python -m compileall -q apps/daily-report-generator 통과
-  - python -m pytest -q apps/daily-report-generator 통과 (10 passed)
+  - python -m pytest -q apps/daily-report-generator 통과 (11 passed)
   - terraform -chdir=infra/reporting fmt/init/validate 통과
   - scripts/build/build-reporting.sh 로 reporting stack apply 완료 (17 added)
-  - Step Functions manual execution: manual-factory-report-20260528T012107Z, SUCCEEDED
+  - 최종 Step Functions manual execution: manual-factory-report-20260528T064840Z, SUCCEEDED
   - 검증 input: report_date=2026-05-27, timezone=Asia/Seoul, factories=["factory-b"], report_type=daily_factory_operations_draft
   - S3 output: s3://aegis-bucket-data/reports/daily/yyyy=2026/mm=05/dd=27/factory-b/
   - hourly hh=00~23, factory-daily-summary.json, report-context.json, report.md, generation-metadata.json 확인
   - report_window: KST 2026-05-27T00:00:00+09:00~23:59:59+09:00, UTC 2026-05-26T15:00:00Z~2026-05-27T14:59:59Z 확인
   - generation-metadata model_id: anthropic.claude-3-sonnet-20240229-v1:0 확인
   - report.md는 S3 processed 기반/raw 미사용/testbed dummy 해석/검증 기준 수치 섹션 포함 확인
+  - report.md에 핵심 지표/데이터 수집/Risk Score/센서 및 AI 이벤트/인프라 상태/주요 이벤트/확인 필요 항목 표와 분석 문단 포함 확인
+  - Bedrock 출력 heading trailing space 때문에 섹션 표 삽입이 누락될 수 있는 케이스 수정: `generate_report.py` heading match 공백 허용, `test_generate_report.py` 회귀 테스트 추가
+  - CloudWatch Logs/metrics 기반 reporting pipeline health 보조 조회를 후속 확장 방향으로 문서화
   - 비용 기준: docs/ops/25_daily_factory_report_cost.md 추가
-  - 검증 후 scripts/destroy/destroy-reporting.sh 로 reporting stack destroy 완료 (17 destroyed), S3 input/output object 보존
+  - 검증 후 scripts/destroy/destroy-reporting.sh 로 reporting stack destroy 완료 (17 destroyed), reporting Lambda/Step Functions/Scheduler/IAM/LogGroup 삭제 확인, S3 input/output object 보존 확인
 
 버그 수정 이력 (2026-05-18 세션):
   - fix 1: factory-a-log-adapter CMD --once -> --loop (CrashLoopBackOff)
@@ -559,7 +562,7 @@ Daily Factory Report AWS 수동 실행 검증은 완료됐다. 다음 세션에�
 4. Risk output 계약 확정: score/level/top_causes + Risk Twin read model 필드
 5. runtime-config.yaml을 Lambda package 또는 배포 입력으로 읽는 방식 결정
 6. risk_enabled/weight/threshold/factory override 적용
-7. DynamoDB LATEST/HISTORY와 S3 processed risk_score/state_snapshot에 Risk Twin 필드 반영
+7. DynamoDB LATEST/HISTORY#STATE와 S3 processed risk_score/state_snapshot에 Risk Twin 필드 반영
 8. apps/data-processor 단위 테스트와 필요한 fixture 갱신
 ```
 
@@ -796,26 +799,28 @@ Daily Factory Report 검증 완료:
   /home/vicbear/Aegis/test_paper/factory-b-hh03-enriched-v2-test-note.md
 
 검증:
-  python -m pytest -q apps/daily-report-generator 통과: 10 passed
+  python -m pytest -q apps/daily-report-generator 통과: 11 passed
   python -m compileall -q apps/daily-report-generator 통과
   terraform -chdir=infra/reporting fmt -check -diff 통과
   terraform -chdir=infra/reporting init/validate 통과
   scripts/build/build-reporting.sh 실행: 17 resources added
-  Step Functions manual execution manual-factory-report-20260528T012107Z: SUCCEEDED
+  Step Functions manual execution manual-factory-report-20260528T064840Z: SUCCEEDED
   S3 reports/daily/yyyy=2026/mm=05/dd=27/factory-b/ 산출물 확인
-  scripts/destroy/destroy-reporting.sh 실행: 17 resources destroyed, S3 processed input과 reports/daily output 보존
+  report.md 핵심 지표/데이터 수집/Risk Score/센서 및 AI 이벤트/인프라 상태/주요 이벤트/확인 필요 항목 표와 분석 문단 확인
+  scripts/destroy/destroy-reporting.sh 실행: 17 resources destroyed, reporting Lambda/Step Functions/Scheduler/IAM/LogGroup 삭제 확인, S3 processed input과 reports/daily output 보존
 
 주의:
   reporting stack은 현재 내려간 상태다. 필요할 때 build-reporting.sh로 다시 배포한다.
   Daily Report 실행 병목은 작은 S3 processed object 다량 순차 GetObject이며, 비용/성능 개선 후보로 남긴다.
+  CloudWatch Logs/metrics 기반 reporting pipeline health는 후속 확장 방향으로 문서화됐고, 아직 구현 전이다.
   Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다.
 
 다음 세션 우선 작업:
   1. git status --short 로 변경 파일 확인
   2. Risk output 계약과 Dashboard read model 필드 확정
   3. runtime-config.yaml을 Lambda data processor Risk 계산에 연결
-  4. Risk Twin 출력 구조를 DynamoDB LATEST/HISTORY와 S3 processed에 반영
-  5. Daily Report S3 read 병렬화/state_snapshot 축소/metadata 비용 관측 필드 중 하나를 선택해 고도화
+  4. Risk Twin 출력 구조를 DynamoDB LATEST/HISTORY#STATE와 S3 processed에 반영
+  5. Daily Report S3 read 병렬화/state_snapshot 축소/metadata 비용 관측 필드/CloudWatch 보조 조회 중 하나를 선택해 고도화
 ```
 
 ## 갱신 규칙

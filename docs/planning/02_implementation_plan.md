@@ -16,7 +16,7 @@
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
 - M3는 Issue 1~5와 build/verify 기반 배포 검증 범위를 완료했다. Issue 6 manifest 자동 갱신 workflow는 M7 CI/CD hardening 때 재검토한다.
-- M4 Issue 1~8 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, 이미지화/GitOps chart, IoT Core -> S3 raw 적재, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, `pipeline_status` 검증은 완료했다.
+- M4 Issue 1~8 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, 이미지화/GitOps chart, IoT Core -> S3 raw 적재, Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed, `pipeline_status` 검증은 완료했다.
 - M5는 `factory-b/c` 2-node VM K3s, Tailnet/Hub ArgoCD 등록, GitOps hostPath outbox 전환, local dummy generator systemd 실행, common `edge-iot-publisher` 배포, IoT Core -> S3 raw 분리 적재 검증까지 완료했다.
 - 2026-05-27 기준 `factory-a/b/c` data-pipeline은 실제 AWS 리소스로 end-to-end 검증됐고, `factory-a` 최신 processed `state_snapshot`은 `nodes_ready=3/3`, `pods_ready=6/6`, `pipeline_status=normal` 상태다.
 - Bedrock 기반 factory별 일일 운영 보고서는 MVP 포함으로 확정했다. 구현 기준은 `docs/planning/17_llm_daily_factory_report_plan.md`이며, reporting stack은 `ap-south-1`, S3 `processed/` 입력, `reports/daily/` 출력, `infra/reporting/` 별도 Terraform root module을 따른다.
@@ -220,7 +220,7 @@ Hub 생성 순서:
 - S3 raw prefix가 `factory_id/source_type/yyyy/mm/dd` 기준으로 확인됨
 - Hub ArgoCD가 두 data-plane workload를 `factory-a` K3s에 배포/복구할 수 있음
 - worker2 장애 시 data-plane workload가 worker1로 재스케줄되고 pipeline 관련 상태가 계속 송신
-- Lambda data processor가 DynamoDB LATEST/HISTORY와 S3 processed를 갱신함
+- Lambda data processor가 DynamoDB LATEST/HISTORY#STATE와 S3 processed를 갱신함
 - `pipeline_status`가 `factory-a/b/c` LATEST와 processed state_snapshot에 반영됨
 
 ### Phase 6. M5 VM Spoke 확장 - `factory-b`, `factory-c`
@@ -262,7 +262,7 @@ Hub 생성 순서:
 - 온도/습도 기준 초안 반영
 - Risk Twin 출력 구조 구현
 - Dashboard Web/API 또는 Grafana 관제 화면 구현 - Dashboard page/VPC는 별도 담당 범위
-- Dashboard VPC에서 ALB/WAF/Auth를 통해 접근하고, DynamoDB LATEST/HISTORY와 S3 processed를 read-only로 조회 - 이 repo는 조회 대상 데이터 계약을 제공
+- Dashboard VPC에서 ALB/WAF/Auth를 통해 접근하고, DynamoDB LATEST/HISTORY#STATE와 S3 processed를 read-only로 조회 - 이 repo는 조회 대상 데이터 계약을 제공
 
 완료 조건:
 

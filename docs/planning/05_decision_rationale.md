@@ -22,7 +22,7 @@ factory-a / factory-b / factory-c
   -> AWS IoT Core
   -> IoT Rule / S3 raw
   -> Lambda data processor
-  -> DynamoDB LATEST/HISTORY + S3 processed
+  -> DynamoDB LATEST/HISTORY#STATE + S3 processed
   -> Data / Dashboard VPC Web/API
 ```
 
@@ -238,7 +238,7 @@ IoT Core
   -> IoT Rule -> S3 raw
   -> Lambda data processor
       -> DynamoDB LATEST
-      -> DynamoDB HISTORY
+      -> DynamoDB HISTORY#STATE
       -> S3 processed
   -> Dashboard Backend/API
 ```
@@ -255,9 +255,9 @@ S3 raw data
 
 ### 판단
 
-Aegis-Pi의 MVP Risk 계산은 `factory_state`와 `infra_state` 수신 시 최신 상태를 갱신하고, 최근 그래프용 history를 남기며, 원본과 처리 결과를 S3에 보존하는 흐름이다.
+Aegis-Pi의 MVP Risk 계산은 `factory_state`와 `infra_state` 수신 시 최신 상태를 갱신하고, 상세 이력용 `HISTORY#STATE` snapshot을 남기며, GraphAggregator5m이 최근 그래프용 `GRAPH#5M` read model을 생성하는 흐름이다. 원본과 처리 결과는 S3에 보존한다.
 
-이 작업은 Lambda 단일 함수 안에서도 DynamoDB LATEST/HISTORY를 상태 저장소로 두면 처리할 수 있다.
+이 작업은 Lambda 단일 함수 안에서도 DynamoDB LATEST/HISTORY#STATE를 상태 저장소로 두면 처리할 수 있다.
 
 Lambda data processor는 아래 판단을 수행한다.
 
@@ -272,7 +272,7 @@ score_delta_10m
 safe / warning / danger 상태 전환
 ```
 
-공장별 최근 상태와 이전 상태 비교는 DynamoDB LATEST/HISTORY를 기준으로 처리한다.
+공장별 최근 상태와 이전 상태 비교는 DynamoDB LATEST/HISTORY#STATE를 기준으로 처리한다.
 
 별도 장기 실행 Risk 서비스/worker를 두면 EKS/ECS 배포, 네트워크, IAM, scaling, 모니터링, 롤아웃 범위가 늘어난다. 현재 MVP에서는 Dashboard의 빠른 현재 상태 조회와 최근 그래프가 핵심이므로 Lambda + DynamoDB hot store가 더 단순하다.
 
@@ -280,9 +280,11 @@ Lambda 방식에서 필요한 상태 저장소와 조회 계약은 이미 아래
 
 ```text
 DynamoDB LATEST: 공장별 현재 상태
-DynamoDB HISTORY: 최근 그래프
+DynamoDB HISTORY#STATE: 상세 snapshot과 GraphAggregator5m 입력
+DynamoDB GRAPH#5M: 최근 그래프 기본 read model
 S3 raw: 원본 장기 보존
 S3 processed: 처리 결과 장기 이력
+S3 processed_agg: 5분 그래프 집계 보조 산출물
 ```
 
 따라서 MVP에서는 Risk 계산 본체를 별도 장기 실행 서비스보다 Lambda data processor로 둔다.
@@ -294,7 +296,7 @@ IoT Core 이후 cloud-side 처리 기준은 Lambda data processor다.
 별도 risk-normalizer, risk-score-engine, pipeline-status-aggregator 파드는 MVP ECR/배포 대상에서 제외한다.
 ```
 
-## 왜 Data / Dashboard VPC + DynamoDB LATEST/HISTORY인가
+## 왜 Data / Dashboard VPC + DynamoDB LATEST/HISTORY#STATE인가
 
 2026-05-09 기준 최신 확정 클라우드 아키텍처는 `docs/planning/15_cloud_architecture_final.md`를 따른다. 이 문서의 예전 `Dashboard VPC` / `Processing VPC` 표현은 1번 `Data / Dashboard VPC`와 2번 `Control / Management VPC` 기준으로 해석한다.
 
@@ -303,7 +305,10 @@ IoT Core 이후 cloud-side 처리 기준은 Lambda data processor다.
 ```text
 Lambda data processor
   -> S3 processed
-  -> DynamoDB LATEST/HISTORY
+  -> DynamoDB LATEST/HISTORY#STATE
+GraphAggregator5m
+  -> DynamoDB GRAPH#5M
+  -> S3 processed_agg
   -> Data / Dashboard VPC Web/API
   -> Route53 / ALB / WAF / Auth
 ```
@@ -329,19 +334,19 @@ Data / Dashboard VPC를 제어 plane과 분리하면 아래 이점이 있다.
 Route53/ALB/WAF/Auth 기반 관리자 접근
 Control / Management VPC public ingress 최소화
 Dashboard Web/API가 ArgoCD/Tailscale/EKS API에 직접 접근하지 않음
-DynamoDB LATEST/HISTORY와 S3 processed만 read-only 조회
+DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg만 read-only 조회
 대시보드 침해 시 EKS/ArgoCD/Spoke API로 lateral movement 제한
 ```
 
 Grafana는 내부 관측 또는 AMP 탐색용으로 유지할 수 있지만, public 관리자 화면의 기본 방향은 Dashboard Web/API다.
 
-S3만으로 대시보드를 구성하면 최신 상태 조회가 느릴 수 있으므로 DynamoDB LATEST/HISTORY hot store를 둔다. 일반 상태 변화는 10~35초, 장애 판정은 40~60초 반영을 MVP 목표로 삼는다.
+S3만으로 대시보드를 구성하면 최신 상태와 최근 그래프 조회가 느릴 수 있으므로 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE hot store를 둔다. 일반 상태 변화는 10~35초, 장애 판정은 40~60초 반영을 MVP 목표로 삼는다.
 
 ### 결론
 
 ```text
-MVP 관리자 관제는 Data / Dashboard VPC + DynamoDB LATEST/HISTORY를 목표로 한다.
-Risk Twin 결과는 DynamoDB LATEST/HISTORY와 S3 processed에 기록한다.
+MVP 관리자 관제는 Data / Dashboard VPC + DynamoDB LATEST/GRAPH#5M/HISTORY#STATE를 목표로 한다.
+Risk Twin 결과는 DynamoDB LATEST/HISTORY#STATE와 S3 processed에 기록한다.
 필요하면 AMP/Grafana용 Prometheus-compatible metrics도 함께 노출한다.
 ```
 
@@ -480,6 +485,6 @@ K3s 운영 부담이 Greengrass fleet 관리보다 커지는 경우
 엣지 로컬 메시징과 필터링이 복잡해지는 경우
 Risk 계산이 단순 이벤트 변환 수준으로 축소되는 경우
 Dashboard VPC 구현 부담이 MVP 범위를 크게 초과하는 경우
-DynamoDB LATEST/HISTORY 반영 지연이 관제 요구를 만족하지 못하는 경우
+DynamoDB LATEST/HISTORY#STATE 반영 지연이 관제 요구를 만족하지 못하는 경우
 물리 장애 테스트를 정기적으로 무인 수행해야 하는 경우
 ```

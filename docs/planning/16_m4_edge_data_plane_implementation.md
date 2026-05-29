@@ -232,7 +232,7 @@ scripts/build/verify-complete.sh
 Lambda data processor 구현:
 - IoT Core Rule에서 Lambda 트리거 연결
 - 수신 메시지 정규화 및 Risk Score 계산
-- DynamoDB LATEST/HISTORY 갱신
+- DynamoDB LATEST/HISTORY#STATE 갱신
 - S3 processed 저장
 
 Hub 재구성 시:

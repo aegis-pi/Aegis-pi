@@ -22,7 +22,7 @@ MVP 확장 방향은 2 VPC 구조를 기준으로 한다.
 
 | 영역 | 역할 | 주요 리소스 |
 | --- | --- | --- |
-| 1번 VPC | 데이터 처리 결과 조회, 위험도 표시, 사용자 관제 화면 | Dashboard Web, Dashboard Backend/API, Lambda data processor 연동, DynamoDB LATEST/HISTORY, S3 processed, Replay Builder, Near-miss Aggregator |
+| 1번 VPC | 데이터 처리 결과 조회, 위험도 표시, 사용자 관제 화면 | Dashboard Web, Dashboard Backend/API, Lambda data processor 연동, DynamoDB LATEST/HISTORY#STATE, S3 processed, Replay Builder, Near-miss Aggregator |
 | 2번 VPC | 중앙 제어, 배포, Hub-Spoke 연결, 운영 관측 | EKS Hub, ArgoCD, Tailscale, Prometheus Agent, Grafana, AWS Load Balancer Controller |
 
 Grafana는 2번 Control / Management VPC에 둔다. 현재 클라우드 Grafana는 사용자용 Risk Twin 대시보드가 아니라 Hub EKS와 AMP 메트릭을 보는 운영자용 observability 도구이기 때문이다.
@@ -76,7 +76,7 @@ Private App subnet
   - AI / analytics worker
 
 Private Data subnet
-  - DynamoDB LATEST/HISTORY access
+  - DynamoDB LATEST/HISTORY#STATE access
   - S3 processed access
   - RDS / PostgreSQL (후속)
   - Redis / ElastiCache (후속)
@@ -303,7 +303,7 @@ factory telemetry
   -> IoT Core
       -> IoT Rule -> S3 raw
       -> Lambda data processor
-          -> DynamoDB LATEST/HISTORY
+          -> DynamoDB LATEST/HISTORY#STATE
           -> S3 processed
   -> 1번 VPC Dashboard API가 조회
 
@@ -370,7 +370,7 @@ Fleet Controller라는 별도 서비스는 현재 프로젝트 범위에 없다.
 3. Dashboard Web이 서버형인지 정적 SPA인지 확정한다.
 4. Dashboard Backend/API와 Lambda data processor의 저장소 계약을 API 수준으로 문서화한다.
 5. Data / Dashboard VPC의 저장소 후보를 확정한다.
-   - MVP: DynamoDB LATEST/HISTORY, S3 `processed/`
+   - MVP: DynamoDB LATEST/HISTORY#STATE, S3 `processed/`
    - 후속: RDS, Redis, OpenSearch
 6. 1번 VPC workload의 메트릭을 AMP로 보낼지 결정한다.
 7. ArgoCD HA 옵션은 M3/M4 이후 운영 안정화 단계에서 검토한다.
@@ -386,7 +386,7 @@ IoT Core
   -> IoT Rule -> S3 raw
   -> Lambda data processor
       -> DynamoDB LATEST
-      -> DynamoDB HISTORY
+      -> DynamoDB HISTORY#STATE
       -> S3 processed
 Dashboard Backend/API
   -> DynamoDB + S3 processed read-only 조회

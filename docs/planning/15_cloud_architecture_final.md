@@ -40,7 +40,7 @@ Factory Spoke 영역
 
 ### 보강 방향
 
-최신 기준에서는 S3 raw 흐름을 원본 보존과 재처리 경로로 유지한다. 동시에 Dashboard 현재 상태 조회를 위해 IoT Core 이후 Lambda data processor가 DynamoDB LATEST/HISTORY와 S3 processed를 갱신한다. Dual VPC는 고객 보안 요구와 역할 분리 요구가 있을 때 설득력 있는 목표 구조로 설명한다.
+최신 기준에서는 S3 raw 흐름을 원본 보존과 재처리 경로로 유지한다. 동시에 Dashboard 현재 상태 조회를 위해 IoT Core 이후 Lambda data processor가 DynamoDB LATEST/HISTORY#STATE와 S3 processed를 갱신한다. Dual VPC는 고객 보안 요구와 역할 분리 요구가 있을 때 설득력 있는 목표 구조로 설명한다.
 
 전체 연결 구조는 아래와 같다.
 
@@ -58,7 +58,8 @@ factory-a / factory-b / factory-c
   -> telemetry
   -> IoT Core
       -> IoT Rule -> S3 raw
-      -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed
+      -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed
+      -> GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg
   -> Data / Dashboard VPC
       -> Dashboard Backend/API
       -> Dashboard Web
@@ -219,7 +220,7 @@ Private App Subnet
 
 ```text
 Private Data Subnet
-  - DynamoDB LATEST/HISTORY access
+  - DynamoDB LATEST/HISTORY#STATE access
   - S3 processed access
   - RDS / PostgreSQL (후속)
   - Redis / ElastiCache (후속)
@@ -234,7 +235,7 @@ factory-a/b/c telemetry
       -> IoT Rule -> S3 raw
       -> Lambda data processor
           -> DynamoDB LATEST
-          -> DynamoDB HISTORY
+          -> DynamoDB HISTORY#STATE
           -> S3 processed
   -> Dashboard Backend/API
   -> Dashboard Web
@@ -303,7 +304,7 @@ Data / Dashboard VPC
   - Dashboard Web
   - Dashboard Backend/API
   - Lambda data processor integration
-  - DynamoDB LATEST/HISTORY
+  - DynamoDB LATEST/HISTORY#STATE
   - S3 processed
   - Replay Builder
   - Near-miss Aggregator
@@ -330,7 +331,8 @@ GitHub Actions
 factory-a/b/c
   -> IoT Core
       -> IoT Rule -> S3 raw
-      -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed
+      -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed
+      -> GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg
   -> Dashboard API
   -> Dashboard Web
 ```
@@ -403,7 +405,7 @@ factory-a-log-adapter 또는 dummy-data-generator
       -> IoT Rule -> S3 raw
       -> Lambda data processor
           -> DynamoDB LATEST
-          -> DynamoDB HISTORY
+          -> DynamoDB HISTORY#STATE
           -> S3 processed
   -> Dashboard API/Web
 ```

@@ -60,10 +60,11 @@ factory-a-log-adapter / dummy-data-generator
   -> edge-iot-publisher
   -> AWS IoT Core
       -> IoT Rule -> S3 raw
-      -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed
+      -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed
+      -> GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg
 
 Dashboard API/Web
-  -> DynamoDB LATEST/HISTORY
+  -> DynamoDB LATEST/HISTORY#STATE
   -> S3 processed
 ```
 
@@ -144,7 +145,7 @@ raw/factory-a/infra_state/yyyy=2026/mm=05/dd=14/factory-a:infra_state:cluster:20
 
 ### Envelope Contract
 
-M4 구현에서는 위 envelope 필드를 모두 필수로 보낸다. 필드가 없으면 Lambda data processor는 해당 메시지를 처리 실패로 기록하고 DynamoDB LATEST/HISTORY에는 반영하지 않는다.
+M4 구현에서는 위 envelope 필드를 모두 필수로 보낸다. 필드가 없으면 Lambda data processor는 해당 메시지를 처리 실패로 기록하고 DynamoDB LATEST/HISTORY#STATE에는 반영하지 않는다.
 
 허용값:
 

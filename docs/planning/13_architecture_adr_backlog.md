@@ -119,7 +119,7 @@ Private Data subnet
   - Dashboard Web
   - Dashboard Backend/API
   - Lambda data processor
-  - DynamoDB LATEST/HISTORY
+  - DynamoDB LATEST/HISTORY#STATE
   - S3 processed
   - Replay Builder
   - Near-miss Aggregator
@@ -468,7 +468,7 @@ Data service metrics
   -> Control VPC Grafana가 조회
 
 Risk 결과
-  -> DynamoDB LATEST/HISTORY + S3 processed
+  -> DynamoDB LATEST/HISTORY#STATE + S3 processed
   -> Dashboard API가 조회
 ```
 
@@ -542,7 +542,7 @@ IoT Core
   -> IoT Rule -> S3 raw
   -> Lambda data processor
       -> DynamoDB LATEST
-      -> DynamoDB HISTORY
+      -> DynamoDB HISTORY#STATE
       -> S3 processed
 ```
 

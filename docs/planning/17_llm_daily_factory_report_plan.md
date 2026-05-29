@@ -43,7 +43,7 @@
 | `docs/planning/11_delivery_ownership_flow.md` | Terraform, Lambda, GitHub Actions, ArgoCD 책임 경계 |
 | `docs/planning/16_m4_edge_data_plane_implementation.md` | Edge data-plane 구현과 검증 이력 |
 | `docs/specs/iot_data_format.md` | `factory_state`, `infra_state` canonical JSON 계약 |
-| `docs/specs/data_storage_pipeline.md` | S3 raw/processed, DynamoDB LATEST/HISTORY 저장 계약 |
+| `docs/specs/data_storage_pipeline.md` | S3 raw/processed, DynamoDB LATEST/HISTORY#STATE 저장 계약 |
 | `docs/ops/23_data_pipeline.md` | IoT Core -> Lambda -> DynamoDB/S3 processed 구현 레퍼런스 |
 | `apps/data-processor/README.md` | 기존 Lambda data processor 구조와 저장 경로 |
 | `infra/data-pipeline/README.md` | data-pipeline Terraform 레이어와 build/destroy 기준 |
@@ -173,7 +173,7 @@ factory-a/b/c
   -> AWS IoT Core
       -> S3 raw
       -> Lambda data processor
-          -> DynamoDB LATEST/HISTORY
+          -> DynamoDB LATEST/HISTORY#STATE
           -> S3 processed
 ```
 

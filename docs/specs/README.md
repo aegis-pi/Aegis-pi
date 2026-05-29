@@ -7,7 +7,7 @@
 | 경로 | 역할 |
 | --- | --- |
 | `iot_data_format.md` | Edge data-plane components -> IoT Core 전송 데이터 포맷, topic, S3 raw path, 전송 주기 명세 |
-| `data_storage_pipeline.md` | IoT Core 이후 S3 raw/processed, DynamoDB LATEST/HISTORY 저장 경로와 포맷 |
+| `data_storage_pipeline.md` | IoT Core 이후 S3 raw/processed/processed_agg, DynamoDB LATEST/HISTORY#STATE/GRAPH#5M 저장 경로와 포맷 |
 | `monitoring_dashboard/` | 관제 화면 요구사항, 화면 구성, API, 데이터 모델 명세 |
 
 ## 기준

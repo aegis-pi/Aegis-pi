@@ -21,7 +21,7 @@
 현재 완료 상태:
 
 - M0~M5 주요 구현과 검증은 완료.
-- Lambda data processor는 IoT Core 수신 메시지를 DynamoDB LATEST/HISTORY와 S3 processed에 저장한다.
+- Lambda data processor는 IoT Core 수신 메시지를 DynamoDB LATEST/HISTORY#STATE와 S3 processed에 저장한다.
 - 기본 Risk Score 계산은 apps/data-processor/processor/risk.py 에 구현되어 있다.
 - 현재 Risk 계산 대상은 temperature, humidity, AI event rate이며 score/level/top_causes를 출력한다.
 - configs/runtime/runtime-config.yaml은 존재하지만 data processor risk.py는 아직 하드코딩 상수를 사용한다.
@@ -46,7 +46,7 @@
    - 단위 테스트를 추가/수정한다.
 
 3. Risk Twin 출력 구조를 DynamoDB/S3 processed에 반영한다.
-   - DynamoDB LATEST/HISTORY에서 Dashboard가 읽을 필드를 안정화한다.
+   - DynamoDB LATEST/HISTORY#STATE에서 Dashboard가 읽을 필드를 안정화한다.
    - S3 processed risk_score/state_snapshot에 동일 계약을 남긴다.
    - Dashboard 구현은 하지 않는다.
 

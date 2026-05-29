@@ -76,13 +76,13 @@
 | DEC-04 | Edge 실행 환경은 K3s를 유지한다 | `factory-a`에서 K3s, ArgoCD, Longhorn, failover/failback 기준선이 검증됐다 | Greengrass를 MVP 메인 런타임으로 도입 | `docs/planning/05_decision_rationale.md` |
 | DEC-05 | Edge data-plane publisher가 IoT Core로 MQTT publish한다 | 디바이스 인증, 라우팅, S3 적재를 표준 AWS 경로로 처리한다 | 직접 HTTP API 수신 | `docs/planning/05_decision_rationale.md` |
 | DEC-06 | IoT Core 수신 원본은 S3 raw로 보존한다 | 재처리, 감사, Risk 로직 보정 근거를 남긴다 | Risk Service 직접 처리만 수행 | `docs/planning/05_decision_rationale.md`, `docs/specs/iot_data_format.md` |
-| DEC-07 | Risk 계산은 Lambda data processor로 둔다 | 최근 상태, 이전 상태, 지속 시간, top causes는 DynamoDB LATEST/HISTORY를 상태 저장소로 두고 계산한다 | 별도 장기 실행 Risk 서비스/worker | `docs/planning/05_decision_rationale.md`, `docs/specs/data_storage_pipeline.md` |
+| DEC-07 | Risk 계산은 Lambda data processor로 둔다 | 최근 상태, 이전 상태, 지속 시간, top causes는 DynamoDB LATEST/HISTORY#STATE를 상태 저장소로 두고 계산한다 | 별도 장기 실행 Risk 서비스/worker | `docs/planning/05_decision_rationale.md`, `docs/specs/data_storage_pipeline.md` |
 | DEC-08 | 공장 상태와 인프라 상태를 `factory_state`, `infra_state`로 나눈다 | Risk 입력과 운영 헬스 체크의 목적과 주기가 다르다 | 5~6개 source type을 모두 별도 전송 | `docs/specs/iot_data_format.md` |
 | DEC-09 | `factory_state`는 3초 주기로 전송한다 | Risk Score 입력을 준실시간으로 반영한다 | AI 결과 변화 즉시 이벤트 전송 | `docs/specs/iot_data_format.md` |
 | DEC-10 | AI 결과는 최근 window 평균 score로 보낸다 | 모델 오탐에 민감하게 반응하지 않고 Lambda data processor의 Risk 계산 로직이 가중치 계산을 하게 한다 | Edge에서 최종 `0/1` 판정 | `docs/specs/iot_data_format.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
 | DEC-11 | `infra_state`는 20초 주기로 전송한다 | 1분 내 파이프라인 헬스 체크를 하면서 운영 부담을 줄인다 | heartbeat 별도 파이프라인 | `docs/specs/iot_data_format.md` |
 | DEC-12 | `pipeline_status`는 cloud-side에서 계산한다 | Edge는 사실과 요약값만 보내고 최종 판단은 중앙에서 일관되게 한다 | Edge data-plane이 최종 pipeline 상태를 직접 판단 | `docs/specs/iot_data_format.md` |
-| DEC-13 | Dashboard는 DynamoDB LATEST/HISTORY를 우선 조회한다 | S3 raw만으로는 최신 상태 조회 근거가 약하다 | S3 raw 직접 조회 기반 화면 | `docs/specs/data_storage_pipeline.md`, `docs/planning/15_cloud_architecture_final.md` |
+| DEC-13 | Dashboard는 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE를 우선 조회한다 | S3 raw만으로는 최신 상태와 최근 그래프 조회 근거가 약하다 | S3 raw 직접 조회 기반 화면 | `docs/specs/data_storage_pipeline.md`, `docs/planning/15_cloud_architecture_final.md` |
 | DEC-14 | Control / Management VPC와 Data / Dashboard VPC를 분리한다 | 고객 보안, 역할 분리, 감사 요구가 강해질 때 설득력 있는 목표 구조다 | 단일 VPC만 고정 | `docs/planning/12_two_vpc_mvp_architecture_decision.md`, `docs/planning/15_cloud_architecture_final.md` |
 | DEC-15 | Dashboard Web/API는 ArgoCD, Tailscale, EKS API, Spoke API를 직접 조회하지 않는다 | 사용자 조회망과 제어망의 lateral movement를 줄인다 | Dashboard가 제어 plane API 직접 조회 | `docs/planning/07_dashboard_vpc_extension_plan.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
 | DEC-16 | Grafana는 운영자/개발자용 관측 도구로 둔다 | 사용자용 Risk Twin Dashboard와 역할이 다르다 | Grafana를 public 사용자 제품 화면으로 사용 | `docs/planning/12_two_vpc_mvp_architecture_decision.md` |
@@ -160,7 +160,7 @@
 | FR-03 | Edge data-plane은 클러스터, 노드, 워크로드, 장치, heartbeat 상태를 `infra_state` 메시지로 전송해야 한다. | DEC-08, DEC-11 |
 | FR-04 | Lambda data processor는 Edge가 보낸 평균 score와 센서 요약값을 사용해 최종 Risk Score와 `안전 / 주의 / 위험` 상태를 계산해야 한다. | DEC-03, DEC-07, DEC-10, DEC-12 |
 | FR-05 | 수신 원본 데이터는 S3 raw에 저장되어 재처리, 감사, 리포트 입력으로 사용할 수 있어야 한다. | DEC-06 |
-| FR-06 | Dashboard는 DynamoDB LATEST/HISTORY와 S3 processed result를 조회해 공장별 최신 상태, 원인, 로그를 제공해야 한다. | DEC-13, DEC-15 |
+| FR-06 | Dashboard는 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg result를 조회해 공장별 최신 상태, 원인, 그래프, 로그를 제공해야 한다. | DEC-13, DEC-15 |
 | FR-07 | Hub ArgoCD는 `factory-a/b/c` Spoke의 Edge data-plane workload와 공통 구성요소를 공장별 값으로 배포할 수 있어야 한다. | DEC-02, DEC-17 |
 | FR-08 | Daily reporting pipeline은 S3 `processed/`의 `factory_state`, `risk_score`, `infra_state`를 factory/hour 단위로 집계해 `factory-daily-summary.json`과 `report-context.json`을 생성해야 한다. | DEC-25 |
 | FR-09 | `GenerateFactoryReport`는 `report-context.json`만 Bedrock 입력으로 사용해 한국어 Markdown 보고서 초안을 생성하고, 저장 전 factory ID/date/핵심 수치 invariant를 검증해야 한다. | DEC-25 |
@@ -186,7 +186,7 @@
 | ARC-01 | `factory-a` 운영형 Spoke는 기존 Raspberry Pi 3-node K3s 기준선을 유지해야 한다. | DEC-04, DEC-19 |
 | ARC-02 | MVP Edge 런타임은 K3s workload와 Edge data-plane components를 기본으로 하고, Greengrass는 후속 재검토 대상으로 둔다. | DEC-04 |
 | ARC-03 | Cloud 수신 진입점은 AWS IoT Core MQTT와 IoT Rule을 기본 경로로 둔다. | DEC-05 |
-| ARC-04 | 데이터 처리 흐름은 IoT Core, IoT Rule/S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, Dashboard 순서로 구성한다. | DEC-06, DEC-07, DEC-13 |
+| ARC-04 | 데이터 처리 흐름은 IoT Core, IoT Rule/S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed, GraphAggregator5m, DynamoDB GRAPH#5M, S3 processed_agg, Dashboard 순서로 구성한다. | DEC-06, DEC-07, DEC-13 |
 | ARC-05 | Control / Management VPC와 Data / Dashboard VPC는 고객 보안과 역할 분리 요구가 있을 때의 목표 구조로 유지한다. | DEC-14 |
 | ARC-06 | 단일 VPC 대안은 가능하지만, MVP 문서화 기준에서는 제어 plane과 사용자 조회 plane의 경계를 분리해 설명해야 한다. | DEC-14, DEC-15 |
 | ARC-07 | Grafana는 운영 관측 도구로 유지하고, 사용자-facing 제품 화면은 Dashboard Web/API로 분리한다. | DEC-16 |
@@ -233,7 +233,7 @@
 | FR-03, NFR-02 | Edge data-plane이 `infra_state`를 20초 주기로 publish하고 cloud-side가 pipeline 상태를 계산한다. | M4에서 infra 상태 적재와 latest 반영 확인 | `docs/specs/iot_data_format.md`, `docs/planning/03_evaluation_plan.md` |
 | FR-04, NFR-05 | Lambda data processor가 평균 score와 센서 요약값을 기반으로 Risk Score를 계산한다. | M6 Issue 1에서 기본 Risk Score 계산 확인. 후속은 runtime-config 연결과 read model 필드 고정 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
 | FR-05 | IoT Rule이 raw JSON을 `raw/{factory_id}/{source_type}/...` 경로에 저장한다. | M4에서 S3 raw object와 partition 확인 | `docs/planning/05_decision_rationale.md`, `docs/specs/iot_data_format.md` |
-| FR-06, NFR-03, NFR-04 | Dashboard Backend/API가 DynamoDB LATEST/HISTORY와 S3 processed result를 조회한다. | M6에서 일반 상태 10~35초, 장애 판정 40~60초 목표 확인 | `docs/specs/data_storage_pipeline.md`, `docs/planning/03_evaluation_plan.md` |
+| FR-06, NFR-03, NFR-04 | Dashboard Backend/API가 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg result를 조회한다. | M6에서 일반 상태 10~35초, 장애 판정 40~60초 목표 확인 | `docs/specs/data_storage_pipeline.md`, `docs/planning/03_evaluation_plan.md` |
 | BR-05, FR-08, FR-09, NFR-08, NFR-09 | EventBridge Scheduler -> Step Functions -> 4개 reporting Lambda -> S3 `reports/daily/` 경로로 factory별 보고서를 생성한다. | 2026-05-28 `factory-b` 수동 실행에서 `report-context.json`, `factory-daily-summary.json`, `report.md`, `generation-metadata.json` 확인 완료. `factory-a/c`는 후속 반복 검증 | `docs/planning/17_llm_daily_factory_report_plan.md`, `docs/ops/24_daily_factory_report.md` |
 | ARC-01, OPS-06 | `factory-a` K3s workload는 worker2 preferred, worker1 failover, 조건부 failback을 유지한다. | failover/failback 테스트 결과와 M0 회귀 확인 | `docs/ops/09_failover_failback_test_results.md` |
 | ARC-02, ARC-03 | K3s + adapter/generator + edge-iot-publisher + IoT Core 구조를 사용한다. | Edge data-plane 배포와 MQTT publish 확인 | `docs/planning/05_decision_rationale.md` |
@@ -252,7 +252,7 @@
 | M1 | Hub 핵심 서비스, VPC/접근 경계 설명 가능성 | ARC-05, SEC-01 |
 | M2 | Hub-Spoke 연결과 `factory-a` 테스트 배포 | SEC-03, FR-07 |
 | M3 | CI/CD와 ArgoCD rollout | OPS-01 ~ OPS-05 |
-| M4 | IoT Core, S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed | FR-01 ~ FR-05, NFR-01, NFR-02 |
+| M4 | IoT Core, S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed | FR-01 ~ FR-05, NFR-01, NFR-02 |
 | M5 | `factory-b/c` 테스트베드 추가와 3개 공장 Fleet 인식 | BR-04, FR-07 |
 | M6 | 기본 Risk 계산, Risk Twin read model, Dashboard 조회 계약. Dashboard page/VPC 구현은 별도 담당 범위 | BR-01 ~ BR-03, FR-04, FR-06, NFR-03, NFR-04 |
 | M7 | 운영형/테스트베드형/장애/롤백/일일 보고서 통합 시나리오 | 전체 요구사항 회귀 |
@@ -297,8 +297,9 @@ IoT Core
   -> IoT Rule -> S3 raw
   -> Lambda data processor
       -> DynamoDB LATEST
-      -> DynamoDB HISTORY
+      -> DynamoDB HISTORY#STATE
+      -> GraphAggregator5m -> DynamoDB GRAPH#5M
       -> S3 processed
 Dashboard Web/API
-  -> DynamoDB + S3 processed read-only 조회
+  -> DynamoDB LATEST/GRAPH#5M/HISTORY#STATE + S3 processed/processed_agg read-only 조회
 ```

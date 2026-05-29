@@ -33,7 +33,7 @@ K3s, Longhorn, ArgoCD, Grafana, EKS, IoT Core, S3, Risk Score, Dashboard VPC, Ta
 ### Cloud Hub 확장이 자연스럽다
 
 엣지에서 수집한 센서값과 시스템 상태를 Hub로 올리고, 공장별 상태를 중앙에서 비교하는 구조는 산업 IoT 맥락과 맞다.
-IoT Core, S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, Dashboard VPC로 이어지는 확장 방향도 설계상 자연스럽다.
+IoT Core, S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed, Dashboard VPC로 이어지는 확장 방향도 설계상 자연스럽다.
 
 ## 약점과 주의점
 

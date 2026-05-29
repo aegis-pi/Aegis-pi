@@ -1,7 +1,7 @@
 # Risk Twin Web Screen Data Mapping
 
 상태: source of truth
-기준일: 2026-05-14
+기준일: 2026-05-29
 
 ## 목적
 
@@ -14,8 +14,10 @@
 | 이름 | 저장소 | 용도 |
 | --- | --- | --- |
 | `DynamoDB LATEST` | `AEGIS-DynamoDB-FactoryStatus` | 공장별 현재 상태, 카드, 현재 요약 |
-| `DynamoDB HISTORY#STATE` | `AEGIS-DynamoDB-FactoryStatus` | Safety/Risk, 환경, AI score, 노드 CPU/memory/disk/Ready 그래프 |
+| `DynamoDB GRAPH#5M` | `AEGIS-DynamoDB-FactoryStatus` | Safety/Risk, 환경, AI score, 노드 CPU/memory/disk 그래프 기본 read model |
+| `DynamoDB HISTORY#STATE` | `AEGIS-DynamoDB-FactoryStatus` | 상세 snapshot, 상태 변화 timeline, graph drill-down |
 | `S3 processed` | `processed/*` | 상세 이력, 리포트, 장기 조회 |
+| `S3 processed_agg` | `processed_agg/*` | 5분 graph aggregate 장기 보조 조회 |
 | `S3 raw` | `raw/*` | 원본 확인, 감사, 재처리 |
 
 MVP 기본 화면은 DynamoDB만으로 그린다. S3는 상세/감사/장기 이력에서만 조회한다.
@@ -35,11 +37,18 @@ pk = FACTORY#{factory_id}
 sk = LATEST
 ```
 
-HISTORY:
+HISTORY#STATE:
 
 ```text
 pk = FACTORY#{factory_id}
 sk = HISTORY#STATE#{timestamp}
+```
+
+GRAPH#5M:
+
+```text
+pk = FACTORY#{factory_id}
+sk = GRAPH#5M#{bucket_start}
 ```
 
 timestamp는 UTC ISO 8601 문자열을 사용한다. lexicographical sort가 시간순과 같아야 하므로 아래 형식을 사용한다.
@@ -853,7 +862,7 @@ S3 조회가 필요한 경우:
 | 특정 timestamp의 계산 결과 상세 | `S3 processed/{factory_id}/risk_score/*` |
 | 원본 메시지 확인 | `S3 raw/{factory_id}/{source_type}/*` |
 | 장기 리포트 | `S3 processed/*` |
-| DynamoDB HISTORY TTL 이후 이력 조회 | `S3 processed/{factory_id}/state_snapshot/*` |
+| DynamoDB HISTORY#STATE TTL 이후 이력 조회 | `S3 processed/{factory_id}/state_snapshot/*` |
 | 재처리 검증 | `S3 raw/*`와 `S3 processed/*` 비교 |
 
 ## 공통 시간 처리

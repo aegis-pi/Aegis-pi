@@ -54,7 +54,7 @@ factory-a / factory-b / factory-c
 Processing VPC
   -> Lambda data processor
   -> S3 processed
-  -> DynamoDB LATEST/HISTORY
+  -> DynamoDB LATEST/HISTORY#STATE
 
 Dashboard VPC
   -> Route53
@@ -62,7 +62,7 @@ Dashboard VPC
   -> WAF
   -> Cognito or IdP auth
   -> Dashboard Web/API
-  -> read-only access to DynamoDB LATEST/HISTORY + S3 processed
+  -> read-only access to DynamoDB LATEST/HISTORY#STATE + S3 processed
 ```
 
 명시적으로 금지하는 경로:
@@ -98,7 +98,7 @@ S3 processed
   - Lambda data processor 처리 결과 저장
   - 상세 조회, 리포트, drill-down
 
-DynamoDB LATEST/HISTORY
+DynamoDB LATEST/HISTORY#STATE
   - 공장별 최신 상태
   - risk level
   - top reasons
@@ -311,7 +311,7 @@ dashboard refresh: 10초
 
 ```text
 M1:
-  Dashboard VPC, ALB, WAF, Auth, DynamoDB LATEST/HISTORY 조회를 설계에 포함
+  Dashboard VPC, ALB, WAF, Auth, DynamoDB LATEST/HISTORY#STATE 조회를 설계에 포함
 
 M4:
   factory-a-log-adapter와 edge-iot-publisher가 factory_state, infra_state를 송신
@@ -327,7 +327,7 @@ M7:
 
 Dashboard VPC는 조회 전용 public access 영역이고, cloud-side data processing은 Lambda data processor와 managed storage 중심으로 둔다.
 
-두 VPC를 네트워크로 연결하지 않고, DynamoDB LATEST/HISTORY와 S3 processed를 IAM read-only로 조회하는 구조를 목표 확장안으로 둔다.
+두 VPC를 네트워크로 연결하지 않고, DynamoDB LATEST/HISTORY#STATE와 S3 processed를 IAM read-only로 조회하는 구조를 목표 확장안으로 둔다.
 
 ## 2026-05-14 수정 방향
 
@@ -340,7 +340,7 @@ IoT Core
   -> IoT Rule -> S3 raw
   -> Lambda data processor
       -> DynamoDB LATEST
-      -> DynamoDB HISTORY
+      -> DynamoDB HISTORY#STATE
       -> S3 processed
 Dashboard Web/API
   -> read-only DynamoDB + S3 processed

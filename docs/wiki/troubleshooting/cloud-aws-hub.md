@@ -819,7 +819,7 @@ DataProcessor normalizer를 수정하고 Lambda를 배포했지만 S3 `processed
 - 클러스터: AWS data-pipeline
 - 노드: N/A
 - 네임스페이스: N/A
-- 관련 컴포넌트/버전: AWS Lambda python3.12, Terraform `archive_file`, S3 processed, DynamoDB LATEST/HISTORY
+- 관련 컴포넌트/버전: AWS Lambda python3.12, Terraform `archive_file`, S3 processed, DynamoDB LATEST/HISTORY#STATE
 - 발생 시각: 2026-05-27
 
 ### 🔁 재현 순서

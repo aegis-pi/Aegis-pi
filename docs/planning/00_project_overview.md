@@ -20,7 +20,7 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - M1 Issue 12에서 `configs/runtime/runtime-config.yaml`과 VM dummy data 추천값을 작성했다.
 - M2 Issue 1~6에서 Tailnet/tag/Auth Key 정책 수립, `factory-a-master` Tailscale 참여, EKS Hub Tailscale Operator/egress 구성, `factory-a` kubeconfig/ArgoCD cluster 등록, `factory-a-podinfo-smoke` Sync/Healthy, Tailscale egress 장애/복구 검증을 완료했다.
-- M4 Issue 1~8 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR image, Hub ArgoCD ApplicationSet 배포, IoT Core -> S3 raw 적재, Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed, `pipeline_status` 검증을 완료했다.
+- M4 Issue 1~8 Raw 계약, `factory-a-log-adapter`, `edge-iot-publisher`, ECR image, Hub ArgoCD ApplicationSet 배포, IoT Core -> S3 raw 적재, Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed, `pipeline_status` 검증을 완료했다.
 - `factory-b`, `factory-c`는 2-node VM K3s 테스트베드로 확장했고, local dummy generator + common `edge-iot-publisher`를 통해 S3 raw 적재까지 검증했다.
 - M6 Risk Twin/Dashboard는 다음 주요 제품 단계이고, MVP 포함으로 확정한 Bedrock 기반 factory별 일일 운영 보고서는 구현을 진행 중이다. 2026-05-27 기준 로컬 reducer/merge/prompt 검증은 완료했고, Bedrock 실호출과 AWS 배포 검증이 남았다.
 
@@ -52,7 +52,7 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 - `factory-a-log-adapter`가 실제 raw/log/status 데이터를 canonical JSON으로 변환하고, `edge-iot-publisher`가 이를 IoT Core로 송신한다.
 - `factory-b/c`는 `dummy-data-generator`가 canonical JSON 형식의 가데이터를 생성하고, 공통 `edge-iot-publisher`가 송신한다.
 - IoT Core -> IoT Rule/S3 raw와 IoT Core -> Lambda data processor -> DynamoDB/S3 processed 흐름으로 공장별 위험 상태를 만든다.
-- 관리자 대시보드는 Tailscale에 의존하지 않는 Dashboard VPC에서 Route53/ALB/WAF/Auth 뒤에 제공하고, DynamoDB LATEST/HISTORY와 S3 processed를 read-only로 조회한다.
+- 관리자 대시보드는 Tailscale에 의존하지 않는 Dashboard VPC에서 Route53/ALB/WAF/Auth 뒤에 제공하고, DynamoDB LATEST/HISTORY#STATE와 S3 processed를 read-only로 조회한다.
 - Bedrock 기반 일일 운영 보고서는 S3 `processed/` 데이터를 factory/hour 단위로 집계한 `report-context.json`만 LLM 입력으로 사용하고, factory별 Markdown 초안을 S3 `reports/daily/`에 저장한다.
 
 ### 2026-05-13 멘토링 반영
@@ -61,7 +61,7 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 
 | 항목 | 기존 초안 | 보강 방향 |
 | --- | --- | --- |
-| 데이터 흐름 | IoT Core 이후 단순 위험도 처리 | 최신 기준은 IoT Rule -> S3 raw와 Lambda -> DynamoDB LATEST/HISTORY + S3 processed로 분리 |
+| 데이터 흐름 | IoT Core 이후 단순 위험도 처리 | 최신 기준은 IoT Rule -> S3 raw와 Lambda -> DynamoDB LATEST/HISTORY#STATE + S3 processed로 분리 |
 | 실시간성 | 관제 화면에 최신 상태 표시 | 준실시간 관제로 정의하고 지연시간/성공률 측정 |
 | 보고서 | 후속 자동화 범위 | MVP 최소 범위에 Bedrock 기반 factory별 일일 운영 리포트 초안 포함 확정 |
 | CI/CD | 배포 자동화 | 리포트 기반 모델/설정 업데이트 후보를 승인 후 GitOps로 배포 |
@@ -104,7 +104,7 @@ Aegis-Pi는 아래 방향으로 Safe-Edge를 확장한다.
 | M3 배포 기준선 | 완료/일부 보류 | ECR/GitHub Actions build-push, Hub ArgoCD ApplicationSet, `factory-a` 보수적 rollout/rollback 완료. Manifest 자동 갱신은 M4 이미지 확정 후 재개 |
 | AWS 비용 기준 | 완료 | `docs/ops/15_aws_cost_baseline.md`, destroy 이후 `$0.0000/hour` |
 | `factory-b`, `factory-c` | 완료 | 테스트베드형 Spoke, dummy generator, common publisher, S3 raw/processed 적재 검증 |
-| Lambda data processor | 완료 | `apps/data-processor/`, `infra/data-pipeline/`, DynamoDB LATEST/HISTORY, S3 processed, `pipeline_status` 검증 |
+| Lambda data processor | 완료 | `apps/data-processor/`, `infra/data-pipeline/`, DynamoDB LATEST/HISTORY#STATE, S3 processed, `pipeline_status` 검증 |
 | LLM daily factory report | 구현 진행/로컬 검증 완료 | `apps/daily-report-generator/`, `infra/reporting/`, reporting build/destroy scripts 추가. `ap-south-1`, S3 processed 기반, factory별 Markdown. Bedrock 실호출/AWS 배포는 미완료 |
 | Risk Twin | 후속 | M6 이후 |
 

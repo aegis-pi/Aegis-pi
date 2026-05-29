@@ -16,7 +16,7 @@
 ```text
 IoT Core
   -> Lambda data processor
-  -> DynamoDB LATEST/HISTORY + S3 processed
+  -> DynamoDB LATEST/HISTORY#STATE + S3 processed
   -> Dashboard Web/API
 ```
 
@@ -143,7 +143,7 @@ Risk Score 계산에서 온도/습도 이상 판정에 사용할 기준값 초�
 
 Lambda data processor의 공식 Risk Twin 출력 구조를 구현한다.
 관제 화면과 이후 확장 서비스(LLM 보고서 등)가 이 출력을 기준으로 데이터를 읽는다.  
-MVP 단계에서는 Risk Twin 결과를 DynamoDB LATEST/HISTORY와 S3 processed에 기록한다. Dashboard Web/API는 DynamoDB와 S3 processed를 read-only로 조회한다.
+MVP 단계에서는 Risk Twin 결과를 DynamoDB LATEST/HISTORY#STATE와 S3 processed에 기록한다. Dashboard Web/API는 DynamoDB와 S3 processed를 read-only로 조회한다.
 
 Dashboard page/VPC 구현은 별도 담당 범위다. 이 이슈에서는 Dashboard 구현자가 의존할 `risk`/`dashboard` read model 필드를 DynamoDB와 S3 processed에 안정적으로 남기는 것을 완료 기준으로 본다.
 
@@ -170,7 +170,7 @@ Dashboard page/VPC 구현은 별도 담당 범위다. 이 이슈에서는 Dashbo
   - `temp_high`, `humidity_high`, `sensor_no_data`
   - `edge_agent_down`, `node_not_ready`, `camera_down`, `mic_down`
   - `pipeline_delay`, `pipeline_no_data`
-- [ ] 출력 결과를 DynamoDB LATEST/HISTORY와 S3 processed에 기록
+- [ ] 출력 결과를 DynamoDB LATEST/HISTORY#STATE와 S3 processed에 기록
   - 예: `risk_score`, `risk_status`, `risk_cause_weight`, `risk_cause_rank`
 - [ ] Dashboard Web/API에서 조회 가능한 구조로 정리
 
@@ -179,7 +179,7 @@ Dashboard page/VPC 구현은 별도 담당 범위다. 이 이슈에서는 Dashbo
 - Risk Twin 출력 JSON 구조 유효성 확인
 - Top 3 원인이 가중치 기여도 순으로 정렬됨 확인
 - `event_timestamp`와 `processed_at` 둘 다 기록됨 확인
-- Risk Twin 결과가 DynamoDB LATEST/HISTORY에 반영됨 확인
+- Risk Twin 결과가 DynamoDB LATEST/HISTORY#STATE에 반영됨 확인
 - 3개 공장 각각 독립 출력 확인
 
 ---
@@ -318,7 +318,7 @@ Risk 계산은 Lambda data processor 내부 로직으로 구현하고, 결과 �
 ```text
 Lambda data processor
   -> DynamoDB LATEST
-  -> DynamoDB HISTORY
+  -> DynamoDB HISTORY#STATE
   -> S3 processed
 Dashboard Web/API
   -> DynamoDB + S3 processed read-only 조회
