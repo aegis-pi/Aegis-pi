@@ -8,4 +8,4 @@
 
 최신 기준에서는 별도 `pipeline-status-aggregator` 컨테이너 서비스/파드를 구현하지 않는다.
 
-`pipeline_status` 계산은 Lambda data processor가 `infra_state` 수신 시점, S3 raw 적재 시각, heartbeat 필드를 바탕으로 수행하고 DynamoDB LATEST/HISTORY에 반영한다.
+`pipeline_status` 계산은 Lambda data processor가 `infra_state` 수신 시점, S3 raw 적재 시각, heartbeat 필드를 바탕으로 수행하고 DynamoDB LATEST/HISTORY#STATE에 반영한다.

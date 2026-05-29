@@ -7,7 +7,7 @@
 ## 현재 관리 리소스
 
 - S3 데이터 버킷: `aegis-bucket-data`
-- DynamoDB 테이블: `AEGIS-DynamoDB-FactoryStatus` (LATEST/HISTORY, PAY_PER_REQUEST, TTL 48h)
+- DynamoDB 테이블: `AEGIS-DynamoDB-FactoryStatus` (LATEST/HISTORY#STATE/GRAPH#5M, PAY_PER_REQUEST, TTL enabled)
 - ECR repository: `aegis/edge-agent`, `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher`
 - GitHub Actions OIDC provider와 ECR push role: `AEGIS-GitHubActions-ECRPush`
 - Admin UI Route53 Hosted Zone: `minsoo-tech.cloud`
@@ -23,7 +23,7 @@ table:            AEGIS-DynamoDB-FactoryStatus
 billing_mode:     PAY_PER_REQUEST
 hash_key:         pk (String)
 range_key:        sk (String)
-TTL:              ttl (enabled, 48h)
+TTL:              ttl (enabled; item별 ttl 값은 data-pipeline Lambda가 설정)
 PITR:             enabled
 stream_enabled:   true
 stream_view_type: NEW_AND_OLD_IMAGES
@@ -37,8 +37,9 @@ DynamoDB Streams는 M6 Risk Twin/Dashboard 구현을 위한 change-data-capture 
 | --- | --- | --- |
 | LATEST | `FACTORY#{factory_id}` | `LATEST` |
 | HISTORY#STATE | `FACTORY#{factory_id}` | `HISTORY#STATE#{updated_at}` |
+| GRAPH#5M | `FACTORY#{factory_id}` | `GRAPH#5M#{bucket_start}` |
 
-DynamoDB `HISTORY#STATE`는 갱신된 `LATEST`와 같은 구조를 저장하고 `ttl`만 추가한다. 같은 snapshot은 S3 processed `state_snapshot/`에도 저장하되 S3에는 `ttl`을 제외한다.
+DynamoDB `HISTORY#STATE`는 갱신된 `LATEST`와 같은 구조를 저장하고 `ttl`만 추가한다. 같은 snapshot은 S3 processed `state_snapshot/`에도 저장하되 S3에는 `ttl`을 제외한다. `GRAPH#5M`은 data-pipeline의 GraphAggregator5m Lambda가 `HISTORY#STATE`를 5분 단위로 집계해 저장한다.
 
 DynamoDB는 Hub EKS destroy와 무관하게 유지한다. `infra/data-pipeline/`에서 `data "aws_dynamodb_table"`로 참조하므로, data-pipeline destroy는 반드시 foundation destroy 이전에 먼저 수행해야 한다.
 
@@ -137,10 +138,11 @@ Prefix 기준:
 
 ```text
 raw/{factory_id}/{source_type}/yyyy={YYYY}/mm={MM}/dd={DD}/{message_id}.json
-processed/{dataset}/{factory_id}/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json
+processed/{factory_id}/{dataset}/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json
+processed_agg/{factory_id}/metrics_5m/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/mm={MM}.json
 ```
 
-MVP 기준 Dashboard의 현재 상태는 S3 `latest/` object가 아니라 DynamoDB LATEST/HISTORY에서 조회한다. 이 Terraform root에는 과거 초안의 `latest/` lifecycle rule이 남아 있지만, 현재 데이터 플레인 계약에서 `latest/`는 primary current-state 저장소가 아니다. 장기 이력과 재처리는 S3 `raw/`, `processed/`를 기준으로 하고, 화면 current state는 DynamoDB를 기준으로 한다.
+MVP 기준 Dashboard의 현재 상태는 S3 `latest/` object가 아니라 DynamoDB LATEST에서 조회하고, 최근 그래프는 GRAPH#5M을 우선 조회한다. 이 Terraform root에는 과거 초안의 `latest/` lifecycle rule이 남아 있지만, 현재 데이터 플레인 계약에서 `latest/`는 primary current-state 저장소가 아니다. 장기 이력과 재처리는 S3 `raw/`, `processed/`, `processed_agg/`를 기준으로 하고, 화면 current state는 DynamoDB를 기준으로 한다.
 
 ## IoT Rule 기준
 
@@ -160,10 +162,11 @@ S3 raw object body는 publisher가 보낸 canonical JSON과 동일하다.
 | --- | --- |
 | `raw/` | 90일 후 Glacier Instant Retrieval 전환 |
 | `processed/` | 365일 후 Standard-IA 전환 |
+| `processed_agg/` | `processed/`와 같은 장기 분석/그래프 보조 산출물 prefix. lifecycle가 필요하면 `processed/`와 같은 보존 정책으로 맞춘다 |
 | `latest/` | 현재 MVP primary 경로는 아님. 과거 초안 호환용 lifecycle만 유지 |
 | 전체 | incomplete multipart upload는 7일 후 중단 |
 
-`raw/` 원본은 재처리 근거이므로 바로 삭제하지 않는다. `processed/`는 대시보드와 분석 조회 가능성이 높아 더 오래 Standard에 둔다. DynamoDB LATEST/HISTORY가 현재 상태와 최근 그래프의 hot store 역할을 하므로 S3 `latest/`를 Dashboard current state 경로로 사용하지 않는다.
+`raw/` 원본은 재처리 근거이므로 바로 삭제하지 않는다. `processed/`와 `processed_agg/`는 대시보드와 분석 조회 가능성이 높아 더 오래 Standard에 둔다. DynamoDB LATEST/GRAPH#5M/HISTORY#STATE가 현재 상태와 최근 그래프의 hot store 역할을 하므로 S3 `latest/`를 Dashboard current state 경로로 사용하지 않는다.
 
 ## Public access 기준
 

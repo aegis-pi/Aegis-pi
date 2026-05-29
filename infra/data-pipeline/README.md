@@ -1,11 +1,11 @@
 # infra/data-pipeline
 
 상태: source of truth
-기준일: 2026-05-21
+기준일: 2026-05-29
 
 ## 목적
 
-IoT Core → Lambda data processor 처리 파이프라인 인프라를 관리한다.
+IoT Core → Lambda data processor 처리 파이프라인과 5분 그래프 집계 인프라를 관리한다.
 Hub EKS와 독립적으로 올리고 내릴 수 있는 on-demand 레이어다.
 
 ## 레이어 특성
@@ -24,6 +24,9 @@ Hub EKS와 독립적으로 올리고 내릴 수 있는 on-demand 레이어다.
 | Lambda | `AEGIS-Lambda-DataProcessor` | IoT Core 수신 메시지 처리 |
 | IAM Role | `AEGIS-IAMRole-Lambda-DataProcessor` | Lambda 실행 역할 (DynamoDB R/W, S3 processed PutObject) |
 | CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-DataProcessor` | Lambda 실행 로그 |
+| Lambda | `AEGIS-Lambda-GraphAggregator5m` | DynamoDB HISTORY#STATE → GRAPH#5M / S3 processed_agg 집계 |
+| EventBridge Scheduler | `AEGIS-Schedule-GraphAggregator5m` | 5분 주기 graph aggregator 호출 |
+| CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-GraphAggregator5m` | graph aggregator 실행 로그 |
 
 ## Foundation 참조 구조
 
@@ -59,19 +62,21 @@ build-data-pipe.sh   ← foundation apply 후 실행
 | --- | --- |
 | `iot_rule.tf` | IoT Rule × 3 (factory-a/b/c), IAM Role/Policy, S3 raw 적재 설정 |
 | `lambda.tf` | Lambda 함수, IAM Role/Policy, CloudWatch Log Group |
+| `graph_aggregator_lambda.tf` | GraphAggregator5m Lambda, IAM, EventBridge Scheduler |
 | `dynamodb.tf` | foundation DynamoDB 테이블 data source 조회 |
 | `data.tf` | foundation S3 버킷 등 외부 리소스 data source 참조 |
 | `variables.tf` | 입력 변수 정의 |
-| `outputs.tf` | IoT Rule 이름, Lambda ARN, DynamoDB name/ARN |
+| `outputs.tf` | IoT Rule 이름, Lambda ARN, GraphAggregator5m, DynamoDB name/ARN |
 | `versions.tf` | Terraform/provider 버전 고정 |
 | `providers.tf` | AWS provider 설정 |
 | `locals.tf` | 공통 태그 등 로컬 값 |
 | `terraform.tfvars.example` | 변수 예시 (실제 `terraform.tfvars`는 Git 제외) |
-| `lambda_data_processor.zip` | Terraform `archive_file`이 생성하는 Lambda 배포 아티팩트. Git에는 저장하지 않음 |
+| `lambda_data_processor.zip` | Terraform `archive_file`이 생성하는 DataProcessor 배포 아티팩트. Git에는 저장하지 않음 |
+| `lambda_graph_metrics_aggregator.zip` | Terraform `archive_file`이 생성하는 GraphAggregator5m 배포 아티팩트. Git에는 저장하지 않음 |
 
 ## Lambda 배포 아티팩트
 
-`lambda_data_processor.zip`은 Terraform `archive_file` data source가 `apps/data-processor/`의 Python 코드를 패키징해 생성한다. 수동 zip 생성은 필요 없다.
+`lambda_data_processor.zip`은 Terraform `archive_file` data source가 `apps/data-processor/`의 Python 코드를 패키징해 생성한다. `lambda_graph_metrics_aggregator.zip`은 `apps/graph-metrics-aggregator/`를 패키징한다. 둘 다 수동 zip 생성은 필요 없다.
 
 코드 변경 후 재배포 시:
 
@@ -83,7 +88,16 @@ scripts/build/build-data-pipe.sh [MFA_OTP]
 
 ```hcl
 dynamodb_table_name        = "AEGIS-DynamoDB-FactoryStatus"
-dynamodb_history_ttl_hours = 48
+dynamodb_history_ttl_hours = 2
+
+lambda_graph_aggregator_name             = "AEGIS-Lambda-GraphAggregator5m"
+graph_aggregator_enabled                 = true
+graph_aggregator_factory_ids             = ["factory-a", "factory-b", "factory-c"]
+graph_bucket_minutes                     = 5
+graph_aggregator_lookback_buckets        = 1
+graph_bucket_ttl_hours                   = 48
+graph_expected_sample_interval_seconds   = 3
+graph_ai_score_threshold                 = 0.7
 ```
 
 ## 실행
@@ -106,3 +120,5 @@ terraform apply
 2. CloudWatch Logs `/aws/lambda/AEGIS-Lambda-DataProcessor`에서 처리 로그 확인
 3. DynamoDB `AEGIS-DynamoDB-FactoryStatus`에서 LATEST 아이템 조회
 4. S3 `processed/{factory_id}/state_snapshot/` 경로에서 TTL 없는 전체 상태 snapshot 확인
+5. EventBridge Scheduler `AEGIS-Schedule-GraphAggregator5m` 상태와 GraphAggregator5m CloudWatch Logs 확인
+6. DynamoDB `GRAPH#5M#...` 아이템과 S3 `processed_agg/{factory_id}/metrics_5m/...` 객체 확인

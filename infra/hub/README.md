@@ -8,7 +8,7 @@
 
 후속 확장에서는 사용자 대시보드와 데이터 처리용 1번 Data / Dashboard VPC도 함께 설계한다.
 
-Data / Dashboard VPC는 Control / Management VPC와 상시 private service 호출 없이 Route53, ALB, WAF, Auth, Dashboard Web/API를 제공하고, DynamoDB LATEST/HISTORY와 S3 processed를 조회한다.
+Data / Dashboard VPC는 Control / Management VPC와 상시 private service 호출 없이 Route53, ALB, WAF, Auth, Dashboard Web/API를 제공하고, DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg를 조회한다.
 
 기준 문서:
 

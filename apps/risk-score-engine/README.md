@@ -14,6 +14,6 @@ Risk 계산은 Lambda data processor 내부 로직으로 구현하고, 결과는
 Lambda data processor
   -> Risk score calculation
   -> DynamoDB LATEST
-  -> DynamoDB HISTORY
+  -> DynamoDB HISTORY#STATE
   -> S3 processed
 ```

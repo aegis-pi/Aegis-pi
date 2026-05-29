@@ -12,7 +12,7 @@ edge-iot-publisher
   local spool/outbox canonical JSON -> AWS IoT Core
 ```
 
-대시보드는 Spoke K3s, ArgoCD, EKS API, Tailscale 관리망을 직접 조회하지 않고 이 데이터가 반영된 DynamoDB LATEST/HISTORY와 S3 processed를 읽는다.
+대시보드는 Spoke K3s, ArgoCD, EKS API, Tailscale 관리망을 직접 조회하지 않고 이 데이터가 반영된 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg를 읽는다.
 
 ## M3 기준 빌드 대상
 

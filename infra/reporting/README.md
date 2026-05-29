@@ -27,13 +27,24 @@ Outputs are stored under:
 reports/daily/yyyy=YYYY/mm=MM/dd=DD/{factory_id}/
 ```
 
+Infrastructure status in the current report is derived from S3 processed
+`infra_state` and `state_snapshot` data. A planned extension is to add
+CloudWatch Logs/metrics as a secondary source for reporting pipeline health:
+Lambda/Step Functions errors, timeouts, retries, and duration should be
+summarized in `report-context.json` without embedding raw log lines. The report
+should keep factory infrastructure interpretation from processed data separate
+from AWS reporting pipeline health observed through CloudWatch.
+
 Current status:
 
 - `terraform fmt -check -diff` passed.
 - `terraform validate` passed in an environment where provider plugins can execute.
+- `python -m compileall -q apps/daily-report-generator` passed.
+- `python -m pytest -q apps/daily-report-generator` passed with 11 tests.
 - AWS deployment was completed with `scripts/build/build-reporting.sh`.
-- Manual Step Functions execution for `factory-b`, `report_date=2026-05-27`, `timezone=Asia/Seoul` succeeded.
+- Manual Step Functions execution `manual-factory-report-20260528T064840Z` for `factory-b`, `report_date=2026-05-27`, `timezone=Asia/Seoul` succeeded.
 - S3 outputs were verified under `reports/daily/yyyy=2026/mm=05/dd=27/factory-b/`.
+- The generated `report.md` was verified to include the key metrics, data collection, Risk Score, sensor/AI, infrastructure, events, and recommended-check tables plus narrative analysis.
 - The reporting stack was later destroyed with `scripts/destroy/destroy-reporting.sh` to stop scheduled cost. S3 `processed/` input and `reports/daily/` output objects are preserved.
 
 Cost baseline:

@@ -15,7 +15,7 @@ dummy-data-generator
   factory-b/c 테스트베드 canonical JSON 생성 -> local spool/outbox
 ```
 
-IoT Core 이후 정규화/Risk 계산/latest 저장은 별도 `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` 파드가 아니라 Lambda data processor와 DynamoDB/S3 processed로 처리한다.
+IoT Core 이후 정규화/Risk 계산/latest 저장은 별도 `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` 파드가 아니라 Lambda data processor와 DynamoDB/S3 processed로 처리한다. 최근 그래프 read model은 `graph-metrics-aggregator` Lambda가 DynamoDB `HISTORY#STATE`를 읽어 `GRAPH#5M`과 S3 `processed_agg`로 집계한다.
 
 ## 하위 폴더
 
@@ -23,12 +23,13 @@ IoT Core 이후 정규화/Risk 계산/latest 저장은 별도 `risk-normalizer`,
 | --- | --- |
 | `factory-a-log-adapter/` | M4 Issue 2 실제 구현. InfluxDB/Kubernetes 상태를 canonical JSON으로 변환해 local spool/outbox에 기록 |
 | `edge-iot-publisher/` | M4 Issue 3 실제 구현. local spool/outbox canonical JSON을 AWS IoT Core로 publish |
-| `data-processor/` | M4 Issue 6 실제 구현. AWS Lambda data processor. IoT Core 수신 메시지 → DynamoDB LATEST/HISTORY, S3 processed 저장, Risk/pipeline_status 계산 |
+| `data-processor/` | M4 Issue 6 실제 구현. AWS Lambda data processor. IoT Core 수신 메시지 → DynamoDB LATEST/HISTORY#STATE, S3 processed 저장, Risk/pipeline_status 계산 |
+| `graph-metrics-aggregator/` | 5분 그래프 집계 Lambda. DynamoDB `HISTORY#STATE` 조회 → DynamoDB `GRAPH#5M` 및 S3 `processed_agg/metrics_5m` 저장 |
 | `edge-agent/` | M3 GitHub Actions/ECR 검증용 smoke image. 실제 Edge data-plane 로직은 M4에서 adapter/publisher로 분리 구현 |
 | `dummy-sensor/` | legacy 이름의 placeholder. M5에서는 `dummy-data-generator` 기준으로 정리 |
 | `risk-normalizer/` | legacy placeholder. 최신 기준에서는 Lambda data processor의 정규화 로직으로 대체 |
 | `risk-score-engine/` | legacy placeholder. 최신 기준에서는 Lambda data processor의 Risk 계산 로직으로 대체 |
-| `pipeline-status-aggregator/` | legacy placeholder. 최신 기준에서는 Lambda data processor가 DynamoDB LATEST/HISTORY에 `pipeline_status`를 갱신 |
+| `pipeline-status-aggregator/` | legacy placeholder. 최신 기준에서는 Lambda data processor가 DynamoDB LATEST/HISTORY#STATE에 `pipeline_status`를 갱신 |
 
 ## 2026-05-14 수정 방향
 

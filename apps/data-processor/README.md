@@ -5,7 +5,7 @@
 
 ## 목적
 
-AWS IoT Core에서 수신한 canonical JSON 메시지를 처리해 DynamoDB LATEST/HISTORY 갱신, Risk 계산, `pipeline_status` 계산, S3 processed 저장을 수행하는 Lambda data processor다.
+AWS IoT Core에서 수신한 canonical JSON 메시지를 처리해 DynamoDB LATEST/HISTORY#STATE 갱신, Risk 계산, `pipeline_status` 계산, S3 processed 저장을 수행하는 Lambda data processor다.
 
 ## 실행 환경
 
@@ -58,7 +58,7 @@ IoT Core Rule (aegis/factory-a/+, factory-b/+, factory-c/+)
 - `factory_state` 수신 시 `LATEST.factory_state`, `LATEST.risk`, `LATEST.pipeline_status`만 부분 갱신한다.
 - `infra_state` 수신 시 `LATEST.infra_state`, `LATEST.pipeline_status`만 부분 갱신한다.
 - `HISTORY#STATE`는 갱신된 `LATEST`와 같은 구조를 복사하고 `ttl`만 추가한다.
-- TTL 필드: `ttl` (48h, DynamoDB history에만 존재)
+- TTL 필드: `ttl` (DynamoDB history에만 존재하며 `HISTORY_TTL_HOURS`로 제어)
 
 ## S3 processed 저장 계약
 
@@ -103,7 +103,7 @@ s3://aegis-bucket-data/processed/{factory_id}/{dataset}/yyyy={YYYY}/mm={MM}/dd={
 | --- | --- |
 | `DYNAMODB_TABLE_NAME` | DynamoDB 테이블 이름 |
 | `S3_BUCKET_NAME` | S3 버킷 이름 |
-| `HISTORY_TTL_HOURS` | HISTORY 아이템 TTL (기본값: `48`) |
+| `HISTORY_TTL_HOURS` | HISTORY 아이템 TTL. Terraform `dynamodb_history_ttl_hours`가 주입하며 코드 fallback 기본값은 `2` |
 
 ## 테스트 실행
 
