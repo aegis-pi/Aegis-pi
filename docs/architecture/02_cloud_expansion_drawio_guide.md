@@ -25,8 +25,8 @@ M0 `factory-a` Safe-Edge 기준선을 AWS Hub 중심의 멀티 Spoke 구조로 �
 
 1번 VPC: Data / Dashboard VPC
   - Lambda data processor
-  - DynamoDB LATEST/HISTORY
-  - S3 processed
+  - DynamoDB LATEST/GRAPH#5M/HISTORY#STATE
+  - S3 processed / processed_agg
   - Dashboard Backend/API
   - Dashboard Web
 ```
@@ -98,7 +98,7 @@ Tailscale Hub-Spoke
 GitHub Actions
 ApplicationSet
 Lambda data processor
-DynamoDB LATEST/HISTORY
+DynamoDB LATEST/GRAPH#5M/HISTORY#STATE
 factory-b / factory-c
 ```
 
@@ -149,11 +149,12 @@ AWS Cloud / Control 경계와 managed service 영역에는 아래 리소스를 �
 | EKS Cluster | Hub 실행 기반 |
 | ArgoCD | 멀티 Spoke 배포 제어 |
 | IoT Core | Edge/Spoke 데이터 수신 진입점 |
-| S3 raw/processed | 원본과 처리 결과 장기 적재 |
+| S3 raw/processed/processed_agg | 원본, 처리 결과, 5분 graph aggregate 장기 적재 |
 | ECR | 컨테이너 이미지 저장소 |
 | AMP | Prometheus 메트릭 중앙 저장 |
-| DynamoDB LATEST/HISTORY | 대시보드 빠른 조회용 현재 상태와 최근 그래프 |
+| DynamoDB LATEST/HISTORY#STATE/GRAPH#5M | 대시보드 빠른 조회용 현재 상태, 상세 snapshot, 최근 그래프 |
 | Lambda data processor | 정규화, Risk 계산, pipeline_status 계산 |
+| Lambda GraphAggregator5m | HISTORY#STATE를 5분 graph read model로 집계 |
 
 Data / Dashboard VPC 경계 안에는 아래 리소스를 둔다.
 
@@ -186,9 +187,11 @@ Data / Dashboard VPC 경계 안에는 아래 리소스를 둔다.
 | IoT Core | S3 raw | IoT Rule 기반 원본 JSON 적재 |
 | IoT Core | Lambda data processor | IoT Rule 또는 Lambda action으로 수신 메시지 전달 |
 | Lambda data processor normalization step | Lambda data processor risk logic | 정규화 결과 전달 |
-| Lambda data processor risk logic | DynamoDB LATEST/HISTORY / S3 processed | Risk Twin 결과 저장 |
+| Lambda data processor risk logic | DynamoDB LATEST/HISTORY#STATE / S3 processed | Risk Twin 결과 저장 |
 | Lambda data processor pipeline_status logic | IoT Core / S3 | 수신/적재 상태 확인 |
-| Dashboard Web/API | DynamoDB LATEST/HISTORY / S3 processed | read-only 중앙 관제 조회 |
+| Lambda GraphAggregator5m | DynamoDB HISTORY#STATE | 5분 그래프 집계 입력 |
+| Lambda GraphAggregator5m | DynamoDB GRAPH#5M / S3 processed_agg | 5분 그래프 집계 출력 |
+| Dashboard Web/API | DynamoDB LATEST/GRAPH#5M/HISTORY#STATE / S3 processed/processed_agg | read-only 중앙 관제 조회 |
 
 ### draw.io 권장 형태
 
@@ -197,7 +200,7 @@ Data / Dashboard VPC 경계 안에는 아래 리소스를 둔다.
 - EKS Hub는 Control / Management VPC 안의 큰 박스로 둔다.
 - IoT Core, S3, ECR, AMP는 EKS 바깥의 AWS managed service로 둔다.
 - ArgoCD와 Grafana는 EKS/Control VPC 안에 두고, Lambda data processor와 DynamoDB/S3는 AWS managed service 영역에 둔다.
-- Dashboard VPC와 Control VPC 사이에는 VPC Peering을 그리지 않는다. Dashboard는 `read-only IAM / managed storage` 화살표로 DynamoDB/S3 processed를 조회하게 그린다.
+- Dashboard VPC와 Control VPC 사이에는 VPC Peering을 그리지 않는다. Dashboard는 `read-only IAM / managed storage` 화살표로 DynamoDB/S3 processed/processed_agg를 조회하게 그린다.
 - 각 factory는 AWS Cloud 바깥의 독립 박스로 둔다.
 - Tailscale은 Hub와 Spoke 사이의 네트워크 오버레이 박스 또는 점선 영역으로 표현한다.
 
@@ -219,8 +222,11 @@ factory-a real input
     -> AWS IoT Core
         -> IoT Rule -> S3 raw data
         -> Lambda data processor
-            -> DynamoDB LATEST/HISTORY
+            -> DynamoDB LATEST/HISTORY#STATE
             -> S3 processed
+        -> GraphAggregator5m
+            -> DynamoDB GRAPH#5M
+            -> S3 processed_agg
     -> Dashboard Web/API
 
 factory-b / factory-c dummy input
@@ -230,8 +236,11 @@ factory-b / factory-c dummy input
     -> AWS IoT Core
         -> IoT Rule -> S3 raw data
         -> Lambda data processor
-            -> DynamoDB LATEST/HISTORY
+            -> DynamoDB LATEST/HISTORY#STATE
             -> S3 processed
+        -> GraphAggregator5m
+            -> DynamoDB GRAPH#5M
+            -> S3 processed_agg
     -> Dashboard Web/API
 ```
 
@@ -294,7 +303,7 @@ payload
 | --- | --- | --- |
 | `factory_state` | `factory-a-log-adapter` 또는 `dummy-data-generator` | Lambda 처리 후 DynamoDB/S3 processed 저장 |
 | `infra_state` | `factory-a-log-adapter` 또는 `dummy-data-generator` | Lambda 처리 후 DynamoDB/S3 processed 저장 |
-| `pipeline_status` | Lambda data processor | IoT/S3 상태를 집계해 DynamoDB LATEST/HISTORY에 저장 |
+| `pipeline_status` | Lambda data processor | IoT/S3 상태를 집계해 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE에 저장 |
 | `event` | 구조만 예약 | MVP에서는 점수 반영 제외 |
 
 ### S3 파티션
@@ -315,7 +324,7 @@ Data / Dashboard VPC 또는 managed service 영역에는 아래 박스를 둔다
 
 ```text
 Lambda data processor
-DynamoDB LATEST/HISTORY
+DynamoDB LATEST/GRAPH#5M/HISTORY#STATE
 S3 processed
 ```
 
@@ -329,9 +338,9 @@ S3 processed
 | IoT Core | Lambda data processor pipeline_status logic | latest received check |
 | S3 | Lambda data processor pipeline_status logic | latest object check |
 | Lambda data processor pipeline_status logic | Lambda data processor risk logic | pipeline_status |
-| Lambda data processor risk logic | DynamoDB LATEST/HISTORY | current risk/status and recent graph |
+| Lambda data processor risk logic | DynamoDB LATEST/GRAPH#5M/HISTORY#STATE | current risk/status and recent graph |
 | Lambda data processor risk logic | S3 processed | processed history |
-| Dashboard Web/API | DynamoDB LATEST/HISTORY | read latest/recent graph |
+| Dashboard Web/API | DynamoDB LATEST/GRAPH#5M/HISTORY#STATE | read latest/recent graph |
 | Dashboard Web/API | S3 processed | drill-down |
 
 ### Risk Twin 출력
@@ -613,7 +622,7 @@ Admin Browser
   -> WAF
   -> Cognito/Auth
   -> Dashboard Web/API
-  -> DynamoDB LATEST/HISTORY
+  -> DynamoDB LATEST/GRAPH#5M/HISTORY#STATE
   -> S3 processed
 ```
 
@@ -623,7 +632,7 @@ IoT Core 이후 data processing은 아래처럼 표현한다.
 IoT Core
   -> IoT Rule -> S3 raw
   -> Lambda data processor
-      -> DynamoDB LATEST/HISTORY
+      -> DynamoDB LATEST/GRAPH#5M/HISTORY#STATE
       -> S3 processed
 ```
 
@@ -665,7 +674,7 @@ full status: 30초
 - [ ] S3 파티션이 factory/source_type/date 기준으로 보인다.
 - [ ] Lambda data processor 내부에 normalization, risk logic, pipeline_status 계산 단계가 보인다.
 - [ ] `pipeline_status`가 Edge가 아니라 Hub derived임이 보인다.
-- [ ] Dashboard Web/API가 DynamoDB LATEST/HISTORY와 S3 processed를 조회하는 구조가 보인다.
+- [ ] Dashboard Web/API가 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg를 조회하는 구조가 보인다.
 
 ### Control Plane
 
@@ -688,7 +697,7 @@ full status: 30초
 
 - [ ] Route53 -> ALB -> WAF/Auth -> Dashboard Web/API 접근 경로가 보인다.
 - [ ] Dashboard VPC와 Control VPC 사이에 VPC Peering/TGW가 없다.
-- [ ] Dashboard API가 DynamoDB LATEST/HISTORY와 S3 processed만 read-only로 조회한다.
+- [ ] Dashboard API가 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg만 read-only로 조회한다.
 - [ ] Tailscale은 Dashboard 접근망이 아니라 Control Plane 접근망으로 구분된다.
 
 ## 권장 파일 분리
@@ -733,7 +742,10 @@ factory-a-log-adapter 또는 dummy-data-generator
       -> IoT Rule -> S3 raw
       -> Lambda data processor
           -> DynamoDB LATEST
-          -> DynamoDB HISTORY
+          -> DynamoDB HISTORY#STATE
           -> S3 processed
+      -> GraphAggregator5m
+          -> DynamoDB GRAPH#5M
+          -> S3 processed_agg
   -> Dashboard API/Web
 ```

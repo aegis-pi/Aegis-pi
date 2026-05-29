@@ -90,7 +90,8 @@ Edge input
     -> edge-iot-publisher
     -> AWS IoT Core
         -> IoT Rule -> S3 raw
-        -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed
+        -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed
+        -> GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg
     -> Data / Dashboard VPC Web/API
 ```
 
@@ -119,7 +120,7 @@ aegis/factory-c/infra_state
 
 사용자 대시보드는 Tailscale/VPN 의존 없이 ALB, WAF, Cognito 또는 사내 IdP 인증 뒤에 제공한다.
 
-Dashboard Web/API는 ArgoCD, Tailscale, EKS API 같은 제어 plane에 직접 접근하지 않는다. 데이터 조회는 1번 Data / Dashboard VPC의 DynamoDB LATEST/HISTORY와 S3 processed를 기준으로 한다.
+Dashboard Web/API는 ArgoCD, Tailscale, EKS API 같은 제어 plane에 직접 접근하지 않는다. 데이터 조회는 1번 Data / Dashboard VPC의 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg를 기준으로 한다.
 
 ```text
 1번 Data / Dashboard VPC
@@ -127,8 +128,8 @@ Dashboard Web/API는 ArgoCD, Tailscale, EKS API 같은 제어 plane에 직접 �
     -> WAF
     -> Auth
     -> Dashboard Web/API
-    -> DynamoDB LATEST/HISTORY
-    -> S3 processed
+    -> DynamoDB LATEST/GRAPH#5M/HISTORY#STATE
+    -> S3 processed/processed_agg
     -> Lambda data processor integration
 ```
 
@@ -195,10 +196,11 @@ event
 4. Tailscale 또는 동등한 Hub-Spoke 연결 방식 확정
 5. GitHub Actions / ECR / ArgoCD ApplicationSet 구성
 6. Edge data-plane adapter/publisher 구현 및 IoT Core / S3 데이터 수집 경로 구성
-7. Lambda data processor, DynamoDB LATEST/HISTORY, S3 processed 및 기본 Risk 계산 구현 완료
-8. `factory-b`, `factory-c` 테스트베드 확장 완료
-9. Daily Factory Report MVP 검증 완료
-10. 1번 Data / Dashboard VPC와 dashboard 구현은 별도 담당 범위로 분리
+7. Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed 및 기본 Risk 계산 구현 완료
+8. GraphAggregator5m, DynamoDB GRAPH#5M, S3 processed_agg 5분 그래프 집계 구현 완료
+9. `factory-b`, `factory-c` 테스트베드 확장 완료
+10. Daily Factory Report MVP 검증 완료
+11. 1번 Data / Dashboard VPC와 dashboard 구현은 별도 담당 범위로 분리
 
 ## 현재 구조로 가져오면 안 되는 것
 
