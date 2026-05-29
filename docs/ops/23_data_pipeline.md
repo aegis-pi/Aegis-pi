@@ -1,7 +1,7 @@
 # Data Pipeline 구현 레퍼런스
 
 상태: 구현 기준 source of truth
-기준일: 2026-05-28
+기준일: 2026-05-29
 관련 스펙: `docs/specs/data_storage_pipeline.md`
 
 ---
@@ -11,73 +11,43 @@
 Aegis 데이터 파이프라인은 Edge factory에서 발생한 센서·인프라 데이터를 AWS IoT Core로 수신한 뒤 Lambda가 정규화·위험도 계산을 수행하고 DynamoDB와 S3에 이중 저장하는 구조다.
 
 - **실시간 현황 조회** → DynamoDB LATEST
-- **그래프·이력 조회** → DynamoDB HISTORY
+- **최근 그래프 조회** → DynamoDB GRAPH#5M
+- **상세 이력 조회** → DynamoDB HISTORY#STATE
 - **장기 보존·재처리** → S3 processed / raw
 
-2026-05-28 기준 `factory-a/b/c` IoT -> Lambda -> DynamoDB/S3 processed 적재와 기본 Risk Score 계산은 검증 완료 상태다. `configs/runtime/runtime-config.yaml`은 아직 Lambda Risk 계산에 연결되지 않았으며, 다음 고도화는 runtime config 기반 weight/threshold/factory override 적용과 Risk Twin read model 안정화다.
+2026-05-29 기준 `factory-a/b/c` IoT -> Lambda -> DynamoDB/S3 processed 적재, 기본 Risk Score 계산, GraphAggregator5m의 DynamoDB `GRAPH#5M` 및 S3 `processed_agg` 집계는 검증 완료 상태다. `configs/runtime/runtime-config.yaml`은 아직 Lambda Risk 계산에 연결되지 않았으며, 다음 고도화는 runtime config 기반 weight/threshold/factory override 적용과 Risk Twin read model 안정화다.
 
 ---
 
 ## 전체 플로우
 
+```text
+Edge Devices
+  - factory-a-log-adapter
+  - dummy-data-generator
+  -> edge-iot-publisher
+  -> AWS IoT Core topic: aegis/{factory_id}/{source_type}
+      -> IoT Topic Rule AEGIS_IoTRule_factory_{a,b,c}_raw_s3
+          -> S3 raw/{factory_id}/{source_type}/...
+          -> Lambda AEGIS-Lambda-DataProcessor
+              -> DynamoDB LATEST
+                 pk = FACTORY#{factory_id}
+                 sk = LATEST
+              -> DynamoDB HISTORY#STATE
+                 pk = FACTORY#{factory_id}
+                 sk = HISTORY#STATE#{updated_at}
+                 ttl = HISTORY_TTL_HOURS 기준
+              -> S3 processed/{factory_id}/{dataset}/...
 ```
-┌──────────────────────────────────────────────────────┐
-│                    Edge Devices                      │
-│                                                      │
-│  [factory-a-log-adapter]  [dummy-data-generator]     │
-│            │                       │                 │
-│            └──────────┬────────────┘                 │
-│                       ▼                              │
-│             [edge-iot-publisher]                     │
-└───────────────────────┼──────────────────────────────┘
-                        │ MQTT
-                        │ topic: aegis/{factory_id}/{source_type}
-                        ▼
-              ┌──────────────────┐
-              │  AWS IoT Core    │
-              └────────┬─────────┘
-                       │
-              ┌────────▼──────────────────┐
-              │      IoT Topic Rule       │
-              │  AEGIS_IoTRule_factory_   │
-              │  a/b/c_raw_s3            │
-              └────────┬──────────┬───────┘
-                       │          │
-             S3 Action │          │ Lambda Action
-                       │          │
-          ┌────────────▼──┐   ┌───▼────────────────────────────┐
-          │   S3  raw/    │   │   Lambda: data-processor        │
-          │               │   │   AEGIS-Lambda-DataProcessor    │
-          │ raw/          │   │   python3.12 · 512MB · 60s      │
-          │  {factory_id}/│   └───┬────────────────────────────┘
-          │  {source_type}│       │
-          │  /yyyy=/mm=/  │       ├──── UpdateItem ────────────────────────┐
-          │  dd=/         │       │                                        ▼
-          │  {msg_id}.json│       │                          ┌─────────────────────────┐
-          └───────────────┘       │                          │   DynamoDB LATEST        │
-                                  │                          │   pk: FACTORY#{factory}  │
-                                  │                          │   sk: LATEST             │
-                                  │                          │   (계속 덮어씀)          │
-                                  │                          └─────────────────────────┘
-                                  │
-                                  ├──── PutItem ─────────────────────────┐
-                                  │                                       ▼
-                                  │                          ┌─────────────────────────┐
-                                  │                          │   DynamoDB HISTORY       │
-                                  │                          │   HISTORY#STATE#{ts}     │
-                                  │                          │   LATEST snapshot + TTL  │
-                                  │                          │   TTL: 48시간            │
-                                  │                          └─────────────────────────┘
-                                  │
-                                  └──── PutObject ───────────────────────┐
-                                                                         ▼
-                                                          ┌─────────────────────────────┐
-                                                          │   S3 processed/              │
-                                                          │   {factory_id}/              │
-                                                          │     factory_state/...        │
-                                                          │     risk_score/...           │
-                                                          │     infra_state/...          │
-                                                          └─────────────────────────────┘
+
+5분 그래프 집계는 data processor 저장 이후 별도 Lambda가 수행한다.
+
+```text
+EventBridge Scheduler (rate 5 minutes)
+  -> Lambda: AEGIS-Lambda-GraphAggregator5m
+      -> Query DynamoDB HISTORY#STATE by factory/time window
+      -> PutItem DynamoDB GRAPH#5M#{bucket_start}
+      -> PutObject S3 processed_agg/{factory_id}/metrics_5m/...
 ```
 
 ---
@@ -193,70 +163,57 @@ Aegis 데이터 파이프라인은 Edge factory에서 발생한 센서·인프�
 
 ## DynamoDB 저장 구조
 
-```
-  Table: AEGIS-DynamoDB-FactoryStatus
-  pk = FACTORY#{factory_id}   (factory-a / factory-b / factory-c)
+```text
+Table: AEGIS-DynamoDB-FactoryStatus
+pk = FACTORY#{factory_id}   (factory-a / factory-b / factory-c)
 
-  ┌───────────────────────────────────────────────────────────────────┐
-  │ sk = LATEST                                          (TTL 없음)  │
-  │                                                                   │
-  │   factory_state  →  normalized sensor (온도·습도·기압·AI score)   │
-  │   infra_state    →  normalized infra  (nodes·workloads·devices)  │
-  │   risk           →  score / level / top_causes                   │
-  │   pipeline_status→  status / latest_infra_state_age_seconds      │
-  │   last_factory_state_at / last_infra_state_at / updated_at       │
-  │                                          ↑ 3초/20초마다 덮어씀   │
-  ├───────────────────────────────────────────────────────────────────┤
-  │ sk = HISTORY#STATE#2026-05-21T10:00:03.123Z          TTL: 48h   │
-  │   LATEST와 같은 구조 + ttl                                      │
-  ├───────────────────────────────────────────────────────────────────┤
-  │ sk = HISTORY#STATE#2026-05-21T10:00:06.456Z          TTL: 48h   │
-  │   factory_state / infra_state / risk / pipeline_status snapshot  │
-  ├───────────────────────────────────────────────────────────────────┤
-  │   ... (factory_state 또는 infra_state 수신마다 신규 아이템)       │
-  └───────────────────────────────────────────────────────────────────┘
+sk = LATEST
+  - TTL 없음
+  - factory_state / infra_state / risk / pipeline_status 최신 상태
+  - 3초 또는 20초 수신 주기에 따라 부분 갱신
 
-  48시간 경과 후 HISTORY 아이템은 DynamoDB TTL에 의해 자동 삭제됨.
-  LATEST는 삭제되지 않고 계속 overwrite.
+sk = HISTORY#STATE#{updated_at}
+  - TTL 있음
+  - LATEST와 같은 구조 + ttl
+  - factory_state 또는 infra_state 수신마다 신규 snapshot 저장
+
+sk = GRAPH#5M#{bucket_start}
+  - TTL 있음
+  - 5분 bucket sensor / risk / AI / infra 집계
+
+HISTORY#STATE와 GRAPH#5M 아이템은 ttl 값에 따라 DynamoDB TTL로 자동 삭제된다.
+LATEST는 삭제되지 않고 계속 overwrite된다.
 ```
 
 ---
 
 ## S3 버킷 구조
 
-```
-  aegis-bucket-data/
-  │
-  ├── raw/                              ← IoT Rule이 직접 저장 (원본, 가공 없음)
-  │   ├── factory-a/
-  │   │   ├── factory_state/
-  │   │   │   └── yyyy=2026/mm=05/dd=21/
-  │   │   │       └── factory-a:factory_state:worker2:2026-05-21T10:00:03Z.json
-  │   │   └── infra_state/
-  │   │       └── yyyy=2026/mm=05/dd=21/
-  │   │           └── factory-a:infra_state:cluster:2026-05-21T10:00:20Z.json
-  │   ├── factory-b/  (동일 구조)
-  │   └── factory-c/  (동일 구조)
-  │
-  └── processed/                        ← Lambda가 저장 (정규화·계산 결과)
-      ├── factory-a/
-      │   ├── factory_state/            ← normalized sensor data
-      │   │   └── yyyy=2026/mm=05/dd=21/hh=10/
-      │   │       └── {message_id}.json
-      │   ├── risk_score/               ← normalized + risk + pipeline_status
-      │   │   └── yyyy=2026/mm=05/dd=21/hh=10/
-      │   │       └── {message_id}.json
-      │   ├── infra_state/             ← normalized infra + pipeline_status
-      │   │   └── yyyy=2026/mm=05/dd=21/hh=10/
-      │   │       └── {message_id}.json
-      │   └── state_snapshot/          ← HISTORY#STATE와 같은 전체 상태, ttl 제외
-      │       └── yyyy=2026/mm=05/dd=21/hh=10/
-      │           └── {updated_at}.json
-      ├── factory-b/  (동일 구조)
-      └── factory-c/  (동일 구조)
+```text
+aegis-bucket-data/
+├── raw/                              ← IoT Rule이 직접 저장 (원본, 가공 없음)
+│   ├── factory-a/
+│   │   ├── factory_state/yyyy=2026/mm=05/dd=21/{message_id}.json
+│   │   └── infra_state/yyyy=2026/mm=05/dd=21/{message_id}.json
+│   ├── factory-b/  (동일 구조)
+│   └── factory-c/  (동일 구조)
+│
+├── processed/                        ← Lambda가 저장 (정규화·계산 결과)
+│   ├── factory-a/
+│   │   ├── factory_state/yyyy=2026/mm=05/dd=21/hh=10/{message_id}.json
+│   │   ├── risk_score/yyyy=2026/mm=05/dd=21/hh=10/{message_id}.json
+│   │   ├── infra_state/yyyy=2026/mm=05/dd=21/hh=10/{message_id}.json
+│   │   └── state_snapshot/yyyy=2026/mm=05/dd=21/hh=10/{updated_at}.json
+│   ├── factory-b/  (동일 구조)
+│   └── factory-c/  (동일 구조)
+│
+└── processed_agg/                    ← GraphAggregator5m이 저장 (그래프 집계)
+    ├── factory-a/metrics_5m/yyyy=2026/mm=05/dd=21/hh=10/mm=05.json
+    ├── factory-b/  (동일 구조)
+    └── factory-c/  (동일 구조)
 
-  raw/      → 90일 후 Glacier Instant Retrieval 전환  (S3 Lifecycle)
-  processed/ → 365일 후 Standard-IA 전환             (S3 Lifecycle)
+raw/        → 90일 후 Glacier Instant Retrieval 전환 (S3 Lifecycle)
+processed/  → 365일 후 Standard-IA 전환 (S3 Lifecycle)
 ```
 
 ---
@@ -349,6 +306,9 @@ http://prometheus-svc.monitoring.svc.cluster.local:9090
 | Lambda IAM Role | `AEGIS-IAMRole-Lambda-DataProcessor` | DynamoDB GetItem/PutItem/UpdateItem, S3 PutObject processed/* |
 | Lambda IAM Policy | `AEGIS-IAMPolicy-Lambda-DataProcessor` | CloudWatch Logs + DynamoDB + S3 |
 | CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-DataProcessor` | 보존 30일 |
+| Lambda Function | `AEGIS-Lambda-GraphAggregator5m` | python3.12, 512MB, timeout 60s |
+| EventBridge Scheduler | `AEGIS-Schedule-GraphAggregator5m` | rate(5 minutes), GraphAggregator5m 호출 |
+| CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-GraphAggregator5m` | 보존 30일 |
 | DynamoDB Table | `AEGIS-DynamoDB-FactoryStatus` | PAY_PER_REQUEST, PITR 활성화, Streams NEW_AND_OLD_IMAGES |
 | IoT Rule (factory-a) | `AEGIS_IoTRule_factory_a_raw_s3` | S3 + Lambda 액션 |
 | IoT Rule (factory-b) | `AEGIS_IoTRule_factory_b_raw_s3` | S3 + Lambda 액션 |
@@ -361,7 +321,21 @@ http://prometheus-svc.monitoring.svc.cluster.local:9090
 |---|---|
 | `DYNAMODB_TABLE_NAME` | `AEGIS-DynamoDB-FactoryStatus` |
 | `S3_BUCKET_NAME` | `aegis-bucket-data` |
-| `HISTORY_TTL_HOURS` | `48` |
+| `HISTORY_TTL_HOURS` | `var.dynamodb_history_ttl_hours` |
+
+### GraphAggregator5m 환경 변수
+
+| 변수 | 값 (Terraform 주입) |
+|---|---|
+| `DYNAMODB_TABLE_NAME` | `AEGIS-DynamoDB-FactoryStatus` |
+| `S3_BUCKET_NAME` | `aegis-bucket-data` |
+| `FACTORY_IDS` | `factory-a,factory-b,factory-c` |
+| `BUCKET_MINUTES` | `5` |
+| `LOOKBACK_BUCKETS` | `1` |
+| `GRAPH_TTL_HOURS` | `48` |
+| `EXPECTED_SAMPLE_INTERVAL_SECONDS` | `3` |
+| `AI_SCORE_THRESHOLD` | `0.7` |
+| `S3_OUTPUT_PREFIX` | `processed_agg` |
 
 ---
 
@@ -478,6 +452,46 @@ DynamoDB `HISTORY#STATE`와 같은 전체 상태 snapshot이다. S3에서는 Dyn
 }
 ```
 
+### processed_agg metrics_5m
+
+GraphAggregator5m이 DynamoDB `HISTORY#STATE`를 5분 bucket으로 집계한 S3 보조 산출물이다. S3 body에서는 DynamoDB TTL 정책 필드인 `ttl`을 제외하고, 원래 DynamoDB key는 `dynamodb_pk`, `dynamodb_sk`로 남긴다.
+
+```json
+{
+  "dynamodb_pk": "FACTORY#factory-a",
+  "dynamodb_sk": "GRAPH#5M#2026-05-21T10:05:00Z",
+  "factory_id": "factory-a",
+  "schema_version": "graph-5m-v0.1.0",
+  "bucket_minutes": 5,
+  "bucket_start": "2026-05-21T10:05:00Z",
+  "bucket_end": "2026-05-21T10:09:59.999Z",
+  "sensor": {
+    "temperature_celsius": {
+      "unit": "celsius",
+      "count": 100,
+      "min": 24.0,
+      "max": 31.2,
+      "mean": 27.4
+    }
+  },
+  "risk": {
+    "score": {
+      "unit": "score",
+      "count": 100,
+      "min": 88.0,
+      "max": 99.0,
+      "mean": 93.2
+    }
+  },
+  "quality": {
+    "source_dataset": "DynamoDB HISTORY#STATE",
+    "source_count": 100,
+    "expected_count": 100,
+    "collection_rate": 1.0
+  }
+}
+```
+
 ---
 
 ## DynamoDB 키 패턴 요약
@@ -485,7 +499,8 @@ DynamoDB `HISTORY#STATE`와 같은 전체 상태 snapshot이다. S3에서는 Dyn
 | SK | 저장 계기 | 주기 | TTL | 내용 |
 |---|---|---|---|---|
 | `LATEST` | factory_state / infra_state 수신 | 3초 / 20초 덮어씀 | 없음 | 최신 전체 상태 |
-| `HISTORY#STATE#{updated_at}` | factory_state / infra_state 수신 | 3초 / 20초 | 48시간 | LATEST와 같은 구조 + ttl |
+| `HISTORY#STATE#{updated_at}` | factory_state / infra_state 수신 | 3초 / 20초 | `HISTORY_TTL_HOURS` | LATEST와 같은 구조 + ttl |
+| `GRAPH#5M#{bucket_start}` | GraphAggregator5m 실행 | 5분 | `GRAPH_TTL_HOURS` | 5분 그래프 집계 |
 
 > `pk`는 모두 `FACTORY#{factory_id}` 고정.
 
@@ -499,20 +514,20 @@ DynamoDB `HISTORY#STATE`와 같은 전체 상태 snapshot이다. S3에서는 Dyn
        ├── 현재 상태 카드 (Risk / 환경 / 노드 / Pipeline)
        │        └── DynamoDB GetItem  FACTORY#{id} / LATEST
        │
-       ├── Risk 추이 그래프
-       │        └── DynamoDB Query   pk=FACTORY#{id}
-       │                             sk begins_with "HISTORY#STATE#"
-       │                             risk 필드 추출
-       │
-       ├── 환경 데이터 그래프 (온도·습도 등)
-       │        └── DynamoDB Query   pk=FACTORY#{id}
-       │                             sk begins_with "HISTORY#STATE#"
-       │                             factory_state 필드 추출
-       │
-       ├── 인프라 상태 그래프 (CPU·memory·nodes)
-       │        └── DynamoDB Query   pk=FACTORY#{id}
-       │                             sk begins_with "HISTORY#STATE#"
-       │                             infra_state 필드 추출
+         ├── Risk 추이 그래프
+         │        └── DynamoDB Query   pk=FACTORY#{id}
+         │                             sk begins_with "GRAPH#5M#"
+         │                             risk.score 집계 필드 추출
+         │
+         ├── 환경 데이터 그래프 (온도·습도 등)
+         │        └── DynamoDB Query   pk=FACTORY#{id}
+         │                             sk begins_with "GRAPH#5M#"
+         │                             sensor 집계 필드 추출
+         │
+         ├── 인프라 상태 그래프 (CPU·memory·nodes)
+         │        └── DynamoDB Query   pk=FACTORY#{id}
+         │                             sk begins_with "GRAPH#5M#"
+         │                             infra 집계 필드 추출
        │
        └── 장기 이력 / 감사 / 재처리
                 └── S3 prefix scan   processed/{factory_id}/...
@@ -526,7 +541,8 @@ DynamoDB `HISTORY#STATE`와 같은 전체 상태 snapshot이다. S3에서는 Dyn
 | 저장소 | 보존 기간 | 방식 |
 |---|---|---|
 | DynamoDB LATEST | 무기한 | overwrite |
-| DynamoDB HISTORY | 48시간 | TTL 자동 삭제 |
+| DynamoDB HISTORY#STATE | `HISTORY_TTL_HOURS` | TTL 자동 삭제 |
+| DynamoDB GRAPH#5M | `GRAPH_TTL_HOURS` | TTL 자동 삭제 |
 | S3 raw | 90일 후 Glacier IR 전환 | S3 Lifecycle |
 | S3 processed | 365일 후 Standard-IA 전환 | S3 Lifecycle |
 | CloudWatch Logs | 30일 | Log Group retention |
@@ -535,7 +551,7 @@ DynamoDB `HISTORY#STATE`와 같은 전체 상태 snapshot이다. S3에서는 Dyn
 
 ## 관측 확장 범위
 
-현재 data-pipeline 완료 판정은 S3 raw/processed, DynamoDB LATEST/HISTORY, Lambda, IoT Rule 실제 리소스 확인을 기준으로 한다. 후속 확장에서는 운영 중 지연과 처리 품질을 지속적으로 보기 위해 CloudWatch metric과 Grafana 관측 패널을 추가한다.
+현재 data-pipeline 완료 판정은 S3 raw/processed/processed_agg, DynamoDB LATEST/HISTORY#STATE/GRAPH#5M, Lambda, IoT Rule, EventBridge Scheduler 실제 리소스 확인을 기준으로 한다. 후속 확장에서는 운영 중 지연과 처리 품질을 지속적으로 보기 위해 CloudWatch metric과 Grafana 관측 패널을 추가한다.
 
 ### 역할 분리
 
@@ -563,7 +579,7 @@ Lambda data processor는 CloudWatch Embedded Metric Format(EMF) 또는 CloudWatc
 | `MessagesFailed` | Lambda 처리 실패 수 |
 | `ProcessingLatencyMs` | Lambda 내부 전체 처리 시간 |
 | `EndToEndLagSeconds` | `processed_at - source_timestamp` 기준 end-to-end 지연 |
-| `DynamoDBUpdateLatencyMs` | DynamoDB LATEST/HISTORY 쓰기 지연 |
+| `DynamoDBUpdateLatencyMs` | DynamoDB LATEST/HISTORY#STATE/GRAPH#5M 쓰기 지연 |
 | `S3PutLatencyMs` | S3 processed PutObject 지연 |
 | `PipelineStatusAgeSeconds` | 최신 infra_state 기준 pipeline age |
 | `RiskScore` | factory별 최신 Risk Score |
@@ -614,9 +630,13 @@ Grafana는 내부 관리 UI로 유지하고, 필요 시 CloudWatch datasource �
 | `apps/data-processor/processor/pipeline_status.py` | Pipeline status 판정 |
 | `apps/data-processor/processor/dynamo.py` | DynamoDB 읽기/쓰기 |
 | `apps/data-processor/processor/s3_writer.py` | S3 processed 쓰기 |
-| `infra/foundation/lambda.tf` | Lambda, IAM, CloudWatch 리소스 |
+| `apps/graph-metrics-aggregator/aggregator/handler.py` | GraphAggregator5m Lambda 핸들러 |
+| `apps/graph-metrics-aggregator/aggregator/metrics.py` | 5분 그래프 집계 item 생성 |
+| `apps/graph-metrics-aggregator/aggregator/dynamo.py` | HISTORY#STATE query, GRAPH#5M put |
+| `infra/data-pipeline/lambda.tf` | DataProcessor Lambda, IAM, CloudWatch 리소스 |
+| `infra/data-pipeline/graph_aggregator_lambda.tf` | GraphAggregator5m Lambda와 Scheduler |
 | `infra/foundation/dynamodb.tf` | DynamoDB 테이블 리소스 |
-| `infra/foundation/iot_rule.tf` | IoT Topic Rule 리소스 |
+| `infra/data-pipeline/iot_rule.tf` | IoT Topic Rule 리소스 |
 
 ---
 

@@ -9,7 +9,7 @@
 
 설계 source of truth는 `docs/planning/17_llm_daily_factory_report_plan.md`다. 이 문서는 배포, 점검, 장애 대응 시 운영자가 확인할 기준만 둔다.
 
-2026-05-28 기준 구현은 로컬 검증, Bedrock Sonnet 실호출, AWS 배포, Step Functions 수동 실행까지 완료됐다. `factory-b`, `report_date=2026-05-27`, `timezone=Asia/Seoul` 실행은 `SUCCEEDED`였고, S3 `reports/daily/yyyy=2026/mm=05/dd=27/factory-b/` 산출물을 확인했다. 검증 후 reporting stack은 비용 방지를 위해 삭제했으며, S3 `processed/` 입력과 `reports/daily/` 산출물은 보존한다.
+2026-05-28 기준 구현은 로컬 검증, Bedrock Sonnet 실호출, AWS 배포, Step Functions 수동 실행까지 완료됐다. `factory-b`, `report_date=2026-05-27`, `timezone=Asia/Seoul` 최종 실행 `manual-factory-report-20260528T064840Z`는 `SUCCEEDED`였고, S3 `reports/daily/yyyy=2026/mm=05/dd=27/factory-b/` 산출물을 확인했다. 검증 중 Bedrock 출력 heading trailing space 때문에 `인프라 상태` 표가 삽입되지 않는 케이스를 수정했고, 최종 `report.md`에서 핵심 지표/데이터 수집/Risk Score/센서 및 AI 이벤트/인프라 상태/주요 이벤트/확인 필요 항목 표와 분석 문단을 확인했다. 검증 후 reporting stack은 비용 방지를 위해 삭제했으며, S3 `processed/` 입력과 `reports/daily/` 산출물은 보존한다.
 
 ## 범위
 
@@ -123,6 +123,17 @@ MVP에서는 foundation remote state를 읽지 않는다. Reporting stack이 필
 - `generation-metadata.json`의 validation status가 success인지 확인
 - CloudWatch Logs에 Bedrock throttling, S3 AccessDenied, schema validation error가 없는지 확인
 
+인프라 상태 확인은 현재 S3 `processed/infra_state`와 `state_snapshot` 입력을 기준으로 보고서에 반영한다. 후속 확장에서는 CloudWatch를 보조 관측원으로 추가해, 보고서 생성 후 운영자가 Lambda/Step Functions 실행 상태와 실제 AWS 인프라 신호를 함께 확인할 수 있게 한다.
+
+CloudWatch 확장 방향:
+
+- Lambda log group과 Step Functions execution log에서 reporting 파이프라인 자체의 오류, timeout, retry, billed duration을 조회한다.
+- factory별 인프라 판단은 S3 processed 데이터가 primary source이고, CloudWatch는 AWS 리소스 실행/장애 근거를 보강하는 secondary source로 둔다.
+- `report-context.json`에는 CloudWatch 조회 window, 조회한 log group/metric namespace, 발견된 오류 카운트 같은 요약 필드만 넣고 raw log line 전문은 넣지 않는다.
+- `report.md`의 인프라 상태 섹션에는 processed 기반 노드/워크로드 상태와 CloudWatch 기반 Lambda/Step Functions 상태를 구분해서 표시한다.
+- CloudWatch 권한을 추가할 때는 reporting Lambda role에 필요한 `logs:FilterLogEvents`, `logs:StartQuery`, `logs:GetQueryResults`, `cloudwatch:GetMetricData` 범위를 최소 log group/metric namespace로 제한한다.
+- destroy 기준은 유지한다. reporting stack destroy는 reporting Lambda, Step Functions, Scheduler, 관련 IAM/LogGroup만 삭제하고 S3 `processed/`와 `reports/daily/` 객체는 보존한다.
+
 S3 확인 예시:
 
 ```bash
@@ -153,3 +164,4 @@ aws s3 ls s3://aegis-bucket-data/reports/daily/yyyy=2026/mm=05/dd=27/factory-a/ 
 - KST day boundary에서 `23:59:59.xxx` timestamp가 해당 날짜에 포함되고, 다음 날짜 `00:00:00.000` 이후 데이터가 섞이지 않는지 주기적으로 확인한다.
 - `S3ProcessedReader`의 순차 `GetObject` 병목을 줄이기 위해 `S3_GET_CONCURRENCY` 병렬화를 구현한다.
 - `generation-metadata.json`에 Bedrock token usage, context bytes, output bytes, input object count를 남긴다.
+- CloudWatch Logs/metrics 기반 인프라 상태 보조 조회를 추가해 reporting 파이프라인 상태와 factory 인프라 판단 근거를 같은 보고서에서 분리 표시한다.

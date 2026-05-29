@@ -11,7 +11,7 @@ AMP(Amazon Managed Service for Prometheus)와 Hub Prometheus Agent는 active 구
 
 - 현재 사용자는 AMP로 EKS 상태를 직접 확인하지 않는다.
 - EKS Hub 관측은 비용 대비 필요성이 낮다.
-- 데이터 수집/처리의 source of truth는 AMP가 아니라 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed이다.
+- 데이터 수집/처리의 source of truth는 AMP가 아니라 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed, GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg이다.
 - Hub Grafana는 내부 관리 UI로만 유지하고 AMP datasource는 제거한다.
 
 ## 제거 대상

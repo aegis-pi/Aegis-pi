@@ -275,7 +275,7 @@ aws s3 ls s3://aegis-bucket-data/raw/factory-c/ --recursive --region ap-south-1
 - factory-b/c IoT Thing/certificate/K3s Secret 준비 완료
 - factory-b/c `edge-iot-publisher` Pod Running 확인
 - S3 raw prefix 분리 적재 확인: `raw/factory-b/...`, `raw/factory-c/...`
-- 다음 단계: Lambda data processor가 S3 raw 이후 DynamoDB LATEST/HISTORY, S3 processed, `pipeline_status`를 갱신하도록 구현
+- 다음 단계: Lambda data processor가 S3 raw 이후 DynamoDB LATEST/HISTORY#STATE, S3 processed, `pipeline_status`를 갱신하도록 구현
 
 ### factory-c 네트워크 및 Flannel/CoreDNS 통신 장애 조치 내역 (2026-05-20)
 

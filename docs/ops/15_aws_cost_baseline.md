@@ -91,7 +91,7 @@ ALB 포함 시 고정 시간 비용: `0.2577 + 0.0419 = 0.2996 USD/hour` (~$218.
 
 ### AMP (Amazon Managed Prometheus)
 
-AMP는 2026-05-27 비용 최적화 기준에서 active 구성에서 제거했다. 사용자는 AMP로 EKS 상태를 직접 확인하지 않고, 현재 데이터 처리 상태의 source of truth는 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY + S3 processed이다.
+AMP는 2026-05-27 비용 최적화 기준에서 active 구성에서 제거했다. 사용자는 AMP로 EKS 상태를 직접 확인하지 않고, 현재 데이터 처리 상태의 source of truth는 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed, GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg이다.
 
 제거 대상:
 
@@ -219,7 +219,7 @@ Admin UI ALB 추가 시: +$30.5/월 → **~$219/월**
 | --- | --- | ---: | --- |
 | S3 버킷 (aegis-bucket-data) | S3 Standard | ~$0.000003 | 개발 중 ~100MB |
 | ECR × 3 repos | ECR | **~$0.00008** | ~600MB 이미지 기준 |
-| DynamoDB (AEGIS-DynamoDB-FactoryStatus) | DynamoDB | ~$0 | PAY_PER_REQUEST, 48h TTL 후 idle |
+| DynamoDB (AEGIS-DynamoDB-FactoryStatus) | DynamoDB | ~$0 | PAY_PER_REQUEST, `HISTORY#STATE`/`GRAPH#5M` TTL 후 idle |
 | GitHub Actions OIDC + IAM | IAM | $0 | |
 | IoT Thing/Cert/Policy | IoT Core | $0 | 연결 없으면 메시지 과금 없음 |
 | **합계** | | **~$0.00009/hr** | **~$0.07/월** |

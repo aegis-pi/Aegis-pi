@@ -27,7 +27,7 @@ infra/data-pipeline/
 
 ## 변경 이유
 
-1. **상태 저장소**: DynamoDB는 IoT Rule/Lambda와 달리 누적 이력 데이터를 보관한다. data-pipeline destroy 시 HISTORY TTL 아이템(48h 이내)이 전부 삭제되면 디버깅 맥락을 잃는다.
+1. **상태 저장소**: DynamoDB는 IoT Rule/Lambda와 달리 누적 이력 데이터를 보관한다. data-pipeline destroy 시 HISTORY#STATE/GRAPH#5M TTL 아이템이 전부 삭제되면 디버깅 맥락을 잃는다.
 2. **Lambda Notifier 대비**: 향후 DynamoDB Streams 기반 Lambda Notifier를 추가할 때 테이블 ARN이 안정적으로 유지되어야 Streams event source mapping 설정이 단순해진다.
 3. **비용**: DynamoDB PAY_PER_REQUEST 기준 대기 비용이 사실상 $0이므로 foundation에 유지해도 추가 비용이 없다.
 

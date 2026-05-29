@@ -25,7 +25,7 @@ M5의 목적은 실제 센서 정확도 검증이 아니라 멀티 factory 식�
 ## 영향
 
 - IoT Core topic filter와 S3 prefix가 factory별로 분리된다.
-- Lambda data processor는 `factory_id` 기준으로 DynamoDB LATEST/HISTORY item을 독립 갱신해야 한다.
+- Lambda data processor는 `factory_id` 기준으로 DynamoDB LATEST/HISTORY#STATE item을 독립 갱신해야 한다.
 - S3 raw는 `factory-a`, `factory-b`, `factory-c` prefix를 모두 갖는다.
 
 ## 검증
