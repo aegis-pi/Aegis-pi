@@ -49,7 +49,7 @@ variable "dynamodb_table_name" {
 variable "dynamodb_history_ttl_hours" {
   description = "TTL in hours for DynamoDB HISTORY items."
   type        = number
-  default     = 48
+  default     = 2
 }
 
 variable "lambda_data_processor_name" {
@@ -68,4 +68,64 @@ variable "lambda_data_processor_memory" {
   description = "Lambda memory allocation in MB."
   type        = number
   default     = 512
+}
+
+variable "lambda_graph_aggregator_name" {
+  description = "Lambda function name for 5-minute graph metric aggregation."
+  type        = string
+  default     = "AEGIS-Lambda-GraphAggregator5m"
+}
+
+variable "lambda_graph_aggregator_timeout" {
+  description = "Graph aggregator Lambda timeout in seconds."
+  type        = number
+  default     = 60
+}
+
+variable "lambda_graph_aggregator_memory" {
+  description = "Graph aggregator Lambda memory in MB."
+  type        = number
+  default     = 512
+}
+
+variable "graph_aggregator_enabled" {
+  description = "Whether the 5-minute graph aggregator schedule is enabled."
+  type        = bool
+  default     = true
+}
+
+variable "graph_aggregator_factory_ids" {
+  description = "Factories processed by the 5-minute graph aggregator."
+  type        = list(string)
+  default     = ["factory-a", "factory-b", "factory-c"]
+}
+
+variable "graph_bucket_minutes" {
+  description = "Graph aggregation bucket size in minutes."
+  type        = number
+  default     = 5
+}
+
+variable "graph_aggregator_lookback_buckets" {
+  description = "Number of closed buckets to aggregate on each scheduled run."
+  type        = number
+  default     = 1
+}
+
+variable "graph_bucket_ttl_hours" {
+  description = "TTL in hours for GRAPH#5M DynamoDB items."
+  type        = number
+  default     = 48
+}
+
+variable "graph_expected_sample_interval_seconds" {
+  description = "Expected state snapshot interval used for graph bucket quality."
+  type        = number
+  default     = 3
+}
+
+variable "graph_ai_score_threshold" {
+  description = "Default threshold for AI detection score graph markers."
+  type        = number
+  default     = 0.7
 }

@@ -47,3 +47,18 @@ output "lambda_data_processor_arn" {
   description = "Lambda function ARN for the Aegis data processor."
   value       = aws_lambda_function.data_processor.arn
 }
+
+output "graph_aggregator_lambda_name" {
+  description = "Graph aggregator Lambda name."
+  value       = aws_lambda_function.graph_aggregator.function_name
+}
+
+output "graph_aggregator_lambda_arn" {
+  description = "Graph aggregator Lambda ARN."
+  value       = aws_lambda_function.graph_aggregator.arn
+}
+
+output "graph_aggregator_schedule_name" {
+  description = "Graph aggregator schedule name."
+  value       = aws_scheduler_schedule.graph_aggregator_5m.name
+}

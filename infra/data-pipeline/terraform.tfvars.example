@@ -7,9 +7,21 @@ data_bucket_name = "aegis-bucket-data"
 
 # DynamoDB — table is managed by infra/foundation; name must match foundation's dynamodb_table_name
 dynamodb_table_name        = "AEGIS-DynamoDB-FactoryStatus"
-dynamodb_history_ttl_hours = 48
+dynamodb_history_ttl_hours = 2
 
 # Lambda
 lambda_data_processor_name    = "AEGIS-Lambda-DataProcessor"
 lambda_data_processor_timeout = 60
 lambda_data_processor_memory  = 512
+
+# GraphAggregator5m Lambda
+lambda_graph_aggregator_name    = "AEGIS-Lambda-GraphAggregator5m"
+lambda_graph_aggregator_timeout = 60
+lambda_graph_aggregator_memory  = 512
+graph_aggregator_enabled        = true
+graph_aggregator_factory_ids    = ["factory-a", "factory-b", "factory-c"]
+graph_bucket_minutes            = 5
+graph_aggregator_lookback_buckets = 1
+graph_bucket_ttl_hours            = 48
+graph_expected_sample_interval_seconds = 3
+graph_ai_score_threshold                = 0.7
