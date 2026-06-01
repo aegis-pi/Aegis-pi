@@ -158,11 +158,14 @@ def aggregate_graph_item(
     sensor_reducers = {name: NumericReducer() for name in SENSOR_METRICS}
     risk_reducers = {name: NumericReducer() for name in RISK_METRICS}
     infra_reducers = {name: NumericReducer() for name in INFRA_METRICS}
+    node_infra_reducers = {}
+    node_metadata = {}
     ai_reducer = AiReducer(ai_score_threshold)
     seen_sensor = {name: set() for name in SENSOR_METRICS}
     seen_risk = {name: set() for name in RISK_METRICS}
     seen_ai = {name: set() for name in AI_METRICS}
     seen_infra = {name: set() for name in INFRA_METRICS}
+    seen_node_infra = {}
 
     for source in source_items:
         factory_state = source.get("factory_state") or {}
@@ -188,10 +191,14 @@ def aggregate_graph_item(
         if infra_in_bucket:
             for metric, value in _infra_snapshot_values(source).items():
                 _add_once(infra_reducers[metric], seen_infra[metric], value, infra_at)
+            _add_node_infra_snapshot(node_infra_reducers, node_metadata, seen_node_infra, source, infra_at)
 
     item["sensor"] = _summaries(sensor_reducers, SENSOR_METRICS)
     item["risk"] = _summaries(risk_reducers, RISK_METRICS)
     item["infra"] = _summaries(infra_reducers, INFRA_METRICS)
+    node_summaries = _node_infra_summaries(node_infra_reducers, node_metadata)
+    if node_summaries:
+        item["infra"]["nodes"] = node_summaries
     item["ai_detection"] = ai_reducer.summary()
     return item
 
@@ -214,6 +221,52 @@ def _infra_snapshot_values(source: dict) -> dict:
         if node_values:
             values[metric] = sum(node_values) / len(node_values)
     return values
+
+
+def _add_node_infra_snapshot(
+    node_infra_reducers: dict,
+    node_metadata: dict,
+    seen_node_infra: dict,
+    source: dict,
+    infra_at: str,
+):
+    nodes = (source.get("infra_state") or {}).get("nodes") or []
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        node_id = _node_id(node)
+        if not node_id:
+            continue
+        node_metadata.setdefault(node_id, _node_metadata(node, node_id))
+        node_reducers = node_infra_reducers.setdefault(node_id, {name: NumericReducer() for name in INFRA_METRICS})
+        node_seen = seen_node_infra.setdefault(node_id, {name: set() for name in INFRA_METRICS})
+        for metric in INFRA_METRICS:
+            _add_once(node_reducers[metric], node_seen[metric], node.get(metric), infra_at)
+
+
+def _node_infra_summaries(node_infra_reducers: dict, node_metadata: dict) -> list[dict]:
+    nodes = []
+    for node_id in sorted(node_infra_reducers):
+        item = dict(node_metadata.get(node_id) or {"node_id": node_id})
+        for metric, reducer in node_infra_reducers[node_id].items():
+            summary = reducer.summary(INFRA_METRICS[metric])
+            if summary:
+                item[metric] = summary
+        if any(metric in item for metric in INFRA_METRICS):
+            nodes.append(item)
+    return nodes
+
+
+def _node_id(node: dict) -> str:
+    return str(node.get("node_id") or node.get("name") or "").strip()
+
+
+def _node_metadata(node: dict, node_id: str) -> dict:
+    result = {"node_id": node_id}
+    role = str(node.get("role") or "").strip()
+    if role:
+        result["role"] = role
+    return result
 
 
 def _quality(source_count: int, expected_count: int, bucket_start_iso: str, bucket_end_iso: str) -> dict:

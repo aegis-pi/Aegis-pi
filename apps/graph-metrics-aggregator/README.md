@@ -1,7 +1,7 @@
 # graph-metrics-aggregator
 
 상태: source of truth
-기준일: 2026-05-29
+기준일: 2026-06-01
 
 ## 목적
 
@@ -44,8 +44,29 @@ EventBridge Scheduler (rate 5 minutes)
 | `sensor` | `temperature_celsius`, `humidity_percent`, `pressure_hpa` |
 | `risk` | `score` |
 | `ai_detection` | `fire_score`, `fall_score`, `bend_score`, threshold 초과 횟수 |
-| `infra` | node 평균 `cpu_usage_percent`, `memory_usage_percent`, `disk_usage_percent` |
+| `infra` | 하위 호환용 전체 node 평균 `cpu_usage_percent`, `memory_usage_percent`, `disk_usage_percent` |
+| `infra.nodes[]` | `node_id`별 `cpu_usage_percent`, `memory_usage_percent`, `disk_usage_percent` 5분 집계 |
 | `quality` | source count, expected count, collection rate, empty/partial 여부 |
+
+`infra.nodes[]` 예시:
+
+```json
+{
+  "node_id": "worker1",
+  "role": "worker",
+  "cpu_usage_percent": {
+    "unit": "percent",
+    "count": 14,
+    "min": 8.07,
+    "max": 11.66,
+    "mean": 9.5107,
+    "first": 8.4,
+    "last": 9.11
+  }
+}
+```
+
+Backend는 노드 그래프를 만들 때 `infra.nodes[].node_id` 기준으로 series를 묶고, chart 기본값은 `mean`을 사용한다. 배포 이전에 생성된 오래된 `GRAPH#5M` item에는 `infra.nodes[]`가 없을 수 있으므로 필요하면 `infra.cpu_usage_percent` 전체 평균으로 fallback한다.
 
 ## 환경 변수
 

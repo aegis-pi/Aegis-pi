@@ -41,6 +41,94 @@ def test_aggregate_graph_item_summarizes_sensor_risk_ai_and_infra():
     assert graph["infra"]["cpu_usage_percent"]["first"] == 30.0
     assert graph["infra"]["cpu_usage_percent"]["max"] == 70.0
     assert graph["infra"]["cpu_usage_percent"]["last"] == 30.0
+    assert graph["infra"]["nodes"] == [
+        {
+            "node_id": "node-a",
+            "role": "worker",
+            "cpu_usage_percent": {
+                "unit": "percent",
+                "count": 3,
+                "min": 20.0,
+                "min_at": "2026-05-28T10:05:01Z",
+                "max": 60.0,
+                "max_at": "2026-05-28T10:06:01Z",
+                "mean": 36.6667,
+                "first": 20.0,
+                "first_at": "2026-05-28T10:05:01Z",
+                "last": 30.0,
+                "last_at": "2026-05-28T10:07:01Z",
+            },
+            "memory_usage_percent": {
+                "unit": "percent",
+                "count": 3,
+                "min": 50.0,
+                "min_at": "2026-05-28T10:05:01Z",
+                "max": 50.0,
+                "max_at": "2026-05-28T10:05:01Z",
+                "mean": 50.0,
+                "first": 50.0,
+                "first_at": "2026-05-28T10:05:01Z",
+                "last": 50.0,
+                "last_at": "2026-05-28T10:07:01Z",
+            },
+            "disk_usage_percent": {
+                "unit": "percent",
+                "count": 3,
+                "min": 70.0,
+                "min_at": "2026-05-28T10:05:01Z",
+                "max": 70.0,
+                "max_at": "2026-05-28T10:05:01Z",
+                "mean": 70.0,
+                "first": 70.0,
+                "first_at": "2026-05-28T10:05:01Z",
+                "last": 70.0,
+                "last_at": "2026-05-28T10:07:01Z",
+            },
+        },
+        {
+            "node_id": "node-b",
+            "role": "worker",
+            "cpu_usage_percent": {
+                "unit": "percent",
+                "count": 2,
+                "min": 40.0,
+                "min_at": "2026-05-28T10:05:01Z",
+                "max": 80.0,
+                "max_at": "2026-05-28T10:06:01Z",
+                "mean": 60.0,
+                "first": 40.0,
+                "first_at": "2026-05-28T10:05:01Z",
+                "last": 80.0,
+                "last_at": "2026-05-28T10:06:01Z",
+            },
+            "memory_usage_percent": {
+                "unit": "percent",
+                "count": 3,
+                "min": 60.0,
+                "min_at": "2026-05-28T10:05:01Z",
+                "max": 60.0,
+                "max_at": "2026-05-28T10:05:01Z",
+                "mean": 60.0,
+                "first": 60.0,
+                "first_at": "2026-05-28T10:05:01Z",
+                "last": 60.0,
+                "last_at": "2026-05-28T10:07:01Z",
+            },
+            "disk_usage_percent": {
+                "unit": "percent",
+                "count": 3,
+                "min": 72.0,
+                "min_at": "2026-05-28T10:05:01Z",
+                "max": 72.0,
+                "max_at": "2026-05-28T10:05:01Z",
+                "mean": 72.0,
+                "first": 72.0,
+                "first_at": "2026-05-28T10:05:01Z",
+                "last": 72.0,
+                "last_at": "2026-05-28T10:07:01Z",
+            },
+        },
+    ]
     assert graph["quality"]["expected_count"] == 100
     assert graph["quality"]["source_count"] == 3
     assert graph["quality"]["infra_values_from_snapshot"] is True
@@ -113,6 +201,8 @@ def test_aggregate_graph_item_deduplicates_repeated_snapshot_payloads():
     assert graph["ai_detection"]["above_threshold_count"] == 1
     assert graph["infra"]["cpu_usage_percent"]["count"] == 1
     assert graph["infra"]["cpu_usage_percent"]["first_at"] == "2026-05-28T10:05:09Z"
+    assert graph["infra"]["nodes"][0]["cpu_usage_percent"]["count"] == 1
+    assert graph["infra"]["nodes"][0]["cpu_usage_percent"]["first_at"] == "2026-05-28T10:05:09Z"
 
 
 def test_aggregate_graph_item_excludes_stale_observations_but_keeps_refresh_risk():
@@ -167,8 +257,20 @@ def _history_item(at, *, temperature, risk, fire, fall, bend, cpu):
         "risk": {"score": risk},
         "infra_state": {
             "nodes": [
-                {"cpu_usage_percent": cpu[0], "memory_usage_percent": 50.0, "disk_usage_percent": 70.0},
-                {"cpu_usage_percent": cpu[1], "memory_usage_percent": 60.0, "disk_usage_percent": 72.0},
+                {
+                    "node_id": "node-a",
+                    "role": "worker",
+                    "cpu_usage_percent": cpu[0],
+                    "memory_usage_percent": 50.0,
+                    "disk_usage_percent": 70.0,
+                },
+                {
+                    "node_id": "node-b",
+                    "role": "worker",
+                    "cpu_usage_percent": cpu[1],
+                    "memory_usage_percent": 60.0,
+                    "disk_usage_percent": 72.0,
+                },
             ]
         },
     }
