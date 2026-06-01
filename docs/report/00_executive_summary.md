@@ -1,11 +1,11 @@
 # 요약 보고서
 
 상태: source of truth
-기준일: 2026-05-28
+기준일: 2026-05-29
 
 ## 한 줄 요약
 
-`factory-a` Raspberry Pi 3-node Safe-Edge 기준선을 시작점으로 Hub, 멀티 factory data-plane, 기본 Risk 계산, Daily Factory Report MVP 수동 검증까지 완료했다.
+`factory-a` Raspberry Pi 3-node Safe-Edge 기준선을 시작점으로 Hub, 멀티 factory data-plane, `risk-v0.2.0` Risk 계산, DataProcessor freshness refresh, Daily Factory Report MVP 수동 검증까지 완료했다.
 
 ## 현재 완료한 것
 
@@ -48,6 +48,7 @@ worker2 재연결 -> AI/audio/BME worker2 failback 성공
 ```text
 runtime-config 기반 Risk weight/threshold 적용
 Risk Twin read model 계약 고정
+factory-a 2026-05-28T07:54Z 이후 data-plane 입력 중단 원인 복구
 Daily Factory Report S3 read 성능/비용 관측 개선
 Dashboard page/VPC 담당 구현과 조회 필드 계약 정합성 확인
 M7 통합 검증과 문서 최종 보정
@@ -57,6 +58,7 @@ M7 통합 검증과 문서 최종 보정
 
 1. `runtime-config.yaml`을 Lambda Risk 계산에 연결
 2. Risk Twin read model을 DynamoDB/S3 processed 계약으로 고정
-3. Daily Factory Report S3 read 성능과 비용 관측값 개선
-4. Dashboard page/VPC 담당 구현과 조회 필드 계약 맞추기
-5. M7 통합 검증 시나리오와 문서 정합성 보정
+3. `factory-a` data-plane Pod/Secret/outbox/publisher를 복구해 실제 입력을 재개
+4. Daily Factory Report S3 read 성능과 비용 관측값 개선
+5. Dashboard page/VPC 담당 구현과 조회 필드 계약 맞추기
+6. M7 통합 검증 시나리오와 문서 정합성 보정

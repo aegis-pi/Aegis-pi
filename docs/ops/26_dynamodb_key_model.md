@@ -57,8 +57,8 @@ pk = FACTORY#{factory_id}
 
 | SK 패턴 | 생성 주체 | TTL | 용도 |
 | --- | --- | --- | --- |
-| `LATEST` | Lambda data processor | 없음 | factory별 최신 전체 상태 1건 |
-| `HISTORY#STATE#{updated_at}` | Lambda data processor | `HISTORY_TTL_HOURS` | LATEST snapshot 이력 |
+| `LATEST` | Lambda data processor, DataProcessorRefresh1m | 없음 | factory별 최신 전체 상태 1건 |
+| `HISTORY#STATE#{updated_at}` | Lambda data processor, DataProcessorRefresh1m | `HISTORY_TTL_HOURS` | LATEST snapshot 이력 |
 | `GRAPH#5M#{bucket_start}` | Graph metrics aggregator | `GRAPH_TTL_HOURS` | 5분 단위 그래프/지표 집계 |
 
 ### LATEST
@@ -68,7 +68,7 @@ pk = FACTORY#{factory_id}
 sk = LATEST
 ```
 
-`factory_state` 또는 `infra_state` 수신 시 같은 아이템을 부분 갱신한다.
+`factory_state` 또는 `infra_state` 수신 시 같은 아이템을 부분 갱신한다. 2026-05-29 배포된 `AEGIS-Schedule-DataProcessorRefresh1m`도 1분마다 같은 아이템의 `pipeline_status`, `risk`, `updated_at`을 현재 시각 기준으로 갱신한다. 이 refresh는 새 IoT 메시지가 없는 factory의 stale safe/normal 표시를 방지하기 위한 경로다.
 
 주요 필드:
 
@@ -87,7 +87,7 @@ pk = FACTORY#{factory_id}
 sk = HISTORY#STATE#{updated_at}
 ```
 
-`LATEST` 아이템을 복사해 snapshot으로 저장하고 `ttl`을 추가한다. Dashboard의 단기 이력 조회와 graph aggregator 입력으로 사용한다.
+`LATEST` 아이템을 복사해 snapshot으로 저장하고 `ttl`을 추가한다. Dashboard의 단기 이력 조회와 graph aggregator 입력으로 사용한다. 일반 IoT 메시지 처리뿐 아니라 DataProcessorRefresh1m 실행도 refresh 결과 snapshot을 남긴다.
 
 ### GRAPH#5M
 
@@ -104,9 +104,9 @@ sk = GRAPH#5M#{bucket_start}
 
 | PK | LATEST | 최신 HISTORY#STATE 샘플 | 최신 GRAPH#5M 샘플 |
 | --- | --- | --- | --- |
-| `FACTORY#factory-a` | `updated_at=2026-05-28T07:54:49.765Z` | `HISTORY#STATE#2026-05-28T07:54:49.779Z` | `GRAPH#5M#2026-05-29T00:10:00Z` |
-| `FACTORY#factory-b` | `updated_at=2026-05-29T00:19:33.071Z` | `HISTORY#STATE#2026-05-29T00:20:26.737Z` | `GRAPH#5M#2026-05-29T00:10:00Z` |
-| `FACTORY#factory-c` | `updated_at=2026-05-29T00:19:32.874Z` | `HISTORY#STATE#2026-05-29T00:20:27.223Z` | `GRAPH#5M#2026-05-29T00:10:00Z` |
+| `FACTORY#factory-a` | `updated_at=2026-05-29T06:48:45.209Z`, `pipeline_status=critical`, `risk.score=0` | `HISTORY#STATE#2026-05-29T06:48:45.209Z` | `GRAPH#5M#2026-05-29T00:10:00Z` |
+| `FACTORY#factory-b` | `updated_at=2026-05-29T06:49:02.806Z`, `pipeline_status=normal`, `risk.score=100` | `HISTORY#STATE#2026-05-29T06:49:02.806Z` | `GRAPH#5M#2026-05-29T00:10:00Z` |
+| `FACTORY#factory-c` | `updated_at=2026-05-29T06:49:01.949Z`, `pipeline_status=normal`, `risk.score=100` | `HISTORY#STATE#2026-05-29T06:49:01.949Z` | `GRAPH#5M#2026-05-29T00:10:00Z` |
 
 공장별 Query count 샘플:
 

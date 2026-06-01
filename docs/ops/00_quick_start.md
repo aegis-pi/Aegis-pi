@@ -13,7 +13,7 @@
 - ArgoCD, Longhorn, Grafana, InfluxDB, AI/Audio/BME280 워크로드가 동작한다.
 - AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선은 `scripts/build/build-hub.sh`로 재생성 가능하다. 현재 build 흐름은 Hub와 factory cluster 등록을 먼저 끝내고, IoT Secret 준비 후 Spoke ApplicationSet을 배포하도록 분리되어 있다.
 - Foundation S3 bucket `aegis-bucket-data`, ECR, DynamoDB `AEGIS-DynamoDB-FactoryStatus`는 Hub/data-pipeline destroy와 분리되는 foundation 영구 리소스다. AMP는 비용 최적화 기준에서 active 구성에서 제거한다.
-- IoT Rule(factory-a/b/c), Lambda(DataProcessor), GraphAggregator5m은 `infra/data-pipeline` 레이어로 분리되어 `scripts/build/build-data-pipe.sh` / `scripts/destroy/destroy-data-pipe.sh`로 개별 관리된다.
+- IoT Rule(factory-a/b/c), Lambda(DataProcessor), DataProcessorRefresh1m, GraphAggregator5m은 `infra/data-pipeline` 레이어로 분리되어 `scripts/build/build-data-pipe.sh` / `scripts/destroy/destroy-data-pipe.sh`로 개별 관리된다.
 - IoT Core `factory-a` Thing/certificate/policy와 K3s Secret은 `scripts/build/build-iot-factory-a.sh`에서 생성/갱신한다. 같은 단계에서 ArgoCD ApplicationSet을 적용해 `factory-a` data-plane workload 배포를 시작한다.
 - Hub만 삭제/재생성한 경우에는 IoT Core Thing/certificate와 Spoke K3s Secret을 다시 만들지 않는다. `scripts/build/build-hub.sh` 이후 UI 연결과 `factory-a/b/c` ArgoCD cluster 등록을 각각 별도 실행 파일로 복구한다.
 - `risk/risk-normalizer` IRSA S3 권한은 M1 검증 이력이며 최신 데이터 처리 구현 대상은 Lambda data processor와 DynamoDB/S3 processed다.
@@ -21,9 +21,9 @@
 - 내부 Grafana는 rebuild 시 `observability` 네임스페이스에서 재설치되며, AMP datasource 없이 Grafana health를 검증한다.
 - AWS Load Balancer Controller와 Admin UI HTTPS Ingress는 `scripts/build/build-admin-ui-after-ns.sh`로 ACM 발급 확인 후 활성화한다.
 - `factory-b`, `factory-c`는 VM 테스트베드 Spoke로 Hub ArgoCD cluster 등록, ApplicationSet Application 생성, GitOps `hostPath` outbox 전환, local dummy generator systemd 실행, K3s `edge-iot-publisher` 활성화, IoT Core -> S3 raw prefix 분리 적재까지 완료했다.
-- Lambda data processor(`apps/data-processor/`) 구현 완료. DynamoDB는 `LATEST`와 `HISTORY#STATE#{updated_at}` snapshot 이력 구조를 사용하며, history에는 `LATEST`와 같은 구조에 `ttl`만 추가한다. GraphAggregator5m은 `HISTORY#STATE`를 읽어 `GRAPH#5M`과 S3 `processed_agg`를 만든다. Terraform 인프라(`infra/data-pipeline/`) 구현 완료.
-- IoT -> Lambda -> DynamoDB/S3 processed end-to-end 검증과 pipeline_status 동작 확인은 `factory-a/b/c` 기준 완료됐다.
-- Lambda data processor의 기본 Risk Score 계산은 구현/검증 완료됐다. 다음 Risk 작업은 `configs/runtime/runtime-config.yaml`을 실제 Lambda Risk 계산에 연결하고, Risk Twin/Dashboard가 읽을 read model 필드를 고정하는 것이다.
+- Lambda data processor(`apps/data-processor/`) 구현 완료. DynamoDB는 `LATEST`와 `HISTORY#STATE#{updated_at}` snapshot 이력 구조를 사용하며, history에는 `LATEST`와 같은 구조에 `ttl`만 추가한다. DataProcessorRefresh1m은 새 메시지가 없는 factory도 `pipeline_status`와 `risk`를 현재 시각 기준으로 재계산한다. GraphAggregator5m은 `HISTORY#STATE`를 읽어 `GRAPH#5M`과 S3 `processed_agg`를 만든다. Terraform 인프라(`infra/data-pipeline/`) 구현 완료.
+- IoT -> Lambda -> DynamoDB/S3 processed end-to-end 검증과 pipeline_status 동작 확인은 `factory-a/b/c` 기준 완료됐다. 2026-05-29 기준 `factory-a`는 2026-05-28T07:54Z 이후 입력 중단으로 `pipeline_status=critical`, `risk.score=0`, `risk.level=danger`로 refresh 확인됐고, `factory-b/c`는 정상 입력 기준 `risk.score=100`이다.
+- Lambda data processor의 `risk-v0.2.0` Risk Score 계산은 구현/검증 완료됐다. 다음 Risk 작업은 `configs/runtime/runtime-config.yaml`을 실제 Lambda Risk 계산에 연결하고, Risk Twin/Dashboard가 읽을 read model 필드를 고정하는 것이다.
 - Dashboard page와 Dashboard VPC는 별도 담당 범위다. 이 repo에서는 DynamoDB/S3 processed 데이터 계약과 report 산출물 계약을 유지한다.
 - Daily Factory Report는 로컬 테스트, Bedrock Sonnet 실호출, `infra/reporting` AWS 배포, `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. 비용 방지를 위해 reporting stack은 검증 후 삭제했으며 S3 input/output object는 보존한다.
 - 후속 구현은 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD 기준을 따른다.
@@ -108,7 +108,8 @@ factory-b/factory-c local dummy generator 및 K3s edge-iot-publisher 활성화
 factory-a/factory-b/factory-c IoT Core -> S3 raw 적재 검증
 factory-a/factory-b/factory-c IoT Core -> Lambda -> DynamoDB/S3 processed 적재 검증
 GraphAggregator5m DynamoDB GRAPH#5M / S3 processed_agg 집계 검증
-Lambda data processor 기본 Risk Score 계산 검증
+DataProcessorRefresh1m pipeline_status/risk freshness refresh 검증
+Lambda data processor risk-v0.2.0 Risk Score 계산 검증
 Daily Factory Report local/AWS manual execution 검증
 ```
 
@@ -119,7 +120,7 @@ Daily Factory Report local/AWS manual execution 검증
 3. 계획과 실제 구현이 달라진 항목은 `docs/changes/`에 Change Record로 남긴다.
 4. `README.md`, `docs/README.md`, architecture 문서를 현재 `factory-a/b/c` 기준으로 유지한다.
 5. Grafana/dashboard 스펙을 실제 InfluxDB + Prometheus 기준으로 유지한다.
-6. M1 Issue 9 AWS Load Balancer Controller, M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress, M1 Issue 12 `runtime-config.yaml` 구조 초안, M3 Issue 1~5/7/8 배포 기준선, M4 Issue 1~8 data-pipeline 검증, M5 factory-b/c 테스트베드 수집 검증, 기본 Risk Score 계산, Bedrock 기반 Daily Factory Report MVP 검증은 완료됐다.
+6. M1 Issue 9 AWS Load Balancer Controller, M1 Issue 10 ArgoCD/Grafana HTTPS Admin Ingress, M1 Issue 12 `runtime-config.yaml` 구조 초안, M3 Issue 1~5/7/8 배포 기준선, M4 Issue 1~8 data-pipeline 검증, M5 factory-b/c 테스트베드 수집 검증, `risk-v0.2.0` Risk Score 계산과 DataProcessor freshness refresh, Bedrock 기반 Daily Factory Report MVP 검증은 완료됐다.
 7. 다음 repo 작업은 `runtime-config.yaml`을 Lambda Risk 계산에 연결하고, Risk Twin read model을 DynamoDB/S3 processed 계약에 맞춰 고정하는 것이다. Daily Report는 S3 read 병렬화, `state_snapshot` 입력 축소, `generation-metadata.json` 비용 관측값 보강이 후속 고도화다.
 
 ## 개발 환경 빌드/종료 퀵스타트
@@ -137,7 +138,7 @@ Daily Factory Report local/AWS manual execution 검증
 | 7 | `scripts/build/register-spoke-factory-c.sh [MFA_OTP]` | factory-c Tailscale egress, ArgoCD cluster Secret, `aegis-spoke-factory-c` Application |
 | 8 | `scripts/ops/manage-dummy-generators.sh start factory-b` | factory-b worker SSH -> `aegis-factory-b-dummy-generator.service` 시작 |
 | 9 | `scripts/ops/manage-dummy-generators.sh start factory-c` | factory-c worker SSH -> `aegis-factory-c-dummy-generator.service` 시작 |
-| 10 | `scripts/build/build-data-pipe.sh [MFA_OTP]` | IoT Topic Rule x3, Lambda `AEGIS-Lambda-DataProcessor`, Lambda `AEGIS-Lambda-GraphAggregator5m`, EventBridge Scheduler, CloudWatch Log Groups, IAM role/policy, S3 `processed/`/`processed_agg/` 적재 경로 |
+| 10 | `scripts/build/build-data-pipe.sh [MFA_OTP]` | IoT Topic Rule x3, Lambda `AEGIS-Lambda-DataProcessor`, Lambda `AEGIS-Lambda-GraphAggregator5m`, EventBridge Scheduler x2(`DataProcessorRefresh1m`, `GraphAggregator5m`), CloudWatch Log Groups, IAM role/policy, S3 `processed/`/`processed_agg/` 적재 경로 |
 | 11 | `scripts/build/build-reporting.sh [MFA_OTP]` | 선택/on-demand: reporting Lambda x4, Step Functions, EventBridge Scheduler, CloudWatch Log Groups, IAM role/policy. 입력은 S3 `processed/`, 출력은 S3 `reports/daily/` |
 
 ### 종료
@@ -146,7 +147,7 @@ Daily Factory Report local/AWS manual execution 검증
 | --- | --- | --- |
 | 1 | `scripts/destroy/stop-dummy-generators.sh` | factory-b/c worker 더미 generator systemd service 정지. 데이터 수집 유지 모드에서는 실행하지 않음 |
 | 2 | `scripts/destroy/destroy-reporting.sh [MFA_OTP]` | EventBridge Scheduler, Step Functions, reporting Lambda x4, CloudWatch Log Groups, IAM role/policy. S3 `processed/`와 `reports/daily/` 객체는 보존 |
-| 3 | `scripts/destroy/destroy-data-pipe.sh [MFA_OTP]` | IoT Rules x3, Lambda DataProcessor, Lambda GraphAggregator5m, EventBridge Scheduler, CloudWatch Log Groups, IAM role/policy. DynamoDB/S3 데이터는 보존 |
+| 3 | `scripts/destroy/destroy-data-pipe.sh [MFA_OTP]` | IoT Rules x3, Lambda DataProcessor, Lambda GraphAggregator5m, EventBridge Scheduler x2, CloudWatch Log Groups, IAM role/policy. DynamoDB/S3 데이터는 보존 |
 | 4 | `scripts/destroy/destroy-hub.sh [MFA_OTP]` | Hub EKS/NodeGroup, VPC/Subnet, NAT Gateway/EIP, EKS-bound IRSA, Hub platform 리소스. Route53 Hosted Zone/ACM은 foundation에 보존 |
 | - | `DESTROY_FOUNDATION=true scripts/destroy/destroy-foundation.sh [MFA_OTP]` | 선택/완전 삭제: S3, ECR x3, DynamoDB, GitHub Actions OIDC/IAM, Admin UI Route53/ACM. S3 데이터와 ECR 이미지는 복구 불가 |
 

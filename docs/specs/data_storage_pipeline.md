@@ -40,6 +40,10 @@ factory-a-log-adapter / dummy-data-generator
               -> DynamoDB LATEST
               -> DynamoDB HISTORY#STATE
               -> S3 processed
+          -> DataProcessorRefresh1m
+              -> DynamoDB LATEST freshness/risk refresh
+              -> DynamoDB HISTORY#STATE
+              -> S3 processed state_snapshot
           -> GraphAggregator5m
               -> DynamoDB GRAPH#5M
               -> S3 processed_agg
@@ -56,6 +60,7 @@ Dashboard API/Web
 | IoT Core | factory별 MQTT 데이터 수신 진입점 |
 | IoT Rule | 수신 원본을 S3 raw에 저장 |
 | Lambda data processor | 메시지 정규화, Risk 계산, latest/history/processed 저장 |
+| Lambda DataProcessorRefresh1m | 새 메시지가 없는 factory의 pipeline freshness와 risk를 1분마다 재계산 |
 | Lambda GraphAggregator5m | HISTORY#STATE를 5분 단위 graph read model로 집계 |
 | DynamoDB LATEST | Dashboard 카드와 현재 상태 조회용 read model |
 | DynamoDB GRAPH#5M | 최근 1시간/2시간/24시간 그래프 조회용 5분 집계 |
@@ -164,9 +169,12 @@ Processed object body 기준:
 
 Risk 계산 현재 상태:
 
-- `apps/data-processor/processor/risk.py`에는 기본 Risk Score 계산이 구현되어 있으며, 온도/습도/AI event 기반 가중치와 safe/warning/danger band를 적용한다.
-- `configs/runtime/runtime-config.yaml`에는 weight/threshold/factory override 초안이 있으나, 2026-05-28 기준 Lambda Risk 계산은 아직 이 파일을 읽지 않는다.
-- 다음 계약 고도화는 runtime config를 Lambda package 또는 배포 입력으로 연결하고, Risk Twin/Dashboard가 읽을 `risk.score`, `risk.level`, `risk.top_causes`, `risk.calculation_version`, `risk.calculated_at` 필드의 안정성을 테스트로 고정하는 것이다.
+- `apps/data-processor/processor/risk.py`에는 `risk-v0.2.0` Risk Score 계산이 구현되어 있으며, factory_state, infra_state, pipeline_status를 함께 사용한다.
+- 점수는 높을수록 안전하다. `safe=85~100`, `warning=50~84`, `danger=0~49`다.
+- 출력은 `risk.score`, `risk.base_score`, `risk.level`, `risk.base_level`, `risk.top_causes`, `risk.gates`, `risk.calculation_version`, `risk.calculated_at`을 포함한다.
+- `nodes_all_not_ready` gate는 최종 `risk.score=0`으로 cap한다. `pipeline_status=critical`은 danger gate로 반영한다.
+- `configs/runtime/runtime-config.yaml`에는 weight/threshold/factory override 초안이 있으나, 2026-05-29 기준 Lambda Risk 계산은 아직 이 파일을 읽지 않는다.
+- 다음 계약 고도화는 runtime config를 Lambda package 또는 배포 입력으로 연결하고, Risk Twin/Dashboard가 읽을 필드의 안정성을 테스트로 고정하는 것이다.
 
 ## DynamoDB Table
 
@@ -208,8 +216,9 @@ sk = LATEST
 
 저장 방식:
 
-- `factory_state` 수신 시 `LATEST.factory_state`와 `LATEST.risk` 갱신
-- `infra_state` 수신 시 `LATEST.infra_state`와 `LATEST.pipeline_status` 갱신
+- `factory_state` 수신 시 `LATEST.factory_state`, `LATEST.risk`, `LATEST.pipeline_status` 갱신
+- `infra_state` 수신 시 `LATEST.infra_state`, `LATEST.pipeline_status`, 가능한 경우 `LATEST.risk` 갱신
+- DataProcessor 1분 refresh 시 새 메시지가 없어도 `LATEST.pipeline_status`, 가능한 경우 `LATEST.risk` 갱신
 - 같은 `pk/sk` item을 계속 overwrite/update 한다
 - 과거 이력은 `LATEST`에 남기지 않는다
 - `LATEST.source_message_id`는 마지막으로 처리한 메시지 ID를 저장한다
@@ -346,7 +355,8 @@ sk = HISTORY#STATE#{updated_at}   ← 예: HISTORY#STATE#2026-05-14T12:00:06.123
 저장 방식:
 
 - `factory_state` 수신 시 `LATEST.factory_state`, `LATEST.risk`, `LATEST.pipeline_status`를 부분 갱신한 뒤, 갱신된 `LATEST` 전체를 `HISTORY#STATE#{updated_at}`으로 복사한다.
-- `infra_state` 수신 시 `LATEST.infra_state`, `LATEST.pipeline_status`를 부분 갱신한 뒤, 갱신된 `LATEST` 전체를 `HISTORY#STATE#{updated_at}`으로 복사한다.
+- `infra_state` 수신 시 `LATEST.infra_state`, `LATEST.pipeline_status`, 가능한 경우 `LATEST.risk`를 부분 갱신한 뒤, 갱신된 `LATEST` 전체를 `HISTORY#STATE#{updated_at}`으로 복사한다.
+- DataProcessor 1분 refresh 시 `LATEST.pipeline_status`, 가능한 경우 `LATEST.risk`를 부분 갱신한 뒤, 갱신된 `LATEST` 전체를 `HISTORY#STATE#{updated_at}`으로 복사한다.
 - `HISTORY#STATE` item은 `LATEST`와 같은 구조이며, `ttl` 필드만 추가된다.
 - 정밀 이력 원본은 S3 raw와 S3 processed에 별도 보존한다.
 
@@ -477,7 +487,7 @@ infra_state
 | 저장소 | 저장 방식 | 용도 |
 | --- | --- | --- |
 | `DynamoDB LATEST.infra_state` | 20초마다 overwrite | 현재 노드/워크로드/장치 상태 |
-| `DynamoDB LATEST.pipeline_status` | 20초마다 overwrite | 현재 파이프라인 상태 |
+| `DynamoDB LATEST.pipeline_status` | 20초 수신 또는 1분 refresh마다 overwrite | 현재 파이프라인 상태 |
 | `DynamoDB HISTORY#STATE` | LATEST snapshot + TTL | 노드 CPU/memory/disk/Ready 그래프 |
 | `DynamoDB GRAPH#5M` | 5분 집계 + TTL | Dashboard 그래프 기본 read model |
 | `S3 raw` | 20초 원본 전체 | 장애 분석/원본 보존 |
@@ -526,6 +536,7 @@ GET /factories/{factory_id}/state-snapshots?window=15m
 - Lambda는 `message_id` 기준으로 idempotent하게 처리한다.
 - `S3 raw` 저장은 IoT Rule이 담당한다.
 - Lambda는 `DynamoDB LATEST`, `DynamoDB HISTORY#STATE`, `S3 processed`를 담당한다.
+- DataProcessor refresh schedule은 새 메시지가 없는 factory의 `pipeline_status`와 `risk`가 stale 값으로 남지 않도록 1분마다 LATEST/HISTORY/S3 state_snapshot을 갱신한다.
 - GraphAggregator5m은 `DynamoDB HISTORY#STATE`를 읽고 `DynamoDB GRAPH#5M`, `S3 processed_agg`를 담당한다.
 - Dashboard current state는 S3 `latest/` prefix가 아니라 DynamoDB LATEST를 기준으로 조회한다.
 - `DynamoDB HISTORY#STATE`는 갱신된 `LATEST`와 같은 구조를 저장하고 TTL만 추가한다.

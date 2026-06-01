@@ -59,6 +59,7 @@ factory-a / factory-b / factory-c
   -> IoT Core
       -> IoT Rule -> S3 raw
       -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed
+      -> DataProcessorRefresh1m -> stale pipeline_status/risk refresh
       -> GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg
   -> Data / Dashboard VPC
       -> Dashboard Backend/API
@@ -332,6 +333,7 @@ factory-a/b/c
   -> IoT Core
       -> IoT Rule -> S3 raw
       -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed
+      -> DataProcessorRefresh1m -> stale pipeline_status/risk refresh
       -> GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg
   -> Dashboard API
   -> Dashboard Web

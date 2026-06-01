@@ -1,7 +1,7 @@
 # Factory-A 현재 상태
 
 상태: source of truth
-기준일: 2026-05-19
+기준일: 2026-05-29
 
 ## 목적
 
@@ -104,6 +104,12 @@ InfluxDB 데이터 공백: 10초 bucket 기준 AI/audio 80초, BME 70초
 Hub ArgoCD ApplicationSet -> factory-a data-plane 배포 기준 정리
 IoT Secret 준비 후 ApplicationSet 배포 순서로 build 흐름 변경
 verify-complete.sh로 Hub/IoT/factory-a workload 통합 검증 가능
+
+2026-05-29:
+factory-a IoT data-plane 입력은 2026-05-28T07:54Z 이후 중단된 상태로 확인됐다.
+DataProcessor 1분 freshness refresh 배포 후 DynamoDB LATEST는 pipeline_status critical, risk.score 0, risk.level danger로 갱신된다.
+마지막 raw infra_state는 node_summary.ready=3/3이었으나, 과거 processed/LATEST에는 구형 normalizer 결과로 nodes_ready=0/3이 남아 있다.
+factory-a가 다시 infra_state를 보내면 현재 normalizer 기준으로 LATEST.infra_state가 덮어써진다.
 ```
 
 ## 시작 시 확인 명령

@@ -3,7 +3,7 @@
 > **마일스톤 목표**: 수집된 데이터를 기반으로 Risk Score와 Risk Twin 데이터 계약을 완성하고, 본사 관제 담당자가 사용할 Dashboard VPC 기반 관제 화면에 제공할 read model을 고정한다.
 > M2(Hub-Spoke 연결)와 M4(데이터 플레인) 완료 후 진행한다.  
 > 이 마일스톤이 완료되면 공장 상태 변화 → Risk Score 변화 → 관제 화면 반영이 end-to-end로 동작한다.
-> 외부 관리자 화면은 Grafana public 노출이 아니라 Route53/ALB/WAF/Auth 뒤의 Dashboard Web/API를 기본 방향으로 한다. 2026-05-28 기준 Dashboard page와 Dashboard VPC 구현은 별도 담당 범위로 분리하고, 이 repo에서는 Dashboard가 읽을 DynamoDB/S3 processed 데이터 계약과 Risk Twin 출력 구조를 우선 고도화한다.
+> 외부 관리자 화면은 Grafana public 노출이 아니라 Route53/ALB/WAF/Auth 뒤의 Dashboard Web/API를 기본 방향으로 한다. 2026-05-29 기준 Dashboard page와 Dashboard VPC 구현은 별도 담당 범위로 분리하고, 이 repo에서는 Dashboard가 읽을 DynamoDB/S3 processed 데이터 계약과 Risk Twin 출력 구조를 우선 고도화한다.
 
 ---
 
@@ -63,17 +63,23 @@ IoT Core 메시지를 처리하는 Lambda data processor 안에 공장별 Risk S
 
 - [x] Lambda data processor의 Risk 계산 로직 구현
 - [x] 가중치 초기안 하드코딩 적용
-  - 온도 이상: `+15`
-  - 습도 이상: `+10`
-  - AI 이벤트율: `+10`
-  - 센서 무수신/엣지 에이전트/노드/카메라/마이크/파이프라인 이상은 Risk Twin 출력 구조와 runtime-config 적용 단계에서 보강
+  - temperature: 10
+  - humidity: 5
+  - pressure: 5
+  - ai_event_rate: 15
+  - node_status: 20
+  - pod_health: 15
+  - device_availability: 10
+  - data_freshness: 10
+  - storage_pressure: 5
+  - network_reachability: 5
 - [x] 위험도 구간 적용
   - 안전: `100~85`
   - 주의: `84~50`
   - 위험: `49~0`
-- [ ] 이상 판정 임계시간 적용
-  - 현재 Lambda Risk 계산은 단일 `factory_state` message 기준이다.
-  - 시간 지속 조건은 `pipeline_status`, hourly/daily report aggregation, Risk Twin 출력 구조에서 보강한다.
+- [x] 이상 판정 임계시간 적용
+  - `pipeline_status`는 latest infra_state age 기준으로 normal/warning/critical을 계산한다.
+  - `AEGIS-Schedule-DataProcessorRefresh1m`가 1분마다 stale factory의 `pipeline_status`와 risk를 재계산한다.
 - [x] `event` 계열은 구조만 수용, 점수 반영은 후속 단계
 
 ### 🔍 Acceptance Criteria
@@ -82,7 +88,14 @@ IoT Core 메시지를 처리하는 Lambda data processor 안에 공장별 Risk S
 - 정상 입력 시 Risk Score `100.0`, `safe` 출력 확인
 - 온도/습도/AI 이벤트 입력별 score 하락과 `top_causes` 정렬 단위 테스트 확인
 - 3개 공장 각각 DynamoDB LATEST와 S3 processed `risk_score` 분리 적재 확인
-- 노드/파이프라인/지속시간 기반 기여도는 Issue 2~4에서 설정 기반 Risk Twin 출력으로 보강
+- 노드/파이프라인 기반 기여도와 gate는 `risk-v0.2.0`에 반영됨. runtime-config 기반 제어와 Dashboard용 Risk Twin 정식 read model은 Issue 2~4에서 보강
+
+### 2026-05-29 검증 메모
+
+- `factory-a`는 2026-05-28T07:54Z 이후 새 IoT 메시지가 없어 LATEST가 stale 상태였다.
+- DataProcessor refresh 배포 전에는 stale `risk.score=100`이 남아 있었다.
+- DataProcessor refresh 배포 후 `factory-a` LATEST는 `pipeline_status=critical`, `risk.score=0`, `risk.level=danger`로 갱신됐다.
+- `factory-b/c`는 최신 메시지가 계속 들어와 `pipeline_status=normal`, `risk.score=100`을 유지했다.
 
 ---
 

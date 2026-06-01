@@ -87,7 +87,7 @@ Risk Twin Web은 MVP 기준으로 두 단계 화면을 가진다.
 | 전체 공장 수 | factory count | `DynamoDB LATEST` |
 | 위험/주의/안전 수 | `risk.level` | `DynamoDB LATEST` |
 | 데이터 지연 수 | `pipeline_status.status` | `DynamoDB LATEST` |
-| 공장 카드 | `factory_id`, `risk.score`, `risk.level` | `DynamoDB LATEST` |
+| 공장 카드 | `factory_id`, `risk.score`, `risk.base_score`, `risk.level`, `risk.gates` | `DynamoDB LATEST` |
 | 주요 원인 | `risk.top_causes` | `DynamoDB LATEST` |
 | 노드 상태 | `infra_state.node_summary.ready/total` | `DynamoDB LATEST` |
 | 최종 갱신 | `updated_at`, `last_factory_state_at`, `last_infra_state_at` | `DynamoDB LATEST` |
@@ -98,7 +98,7 @@ Risk Twin Web은 MVP 기준으로 두 단계 화면을 가진다.
 ```text
 1. risk.level danger
 2. risk.level warning
-3. risk.score 높은 순
+3. 같은 level 안에서는 risk.score 낮은 순
 4. pipeline_status abnormal
 5. updated_at 최신 순
 ```

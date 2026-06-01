@@ -1,7 +1,7 @@
 # Hub Run Commands
 
 상태: source of truth
-기준일: 2026-05-28
+기준일: 2026-05-29
 
 ## Hub-only 재시작 실행 순서
 
@@ -114,7 +114,7 @@ scripts/destroy/destroy-hub.sh
 
 `stop-dummy-generators.sh`는 Hub가 내려간 뒤에도 factory-b/c worker outbox가 계속 쌓이는 것을 막는다. legacy local publisher unit이 설치돼 있으면 함께 정지하지만, 현재 표준 publish 경로는 K3s `edge-iot-publisher`다. `destroy-hub.sh`는 Hub EKS/VPC/NAT Gateway/node group과 EKS 내부 ArgoCD/Tailscale/ApplicationSet 리소스를 제거한다. Foundation S3/ECR/DynamoDB, IoT 리소스와 Spoke K3s Secret은 별도 삭제 대상이다.
 
-데이터를 계속 쌓는 개발 모드에서는 `stop-dummy-generators.sh`를 실행하지 않는다. 이 경우 Hub ArgoCD self-heal은 멈추지만, 기존 Spoke K3s `edge-iot-publisher`와 data-pipeline이 살아 있으면 IoT Core -> S3 raw -> Lambda -> DynamoDB/S3 processed 흐름은 계속 유지된다.
+데이터를 계속 쌓는 개발 모드에서는 `stop-dummy-generators.sh`를 실행하지 않는다. 이 경우 Hub ArgoCD self-heal은 멈추지만, 기존 Spoke K3s `edge-iot-publisher`와 data-pipeline이 살아 있으면 IoT Core -> S3 raw -> Lambda -> DynamoDB/S3 processed 흐름은 계속 유지된다. `build-data-pipe.sh`로 배포된 DataProcessorRefresh1m Scheduler가 살아 있으면 새 IoT 메시지가 없는 factory도 DynamoDB LATEST의 `pipeline_status`와 `risk`가 1분 주기로 stale 보정된다.
 
 ## 전체 삭제
 

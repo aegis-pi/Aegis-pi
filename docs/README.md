@@ -34,6 +34,7 @@
 - Bedrock 기반 factory별 일일 운영 보고서 초안 생성은 MVP 포함으로 확정했다. 세부 설계는 `planning/17_llm_daily_factory_report_plan.md`, 운영 기준은 `ops/24_daily_factory_report.md`, 비용 기준은 `ops/25_daily_factory_report_cost.md`를 따른다.
 - 2026-05-28 기준 `apps/daily-report-generator/`와 `infra/reporting/`은 로컬 검증과 AWS 수동 실행 검증을 완료했다. `factory-b`, `report_date=2026-05-27`, `timezone=Asia/Seoul` 기준 Step Functions 실행은 `SUCCEEDED`였고 S3 `reports/daily/yyyy=2026/mm=05/dd=27/factory-b/`에 hourly summary 24개, `factory-daily-summary.json`, `report-context.json`, `report.md`, `generation-metadata.json` 산출물을 확인했다. 비용 방지를 위해 reporting stack은 검증 후 삭제했으며 S3 input/output object는 보존한다.
 - 2026-05-29 기준 GraphAggregator5m은 DynamoDB `HISTORY#STATE`를 5분 단위로 집계해 DynamoDB `GRAPH#5M`과 S3 `processed_agg/metrics_5m`을 생성한다. 세부 키 모델은 `ops/26_dynamodb_key_model.md`를 따른다.
+- 2026-05-29 기준 DataProcessor 1분 freshness refresh를 배포했다. `AEGIS-Schedule-DataProcessorRefresh1m`가 `AEGIS-Lambda-DataProcessor`를 호출해 새 메시지가 없는 factory의 `pipeline_status`와 `risk`를 재계산한다. `factory-a` stale LATEST 점검에서 `pipeline_status=critical`, `risk.score=0`, `risk.level=danger` 전환과 S3 `state_snapshot` 생성을 검증했다.
 - 현재 운영 source of truth는 `docs/ops/` 문서다.
 - Git Wiki에 옮길 수 있도록 재구성한 문서는 `docs/wiki/`에 둔다.
 - 마일스톤 추적은 `docs/issues/` 문서를 따른다.
@@ -164,7 +165,7 @@ Hub bootstrap roots:
 - infra/hub: VPC/EKS/node group, IRSA
 - scripts/ansible: namespace/LimitRange/ArgoCD/legacy Prometheus Agent cleanup/Grafana/AWS Load Balancer Controller/Admin UI Ingress/Tailscale/Spoke ApplicationSet bootstrap
 - infra/foundation: S3 data bucket, ECR, DynamoDB (FactoryStatus), Admin UI Route53/ACM — 영구 보존 리소스
-- infra/data-pipeline: IoT Rule × 3 (factory-a/b/c), Lambda (DataProcessor), Lambda (GraphAggregator5m), EventBridge Scheduler — on-demand, build-data-pipe.sh / destroy-data-pipe.sh
+- infra/data-pipeline: IoT Rule × 3 (factory-a/b/c), Lambda (DataProcessor), Lambda (GraphAggregator5m), EventBridge Scheduler(DataProcessorRefresh1m, GraphAggregator5m) — on-demand, build-data-pipe.sh / destroy-data-pipe.sh
 Build entrypoint: scripts/build/build-hub.sh
 Admin UI post-NS entrypoint: scripts/build/build-admin-ui-after-ns.sh
 Tailnet UI entrypoint: scripts/build/connect-hub-tailscale-ui.sh

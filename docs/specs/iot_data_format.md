@@ -61,6 +61,7 @@ factory-a-log-adapter / dummy-data-generator
   -> AWS IoT Core
       -> IoT Rule -> S3 raw
       -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed
+      -> DataProcessorRefresh1m -> stale pipeline_status/risk refresh
       -> GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg
 
 Dashboard API/Web
@@ -384,6 +385,8 @@ Cloud-side Lambda data processor는 아래 입력을 바탕으로 `pipeline_stat
 - IoT Core 수신 시각
 - S3 raw object 생성 시각
 - `infra_state.payload.heartbeat.last_successful_publish_at`
+
+2026-05-29 기준 `pipeline_status`는 IoT 메시지 수신 시점뿐 아니라 DataProcessor 1분 refresh schedule에서도 재계산한다. 새 메시지가 완전히 끊긴 factory도 DynamoDB LATEST가 stale `normal`/`safe` 값으로 남지 않도록, `LATEST.last_infra_state_at`과 현재 UTC 시각의 차이를 기준으로 `pipeline_status`와 `risk`를 갱신한다.
 
 기본 판단 기준:
 

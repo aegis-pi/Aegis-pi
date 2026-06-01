@@ -14,7 +14,7 @@
 - M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록, IoT Rule -> S3 raw 적재 검증을 완료했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - `factory-b`, `factory-c`는 VM K3s/Tailnet/ArgoCD cluster/Application 등록, worker `hostPath` outbox, 로컬 dummy generator, IoT Secret, `edge-iot-publisher` 활성화와 S3 raw 적재 검증까지 완료했다.
-- Lambda data processor는 DynamoDB LATEST/HISTORY#STATE와 S3 processed 적재, `pipeline_status`, 기본 Risk Score 계산까지 검증했다. GraphAggregator5m은 HISTORY#STATE를 읽어 DynamoDB GRAPH#5M과 S3 processed_agg를 생성한다.
+- Lambda data processor는 DynamoDB LATEST/HISTORY#STATE와 S3 processed 적재, `pipeline_status`, `risk-v0.2.0` Risk Score 계산까지 검증했다. 2026-05-29에는 DataProcessor 1분 freshness refresh Scheduler를 배포해 새 메시지가 없는 factory도 LATEST `pipeline_status`와 `risk`가 stale 값으로 남지 않도록 했다. GraphAggregator5m은 HISTORY#STATE를 읽어 DynamoDB GRAPH#5M과 S3 processed_agg를 생성한다.
 - Daily Factory Report는 로컬 검증, Bedrock Sonnet 실호출, AWS reporting stack 배포, `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. reporting stack은 검증 후 삭제했으며 S3 input/output object는 보존한다.
 - Dashboard page와 Dashboard VPC는 별도 담당 범위다. 이 repo의 현재 책임은 Dashboard가 조회할 DynamoDB/S3 processed read model과 Risk output 계약을 유지하는 것이다.
 - 이 문서는 현재 동작 중인 로컬 기준선, rebuild 가능한 Hub 기준선, DynamoDB/S3 기반 read model 기준선을 함께 기록한다.
@@ -301,12 +301,12 @@ runtime-config 기반 Risk weight/threshold 적용
 Risk Twin read model 고도화
 ```
 
-2026-05-28 기준 아래 항목은 구조에 포함됐다.
+2026-05-29 기준 아래 항목은 구조에 포함됐다.
 
 ```text
 IoT Core         Thing/certificate/policy/Rule (검증 완료)
 S3               aegis-bucket-data raw 적재 (검증 완료)
-Lambda           DataProcessor DynamoDB/S3 processed 적재와 기본 Risk 계산 (검증 완료)
+Lambda           DataProcessor DynamoDB/S3 processed 적재, risk-v0.2.0 Risk 계산, DataProcessorRefresh1m stale 보정 (검증 완료)
 Daily Report     reporting stack 수동 검증 완료, 현재 stack은 삭제, S3 산출물 보존
 ECR              aegis/factory-a-log-adapter, aegis/edge-iot-publisher (sha-f71a104)
 GitHub Actions   ARM64 matrix 빌드 (검증 완료)

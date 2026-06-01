@@ -255,7 +255,7 @@ S3 raw data
 
 ### 판단
 
-Aegis-Pi의 MVP Risk 계산은 `factory_state`와 `infra_state` 수신 시 최신 상태를 갱신하고, 상세 이력용 `HISTORY#STATE` snapshot을 남기며, GraphAggregator5m이 최근 그래프용 `GRAPH#5M` read model을 생성하는 흐름이다. 원본과 처리 결과는 S3에 보존한다.
+Aegis-Pi의 MVP Risk 계산은 `factory_state`와 `infra_state` 수신 시 최신 상태를 갱신하고, 상세 이력용 `HISTORY#STATE` snapshot을 남기며, DataProcessorRefresh1m이 새 메시지가 없는 factory의 `pipeline_status`/`risk` stale 상태를 1분마다 보정하고, GraphAggregator5m이 최근 그래프용 `GRAPH#5M` read model을 생성하는 흐름이다. 원본과 처리 결과는 S3에 보존한다.
 
 이 작업은 Lambda 단일 함수 안에서도 DynamoDB LATEST/HISTORY#STATE를 상태 저장소로 두면 처리할 수 있다.
 
@@ -282,6 +282,7 @@ Lambda 방식에서 필요한 상태 저장소와 조회 계약은 이미 아래
 DynamoDB LATEST: 공장별 현재 상태
 DynamoDB HISTORY#STATE: 상세 snapshot과 GraphAggregator5m 입력
 DynamoDB GRAPH#5M: 최근 그래프 기본 read model
+DataProcessorRefresh1m: stale pipeline_status/risk refresh
 S3 raw: 원본 장기 보존
 S3 processed: 처리 결과 장기 이력
 S3 processed_agg: 5분 그래프 집계 보조 산출물
@@ -306,6 +307,8 @@ IoT Core 이후 cloud-side 처리 기준은 Lambda data processor다.
 Lambda data processor
   -> S3 processed
   -> DynamoDB LATEST/HISTORY#STATE
+DataProcessorRefresh1m
+  -> stale pipeline_status/risk refresh
 GraphAggregator5m
   -> DynamoDB GRAPH#5M
   -> S3 processed_agg

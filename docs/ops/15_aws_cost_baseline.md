@@ -1,7 +1,7 @@
 # AWS Cost Baseline
 
 상태: source of truth
-기준일: 2026-05-28
+기준일: 2026-05-29
 리전: `ap-south-1` / Asia Pacific (Mumbai)
 
 ## 목적
@@ -12,7 +12,7 @@
 
 ## 현재 Aegis 리소스 상태
 
-2026-05-27 코드 기준 Hub cost target이다. AMP는 active Terraform 구성에서 제거했고, Hub NAT Gateway는 `ap-south-1a` 단일 NAT로 축소한다. 실제 AWS 반영은 `terraform plan/apply` 후 확인한다. ALB는 현재 비활성이며 UI 접근은 Tailscale을 통해 이루어진다.
+2026-05-29 코드 기준 Hub cost target이다. AMP는 active Terraform 구성에서 제거했고, Hub NAT Gateway는 `ap-south-1a` 단일 NAT로 축소한다. ALB는 현재 비활성이며 UI 접근은 Tailscale을 통해 이루어진다. DataProcessor freshness refresh Scheduler는 1분 주기로 활성화되어 있지만 EventBridge Scheduler와 Lambda 호출량은 사용량 기반의 소액 비용이며 Hub 고정 시간 비용에는 포함하지 않는다.
 
 | 영역 | 리소스 | 수량/크기 | 상태 |
 | --- | --- | ---: | --- |
@@ -26,6 +26,7 @@
 | IoT Core | Thing / cert (factory-a) | 1 set | active |
 | IoT Rules | `AEGIS_IoTRule_factory_a/b/c_raw_s3` (data-pipeline layer) | 3 | active (build-data-pipe 실행 시) |
 | Lambda | `AEGIS-Lambda-DataProcessor` (data-pipeline layer) | 1 | active (build-data-pipe 실행 시) |
+| EventBridge Scheduler | `AEGIS-Schedule-DataProcessorRefresh1m`, `AEGIS-Schedule-GraphAggregator5m` | 2 | active (build-data-pipe 실행 시, usage based) |
 | DynamoDB | `AEGIS-DynamoDB-FactoryStatus` (foundation layer) | 1 | active (PAY_PER_REQUEST, 상시) |
 | AMP | removed | 0 | deletion target |
 | ECR | `aegis/edge-agent`, `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher` | 3 repo | active |
@@ -91,7 +92,7 @@ ALB 포함 시 고정 시간 비용: `0.2577 + 0.0419 = 0.2996 USD/hour` (~$218.
 
 ### AMP (Amazon Managed Prometheus)
 
-AMP는 2026-05-27 비용 최적화 기준에서 active 구성에서 제거했다. 사용자는 AMP로 EKS 상태를 직접 확인하지 않고, 현재 데이터 처리 상태의 source of truth는 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed, GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg이다.
+AMP는 2026-05-27 비용 최적화 기준에서 active 구성에서 제거했다. 사용자는 AMP로 EKS 상태를 직접 확인하지 않고, 현재 데이터 처리 상태의 source of truth는 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed, DataProcessorRefresh1m -> stale `pipeline_status`/`risk` refresh, GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg이다.
 
 제거 대상:
 

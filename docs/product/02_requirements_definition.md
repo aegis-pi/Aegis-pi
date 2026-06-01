@@ -1,7 +1,7 @@
 # Requirements Definition Traceability
 
 상태: source of truth
-기준일: 2026-05-28
+기준일: 2026-05-29
 
 ## 목적
 
@@ -81,7 +81,7 @@
 | DEC-09 | `factory_state`는 3초 주기로 전송한다 | Risk Score 입력을 준실시간으로 반영한다 | AI 결과 변화 즉시 이벤트 전송 | `docs/specs/iot_data_format.md` |
 | DEC-10 | AI 결과는 최근 window 평균 score로 보낸다 | 모델 오탐에 민감하게 반응하지 않고 Lambda data processor의 Risk 계산 로직이 가중치 계산을 하게 한다 | Edge에서 최종 `0/1` 판정 | `docs/specs/iot_data_format.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
 | DEC-11 | `infra_state`는 20초 주기로 전송한다 | 1분 내 파이프라인 헬스 체크를 하면서 운영 부담을 줄인다 | heartbeat 별도 파이프라인 | `docs/specs/iot_data_format.md` |
-| DEC-12 | `pipeline_status`는 cloud-side에서 계산한다 | Edge는 사실과 요약값만 보내고 최종 판단은 중앙에서 일관되게 한다 | Edge data-plane이 최종 pipeline 상태를 직접 판단 | `docs/specs/iot_data_format.md` |
+| DEC-12 | `pipeline_status`는 cloud-side에서 계산하고 1분 refresh로 stale 상태를 보정한다 | Edge는 사실과 요약값만 보내고 최종 판단은 중앙에서 일관되게 한다. 새 메시지가 완전히 끊긴 factory도 LATEST가 stale safe 값으로 남지 않아야 한다 | Edge data-plane이 최종 pipeline 상태를 직접 판단 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
 | DEC-13 | Dashboard는 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE를 우선 조회한다 | S3 raw만으로는 최신 상태와 최근 그래프 조회 근거가 약하다 | S3 raw 직접 조회 기반 화면 | `docs/specs/data_storage_pipeline.md`, `docs/planning/15_cloud_architecture_final.md` |
 | DEC-14 | Control / Management VPC와 Data / Dashboard VPC를 분리한다 | 고객 보안, 역할 분리, 감사 요구가 강해질 때 설득력 있는 목표 구조다 | 단일 VPC만 고정 | `docs/planning/12_two_vpc_mvp_architecture_decision.md`, `docs/planning/15_cloud_architecture_final.md` |
 | DEC-15 | Dashboard Web/API는 ArgoCD, Tailscale, EKS API, Spoke API를 직접 조회하지 않는다 | 사용자 조회망과 제어망의 lateral movement를 줄인다 | Dashboard가 제어 plane API 직접 조회 | `docs/planning/07_dashboard_vpc_extension_plan.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
@@ -111,6 +111,7 @@
 | `pipeline_status.normal` | latest `infra_state` age <= 20초 | 최신 인프라 상태가 정상 주기 안에 들어오면 정상으로 본다. | Lambda data processor 판단 결과 확인 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
 | `pipeline_status.warning` | latest `infra_state` age > 40초 | 20초 주기 기준 1회 이상 누락 가능성이 있으면 주의로 본다. | edge-iot-publisher 또는 data-plane 지연 테스트 | `docs/specs/iot_data_format.md` |
 | `pipeline_status.critical` | latest `infra_state` age > 60초 | 인프라 상태 이상을 1분 내 감지해야 한다. | edge-iot-publisher 중지 후 critical 전환 시간 측정 | `docs/specs/iot_data_format.md` |
+| DataProcessor freshness refresh | 1분 | 새 IoT 메시지가 없어도 DynamoDB LATEST의 pipeline_status/risk가 stale 값으로 남지 않아야 한다. | `AEGIS-Schedule-DataProcessorRefresh1m`, CloudWatch refresh 로그, LATEST 갱신 확인 | `docs/specs/data_storage_pipeline.md`, `docs/ops/23_data_pipeline.md` |
 | 일반 상태 Dashboard 반영 | 10~35초 목표 | 관제 화면은 실시간 제어가 아니라 준실시간 운영 관제 수준을 만족해야 한다. | M6에서 상태 변화 후 화면 반영 시간 측정 | `docs/planning/03_evaluation_plan.md`, `docs/planning/07_dashboard_vpc_extension_plan.md` |
 | 장애 판정 Dashboard 반영 | 40~60초 목표 | 파이프라인/노드 장애는 운영자가 1분 내 파악할 수 있어야 한다. | M6/M7 장애 시나리오에서 반영 시간 측정 | `docs/planning/03_evaluation_plan.md`, `docs/planning/07_dashboard_vpc_extension_plan.md` |
 | `factory_state` payload 크기 | 약 0.6 KB | 3초 주기 전송이 IoT Core/S3 병목을 만들 가능성이 낮아야 한다. | compact JSON 기준 실제 payload 크기 측정 | `docs/specs/iot_data_format.md` |
@@ -129,9 +130,9 @@
 | AI/Sound 위험 매핑 | 0.8~1.0 | 높은 평균 AI 값은 위험 레이블로 표시해야 한다. | Grafana 또는 Dashboard score-label 매핑 확인 | `docs/specs/monitoring_dashboard/00_requirements.md` |
 | stale 센서 기준 | 3분 | 센서 데이터 무수신이 일정 시간 지속되면 Risk 원인으로 반영해야 한다. | M6 stale 시나리오 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
 | stale data-plane 기준 | 2분 | Edge data-plane 무응답을 공장 상태 원인으로 반영해야 한다. | M6 stale 시나리오 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
-| stale 노드 기준 | 1분 | 노드 상태 이상은 다른 장치보다 빠르게 반영해야 한다. | M6 stale 시나리오 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
+| stale 노드 기준 | 1분 | 노드 상태 이상은 다른 장치보다 빠르게 반영해야 한다. DataProcessor refresh가 LATEST risk를 재계산해야 한다. | M6 stale 시나리오 확인, factory-a stale LATEST refresh 확인 | `docs/issues/M6_risk-twin-dashboard.md`, `docs/ops/23_data_pipeline.md` |
 | stale 카메라/마이크 기준 | 3분 | 영상/음성 장치 무수신이 지속되면 장치 이상으로 반영해야 한다. | M6 stale 시나리오 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
-| stale 데이터 파이프라인 기준 | 2분 | 데이터 수집 파이프라인 이상을 Risk 원인으로 반영해야 한다. | M6 stale 시나리오 확인 | `docs/issues/M6_risk-twin-dashboard.md` |
+| stale 데이터 파이프라인 기준 | 1분 critical threshold + 1분 refresh | 데이터 수집 파이프라인 이상을 Risk 원인으로 반영해야 한다. | M6 stale 시나리오 확인, DataProcessor refresh schedule 확인 | `docs/issues/M6_risk-twin-dashboard.md`, `docs/ops/23_data_pipeline.md` |
 | 로컬 InfluxDB 보존 | 1일 | 엣지 로컬 시계열 저장소가 무한 증가하지 않아야 한다. | retention policy 확인 | `docs/ops/08_data_retention.md` |
 | AI snapshot 보존 | 24시간 | 이미지 스냅샷이 로컬 디스크를 장기 점유하지 않아야 한다. | cleanup sidecar와 purge 결과 확인 | `docs/ops/08_data_retention.md` |
 | failover 관측 bucket | 10초/1초 | 장애 전환 중 데이터 공백과 중복 write를 측정할 수 있어야 한다. | InfluxDB bucket count 분석 | `docs/ops/09_failover_failback_test_results.md` |
@@ -186,7 +187,7 @@
 | ARC-01 | `factory-a` 운영형 Spoke는 기존 Raspberry Pi 3-node K3s 기준선을 유지해야 한다. | DEC-04, DEC-19 |
 | ARC-02 | MVP Edge 런타임은 K3s workload와 Edge data-plane components를 기본으로 하고, Greengrass는 후속 재검토 대상으로 둔다. | DEC-04 |
 | ARC-03 | Cloud 수신 진입점은 AWS IoT Core MQTT와 IoT Rule을 기본 경로로 둔다. | DEC-05 |
-| ARC-04 | 데이터 처리 흐름은 IoT Core, IoT Rule/S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed, GraphAggregator5m, DynamoDB GRAPH#5M, S3 processed_agg, Dashboard 순서로 구성한다. | DEC-06, DEC-07, DEC-13 |
+| ARC-04 | 데이터 처리 흐름은 IoT Core, IoT Rule/S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed, DataProcessorRefresh1m, GraphAggregator5m, DynamoDB GRAPH#5M, S3 processed_agg, Dashboard 순서로 구성한다. | DEC-06, DEC-07, DEC-13 |
 | ARC-05 | Control / Management VPC와 Data / Dashboard VPC는 고객 보안과 역할 분리 요구가 있을 때의 목표 구조로 유지한다. | DEC-14 |
 | ARC-06 | 단일 VPC 대안은 가능하지만, MVP 문서화 기준에서는 제어 plane과 사용자 조회 plane의 경계를 분리해 설명해야 한다. | DEC-14, DEC-15 |
 | ARC-07 | Grafana는 운영 관측 도구로 유지하고, 사용자-facing 제품 화면은 Dashboard Web/API로 분리한다. | DEC-16 |
@@ -231,7 +232,7 @@
 | BR-01, BR-02 | 메인 Dashboard에 공장별 상태 카드, 원인, 이상 시스템 목록, 로그를 둔다. Dashboard page/VPC 구현은 별도 담당 범위이고, 이 repo는 조회 데이터 계약을 제공한다. | M6/M7에서 DynamoDB/S3 processed read model과 Dashboard 조회 필드 계약 확인 | `docs/product/01_user_flow.md`, `docs/planning/03_evaluation_plan.md` |
 | FR-01, FR-02, NFR-01 | `factory-a-log-adapter`가 `factory_state`를 canonical JSON으로 만들고 `edge-iot-publisher`가 3초 주기 데이터를 publish한다. | M4에서 IoT Core -> S3 raw 적재와 Risk 처리 확인 | `docs/specs/iot_data_format.md`, `docs/issues/M4_data-plane.md` |
 | FR-03, NFR-02 | Edge data-plane이 `infra_state`를 20초 주기로 publish하고 cloud-side가 pipeline 상태를 계산한다. | M4에서 infra 상태 적재와 latest 반영 확인 | `docs/specs/iot_data_format.md`, `docs/planning/03_evaluation_plan.md` |
-| FR-04, NFR-05 | Lambda data processor가 평균 score와 센서 요약값을 기반으로 Risk Score를 계산한다. | M6 Issue 1에서 기본 Risk Score 계산 확인. 후속은 runtime-config 연결과 read model 필드 고정 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
+| FR-04, NFR-05 | Lambda data processor가 센서, AI, infra, pipeline freshness를 기반으로 `risk-v0.2.0` Risk Score를 계산한다. | M6 Issue 1에서 `risk-v0.2.0` 계산과 DataProcessorRefresh1m stale 보정 확인. 후속은 runtime-config 연결과 read model 필드 고정 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
 | FR-05 | IoT Rule이 raw JSON을 `raw/{factory_id}/{source_type}/...` 경로에 저장한다. | M4에서 S3 raw object와 partition 확인 | `docs/planning/05_decision_rationale.md`, `docs/specs/iot_data_format.md` |
 | FR-06, NFR-03, NFR-04 | Dashboard Backend/API가 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg result를 조회한다. | M6에서 일반 상태 10~35초, 장애 판정 40~60초 목표 확인 | `docs/specs/data_storage_pipeline.md`, `docs/planning/03_evaluation_plan.md` |
 | BR-05, FR-08, FR-09, NFR-08, NFR-09 | EventBridge Scheduler -> Step Functions -> 4개 reporting Lambda -> S3 `reports/daily/` 경로로 factory별 보고서를 생성한다. | 2026-05-28 `factory-b` 수동 실행에서 `report-context.json`, `factory-daily-summary.json`, `report.md`, `generation-metadata.json` 확인 완료. `factory-a/c`는 후속 반복 검증 | `docs/planning/17_llm_daily_factory_report_plan.md`, `docs/ops/24_daily_factory_report.md` |
@@ -254,7 +255,7 @@
 | M3 | CI/CD와 ArgoCD rollout | OPS-01 ~ OPS-05 |
 | M4 | IoT Core, S3 raw, Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed | FR-01 ~ FR-05, NFR-01, NFR-02 |
 | M5 | `factory-b/c` 테스트베드 추가와 3개 공장 Fleet 인식 | BR-04, FR-07 |
-| M6 | 기본 Risk 계산, Risk Twin read model, Dashboard 조회 계약. Dashboard page/VPC 구현은 별도 담당 범위 | BR-01 ~ BR-03, FR-04, FR-06, NFR-03, NFR-04 |
+| M6 | `risk-v0.2.0` 계산, DataProcessor freshness refresh, Risk Twin read model, Dashboard 조회 계약. Dashboard page/VPC 구현은 별도 담당 범위 | BR-01 ~ BR-03, FR-04, FR-06, NFR-03, NFR-04 |
 | M7 | 운영형/테스트베드형/장애/롤백/일일 보고서 통합 시나리오 | 전체 요구사항 회귀 |
 
 ## MVP 제외 범위와 후속 요구사항
@@ -298,6 +299,7 @@ IoT Core
   -> Lambda data processor
       -> DynamoDB LATEST
       -> DynamoDB HISTORY#STATE
+      -> DataProcessorRefresh1m -> stale pipeline_status/risk refresh
       -> GraphAggregator5m -> DynamoDB GRAPH#5M
       -> S3 processed
 Dashboard Web/API

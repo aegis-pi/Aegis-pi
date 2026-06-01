@@ -1,7 +1,7 @@
 # 구현 전략 및 단계 계획
 
 상태: source of truth
-기준일: 2026-05-28
+기준일: 2026-05-29
 
 ## 목적
 
@@ -328,7 +328,7 @@ Hub 생성 순서:
 | Phase 4 (M3) | Issue 1~5 완료, Issue 6~8 보류 | ECR/GitHub Actions/Hub ArgoCD 배포 기준선 |
 | Phase 5 (M4) | 완료, Issue 1~8 완료 | `factory-a` adapter/publisher, Lambda data processor, DynamoDB/S3 processed |
 | Phase 6 (M5) | 완료 | VM Spoke 확장, dummy generator, S3 raw 수집 |
-| Phase 7 (M6) | 진행 중 | 기본 Risk 계산 완료. 다음은 runtime-config 연결, Risk Twin read model 고정. Dashboard page/VPC는 별도 담당 범위 |
+| Phase 7 (M6) | 진행 중 | `risk-v0.2.0` 계산과 DataProcessorRefresh1m stale 보정 완료. 다음은 runtime-config 연결, Risk Twin read model 고정. Dashboard page/VPC는 별도 담당 범위 |
 | Phase 7.5 | MVP 검증 완료 | Bedrock 기반 factory별 일일 운영 보고서. 로컬 테스트, Bedrock 실호출, AWS 배포, `factory-b` Step Functions 수동 실행, S3 산출물 검증 완료. reporting stack은 검증 후 destroy |
 | Phase 8 (M7) | 후속 | 통합 검증 + 문서 보정 |
 

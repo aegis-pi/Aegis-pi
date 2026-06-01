@@ -71,8 +71,11 @@ YYYY-MM-DDTHH:mm:ss.sssZ
 | `last_factory_state_at` | string | Y | 마지막 `factory_state` 반영 시각 |
 | `last_infra_state_at` | string | Y | 마지막 `infra_state` 반영 시각 |
 | `risk.score` | number | Y | 0~100 Safety Score. 높을수록 안전 |
+| `risk.base_score` | number | Y | gate cap 적용 전 weighted contribution 기준 점수 |
 | `risk.level` | string | Y | `safe`, `warning`, `danger` |
+| `risk.base_level` | string | Y | gate cap 적용 전 level |
 | `risk.top_causes[]` | array | Y | 주요 원인 목록 |
+| `risk.gates[]` | array | Y | 위험/주의 gate 목록. `nodes_all_not_ready`, `pipeline_status_critical` 등 |
 | `factory_state.sensor` | object | Y | 현재 환경 센서 요약 |
 | `factory_state.ai_result` | object | Y | 현재 AI score 요약 |
 | `infra_state.node_summary` | object | Y | 노드 ready 요약 |
@@ -202,6 +205,8 @@ safe last
 within same level: risk.score desc
 pipeline warning/critical should be highlighted
 ```
+
+주의: `risk.score`는 높을수록 안전하므로 위험도 우선 정렬에서는 level 우선 후 같은 level 안에서 `risk.score asc`가 더 위험한 공장을 먼저 보여준다. 위 기존 정렬은 safe 그룹에서 상태가 좋은 공장을 먼저 보여줄 때만 사용한다.
 
 빈 상태:
 
@@ -908,4 +913,4 @@ stale 기본 기준:
 | --- | --- |
 | `factory_state` | 최신값 age > 10초 |
 | `infra_state` | 최신값 age > 40초 warning, > 60초 critical |
-| `pipeline_status` | 저장된 `pipeline_status.status` 우선 |
+| `pipeline_status` | 저장된 `pipeline_status.status` 우선. DataProcessor refresh가 1분마다 stale 상태를 갱신하므로 Dashboard는 LATEST 값을 신뢰한다. |

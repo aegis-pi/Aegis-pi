@@ -154,6 +154,7 @@ AWS Cloud / Control 경계와 managed service 영역에는 아래 리소스를 �
 | AMP | Prometheus 메트릭 중앙 저장 |
 | DynamoDB LATEST/HISTORY#STATE/GRAPH#5M | 대시보드 빠른 조회용 현재 상태, 상세 snapshot, 최근 그래프 |
 | Lambda data processor | 정규화, Risk 계산, pipeline_status 계산 |
+| Lambda DataProcessorRefresh1m | 새 메시지가 없는 factory의 pipeline freshness와 risk를 1분마다 재계산 |
 | Lambda GraphAggregator5m | HISTORY#STATE를 5분 graph read model로 집계 |
 
 Data / Dashboard VPC 경계 안에는 아래 리소스를 둔다.
@@ -189,6 +190,7 @@ Data / Dashboard VPC 경계 안에는 아래 리소스를 둔다.
 | Lambda data processor normalization step | Lambda data processor risk logic | 정규화 결과 전달 |
 | Lambda data processor risk logic | DynamoDB LATEST/HISTORY#STATE / S3 processed | Risk Twin 결과 저장 |
 | Lambda data processor pipeline_status logic | IoT Core / S3 | 수신/적재 상태 확인 |
+| Lambda DataProcessorRefresh1m | DynamoDB LATEST/HISTORY#STATE / S3 processed | stale pipeline_status/risk refresh 결과 저장 |
 | Lambda GraphAggregator5m | DynamoDB HISTORY#STATE | 5분 그래프 집계 입력 |
 | Lambda GraphAggregator5m | DynamoDB GRAPH#5M / S3 processed_agg | 5분 그래프 집계 출력 |
 | Dashboard Web/API | DynamoDB LATEST/GRAPH#5M/HISTORY#STATE / S3 processed/processed_agg | read-only 중앙 관제 조회 |
@@ -224,6 +226,8 @@ factory-a real input
         -> Lambda data processor
             -> DynamoDB LATEST/HISTORY#STATE
             -> S3 processed
+        -> DataProcessorRefresh1m
+            -> stale pipeline_status/risk refresh
         -> GraphAggregator5m
             -> DynamoDB GRAPH#5M
             -> S3 processed_agg
@@ -238,6 +242,8 @@ factory-b / factory-c dummy input
         -> Lambda data processor
             -> DynamoDB LATEST/HISTORY#STATE
             -> S3 processed
+        -> DataProcessorRefresh1m
+            -> stale pipeline_status/risk refresh
         -> GraphAggregator5m
             -> DynamoDB GRAPH#5M
             -> S3 processed_agg

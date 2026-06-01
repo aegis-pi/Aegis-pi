@@ -1,7 +1,7 @@
 # 목표 확장 아키텍처
 
 상태: draft
-기준일: 2026-05-28
+기준일: 2026-05-29
 
 ## 목적
 
@@ -9,7 +9,7 @@
 
 ## 최신 기준
 
-2026-05-28 기준 확정된 클라우드 리소스 배치와 VPC 명명은 `docs/planning/15_cloud_architecture_final.md`를 source of truth로 한다.
+2026-05-29 기준 확정된 클라우드 리소스 배치와 VPC 명명은 `docs/planning/15_cloud_architecture_final.md`를 source of truth로 한다.
 
 이 문서는 기존 목표 Hub/Spoke 구조를 설명하는 보조 문서다. Dashboard page와 Dashboard VPC 구현은 별도 담당 범위이며, 이 repo에서는 Dashboard가 조회할 DynamoDB/S3 processed read model과 Risk output 계약을 유지한다. 최신 기준의 VPC 경계는 아래와 같다.
 
@@ -28,7 +28,7 @@ factory-a 로컬 Safe-Edge 기준선
 M1 Issue 0~10/12 Hub EKS/VPC/namespace/ArgoCD bootstrap, foundation, IoT, Admin UI 기준선
 M4 data-pipeline Lambda/DynamoDB/S3 processed 검증
 M5 factory-b/c 테스트베드 Spoke 확장과 S3 raw/processed 검증
-M6 Issue 1 기본 Risk 계산 구현
+M6 Issue 1 risk-v0.2.0 Risk 계산 및 DataProcessor freshness refresh 구현
 Daily Factory Report 로컬/AWS 수동 실행 검증 후 reporting stack destroy
 ```
 
@@ -91,6 +91,7 @@ Edge input
     -> AWS IoT Core
         -> IoT Rule -> S3 raw
         -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed
+        -> DataProcessorRefresh1m -> stale pipeline_status/risk refresh
         -> GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg
     -> Data / Dashboard VPC Web/API
 ```
@@ -196,11 +197,12 @@ event
 4. Tailscale 또는 동등한 Hub-Spoke 연결 방식 확정
 5. GitHub Actions / ECR / ArgoCD ApplicationSet 구성
 6. Edge data-plane adapter/publisher 구현 및 IoT Core / S3 데이터 수집 경로 구성
-7. Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed 및 기본 Risk 계산 구현 완료
-8. GraphAggregator5m, DynamoDB GRAPH#5M, S3 processed_agg 5분 그래프 집계 구현 완료
-9. `factory-b`, `factory-c` 테스트베드 확장 완료
-10. Daily Factory Report MVP 검증 완료
-11. 1번 Data / Dashboard VPC와 dashboard 구현은 별도 담당 범위로 분리
+7. Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed 및 `risk-v0.2.0` Risk 계산 구현 완료
+8. DataProcessorRefresh1m, stale `pipeline_status`/`risk` 1분 refresh 구현 완료
+9. GraphAggregator5m, DynamoDB GRAPH#5M, S3 processed_agg 5분 그래프 집계 구현 완료
+10. `factory-b`, `factory-c` 테스트베드 확장 완료
+11. Daily Factory Report MVP 검증 완료
+12. 1번 Data / Dashboard VPC와 dashboard 구현은 별도 담당 범위로 분리
 
 ## 현재 구조로 가져오면 안 되는 것
 

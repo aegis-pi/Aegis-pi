@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-05-28
+기준일: 2026-05-29
 
 ## 목적
 
@@ -76,6 +76,7 @@
 M6 Issue 2~4 - runtime-config 적용, 온도/습도 기준값 계산 연결, Risk Twin 출력 구조 구현
 Daily Factory Report 고도화 - S3 read 병렬화/state_snapshot 축소, generation metadata 비용 관측 필드 추가, CloudWatch 기반 reporting pipeline health 보조 조회
 Dashboard page 및 Dashboard VPC - 별도 담당 범위. 이 repo는 DynamoDB/S3 processed read model과 Risk 계약을 제공
+factory-a 운영 복구 - 2026-05-28T07:54Z 이후 factory-a IoT 입력이 중단된 상태다. data-plane Pod/Secret/outbox/publisher 재확인이 필요하다.
 ```
 
 ## 다음 세션 시작 지점
@@ -106,6 +107,8 @@ scripts/destroy/destroy-hub.sh <MFA_OTP>
 ```
 
 Hub 상태와 무관하게 다음 구현 작업은 M6 Risk 데이터 계약 고도화와 Daily Factory Report 성능/관측성 개선이다. Daily report는 `apps/daily-report-generator/`와 `infra/reporting/` 로컬 구현, Bedrock Sonnet 실호출, 24시간 `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. 2026-05-28 최종 검증에서는 `manual-factory-report-20260528T064840Z`가 `SUCCEEDED`였고, `report.md`의 핵심 지표/데이터 수집/Risk Score/센서 및 AI 이벤트/인프라 상태/주요 이벤트/확인 필요 항목 표와 분석 문단을 확인했다. 검증 후 reporting stack은 `destroy-reporting.sh`로 삭제했고 S3 `processed/` 입력과 `reports/daily/` 출력은 보존한다.
+
+2026-05-29에는 DataProcessor freshness refresh를 배포했다. `AEGIS-Schedule-DataProcessorRefresh1m`가 `AEGIS-Lambda-DataProcessor`를 1분마다 `action=refresh_pipeline_status`로 호출한다. 이 경로는 새 IoT 메시지가 없는 factory도 DynamoDB LATEST의 `pipeline_status`와 `risk`를 현재 시각 기준으로 재계산하고, HISTORY#STATE와 S3 `state_snapshot`을 남긴다.
 
 ## 2026-05-27 Hub Cost Optimization 상태
 
@@ -158,27 +161,28 @@ factory-a/b/c publisher와 IoT Rule/Lambda 경로는 Hub EKS가 잠시 불안정
 실제 확인:
 
 ```text
-DynamoDB AEGIS-DynamoDB-FactoryStatus LATEST:
-- factory-a updated_at 2026-05-27T09:03:31.859Z, pipeline_status normal, risk safe
-- factory-b updated_at 2026-05-27T09:03:23.647Z, pipeline_status normal, risk safe
-- factory-c updated_at 2026-05-27T09:03:21.884Z, pipeline_status normal, risk safe
+DynamoDB AEGIS-DynamoDB-FactoryStatus LATEST (2026-05-29 refresh 검증 후):
+- factory-a updated_at 2026-05-29T06:48:45.209Z, pipeline_status critical, risk danger, score 0
+- factory-b updated_at 2026-05-29T06:49:02.806Z, pipeline_status normal, risk safe, score 100
+- factory-c updated_at 2026-05-29T06:49:01.949Z, pipeline_status normal, risk safe, score 100
 
 S3 raw:
-- factory-b raw object at 2026-05-27T09:04:36Z
-- factory-c raw object at 2026-05-27T09:04:36Z
+- factory-a raw latest는 2026-05-28T07:54Z에서 중단
+- factory-b/c raw object는 2026-05-29 현재 지속 적재
 
 S3 processed:
-- factory-b processed/state_snapshot at 2026-05-27T09:05:02Z
-- factory-c processed/state_snapshot at 2026-05-27T09:04:36Z
+- factory-a processed/state_snapshot 2026-05-29T06:48:45.209Z 신규 생성 확인
+- factory-b/c processed/state_snapshot 지속 갱신
 
 Lambda:
 - AEGIS-Lambda-DataProcessor State=Active, LastUpdateStatus=Successful, Runtime=python3.12
+- AEGIS-Schedule-DataProcessorRefresh1m ENABLED, CloudWatch pipeline refresh 로그 반복 확인
 ```
 
 ## 현재 큰 상태
 
 ```text
-현재 단계: M6 Risk 데이터 계약 고도화 및 MVP Daily Factory Report 검증 완료 상태 (2026-05-28)
+현재 단계: M6 Risk 데이터 계약 고도화 및 MVP Daily Factory Report 검증 완료, DataProcessor freshness refresh 배포 완료 상태 (2026-05-29)
 
 완료: M3 Issue 1~5 배포 파이프라인 전체
 완료: M4 Issue 1~5/8 raw 데이터 플레인
@@ -191,18 +195,22 @@ Lambda:
 
 완료: M4 Issue 6~7 Lambda data processor / pipeline_status 검증
   - Lambda: AEGIS-Lambda-DataProcessor Active, LastUpdateStatus Successful, python3.12, 512MB, timeout 60s
+  - DataProcessor refresh Scheduler: AEGIS-Schedule-DataProcessorRefresh1m ENABLED, rate(1 minute)
+  - Scheduler payload: {"action":"refresh_pipeline_status","factories":["factory-a","factory-b","factory-c"]}
   - IoT Rules: AEGIS_IoTRule_factory_a/b/c_raw_s3 모두 disabled=false, Lambda action + S3 raw action 연결 확인
   - S3: aegis-bucket-data raw/factory-a,b,c 및 processed/factory-a,b,c/state_snapshot 적재 확인
   - DynamoDB: AEGIS-DynamoDB-FactoryStatus factory-a/b/c LATEST 갱신 확인
-  - pipeline_status: factory-a/b/c 모두 normal 확인
-  - risk: factory-a/b/c 모두 safe 확인
+  - pipeline_status: factory-b/c normal, factory-a는 입력 중단으로 critical 확인
+  - risk: factory-b/c safe, factory-a는 입력 중단으로 danger(score 0) 확인
   - DynamoDB TTL: ttl ENABLED, HISTORY#STATE/GRAPH#5M 보존은 Terraform/Lambda TTL 변수 기준
   - S3 bucket 설정: ap-south-1, versioning enabled, SSE-S3 AES256, public access block 전체 true, BucketOwnerEnforced, raw/processed lifecycle 적용
 
 완료: M6 Issue 1 Lambda Risk 계산 로직 구현
   - apps/data-processor/processor/risk.py 에 score/level/top_causes 계산 구현
-  - 현재 계산 대상: temperature, humidity, AI event rate
+  - 현재 계산 대상: temperature, humidity, pressure, AI event rate, node_status, pod_health, device_availability, data_freshness, storage_pressure, network_reachability
   - 위험도 구간: safe >= 85, warning >= 50, danger < 50
+  - gate: nodes_all_not_ready는 score 0 cap, danger gate는 score 49 cap, warning gate는 score 84 cap
+  - 2026-05-29 검증: factory-a stale LATEST가 refresh 후 pipeline_status critical, risk.score 0, risk.level danger로 갱신됨
   - 단위 테스트: apps/data-processor/tests/test_risk.py
   - 남은 보강: runtime-config.yaml 적용, risk_enabled/override 반영, Risk Twin 공식 출력 구조
 
@@ -306,7 +314,7 @@ Hub-only 삭제/재생성 운영 순서:
 보류: EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 상태: 2026-05-27 기준 Hub/Foundation/IoT/Admin UI/data-pipeline 리소스 활성. Hub EKS, foundation S3/ECR/DynamoDB, IoT Rule 3개, Lambda data processor, `factory-a/b/c` IoT Thing/Policy/certificate, K3s IoT Secret, Route53/ACM/Admin UI Ingress 활성 상태. AMP workspace는 삭제 완료. Hub NAT Gateway는 Azone 단일 NAT로 전환 완료.
+AWS 실제 리소스 상태: 2026-05-29 기준 Foundation/IoT/data-pipeline 리소스 활성. foundation S3/ECR/DynamoDB, IoT Rule 3개, Lambda data processor, DataProcessorRefresh1m Scheduler, GraphAggregator5m Scheduler, `factory-a/b/c` IoT Thing/Policy/certificate, K3s IoT Secret 활성 상태. Hub EKS/Admin UI는 build/destroy로 재생성 가능하다. AMP workspace는 삭제 완료. Hub NAT Gateway는 Azone 단일 NAT로 전환 완료.
 Terraform state: infra/hub apply 완료, infra/foundation apply 완료, infra/data-pipeline apply 완료
 다음 작업 우선순위: daily factory report 검증/AWS 실행 완료 후 M6 Risk Twin/Dashboard 구현.
 ```

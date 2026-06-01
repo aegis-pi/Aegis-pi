@@ -1,7 +1,7 @@
 # Change Records
 
 상태: source of truth
-기준일: 2026-05-21
+기준일: 2026-05-29
 
 ## 목적
 
@@ -28,6 +28,7 @@
 | 0019 | factory-c Windows VirtualBox master/worker cluster | accepted | 2026-05-20 | M5, factory-c, K3s networking |
 | 0020 | Hub-only rebuild spoke registration and dummy generator operations | accepted | 2026-05-21 | Hub rebuild, Spoke registration, factory-b/c dummy ops |
 | 0021 | DynamoDB: infra/data-pipeline → infra/foundation | accepted | 2026-05-21 | M4, infra/foundation, infra/data-pipeline, destroy 순서 제약 |
+| 0022 | DataProcessor freshness refresh | accepted | 2026-05-29 | M4/M6, Lambda DataProcessor, EventBridge Scheduler, DynamoDB LATEST, Risk Score |
 
 ## 파일 형식
 

@@ -12,8 +12,8 @@
 - MVP의 첫 기준선인 M0 `factory-a` Safe-Edge 구축과 실측 검증은 완료됐다.
 - AWS Hub EKS/ArgoCD, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a/b/c` IoT Thing/Policy/K3s Secret은 현재 build 스크립트와 factory별 등록 스크립트로 재생성/검증 가능하다. Hub는 `build-hub.sh`, Admin UI는 `build-admin-ui-after-ns.sh`, Tailnet UI는 `connect-hub-tailscale-ui.sh`, Spoke 등록은 `register-spoke-factory-a/b/c.sh`, 최종 확인은 `verify-complete.sh`가 담당한다.
 - 전체 MVP는 운영형 Spoke 1개와 테스트베드형 Spoke 2개를 포함한 멀티 공장 관제 구조를 목표로 한다.
-- 2026-05-29 기준 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed, GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg data-pipeline은 `factory-a/b/c` 기준으로 실제 AWS 리소스 검증을 완료했다.
-- Lambda data processor의 기본 Risk Score 계산은 구현/검증 완료 상태다. runtime-config 기반 weight/threshold/factory override 연결과 Risk Twin read model 고정은 후속 고도화다.
+- 2026-05-29 기준 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed, DataProcessorRefresh1m -> stale factory `pipeline_status`/`risk` 재계산, GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg data-pipeline은 `factory-a/b/c` 기준으로 실제 AWS 리소스 검증을 완료했다.
+- Lambda data processor의 `risk-v0.2.0` Risk Score 계산은 구현/검증 완료 상태다. runtime-config 기반 weight/threshold/factory override 연결과 Risk Twin read model 고정은 후속 고도화다.
 - Bedrock 기반 factory별 일일 운영 보고서 초안 생성은 MVP 포함 범위로 확정했고, 로컬 테스트, Bedrock Sonnet 실호출, AWS reporting stack 배포, `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. reporting stack은 비용 방지를 위해 검증 후 삭제했으며 S3 input/output object는 보존한다. 세부 설계 source of truth는 `docs/planning/17_llm_daily_factory_report_plan.md`다.
 - Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다. 이 repo에서는 Dashboard가 조회할 DynamoDB/S3 processed/processed_agg read model과 Risk output 계약을 유지한다.
 
@@ -54,8 +54,9 @@
 - `factory-a` IoT Thing/certificate/policy 및 K3s Secret
 - `factory-b/c` VM K3s 테스트베드, local dummy generator, 공통 publisher, S3 raw 적재 검증
 - Lambda data processor, DynamoDB LATEST/HISTORY#STATE, S3 processed, `pipeline_status` 계산 및 `factory-a/b/c` end-to-end 검증
+- DataProcessorRefresh1m 기반 stale `pipeline_status`/`risk` 재계산 검증. 2026-05-29 기준 `factory-a` 입력 중단 상태는 `critical/danger/0`으로 표시된다.
 - GraphAggregator5m, DynamoDB GRAPH#5M, S3 processed_agg 5분 그래프 집계 검증
-- Lambda data processor 기본 Risk Score 계산
+- Lambda data processor `risk-v0.2.0` Risk Score 계산
 - Daily Factory Report MVP local/AWS manual execution 검증
 
 ## MVP 포함 범위

@@ -15,7 +15,7 @@ Aegis 데이터 파이프라인은 Edge factory에서 발생한 센서·인프�
 - **상세 이력 조회** → DynamoDB HISTORY#STATE
 - **장기 보존·재처리** → S3 processed / raw
 
-2026-05-29 기준 `factory-a/b/c` IoT -> Lambda -> DynamoDB/S3 processed 적재, 기본 Risk Score 계산, GraphAggregator5m의 DynamoDB `GRAPH#5M` 및 S3 `processed_agg` 집계는 검증 완료 상태다. `configs/runtime/runtime-config.yaml`은 아직 Lambda Risk 계산에 연결되지 않았으며, 다음 고도화는 runtime config 기반 weight/threshold/factory override 적용과 Risk Twin read model 안정화다.
+2026-05-29 기준 `factory-a/b/c` IoT -> Lambda -> DynamoDB/S3 processed 적재, `risk-v0.2.0` Risk Score 계산, DataProcessor 1분 freshness refresh, GraphAggregator5m의 DynamoDB `GRAPH#5M` 및 S3 `processed_agg` 집계는 검증 완료 상태다. `configs/runtime/runtime-config.yaml`은 아직 Lambda Risk 계산에 연결되지 않았으며, 다음 고도화는 runtime config 기반 weight/threshold/factory override 적용과 Risk Twin read model 안정화다.
 
 ---
 
@@ -50,6 +50,20 @@ EventBridge Scheduler (rate 5 minutes)
       -> PutObject S3 processed_agg/{factory_id}/metrics_5m/...
 ```
 
+데이터가 완전히 끊긴 공장은 새 IoT 메시지가 없으므로 일반 메시지 처리만으로는 `LATEST`가 갱신되지 않는다. 이를 보정하기 위해 DataProcessor refresh 스케줄이 별도로 동작한다.
+
+```text
+EventBridge Scheduler (rate 1 minute)
+  -> Lambda: AEGIS-Lambda-DataProcessor
+     payload: {"action":"refresh_pipeline_status","factories":["factory-a","factory-b","factory-c"]}
+      -> GetItem DynamoDB LATEST
+      -> 현재 시각 기준 pipeline_status 재계산
+      -> 최신 factory_state / infra_state / pipeline_status로 risk 재계산
+      -> UpdateItem DynamoDB LATEST
+      -> PutItem DynamoDB HISTORY#STATE
+      -> PutObject S3 processed/{factory_id}/state_snapshot/...
+```
+
 ---
 
 ## source_type별 처리 플로우
@@ -73,8 +87,8 @@ EventBridge Scheduler (rate 5 minutes)
                   │
                   ▼
        ┌─────────────────────────────┐
-       │  calc_risk()                │  온도(±15) + 습도(±10)
-       │                             │  + AI(±10) → score / level
+       │  calc_risk()                │  최신 infra_state와
+       │                             │  pipeline_status까지 함께 반영
        └──────────┬──────────────────┘
                   │
                   ▼
@@ -220,38 +234,42 @@ processed/  → 365일 후 Standard-IA 전환 (S3 Lifecycle)
 
 ## Risk 계산 구조
 
+```text
+입력:
+  - 최신 factory_state
+  - 최신 infra_state
+  - 최신 pipeline_status
+
+weighted contribution:
+  base_score = 100 - sum(weight * severity)
+
+gate cap:
+  - danger gate가 있으면 최종 score <= 49
+  - warning gate가 있으면 최종 score <= 84
+  - nodes_all_not_ready는 최종 score = 0
+
+level:
+  - 85~100: safe
+  - 50~84: warning
+  - 0~49: danger
 ```
-  입력: normalize_factory_state() 결과
 
-  ┌─────────────────────────────────────────────────────────────────┐
-  │  temperature_celsius                          가중치: 15        │
-  │                                                                 │
-  │   0°C    32°C            38°C                                   │
-  │   ├───────┼───────────────┼────────────────►                   │
-  │   │  0점  │  선형 증가    │     15점 고정                       │
-  │   │       └──────────────►                                      │
-  ├─────────────────────────────────────────────────────────────────┤
-  │  humidity_percent                             가중치: 10        │
-  │                                                                 │
-  │   0%     70%             85%                                    │
-  │   ├───────┼───────────────┼────────────────►                   │
-  │   │  0점  │  선형 증가    │     10점 고정                       │
-  ├─────────────────────────────────────────────────────────────────┤
-  │  AI event (fire / fall / bend score)          가중치: 10        │
-  │                                                                 │
-  │   peak = max(fire_score, fall_score, bend_score)               │
-  │   contribution = min(10, peak × 10 + sound_bonus)              │
-  │   abnormal_sound 감지 시 sound_bonus = +0.5                    │
-  └─────────────────────────────────────────────────────────────────┘
+`risk-v0.2.0` 가중치:
 
-  total_score = temp_contrib + humid_contrib + ai_contrib
+| Field | Weight | 입력 |
+|---|---:|---|
+| `temperature` | 10 | factory_state |
+| `humidity` | 5 | factory_state |
+| `pressure` | 5 | factory_state |
+| `ai_event_rate` | 15 | factory_state |
+| `node_status` | 20 | infra_state |
+| `pod_health` | 15 | infra_state |
+| `device_availability` | 10 | infra_state |
+| `data_freshness` | 10 | pipeline_status |
+| `storage_pressure` | 5 | infra_state |
+| `network_reachability` | 5 | infra_state |
 
-  score → level 판정
-  ┌──────────┬─────────────┬──────────────┬───────────────┐
-  │   0~9    │   10~19     │    20~29     │     ≥ 30      │
-  │  normal  │   warning   │    danger    │   critical    │
-  └──────────┴─────────────┴──────────────┴───────────────┘
-```
+Risk 출력은 `score`, `base_score`, `level`, `base_level`, `top_causes`, `gates`, `calculation_version`, `calculated_at`을 포함한다.
 
 ---
 
@@ -272,6 +290,27 @@ processed/  → 365일 후 Standard-IA 전환 (S3 Lifecycle)
   ──────────────────────────────────────────────
   infra_state 수신 시:
     source_timestamp ≈ now  →  age ≈ 0  →  항상 normal
+
+  ──────────────────────────────────────────────
+  refresh schedule 실행 시:
+    IoT 메시지가 없어도 1분마다 LATEST.last_infra_state_at 기준으로 재계산
+    stale 상태가 되면 pipeline_status critical + risk 재계산
+```
+
+2026-05-29 배포 검증:
+
+```text
+factory-a 마지막 입력:
+- last_factory_state_at = 2026-05-28T07:54:39Z
+- last_infra_state_at = 2026-05-28T07:54:31Z
+
+DataProcessor refresh 후:
+- pipeline_status.status = critical
+- latest_infra_state_age_seconds > 82000
+- risk.score = 0
+- risk.level = danger
+- gates = nodes_all_not_ready, pipeline_status_critical
+- S3 state_snapshot 신규 생성 확인
 ```
 
 ---
@@ -306,6 +345,8 @@ http://prometheus-svc.monitoring.svc.cluster.local:9090
 | Lambda IAM Role | `AEGIS-IAMRole-Lambda-DataProcessor` | DynamoDB GetItem/PutItem/UpdateItem, S3 PutObject processed/* |
 | Lambda IAM Policy | `AEGIS-IAMPolicy-Lambda-DataProcessor` | CloudWatch Logs + DynamoDB + S3 |
 | CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-DataProcessor` | 보존 30일 |
+| EventBridge Scheduler | `AEGIS-Schedule-DataProcessorRefresh1m` | rate(1 minute), DataProcessor freshness refresh 호출 |
+| Scheduler IAM Role | `AEGIS-IAMRole-Scheduler-DataProcessorRefresh` | DataProcessor Lambda InvokeFunction |
 | Lambda Function | `AEGIS-Lambda-GraphAggregator5m` | python3.12, 512MB, timeout 60s |
 | EventBridge Scheduler | `AEGIS-Schedule-GraphAggregator5m` | rate(5 minutes), GraphAggregator5m 호출 |
 | CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-GraphAggregator5m` | 보존 30일 |
@@ -320,6 +361,7 @@ http://prometheus-svc.monitoring.svc.cluster.local:9090
 | 변수 | 값 (Terraform 주입) |
 |---|---|
 | `DYNAMODB_TABLE_NAME` | `AEGIS-DynamoDB-FactoryStatus` |
+| `FACTORY_IDS` | `factory-a,factory-b,factory-c` |
 | `S3_BUCKET_NAME` | `aegis-bucket-data` |
 | `HISTORY_TTL_HOURS` | `var.dynamodb_history_ttl_hours` |
 
@@ -499,7 +541,7 @@ GraphAggregator5m이 DynamoDB `HISTORY#STATE`를 5분 bucket으로 집계한 S3 
 | SK | 저장 계기 | 주기 | TTL | 내용 |
 |---|---|---|---|---|
 | `LATEST` | factory_state / infra_state 수신 | 3초 / 20초 덮어씀 | 없음 | 최신 전체 상태 |
-| `HISTORY#STATE#{updated_at}` | factory_state / infra_state 수신 | 3초 / 20초 | `HISTORY_TTL_HOURS` | LATEST와 같은 구조 + ttl |
+| `HISTORY#STATE#{updated_at}` | factory_state / infra_state 수신 또는 1분 refresh | 3초 / 20초 / 1분 | `HISTORY_TTL_HOURS` | LATEST와 같은 구조 + ttl |
 | `GRAPH#5M#{bucket_start}` | GraphAggregator5m 실행 | 5분 | `GRAPH_TTL_HOURS` | 5분 그래프 집계 |
 
 > `pk`는 모두 `FACTORY#{factory_id}` 고정.
@@ -624,7 +666,7 @@ Grafana는 내부 관리 UI로 유지하고, 필요 시 CloudWatch datasource �
 
 | 경로 | 역할 |
 |---|---|
-| `apps/data-processor/lambda_function.py` | Lambda 핸들러, 처리 분기 |
+| `apps/data-processor/lambda_function.py` | Lambda 핸들러, IoT 처리 분기, freshness refresh 처리 |
 | `apps/data-processor/processor/normalizer.py` | 페이로드 정규화 |
 | `apps/data-processor/processor/risk.py` | Risk 점수 계산 |
 | `apps/data-processor/processor/pipeline_status.py` | Pipeline status 판정 |
@@ -633,7 +675,7 @@ Grafana는 내부 관리 UI로 유지하고, 필요 시 CloudWatch datasource �
 | `apps/graph-metrics-aggregator/aggregator/handler.py` | GraphAggregator5m Lambda 핸들러 |
 | `apps/graph-metrics-aggregator/aggregator/metrics.py` | 5분 그래프 집계 item 생성 |
 | `apps/graph-metrics-aggregator/aggregator/dynamo.py` | HISTORY#STATE query, GRAPH#5M put |
-| `infra/data-pipeline/lambda.tf` | DataProcessor Lambda, IAM, CloudWatch 리소스 |
+| `infra/data-pipeline/lambda.tf` | DataProcessor Lambda, IAM, CloudWatch, 1분 freshness refresh Scheduler |
 | `infra/data-pipeline/graph_aggregator_lambda.tf` | GraphAggregator5m Lambda와 Scheduler |
 | `infra/foundation/dynamodb.tf` | DynamoDB 테이블 리소스 |
 | `infra/data-pipeline/iot_rule.tf` | IoT Topic Rule 리소스 |
@@ -647,3 +689,11 @@ Grafana는 내부 관리 UI로 유지하고, 필요 시 CloudWatch datasource �
 - Spoke K3s는 EKS node role을 상속받지 않으므로 `ai-apps/ecr-registry` imagePullSecret을 주기적으로 갱신해야 한다. 만료되면 rollout 시 `403 Forbidden` / `ErrImagePull`이 발생한다.
 - `KJW_AEGIS_Data_IoTRule_infra_state_processor`, `KJW_AEGIS_Data_IoTRule_factory_state_processor`는 구형 Lambda가 `processed/` 결과를 덮어써 2026-05-27에 비활성화했다.
 - Lambda zip에는 `__pycache__`와 `*.pyc`를 포함하지 않는다. stale bytecode가 들어가면 source 변경과 실제 런타임 동작이 어긋날 수 있다.
+
+## 2026-05-29 운영 메모
+
+- `factory-a`가 2026-05-28T07:54Z 이후 새 메시지를 보내지 않아 DynamoDB LATEST의 기존 `risk.score=100`이 stale 상태로 남는 문제가 있었다.
+- 원인은 메시지 수신 시점에만 `pipeline_status`와 `risk`를 갱신하던 구조였다. 데이터가 완전히 끊기면 LATEST를 갱신할 trigger가 없었다.
+- `AEGIS-Schedule-DataProcessorRefresh1m`를 배포해 1분마다 DataProcessor Lambda를 `action=refresh_pipeline_status`로 호출하도록 했다.
+- 배포 검증 결과 `factory-a`는 `pipeline_status=critical`, `risk.score=0`, `risk.level=danger`로 갱신됐다.
+- 같은 시점 `factory-b/c`는 최신 메시지가 계속 들어오므로 refresh 후에도 `pipeline_status=normal`, `risk.score=100`을 유지했다.

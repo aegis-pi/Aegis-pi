@@ -33,6 +33,7 @@
 | `24_daily_factory_report.md` | Bedrock 기반 factory별 일일 운영 보고서 운영 기준 |
 | `25_daily_factory_report_cost.md` | Daily Factory Report 1회/월간 비용 산정 기준 |
 | `26_dynamodb_key_model.md` | DynamoDB `AEGIS-DynamoDB-FactoryStatus` PK/SK 구조와 현재 키 패턴 |
+| `27_dummy_data_generation_and_risk_scenarios.md` | `factory-b/c` dummy data 생성, outbox cleanup, Risk Score 계산, scenario 운영 기준 |
 
 ## 기준
 
