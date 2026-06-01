@@ -86,6 +86,18 @@ variable "node_max_size" {
   default     = 2
 }
 
+variable "enable_metrics_server" {
+  description = "Whether to enable the EKS metrics-server managed add-on for Kubernetes Metrics API and kubectl top."
+  type        = bool
+  default     = true
+}
+
+variable "enable_cloudwatch_observability" {
+  description = "Whether to enable the Amazon CloudWatch Observability EKS add-on. Keep disabled by default because Container Insights is a paid optional monitoring path."
+  type        = bool
+  default     = false
+}
+
 variable "data_bucket_name" {
   description = "S3 bucket name used by Hub workloads."
   type        = string
