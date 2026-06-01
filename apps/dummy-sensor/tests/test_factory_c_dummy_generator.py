@@ -52,6 +52,21 @@ class FactoryCDummyGeneratorTest(unittest.TestCase):
             self.assertEqual(message["payload"]["node_summary"], {"total": 2, "ready": 2, "not_ready": 0})
             self.assertEqual(message["payload"]["heartbeat"]["agent_status"], "alive")
 
+    def test_node_down_requires_explicit_scenario(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
+            os.environ["AEGIS_DUMMY_SCENARIO"] = "node_down"
+            os.environ["AEGIS_DUMMY_SCENARIO_DOWN_NODES"] = "factory-c-worker"
+            generator = generator_module.FactoryCDummyGenerator(rng=random.Random(2))
+
+            message = generator.infra_state()
+
+            self.assertEqual(message["payload"]["node_summary"], {"total": 2, "ready": 1, "not_ready": 1})
+            worker = next(node for node in message["payload"]["nodes"] if node["node_id"] == "factory-c-worker")
+            self.assertFalse(worker["ready"])
+            self.assertEqual(worker["network_reachability"], "not_ready")
+            self.assertEqual(message["payload"]["heartbeat"]["dummy_scenario"], "node_down")
+
     def test_write_outbox_is_idempotent_for_same_message_id(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")

@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from k8s_state import KubernetesStateReader, build_node_payloads, build_workload_payloads
+from k8s_state import KubernetesStateReader, build_workload_payloads
 
 
 def utc_now() -> datetime:
@@ -38,6 +38,11 @@ def env_int(name: str, default: int) -> int:
     if value is None:
         return default
     return int(value)
+
+
+def env_list(name: str) -> set[str]:
+    value = os.getenv(name, "")
+    return {item.strip() for item in value.split(",") if item.strip()}
 
 
 class FactoryCDummyGenerator:
@@ -66,6 +71,8 @@ class FactoryCDummyGenerator:
         self.pressure_baseline = env_float("AEGIS_DUMMY_PRESSURE_BASELINE", 1012.0)
         self.pressure_jitter = env_float("AEGIS_DUMMY_PRESSURE_JITTER", 2.0)
         self.anomaly_probability = env_float("AEGIS_DUMMY_ANOMALY_PROBABILITY", 0.06)
+        self.scenario = os.getenv("AEGIS_DUMMY_SCENARIO", "normal").strip().lower() or "normal"
+        self.scenario_down_nodes = env_list("AEGIS_DUMMY_SCENARIO_DOWN_NODES")
 
     def factory_state(self) -> dict[str, Any]:
         source_timestamp = utc_now()
@@ -103,6 +110,7 @@ class FactoryCDummyGenerator:
         timestamp = format_utc(source_timestamp)
         sequence = self._next_sequence()
         nodes, workloads, source = self._cluster_state()
+        self._apply_scenario(nodes, workloads)
         ready_nodes = sum(1 for item in nodes if item["ready"])
         running_workloads = sum(1 for item in workloads if item["status"] == "Running" and item["ready"])
 
@@ -116,6 +124,8 @@ class FactoryCDummyGenerator:
                     "agent_status": "alive",
                     "last_spool_write_status": "unknown",
                     "last_spool_write_at": None,
+                    "cluster_state_source": source,
+                    "dummy_scenario": self.scenario,
                 },
                 "node_summary": {
                     "total": len(nodes),
@@ -242,20 +252,14 @@ class FactoryCDummyGenerator:
         }
 
     def _cluster_state(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
-        if os.getenv("AEGIS_CLUSTER_STATE_MODE", "synthetic") != "synthetic":
+        mode = os.getenv("AEGIS_CLUSTER_STATE_MODE", "synthetic")
+        if mode == "kubernetes":
             try:
-                nodes = build_node_payloads(
-                    self.k8s.nodes(),
-                    role_overrides={
-                        self.master_node_id: "control-plane",
-                        self.worker_node_id: "worker",
-                    },
-                )
                 workloads = build_workload_payloads(self.k8s)
-                if nodes:
-                    return nodes, workloads, "kubernetes"
             except Exception as exc:
-                print(f"falling back to synthetic cluster state: {exc}", file=sys.stderr, flush=True)
+                print(f"falling back to synthetic workloads: {exc}", file=sys.stderr, flush=True)
+            else:
+                return self._fixed_ready_nodes(), workloads, "kubernetes-workloads"
         return [
             self._node(self.master_node_id, "control-plane", 8.0, 30.0, 22.0),
             self._node(self.worker_node_id, "worker", 12.0, 38.0, 27.0),
@@ -263,6 +267,27 @@ class FactoryCDummyGenerator:
             self._workload("ai-apps", "dummy-data-generator", self.worker_node_id),
             self._workload("ai-apps", "edge-iot-publisher", self.worker_node_id),
         ], "synthetic"
+
+    def _fixed_ready_nodes(self) -> list[dict[str, Any]]:
+        return [
+            self._node(self.master_node_id, "control-plane", 8.0, 30.0, 22.0),
+            self._node(self.worker_node_id, "worker", 12.0, 38.0, 27.0),
+        ]
+
+    def _apply_scenario(self, nodes: list[dict[str, Any]], workloads: list[dict[str, Any]]) -> None:
+        if self.scenario not in {"node_down", "nodes_down"}:
+            return
+
+        down_nodes = self.scenario_down_nodes or {self.worker_node_id}
+        for node in nodes:
+            if node.get("node_id") in down_nodes:
+                node["ready"] = False
+                node["network_reachability"] = "not_ready"
+
+        for workload in workloads:
+            if workload.get("node_id") in down_nodes:
+                workload["ready"] = False
+                workload["status"] = "NodeUnavailable"
 
     def _next_sequence(self) -> int:
         try:

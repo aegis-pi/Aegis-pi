@@ -1,0 +1,5 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Every 3 days at 03:00 UTC. Keep recent files so the publisher can drain fresh data.
+0 3 */3 * * root AEGIS_OUTBOX_DIR=/var/lib/aegis/outbox AEGIS_OUTBOX_CLEANUP_MIN_AGE_MINUTES=1440 /opt/aegis/bin/aegis-outbox-cleanup.sh

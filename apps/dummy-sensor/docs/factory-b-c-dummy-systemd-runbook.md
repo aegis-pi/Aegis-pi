@@ -12,7 +12,9 @@
 ```text
 dummy generator
   -> 3초마다 factory_state JSON 생성
-  -> 20초마다 실제 K3s 상태를 조회해 infra_state JSON 생성
+  -> 20초마다 infra_state JSON 생성
+  -> 기본 node 상태는 항상 ready로 고정
+  -> node 장애는 명시적 dummy scenario에서만 생성
   -> /var/lib/aegis/outbox/*.json 저장
 
 edge-iot-publisher (K3s)
@@ -73,54 +75,63 @@ AWS IoT Rule
 | anomaly probability | `0.03` | `0.06` |
 | abnormal_sound label | `brief lab impact` | `intermittent vibration` |
 | sequence file | `/var/lib/aegis/factory-b-publish-sequence` | `/var/lib/aegis/factory-c-publish-sequence` |
-| infra_state 기본 모드 | 실제 K3s 조회 | 실제 K3s 조회 |
+| infra_state 기본 모드 | synthetic fixed-ready | synthetic fixed-ready |
 
 이 차이 때문에 Dashboard나 S3 raw에서 두 testbed가 같은 데이터를 반복 송신하는 것처럼 보이지 않는다.
 
-## infra_state 실제 조회 기준
+## infra_state node 상태 기준
 
-generator는 `AEGIS_CLUSTER_STATE_MODE=auto` 기본값에서 아래 순서로 실제 K3s 상태를 읽는다.
+기본 운영에서는 node down을 랜덤으로 만들지 않는다. `AEGIS_CLUSTER_STATE_MODE=synthetic` 기준으로 master/worker 두 node는 항상 `ready=true`이고, 그래프 검증 중 임의의 node down spike가 생기지 않도록 한다.
 
-1. K3s Pod 안에서 실행 중이면 ServiceAccount token으로 Kubernetes API 조회
-2. VM systemd 실행이면 `kubectl` CLI로 조회
-3. 조회 실패 시에만 synthetic fallback 사용
-
-systemd 방식에서는 VM에 `kubectl`이 동작해야 한다.
-
-Factory B는 master + worker1 2-node K3s 구성이며, generator는 worker1에서 실행한다. worker1에서 실제 `infra_state`를 읽으려면 아래 kubeconfig 조회가 가능해야 한다.
+node down을 테스트할 때만 명시적으로 scenario를 켠다.
 
 ```bash
-kubectl get nodes -o wide
-kubectl get pods -A
+sudo sed -i 's/^AEGIS_DUMMY_SCENARIO=.*/AEGIS_DUMMY_SCENARIO=node_down/' /etc/aegis/factory-b-dummy.env
+echo 'AEGIS_DUMMY_SCENARIO_DOWN_NODES=worker1' | sudo tee -a /etc/aegis/factory-b-dummy.env
+sudo systemctl restart aegis-factory-b-dummy-generator.service
 ```
 
-Factory C는 publisher가 worker VM에서 실행되므로 worker VM에 `kubectl`과 kubeconfig를 준비해야 한다. K3s agent VM에 `kubectl` 명령이 없다면 먼저 symlink를 만든다.
+Factory C:
 
 ```bash
-# factory-c-worker VM
-sudo ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl
-kubectl version --client=true
+sudo sed -i 's/^AEGIS_DUMMY_SCENARIO=.*/AEGIS_DUMMY_SCENARIO=node_down/' /etc/aegis/factory-c-dummy.env
+echo 'AEGIS_DUMMY_SCENARIO_DOWN_NODES=factory-c-worker' | sudo tee -a /etc/aegis/factory-c-dummy.env
+sudo systemctl restart aegis-factory-c-dummy-generator.service
 ```
 
-가장 단순한 kubeconfig 준비 방식은 master VM의 `/etc/rancher/k3s/k3s.yaml`을 worker VM으로 안전하게 복사하고 server 주소를 master Tailscale IP 또는 reachable IP로 바꾸는 것이다.
+정상 모드로 되돌릴 때:
 
 ```bash
-# factory-c-worker VM 예시
-mkdir -p ~/.kube
-chmod 700 ~/.kube
-# master VM에서 받은 kubeconfig를 ~/.kube/config 로 둔다
-chmod 600 ~/.kube/config
-kubectl get nodes -o wide
-kubectl get pods -A
+sudo sed -i 's/^AEGIS_DUMMY_SCENARIO=.*/AEGIS_DUMMY_SCENARIO=normal/' /etc/aegis/factory-b-dummy.env
+sudo sed -i '/^AEGIS_DUMMY_SCENARIO_DOWN_NODES=/d' /etc/aegis/factory-b-dummy.env
+sudo systemctl restart aegis-factory-b-dummy-generator.service
+
+sudo sed -i 's/^AEGIS_DUMMY_SCENARIO=.*/AEGIS_DUMMY_SCENARIO=normal/' /etc/aegis/factory-c-dummy.env
+sudo sed -i '/^AEGIS_DUMMY_SCENARIO_DOWN_NODES=/d' /etc/aegis/factory-c-dummy.env
+sudo systemctl restart aegis-factory-c-dummy-generator.service
 ```
 
-systemd에서 특정 kubeconfig를 쓰려면 env 파일에 추가한다.
+`AEGIS_CLUSTER_STATE_MODE=kubernetes`를 쓰면 workload 상태만 Kubernetes에서 읽고, node ready는 그래프 안정성을 위해 fixed-ready synthetic node를 유지한다.
 
-```bash
-KUBECONFIG=/home/<vm-ssh-user>/.kube/config
+## outbox cleanup cron
+
+outbox backlog가 오래 남아 그래프/집계 해석을 흐리지 않도록 Linux cron으로 오래된 `.json` 파일을 정리한다. Kubernetes CronJob이 아니다.
+
+기본 정책:
+
+- 위치: `/etc/cron.d/aegis-outbox-cleanup`
+- 주기: `0 3 */3 * *`
+- 대상: `/var/lib/aegis/outbox/*.json`
+- 보호: 최근 24시간 파일은 삭제하지 않음
+- 제외: `tmp/` 디렉터리는 삭제하지 않음
+- 로그: `/var/log/aegis-outbox-cleanup.log`
+
+설치 파일:
+
+```text
+/opt/aegis/bin/aegis-outbox-cleanup.sh
+/etc/cron.d/aegis-outbox-cleanup
 ```
-
-조회에 성공하면 `infra_state.payload.heartbeat.cluster_state_source` 값이 `kubernetes`가 된다. 실패해서 fallback하면 `synthetic`이 된다.
 
 ## 공통 배치 순서
 
@@ -160,7 +171,8 @@ AEGIS_OUTBOX_DIR=/var/lib/aegis/outbox
 AEGIS_IOT_DIR=/etc/aegis/iot/factory-b
 AEGIS_IOT_CLIENT_ID=AEGIS-IoTThing-factory-b
 AEGIS_K3S_VERSION=${K3S_VER}
-AEGIS_CLUSTER_STATE_MODE=auto
+AEGIS_CLUSTER_STATE_MODE=synthetic
+AEGIS_DUMMY_SCENARIO=normal
 EOF
 
 sudo chmod 600 /etc/aegis/factory-b-dummy.env
@@ -182,7 +194,8 @@ AEGIS_OUTBOX_DIR=/var/lib/aegis/outbox
 AEGIS_IOT_DIR=/etc/aegis/iot/factory-c
 AEGIS_IOT_CLIENT_ID=AEGIS-IoTThing-factory-c
 AEGIS_K3S_VERSION=${K3S_VER}
-AEGIS_CLUSTER_STATE_MODE=auto
+AEGIS_CLUSTER_STATE_MODE=synthetic
+AEGIS_DUMMY_SCENARIO=normal
 EOF
 
 sudo chmod 600 /etc/aegis/factory-c-dummy.env

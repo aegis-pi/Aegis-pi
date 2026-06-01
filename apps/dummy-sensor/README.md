@@ -96,7 +96,9 @@ private.pem.key
 | `AEGIS_IOT_KEY_FILE` | `AEGIS_IOT_DIR/private.pem.key` |
 | `AEGIS_IOT_CLIENT_ID` | `AEGIS-IoTThing-factory-b` 또는 `AEGIS-IoTThing-factory-c` |
 | `AEGIS_OUTBOX_DIR` | `/var/lib/aegis/outbox` |
-| `AEGIS_CLUSTER_STATE_MODE` | `auto` (`infra_state`에서 실제 K3s 조회, 실패 시 fallback) |
+| `AEGIS_CLUSTER_STATE_MODE` | `synthetic` (`kubernetes`는 workload만 조회하고 node ready는 고정) |
+| `AEGIS_DUMMY_SCENARIO` | `normal`. node 장애 테스트 시 `node_down` |
+| `AEGIS_DUMMY_SCENARIO_DOWN_NODES` | `node_down` 대상 node id CSV. 미지정 시 worker node |
 | `KUBECONFIG` | 선택. systemd 실행 시 특정 kubeconfig를 지정할 때 사용 |
 
 ## Factory B VM systemd 예시
@@ -114,7 +116,8 @@ AEGIS_OUTBOX_DIR=/var/lib/aegis/outbox
 AEGIS_IOT_DIR=/etc/aegis/iot/factory-b
 AEGIS_IOT_CLIENT_ID=AEGIS-IoTThing-factory-b
 AEGIS_K3S_VERSION=${K3S_VER}
-AEGIS_CLUSTER_STATE_MODE=auto
+AEGIS_CLUSTER_STATE_MODE=synthetic
+AEGIS_DUMMY_SCENARIO=normal
 EOF
 sudo chmod 600 /etc/aegis/factory-b-dummy.env
 ```
@@ -174,7 +177,8 @@ AEGIS_OUTBOX_DIR=/var/lib/aegis/outbox
 AEGIS_IOT_DIR=/etc/aegis/iot/factory-c
 AEGIS_IOT_CLIENT_ID=AEGIS-IoTThing-factory-c
 AEGIS_K3S_VERSION=${K3S_VER}
-AEGIS_CLUSTER_STATE_MODE=auto
+AEGIS_CLUSTER_STATE_MODE=synthetic
+AEGIS_DUMMY_SCENARIO=normal
 EOF
 sudo chmod 600 /etc/aegis/factory-c-dummy.env
 ```
