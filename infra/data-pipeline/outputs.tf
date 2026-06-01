@@ -62,3 +62,33 @@ output "graph_aggregator_schedule_name" {
   description = "Graph aggregator schedule name."
   value       = aws_scheduler_schedule.graph_aggregator_5m.name
 }
+
+output "cloud_infra_fast_collector_lambda_name" {
+  description = "Cloud infra fast collector Lambda name."
+  value       = aws_lambda_function.cloud_infra_fast_collector.function_name
+}
+
+output "cloud_infra_fast_collector_lambda_arn" {
+  description = "Cloud infra fast collector Lambda ARN."
+  value       = aws_lambda_function.cloud_infra_fast_collector.arn
+}
+
+output "cloud_infra_fast_collector_schedule_name" {
+  description = "Cloud infra fast collector schedule name."
+  value       = aws_scheduler_schedule.cloud_infra_fast_collector_1m.name
+}
+
+output "cloud_infra_slow_collector_lambda_name" {
+  description = "Cloud infra slow collector Lambda name."
+  value       = aws_lambda_function.cloud_infra_slow_collector.function_name
+}
+
+output "cloud_infra_slow_collector_lambda_arn" {
+  description = "Cloud infra slow collector Lambda ARN."
+  value       = aws_lambda_function.cloud_infra_slow_collector.arn
+}
+
+output "cloud_infra_slow_collector_schedule_name" {
+  description = "Cloud infra slow collector schedule name."
+  value       = aws_scheduler_schedule.cloud_infra_slow_collector_5m.name
+}

@@ -141,3 +141,129 @@ variable "graph_ai_score_threshold" {
   type        = number
   default     = 0.7
 }
+
+variable "lambda_cloud_infra_fast_collector_name" {
+  description = "Lambda function name for the 1-minute cloud infra fast collector."
+  type        = string
+  default     = "AEGIS-Lambda-CloudInfraFastCollector"
+}
+
+variable "lambda_cloud_infra_fast_collector_timeout" {
+  description = "Cloud infra fast collector Lambda timeout in seconds."
+  type        = number
+  default     = 60
+}
+
+variable "lambda_cloud_infra_fast_collector_memory" {
+  description = "Cloud infra fast collector Lambda memory in MB."
+  type        = number
+  default     = 512
+}
+
+variable "cloud_infra_fast_collector_enabled" {
+  description = "Whether the 1-minute cloud infra fast collector schedule is enabled."
+  type        = bool
+  default     = true
+}
+
+variable "cloud_infra_fast_history_ttl_hours" {
+  description = "TTL in hours for CLOUD#infra HISTORY#FAST DynamoDB items."
+  type        = number
+  default     = 6
+}
+
+variable "cloud_infra_factory_ids" {
+  description = "Factories included in cloud infra factory freshness summaries."
+  type        = list(string)
+  default     = ["factory-a", "factory-b", "factory-c"]
+}
+
+variable "cloud_infra_ecs_cluster_name" {
+  description = "ECS cluster monitored by the cloud infra fast collector."
+  type        = string
+  default     = "KJW-AEGIS-Data-ECSCluster"
+}
+
+variable "cloud_infra_ecs_service_name" {
+  description = "ECS service monitored by the cloud infra fast collector."
+  type        = string
+  default     = "KJW-AEGIS-Data-Service-Backend"
+}
+
+variable "cloud_infra_alb_target_group_name" {
+  description = "ALB target group monitored by the cloud infra fast collector."
+  type        = string
+  default     = "kjw-aegis-data-tg-backend"
+}
+
+variable "cloud_infra_pipeline_lambda_names" {
+  description = "Pipeline Lambda functions monitored by the cloud infra fast collector."
+  type        = list(string)
+  default     = ["AEGIS-Lambda-DataProcessor", "AEGIS-Lambda-GraphAggregator5m"]
+}
+
+variable "cloud_infra_scheduler_names" {
+  description = "EventBridge Scheduler schedules monitored by the cloud infra fast collector."
+  type        = list(string)
+  default     = ["AEGIS-Schedule-DataProcessorRefresh1m", "AEGIS-Schedule-GraphAggregator5m"]
+}
+
+variable "cloud_infra_fast_metric_window_minutes" {
+  description = "CloudWatch metric lookback window for the fast collector."
+  type        = number
+  default     = 5
+}
+
+variable "lambda_cloud_infra_slow_collector_name" {
+  description = "Lambda function name for the 5-minute cloud infra slow collector."
+  type        = string
+  default     = "AEGIS-Lambda-CloudInfraSlowCollector"
+}
+
+variable "lambda_cloud_infra_slow_collector_timeout" {
+  description = "Cloud infra slow collector Lambda timeout in seconds."
+  type        = number
+  default     = 60
+}
+
+variable "lambda_cloud_infra_slow_collector_memory" {
+  description = "Cloud infra slow collector Lambda memory in MB."
+  type        = number
+  default     = 512
+}
+
+variable "cloud_infra_slow_collector_enabled" {
+  description = "Whether the 5-minute cloud infra slow collector schedule is enabled."
+  type        = bool
+  default     = true
+}
+
+variable "cloud_infra_slow_history_ttl_hours" {
+  description = "TTL in hours for CLOUD#infra HISTORY#SLOW DynamoDB items."
+  type        = number
+  default     = 24
+}
+
+variable "cloud_infra_eks_cluster_name" {
+  description = "EKS cluster monitored by the cloud infra slow collector."
+  type        = string
+  default     = "AEGIS-EKS"
+}
+
+variable "cloud_infra_s3_latest_lookback_hours" {
+  description = "Number of recent hours to scan for S3 latest freshness prefixes."
+  type        = number
+  default     = 24
+}
+
+variable "cloud_infra_argocd_namespace" {
+  description = "ArgoCD namespace queried by the cloud infra slow collector."
+  type        = string
+  default     = "argocd"
+}
+
+variable "cloud_infra_k8s_top_pods_limit" {
+  description = "Number of top Kubernetes pods to keep by CPU and memory usage."
+  type        = number
+  default     = 5
+}
