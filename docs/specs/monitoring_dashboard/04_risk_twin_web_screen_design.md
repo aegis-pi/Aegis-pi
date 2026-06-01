@@ -265,9 +265,9 @@ MVP 기본값:
 
 | 그래프 | 필드 | 저장소 | 해상도 |
 | --- | --- | --- | --- |
-| Node CPU | `infra.cpu_usage_percent` aggregate | `DynamoDB GRAPH#5M` | 5분 |
-| Node Memory | `infra.memory_usage_percent` aggregate | `DynamoDB GRAPH#5M` | 5분 |
-| Node Disk | `infra.disk_usage_percent` aggregate | `DynamoDB GRAPH#5M` | 5분 |
+| Node CPU | `infra.nodes[].cpu_usage_percent` node별 aggregate | `DynamoDB GRAPH#5M` | 5분 |
+| Node Memory | `infra.nodes[].memory_usage_percent` node별 aggregate | `DynamoDB GRAPH#5M` | 5분 |
+| Node Disk | `infra.nodes[].disk_usage_percent` node별 aggregate | `DynamoDB GRAPH#5M` | 5분 |
 | Ready node count | `quality` + `HISTORY#STATE` drill-down | `DynamoDB GRAPH#5M`, 필요 시 `DynamoDB HISTORY#STATE` | 5분 |
 | Unhealthy workload count | `HISTORY#STATE` drill-down | `DynamoDB HISTORY#STATE` | 상세 조회 |
 

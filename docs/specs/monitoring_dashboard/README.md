@@ -12,10 +12,11 @@
 | `03_data_model.md` | InfluxDB, Prometheus, Risk 상태 데이터 모델 |
 | `04_risk_twin_web_screen_design.md` | Data / Dashboard VPC 기반 Risk Twin Web 화면 설계 |
 | `05_screen_data_mapping.md` | Risk Twin Web 화면별 DynamoDB/S3 데이터 필드 매핑 |
+| `06_graph5m_node_infra_backend_handoff.md` | `GRAPH#5M.infra.nodes[]` 기반 node별 infra history Backend 연동 기준 |
 
 ## 기준
 
 - 현재 로컬 Grafana 기준과 후속 Data / Dashboard VPC 기준을 구분해 작성한다.
-- 2026-05-28 기준 Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다.
+- 2026-06-01 기준 Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다.
 - 이 repo에서는 Dashboard 구현이 조회할 DynamoDB/S3 processed read model, Risk output 필드, API/data-model 초안을 유지한다.
 - 실제 대시보드 구현이 진행되면 API와 데이터 모델을 먼저 갱신하고, 구현 담당 범위와 repo 데이터 계약 변경 범위를 분리해 기록한다.

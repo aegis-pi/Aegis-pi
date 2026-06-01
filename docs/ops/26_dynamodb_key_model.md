@@ -1,7 +1,7 @@
 # DynamoDB Key Model
 
 상태: 운영 확인 기준
-기준일: 2026-05-29
+기준일: 2026-06-01
 
 ## 목적
 
@@ -52,6 +52,7 @@ pk = FACTORY#{factory_id}
 | `FACTORY#factory-a` | Factory A 상태/이력/그래프 |
 | `FACTORY#factory-b` | Factory B 상태/이력/그래프 |
 | `FACTORY#factory-c` | Factory C 상태/이력/그래프 |
+| `CLOUD#infra` | Cloud infra 상태/이력 read model |
 
 ## 현재 SK 패턴
 
@@ -60,6 +61,8 @@ pk = FACTORY#{factory_id}
 | `LATEST` | Lambda data processor, DataProcessorRefresh1m | 없음 | factory별 최신 전체 상태 1건 |
 | `HISTORY#STATE#{updated_at}` | Lambda data processor, DataProcessorRefresh1m | `HISTORY_TTL_HOURS` | LATEST snapshot 이력 |
 | `GRAPH#5M#{bucket_start}` | Graph metrics aggregator | `GRAPH_TTL_HOURS` | 5분 단위 그래프/지표 집계 |
+| `HISTORY#FAST#{updated_at}` | CloudInfraFastCollector | 6시간 | Cloud infra 1분 snapshot 이력 |
+| `HISTORY#SLOW#{updated_at}` | CloudInfraSlowCollector | 24시간 | Cloud infra 5분 snapshot 이력 |
 
 ### LATEST
 
@@ -98,15 +101,80 @@ sk = GRAPH#5M#{bucket_start}
 
 `HISTORY#STATE` window를 읽어 5분 단위로 집계한 결과다. Dashboard 그래프 조회와 S3 `processed_agg/` 보조 산출물의 DynamoDB 기준 키로 사용한다.
 
+## CLOUD#infra
+
+Cloud infra metric collector는 factory별 data-plane item과 같은 테이블을 재사용하되, 별도 partition key를 사용한다.
+
+```text
+pk = CLOUD#infra
+```
+
+### Cloud infra LATEST
+
+```text
+pk = CLOUD#infra
+sk = LATEST
+```
+
+`AEGIS-Lambda-CloudInfraFastCollector`와 `AEGIS-Lambda-CloudInfraSlowCollector`가 같은 item을 부분 갱신한다.
+
+| Collector | 갱신 필드 | 주기 |
+| --- | --- | ---: |
+| FastCollector | `fast`, `fast_updated_at`, `overall_status`, `updated_at` | 1분 |
+| SlowCollector | `slow`, `slow_updated_at`, `overall_status`, `updated_at` | 5분 |
+
+주요 필드:
+
+- `schema_version = cloud-infra-status-v1`
+- `updated_at`
+- `fast_updated_at`
+- `slow_updated_at`
+- `overall_status`
+- `fast.backend_runtime`
+- `fast.data_pipeline`
+- `fast.factory_freshness`
+- `slow.eks_management`
+- `slow.storage_freshness`
+
+Backend/Dashboard는 CloudWatch, EKS, Kubernetes API, S3를 직접 조회하지 않고 이 item을 기본 read model로 읽는다.
+
+### HISTORY#FAST
+
+```text
+pk = CLOUD#infra
+sk = HISTORY#FAST#{updated_at}
+ttl = now + 6h
+```
+
+FastCollector가 `LATEST.fast`를 갱신한 뒤 `LATEST` snapshot을 복사해 저장한다. `snapshot_type=fast`를 포함한다.
+
+### HISTORY#SLOW
+
+```text
+pk = CLOUD#infra
+sk = HISTORY#SLOW#{updated_at}
+ttl = now + 24h
+```
+
+SlowCollector가 `LATEST.slow`를 갱신한 뒤 `LATEST` snapshot을 복사해 저장한다. `snapshot_type=slow`를 포함한다.
+
+Cloud infra history item도 테이블 TTL attribute인 `ttl`로 자동 삭제된다. `CLOUD#infra/LATEST`에는 TTL을 두지 않는다.
+
 ## 실제 조회 샘플
 
-2026-05-29 조회 기준 실제 AWS 테이블에서 확인한 샘플이다. 시간 값은 테이블에 저장된 UTC 문자열이다.
+아래는 실제 AWS 테이블에서 확인한 샘플이다. 시간 값은 테이블에 저장된 UTC 문자열이다. Factory 샘플은 2026-05-29 조회 기준이고, Cloud infra 샘플은 2026-06-01 검증 기준이다.
 
 | PK | LATEST | 최신 HISTORY#STATE 샘플 | 최신 GRAPH#5M 샘플 |
 | --- | --- | --- | --- |
 | `FACTORY#factory-a` | `updated_at=2026-05-29T06:48:45.209Z`, `pipeline_status=critical`, `risk.score=0` | `HISTORY#STATE#2026-05-29T06:48:45.209Z` | `GRAPH#5M#2026-05-29T00:10:00Z` |
 | `FACTORY#factory-b` | `updated_at=2026-05-29T06:49:02.806Z`, `pipeline_status=normal`, `risk.score=100` | `HISTORY#STATE#2026-05-29T06:49:02.806Z` | `GRAPH#5M#2026-05-29T00:10:00Z` |
 | `FACTORY#factory-c` | `updated_at=2026-05-29T06:49:01.949Z`, `pipeline_status=normal`, `risk.score=100` | `HISTORY#STATE#2026-05-29T06:49:01.949Z` | `GRAPH#5M#2026-05-29T00:10:00Z` |
+
+Cloud infra sample:
+
+| PK | LATEST | 최신 fast history | 최신 slow history |
+| --- | --- | --- | --- |
+| `CLOUD#infra` | `overall_status=normal`, `fast.errors=[]`, `slow.errors=[]` | `HISTORY#FAST#{updated_at}` | `HISTORY#SLOW#{updated_at}` |
 
 공장별 Query count 샘플:
 
@@ -126,6 +194,14 @@ pk = FACTORY#{factory_id}
 sk = LATEST
 ```
 
+Cloud infra 현재 상태 조회:
+
+```text
+GetItem
+pk = CLOUD#infra
+sk = LATEST
+```
+
 상태 이력 조회:
 
 ```text
@@ -142,6 +218,18 @@ pk = FACTORY#{factory_id}
 sk begins_with GRAPH#5M#
 ```
 
+Cloud infra 최근 이력 조회:
+
+```text
+Query
+pk = CLOUD#infra
+sk begins_with HISTORY#FAST#
+
+Query
+pk = CLOUD#infra
+sk begins_with HISTORY#SLOW#
+```
+
 특정 시간 범위 조회는 SK가 ISO-8601 UTC 문자열을 포함하므로 `between` 조건을 사용한다.
 
 ## 관련 코드
@@ -153,11 +241,15 @@ sk begins_with GRAPH#5M#
 | `apps/data-processor/processor/dynamo.py` | `LATEST`, `HISTORY#STATE` 읽기/쓰기 |
 | `apps/graph-metrics-aggregator/aggregator/dynamo.py` | `HISTORY#STATE` query, graph item put |
 | `apps/graph-metrics-aggregator/aggregator/metrics.py` | `GRAPH#5M` item 생성 |
+| `apps/cloud-infra-collector/cloud_infra/dynamo.py` | `CLOUD#infra/LATEST`, `HISTORY#FAST`, `HISTORY#SLOW` 읽기/쓰기 |
+| `infra/data-pipeline/cloud_infra_fast_collector.tf` | Fast collector Lambda/Scheduler/IAM |
+| `infra/data-pipeline/cloud_infra_slow_collector.tf` | Slow collector Lambda/Scheduler/IAM/EKS access entry |
 | `docs/ops/23_data_pipeline.md` | 전체 데이터 파이프라인 운영 기준 |
 
 ## 주의 사항
 
 - 테이블에는 GSI가 없다. 현재 조회는 `pk`와 `sk` range 조건에 의존한다.
 - `LATEST`는 TTL이 없어 계속 유지된다.
-- `HISTORY#STATE`와 `GRAPH#5M`은 TTL 대상이다. 보존 시간은 item의 `ttl` 값으로 결정되며 각각 data-pipeline의 `HISTORY_TTL_HOURS`, `GRAPH_TTL_HOURS` 설정을 따른다.
+- `HISTORY#STATE`, `GRAPH#5M`, `HISTORY#FAST`, `HISTORY#SLOW`는 TTL 대상이다. 보존 시간은 item의 `ttl` 값으로 결정된다.
 - Dashboard/API가 전체 공장 목록을 직접 조회해야 한다면 현재 구조에서는 factory id 목록을 별도 설정으로 갖거나, 제한적인 scan 또는 별도 registry item을 추가해야 한다.
+- Cloud infra dashboard/API는 `CLOUD#infra/LATEST`를 읽고, AWS service API를 직접 반복 조회하지 않는다.

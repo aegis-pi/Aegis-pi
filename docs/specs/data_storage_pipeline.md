@@ -1,7 +1,7 @@
 # Data Storage Pipeline and Formats
 
 상태: source of truth
-기준일: 2026-05-29
+기준일: 2026-06-01
 
 ## 목적
 
@@ -13,6 +13,7 @@
 DynamoDB LATEST
 DynamoDB HISTORY#STATE
 DynamoDB GRAPH#5M
+DynamoDB CLOUD#infra LATEST/HISTORY
 S3 raw
 S3 processed
 S3 processed_agg
@@ -47,10 +48,17 @@ factory-a-log-adapter / dummy-data-generator
           -> GraphAggregator5m
               -> DynamoDB GRAPH#5M
               -> S3 processed_agg
+          -> CloudInfraFastCollector1m
+              -> DynamoDB CLOUD#infra LATEST.fast / HISTORY#FAST
+              -> S3 processed/cloud_infra/fast
+          -> CloudInfraSlowCollector5m
+              -> DynamoDB CLOUD#infra LATEST.slow / HISTORY#SLOW
+              -> S3 processed/cloud_infra/slow
 
 Dashboard API/Web
-  -> DynamoDB LATEST/GRAPH#5M/HISTORY#STATE
-  -> S3 processed/processed_agg
+  -> DynamoDB FACTORY#*/LATEST/GRAPH#5M/HISTORY#STATE
+  -> DynamoDB CLOUD#infra/LATEST
+  -> S3 processed/processed_agg for detail and audit
 ```
 
 역할:
@@ -62,7 +70,10 @@ Dashboard API/Web
 | Lambda data processor | 메시지 정규화, Risk 계산, latest/history/processed 저장 |
 | Lambda DataProcessorRefresh1m | 새 메시지가 없는 factory의 pipeline freshness와 risk를 1분마다 재계산 |
 | Lambda GraphAggregator5m | HISTORY#STATE를 5분 단위 graph read model로 집계 |
+| Lambda CloudInfraFastCollector1m | Backend/ECS/ALB/Lambda/DynamoDB/Scheduler/factory freshness 요약을 수집 |
+| Lambda CloudInfraSlowCollector5m | EKS/Kubernetes/ArgoCD/S3 freshness 요약을 수집 |
 | DynamoDB LATEST | Dashboard 카드와 현재 상태 조회용 read model |
+| DynamoDB CLOUD#infra LATEST | Cloud infra dashboard 현재 상태 read model |
 | DynamoDB GRAPH#5M | 최근 1시간/2시간/24시간 그래프 조회용 5분 집계 |
 | DynamoDB HISTORY#STATE | 상세 이력과 GraphAggregator5m 입력 snapshot |
 | S3 raw | Edge data-plane 원본 JSON 장기 보존 |
@@ -77,7 +88,9 @@ Dashboard API/Web
 | `S3 processed` | Lambda가 계산한 Risk 결과, pipeline summary, status summary | 리포트, 장기 이력, 재처리 비교 | 장기 보존 |
 | `S3 processed_agg` | 5분 graph aggregate | 장기 그래프 보조 조회, 감사 | 장기 보존 |
 | `DynamoDB LATEST` | 공장별 현재 상태 1건 | 대시보드 상단 카드, 현재 노드 상태 | 계속 overwrite |
+| `DynamoDB CLOUD#infra LATEST` | Cloud infra 현재 상태 1건 | Cloud infra dashboard 현재 상태 | 계속 overwrite |
 | `DynamoDB HISTORY#STATE` | 전체 상태 snapshot short-term 시계열 | 상세 이력, graph aggregate 입력 | TTL로 최근 N시간/일만 보존 |
+| `DynamoDB CLOUD#infra HISTORY` | Cloud infra fast/slow snapshot | 운영 디버깅, 최근 추이 | TTL로 최근 N시간만 보존 |
 | `DynamoDB GRAPH#5M` | 5분 단위 sensor/risk/AI/infra 집계 | 최근 그래프 | TTL로 최근 N시간/일만 보존 |
 
 DynamoDB는 원본의 source of truth가 아니다. 원본 정본은 `S3 raw`이고, 처리 결과 이력 정본은 `S3 processed`다. DynamoDB는 Dashboard가 빠르게 읽기 위한 hot store다.
@@ -139,6 +152,18 @@ processed/{factory_id}/infra_state/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_
 processed/{factory_id}/state_snapshot/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{updated_at}.json
 ```
 
+Cloud infra fast snapshot:
+
+```text
+processed/cloud_infra/fast/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{updated_at}.json
+```
+
+Cloud infra slow snapshot:
+
+```text
+processed/cloud_infra/slow/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{updated_at}.json
+```
+
 5분 그래프 집계:
 
 ```text
@@ -151,6 +176,8 @@ processed_agg/{factory_id}/metrics_5m/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/mm={MM
 processed/factory-a/risk_score/yyyy=2026/mm=05/dd=14/hh=12/factory-a:factory_state:worker2:2026-05-14T12:00:06Z.json
 processed/factory-a/infra_state/yyyy=2026/mm=05/dd=14/hh=12/factory-a:infra_state:cluster:2026-05-14T12:00:20Z.json
 processed/factory-a/state_snapshot/yyyy=2026/mm=05/dd=14/hh=12/2026-05-14T12:00:06.123Z.json
+processed/cloud_infra/fast/yyyy=2026/mm=06/dd=01/hh=15/2026-06-01T15-30-00Z.json
+processed/cloud_infra/slow/yyyy=2026/mm=06/dd=01/hh=15/2026-06-01T15-30-00Z.json
 processed_agg/factory-a/metrics_5m/yyyy=2026/mm=05/dd=14/hh=12/mm=05.json
 ```
 
@@ -164,6 +191,7 @@ Processed object body 기준:
 - `processed/{factory_id}/factory_state/`는 Dashboard 환경 상태 조회에 필요한 정규화 결과를 담는다.
 - `processed/{factory_id}/infra_state/`는 인프라 상태와 pipeline status 계산 결과를 담는다.
 - `processed/{factory_id}/state_snapshot/`은 DynamoDB `HISTORY#STATE`와 같은 전체 상태 snapshot을 담되, DynamoDB TTL 정책 필드인 `ttl`은 저장하지 않는다.
+- `processed/cloud_infra/fast/`와 `processed/cloud_infra/slow/`는 DynamoDB `CLOUD#infra` history snapshot과 같은 구조를 저장하되, DynamoDB TTL 정책 필드인 `ttl`은 저장하지 않는다.
 - `processed_agg/{factory_id}/metrics_5m/`은 GraphAggregator5m이 만든 5분 그래프 집계 결과를 담으며, DynamoDB TTL 정책 필드인 `ttl`은 저장하지 않는다.
 - S3 processed는 장기 이력과 재처리 비교용이며, Dashboard current state의 1차 조회 대상은 아니다.
 
@@ -190,7 +218,7 @@ AEGIS-DynamoDB-FactoryStatus
 
 | 필드 | 의미 |
 | --- | --- |
-| `pk` | `FACTORY#{factory_id}` |
+| `pk` | `FACTORY#{factory_id}` 또는 `CLOUD#infra` |
 | `sk` | item type과 timestamp |
 
 공통 필드:
@@ -437,8 +465,52 @@ sk = GRAPH#5M#{bucket_start}   ← 예: GRAPH#5M#2026-05-14T12:05:00Z
 | `sensor` | temperature/humidity/pressure min/max/mean/first/last |
 | `risk` | risk score min/max/mean/first/last |
 | `ai_detection` | fire/fall/bend score와 threshold 초과 횟수 |
-| `infra` | node CPU/memory/disk 평균 집계 |
+| `infra.cpu_usage_percent`, `infra.memory_usage_percent`, `infra.disk_usage_percent` | bucket 안 snapshot별 전체 node 평균을 다시 5분 집계한 하위 호환 필드 |
+| `infra.nodes[]` | `node_id`별 CPU/memory/disk min/max/mean/first/last 5분 집계 |
 | `quality` | source count, expected count, collection rate |
+
+## DynamoDB CLOUD#infra
+
+Cloud infra collector는 같은 DynamoDB 테이블에 별도 read model을 저장한다.
+
+현재 상태:
+
+```text
+pk = CLOUD#infra
+sk = LATEST
+```
+
+최근 이력:
+
+```text
+pk = CLOUD#infra
+sk = HISTORY#FAST#{updated_at}
+ttl = now + 6h
+
+pk = CLOUD#infra
+sk = HISTORY#SLOW#{updated_at}
+ttl = now + 24h
+```
+
+저장 방식:
+
+- `CloudInfraFastCollector1m`은 `LATEST.fast`, `fast_updated_at`, `overall_status`, `updated_at`을 갱신한다.
+- `CloudInfraSlowCollector5m`은 `LATEST.slow`, `slow_updated_at`, `overall_status`, `updated_at`을 갱신한다.
+- 두 collector는 기존 반대쪽 필드를 보존해서 1분 fast 갱신이 5분 slow 값을 지우지 않고, slow 갱신도 fast 값을 지우지 않는다.
+- 각 실행은 TTL이 있는 history item을 추가하고, S3 `processed/cloud_infra/{fast,slow}/...` snapshot을 저장한다.
+
+주요 필드:
+
+| 필드 | 의미 |
+| --- | --- |
+| `overall_status` | fast/slow section 중 가장 나쁜 상태 |
+| `fast.backend_runtime` | ECS backend service와 ALB target/latency/5xx |
+| `fast.data_pipeline` | Lambda, DynamoDB, EventBridge Scheduler 상태 |
+| `fast.factory_freshness` | factory별 pipeline freshness/risk 요약 |
+| `slow.eks_management` | EKS cluster/nodegroup/ASG, Kubernetes node/pod, ArgoCD 상태 |
+| `slow.storage_freshness` | factory별 S3 raw/processed/processed_agg latest object time |
+
+Dashboard/API는 Cloud infra 현재 상태를 이 item에서 읽는다. Backend는 CloudWatch, EKS, Kubernetes API, S3를 직접 반복 조회하지 않는다.
 
 ## 환경 데이터와 노드 상태 데이터 분리
 
@@ -503,6 +575,7 @@ Dashboard page와 Dashboard VPC 구현은 별도 담당 범위다. 아래 기준
 | 현재 환경 상태 | `DynamoDB LATEST.factory_state` | 온도, 습도, 기압, AI score |
 | 현재 노드 상태 | `DynamoDB LATEST.infra_state` | Ready, CPU, memory, disk |
 | 현재 pipeline 상태 | `DynamoDB LATEST.pipeline_status` | normal/warning/critical |
+| Cloud infra 현재 상태 | `DynamoDB CLOUD#infra/LATEST` | Backend/API, data pipeline, EKS, ArgoCD, S3 freshness |
 | 최근 Risk 그래프 | `DynamoDB GRAPH#5M` | 5분 risk score 집계 |
 | 최근 환경 그래프 | `DynamoDB GRAPH#5M` | 5분 sensor 집계 |
 | 최근 노드 그래프 | `DynamoDB GRAPH#5M` | 5분 infra 집계 |
@@ -529,6 +602,9 @@ GET /factories/{factory_id}/infra-history?window=1h
 
 GET /factories/{factory_id}/state-snapshots?window=15m
   -> DynamoDB HISTORY#STATE query, 상세 snapshot 추출
+
+GET /cloud-infra/status
+  -> DynamoDB GetItem pk=CLOUD#infra sk=LATEST
 ```
 
 ## 구현 기준
@@ -538,7 +614,10 @@ GET /factories/{factory_id}/state-snapshots?window=15m
 - Lambda는 `DynamoDB LATEST`, `DynamoDB HISTORY#STATE`, `S3 processed`를 담당한다.
 - DataProcessor refresh schedule은 새 메시지가 없는 factory의 `pipeline_status`와 `risk`가 stale 값으로 남지 않도록 1분마다 LATEST/HISTORY/S3 state_snapshot을 갱신한다.
 - GraphAggregator5m은 `DynamoDB HISTORY#STATE`를 읽고 `DynamoDB GRAPH#5M`, `S3 processed_agg`를 담당한다.
+- CloudInfraFastCollector1m은 `DynamoDB CLOUD#infra/LATEST.fast`, `HISTORY#FAST`, `S3 processed/cloud_infra/fast`를 담당한다.
+- CloudInfraSlowCollector5m은 `DynamoDB CLOUD#infra/LATEST.slow`, `HISTORY#SLOW`, `S3 processed/cloud_infra/slow`를 담당한다.
 - Dashboard current state는 S3 `latest/` prefix가 아니라 DynamoDB LATEST를 기준으로 조회한다.
+- Cloud infra dashboard current state는 `CLOUD#infra/LATEST`를 기준으로 조회한다.
 - `DynamoDB HISTORY#STATE`는 갱신된 `LATEST`와 같은 구조를 저장하고 TTL만 추가한다.
 - `DynamoDB GRAPH#5M`은 최근 그래프의 기본 read model이다.
 - `S3 processed state_snapshot`은 `DynamoDB HISTORY#STATE`와 같은 구조를 저장하되 TTL은 제외한다.

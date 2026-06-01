@@ -1,7 +1,7 @@
 # Data Pipeline 구현 레퍼런스
 
 상태: 구현 기준 source of truth
-기준일: 2026-05-29
+기준일: 2026-06-01
 관련 스펙: `docs/specs/data_storage_pipeline.md`
 
 ---
@@ -15,7 +15,7 @@ Aegis 데이터 파이프라인은 Edge factory에서 발생한 센서·인프�
 - **상세 이력 조회** → DynamoDB HISTORY#STATE
 - **장기 보존·재처리** → S3 processed / raw
 
-2026-05-29 기준 `factory-a/b/c` IoT -> Lambda -> DynamoDB/S3 processed 적재, `risk-v0.2.0` Risk Score 계산, DataProcessor 1분 freshness refresh, GraphAggregator5m의 DynamoDB `GRAPH#5M` 및 S3 `processed_agg` 집계는 검증 완료 상태다. `configs/runtime/runtime-config.yaml`은 아직 Lambda Risk 계산에 연결되지 않았으며, 다음 고도화는 runtime config 기반 weight/threshold/factory override 적용과 Risk Twin read model 안정화다.
+2026-06-01 기준 `factory-a/b/c` IoT -> Lambda -> DynamoDB/S3 processed 적재, `risk-v0.2.0` Risk Score 계산, DataProcessor 1분 freshness refresh, GraphAggregator5m의 DynamoDB `GRAPH#5M` 및 S3 `processed_agg` 집계는 검증 완료 상태다. 추가로 CloudInfraFastCollector1m/SlowCollector5m이 `CLOUD#infra/LATEST`, `HISTORY#FAST`, `HISTORY#SLOW`, S3 `processed/cloud_infra/` snapshot을 저장한다. `configs/runtime/runtime-config.yaml`은 아직 Lambda Risk 계산에 연결되지 않았으며, 다음 고도화는 runtime config 기반 weight/threshold/factory override 적용과 Risk Twin read model 안정화다.
 
 ---
 
@@ -48,6 +48,24 @@ EventBridge Scheduler (rate 5 minutes)
       -> Query DynamoDB HISTORY#STATE by factory/time window
       -> PutItem DynamoDB GRAPH#5M#{bucket_start}
       -> PutObject S3 processed_agg/{factory_id}/metrics_5m/...
+```
+
+Cloud infra dashboard read model은 별도 collector 2개가 수행한다.
+
+```text
+EventBridge Scheduler (rate 1 minute)
+  -> Lambda: AEGIS-Lambda-CloudInfraFastCollector
+      -> ECS/ALB/Lambda/DynamoDB/Scheduler/factory freshness 조회
+      -> PutItem DynamoDB CLOUD#infra / LATEST.fast
+      -> PutItem DynamoDB HISTORY#FAST#{updated_at} (TTL 6h)
+      -> PutObject S3 processed/cloud_infra/fast/...
+
+EventBridge Scheduler (rate 5 minutes)
+  -> Lambda: AEGIS-Lambda-CloudInfraSlowCollector
+      -> EKS/Kubernetes/ArgoCD/S3 freshness 조회
+      -> PutItem DynamoDB CLOUD#infra / LATEST.slow
+      -> PutItem DynamoDB HISTORY#SLOW#{updated_at} (TTL 24h)
+      -> PutObject S3 processed/cloud_infra/slow/...
 ```
 
 데이터가 완전히 끊긴 공장은 새 IoT 메시지가 없으므로 일반 메시지 처리만으로는 `LATEST`가 갱신되지 않는다. 이를 보정하기 위해 DataProcessor refresh 스케줄이 별도로 동작한다.
@@ -195,8 +213,22 @@ sk = GRAPH#5M#{bucket_start}
   - TTL 있음
   - 5분 bucket sensor / risk / AI / infra 집계
 
-HISTORY#STATE와 GRAPH#5M 아이템은 ttl 값에 따라 DynamoDB TTL로 자동 삭제된다.
-LATEST는 삭제되지 않고 계속 overwrite된다.
+pk = CLOUD#infra
+sk = LATEST
+  - TTL 없음
+  - Cloud infra dashboard 현재 상태 1건
+  - FastCollector가 fast 필드, SlowCollector가 slow 필드를 부분 갱신
+
+sk = HISTORY#FAST#{updated_at}
+  - TTL 6시간
+  - 1분 fast cloud infra snapshot
+
+sk = HISTORY#SLOW#{updated_at}
+  - TTL 24시간
+  - 5분 slow cloud infra snapshot
+
+HISTORY#STATE, GRAPH#5M, HISTORY#FAST, HISTORY#SLOW 아이템은 ttl 값에 따라 DynamoDB TTL로 자동 삭제된다.
+LATEST와 CLOUD#infra/LATEST는 삭제되지 않고 계속 overwrite된다.
 ```
 
 ---
@@ -219,7 +251,10 @@ aegis-bucket-data/
 │   │   ├── infra_state/yyyy=2026/mm=05/dd=21/hh=10/{message_id}.json
 │   │   └── state_snapshot/yyyy=2026/mm=05/dd=21/hh=10/{updated_at}.json
 │   ├── factory-b/  (동일 구조)
-│   └── factory-c/  (동일 구조)
+│   ├── factory-c/  (동일 구조)
+│   └── cloud_infra/
+│       ├── fast/yyyy=2026/mm=06/dd=01/hh=15/2026-06-01T15-30-00Z.json
+│       └── slow/yyyy=2026/mm=06/dd=01/hh=15/2026-06-01T15-30-00Z.json
 │
 └── processed_agg/                    ← GraphAggregator5m이 저장 (그래프 집계)
     ├── factory-a/metrics_5m/yyyy=2026/mm=05/dd=21/hh=10/mm=05.json
@@ -524,6 +559,33 @@ GraphAggregator5m이 DynamoDB `HISTORY#STATE`를 5분 bucket으로 집계한 S3 
       "max": 99.0,
       "mean": 93.2
     }
+  },
+  "infra": {
+    "cpu_usage_percent": {
+      "unit": "percent",
+      "count": 15,
+      "mean": 42.1
+    },
+    "nodes": [
+      {
+        "node_id": "worker1",
+        "cpu_usage_percent": {
+          "unit": "percent",
+          "count": 15,
+          "mean": 38.2
+        },
+        "memory_usage_percent": {
+          "unit": "percent",
+          "count": 15,
+          "mean": 61.4
+        },
+        "disk_usage_percent": {
+          "unit": "percent",
+          "count": 15,
+          "mean": 43.0
+        }
+      }
+    ]
   },
   "quality": {
     "source_dataset": "DynamoDB HISTORY#STATE",

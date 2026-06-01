@@ -1,7 +1,7 @@
 # Monitoring Dashboard API Spec
 
 상태: draft
-기준일: 2026-05-29
+기준일: 2026-06-01
 
 ## 목적
 
@@ -41,7 +41,7 @@ SELECT "is_danger" FROM "acoustic_detection" WHERE $timeFilter ORDER BY time DES
 
 아래 API는 아직 구현 대상이 아니다. AWS Hub/Risk Twin 및 1번 Data / Dashboard VPC 단계에서 다시 검토한다.
 
-Dashboard API는 Spoke K3s, ArgoCD, Control / Management VPC의 EKS API, Tailscale 관리망을 직접 호출하지 않는다. DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg를 조회한다.
+Dashboard API는 Spoke K3s, ArgoCD, Control / Management VPC의 EKS API, Tailscale 관리망을 직접 호출하지 않는다. Factory 상태는 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg를 조회한다. Cloud infra 상태는 CloudWatch/EKS/Kubernetes/S3를 직접 조회하지 않고 DynamoDB `pk=CLOUD#infra`, `sk=LATEST` read model을 조회한다.
 
 ```text
 GET /api/factories/summary
@@ -49,6 +49,7 @@ GET /api/factories/{factory_id}/sensors
 GET /api/systems/abnormal
 GET /api/logs/recent
 GET /api/pipeline/status
+GET /api/cloud-infra/status
 ```
 
 예상 접근 경로:
@@ -56,6 +57,30 @@ GET /api/pipeline/status
 ```text
 Route53 -> ALB -> WAF/Auth -> Dashboard API -> DynamoDB LATEST/GRAPH#5M/HISTORY#STATE / S3 processed/processed_agg
 ```
+
+Cloud infra status:
+
+```text
+GET /api/cloud-infra/status
+  -> DynamoDB GetItem pk=CLOUD#infra sk=LATEST
+  -> 초기 구현은 LATEST 구조를 그대로 반환
+```
+
+초기 응답 shape:
+
+```json
+{
+  "schema_version": "cloud-infra-status-v1",
+  "updated_at": "2026-06-01T15:30:00Z",
+  "fast_updated_at": "2026-06-01T15:30:00Z",
+  "slow_updated_at": "2026-06-01T15:25:00Z",
+  "overall_status": "normal",
+  "fast": {},
+  "slow": {}
+}
+```
+
+UI가 실제로 쓰는 card/summary 필드가 안정화되면 backend에서 compact response를 추가할 수 있지만, collector가 만든 `LATEST`를 source of truth로 둔다.
 
 목표 반영 지연:
 

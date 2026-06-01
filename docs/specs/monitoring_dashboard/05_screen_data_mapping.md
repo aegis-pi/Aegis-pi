@@ -607,6 +607,17 @@ MVP 저장 구조는 `workload_summary`를 필수로 둔다. 상세 workload lis
 | infra age | `pipeline_status.latest_infra_state_age_seconds` | Y | seconds |
 | s3 raw age | `pipeline_status.latest_s3_raw_age_seconds` | Y | seconds |
 
+### GRAPH#5M 필드
+
+| 그래프 | 필드 경로 | 필수 | 비고 |
+| --- | --- | --- | --- |
+| Node CPU | `infra.nodes[].cpu_usage_percent` | Y | 5분 bucket node별 aggregate |
+| Node Memory | `infra.nodes[].memory_usage_percent` | Y | 5분 bucket node별 aggregate |
+| Node Disk | `infra.nodes[].disk_usage_percent` | Y | 5분 bucket node별 aggregate |
+| Node CPU 전체 평균 | `infra.cpu_usage_percent` | N | 전체 node 평균 기반 하위 호환 필드 |
+| Node Memory 전체 평균 | `infra.memory_usage_percent` | N | 전체 node 평균 기반 하위 호환 필드 |
+| Node Disk 전체 평균 | `infra.disk_usage_percent` | N | 전체 node 평균 기반 하위 호환 필드 |
+
 ### HISTORY#STATE 필드
 
 | 그래프 | 필드 경로 | 필수 | 비고 |
