@@ -1,7 +1,7 @@
 # Aegis-Pi Docs
 
 상태: source of truth
-기준일: 2026-05-29
+기준일: 2026-06-01
 
 ## 목적
 
@@ -14,7 +14,7 @@
 - 2026-04-30 기준 AI snapshot은 node-local hostPath를 사용하며, AI 추론 결과는 InfluxDB PVC를 통해 Longhorn에 저장한다.
 - 2026-04-30 기준 LAN 제거 및 `k3s-agent` 중지 failover/failback 재검증을 완료했다.
 - 2026-05-27 기준 `build-hub.sh`는 AWS Hub EKS/VPC/단일 NAT/EIP, ArgoCD, legacy Prometheus Agent cleanup, Grafana, AWS Load Balancer Controller까지만 자동화한다. Admin UI HTTPS Ingress는 Route53 NS 위임 이후 `build-admin-ui-after-ns.sh`에서 실행하고, Spoke ArgoCD cluster 등록은 `register-spoke-factory-a.sh`, `register-spoke-factory-b.sh`, `register-spoke-factory-c.sh`로 factory별 실행한다. Tailnet UI 연결은 필요할 때만 `connect-hub-tailscale-ui.sh`로 실행한다.
-- 2026-05-21 기준 Hub-only 재시작 순서는 `build-hub.sh` -> 필요 시 `build-admin-ui-after-ns.sh` -> `register-spoke-factory-a/b/c.sh` -> `manage-dummy-generators.sh start factory-b/c`다. Hub 삭제 전에는 `destroy/stop-dummy-generators.sh`로 factory-b/c VM 데이터 생성을 먼저 멈춘다.
+- 2026-06-01 기준 Hub-only 재시작 순서는 `scripts/build/build-hub.sh` -> 필요 시 `scripts/build/build-admin-ui-after-ns.sh` -> `scripts/build/register-spoke-factory-a.sh`, `scripts/build/register-spoke-factory-b.sh`, `scripts/build/register-spoke-factory-c.sh` -> `scripts/ops/manage-dummy-generators.sh start factory-b/c`다. Hub 삭제 전에는 `scripts/destroy/stop-dummy-generators.sh`로 factory-b/c VM 데이터 생성을 먼저 멈춘다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 M1 검증용 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다. 최신 데이터 처리 방향은 Lambda data processor와 DynamoDB/S3 processed다.
 - M1 Issue 6~8에서 AMP Workspace, Hub Prometheus Agent, Grafana AMP datasource 검증을 완료한 이력은 보존한다. 2026-05-27 비용 최적화 기준에서는 AMP/Prometheus Agent/Grafana AMP datasource를 active 구성에서 제거한다.
 - M1 Issue 9에서 AWS Load Balancer Controller를 설치하고 IRSA/subnet discovery 기준을 검증했다.
@@ -119,7 +119,8 @@ docs/
 │   ├── 23_data_pipeline.md
 │   ├── 24_daily_factory_report.md
 │   ├── 25_daily_factory_report_cost.md
-│   └── 26_dynamodb_key_model.md
+│   ├── 26_dynamodb_key_model.md
+│   └── 27_dummy_data_generation_and_risk_scenarios.md
 ├── architecture/
 ├── planning/
 │   ├── 00_project_overview.md
@@ -134,6 +135,11 @@ docs/
 │   ├── 09_m1_eks_vpc_decision_record.md
 │   ├── 10_portfolio_idea_assessment.md
 │   ├── 11_delivery_ownership_flow.md
+│   ├── 12_two_vpc_mvp_architecture_decision.md
+│   ├── 13_architecture_adr_backlog.md
+│   ├── 14_argocd_hub_migration_plan.md
+│   ├── 15_cloud_architecture_final.md
+│   ├── 16_m4_edge_data_plane_implementation.md
 │   └── 17_llm_daily_factory_report_plan.md
 ├── product/
 ├── specs/

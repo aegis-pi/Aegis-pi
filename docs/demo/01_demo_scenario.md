@@ -1,7 +1,7 @@
 # 데모 시나리오
 
 상태: source of truth
-기준일: 2026-05-20
+기준일: 2026-06-01
 
 ## 목적
 
@@ -17,7 +17,7 @@ Longhorn storage 확인
 worker2 장애 -> worker1 failover -> worker2 failback 확인
 ```
 
-AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, Hub Prometheus Agent, Grafana/AMP datasource, AWS Load Balancer Controller, Admin UI HTTPS Ingress, Foundation S3 bucket, AMP Workspace, IoT Rule -> S3 raw 적재, `factory-a/b/c` IoT Thing/Policy/K3s Secret, Hub IRSA S3/AMP 권한은 build/등록 스크립트로 재생성/검증 가능하다. 현재 Hub-only 데모 준비 순서는 `build-hub.sh` 이후 필요한 UI 연결과 `register-spoke-factory-a/b/c.sh`를 단계별 실행하는 방식이다. `factory-b/c` raw 수집 데모는 가능하고, Risk Twin 통합 화면은 후속 데모다.
+AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, Grafana, AWS Load Balancer Controller, Admin UI HTTPS Ingress, Foundation S3/ECR/DynamoDB, data-pipeline IoT Rule/Lambda/Scheduler, `factory-a/b/c` IoT Thing/Policy/K3s Secret, Hub IRSA S3 권한은 build/등록 스크립트로 재생성/검증 가능하다. Hub Prometheus Agent와 Grafana AMP datasource는 active 구성에서 제거하고 이력만 보존한다. 현재 Hub-only 데모 준비 순서는 `scripts/build/build-hub.sh` 이후 필요한 UI 연결과 `scripts/build/register-spoke-factory-a.sh`, `scripts/build/register-spoke-factory-b.sh`, `scripts/build/register-spoke-factory-c.sh`를 단계별 실행하는 방식이다. `factory-b/c` raw/processed 수집과 DynamoDB/S3 read model 데모는 가능하고, Risk Twin 통합 화면은 후속 데모다.
 
 ## 데모 순서
 

@@ -1,7 +1,7 @@
 # MVP 범위
 
 상태: source of truth
-기준일: 2026-05-29
+기준일: 2026-06-01
 
 ## 목적
 
@@ -10,7 +10,7 @@
 ## 현재 상태
 
 - MVP의 첫 기준선인 M0 `factory-a` Safe-Edge 구축과 실측 검증은 완료됐다.
-- AWS Hub EKS/ArgoCD, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/AMP/IoT Rule, `factory-a/b/c` IoT Thing/Policy/K3s Secret은 현재 build 스크립트와 factory별 등록 스크립트로 재생성/검증 가능하다. Hub는 `build-hub.sh`, Admin UI는 `build-admin-ui-after-ns.sh`, Tailnet UI는 `connect-hub-tailscale-ui.sh`, Spoke 등록은 `register-spoke-factory-a/b/c.sh`, 최종 확인은 `verify-complete.sh`가 담당한다.
+- AWS Hub EKS/ArgoCD, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/ECR/DynamoDB, data-pipeline IoT Rule/Lambda/Scheduler, `factory-a/b/c` IoT Thing/Policy/K3s Secret은 현재 build 스크립트와 factory별 등록 스크립트로 재생성/검증 가능하다. Hub는 `scripts/build/build-hub.sh`, Admin UI는 `scripts/build/build-admin-ui-after-ns.sh`, Tailnet UI는 `scripts/build/connect-hub-tailscale-ui.sh`, Spoke 등록은 `scripts/build/register-spoke-factory-a.sh`, `scripts/build/register-spoke-factory-b.sh`, `scripts/build/register-spoke-factory-c.sh`, data-pipeline은 `scripts/build/build-data-pipe.sh`, 최종 확인은 `scripts/build/verify-complete.sh`가 담당한다. AMP/Prometheus Agent는 active 구성에서 제거했다.
 - 전체 MVP는 운영형 Spoke 1개와 테스트베드형 Spoke 2개를 포함한 멀티 공장 관제 구조를 목표로 한다.
 - 2026-05-29 기준 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed, DataProcessorRefresh1m -> stale factory `pipeline_status`/`risk` 재계산, GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg data-pipeline은 `factory-a/b/c` 기준으로 실제 AWS 리소스 검증을 완료했다.
 - Lambda data processor의 `risk-v0.2.0` Risk Score 계산은 구현/검증 완료 상태다. runtime-config 기반 weight/threshold/factory override 연결과 Risk Twin read model 고정은 후속 고도화다.
