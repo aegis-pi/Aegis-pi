@@ -1,7 +1,7 @@
 # MVP 2 VPC Architecture Decision
 
 상태: draft
-기준일: 2026-05-09
+기준일: 2026-06-01
 
 ## 목적
 
@@ -23,9 +23,9 @@ MVP 확장 방향은 2 VPC 구조를 기준으로 한다.
 | 영역 | 역할 | 주요 리소스 |
 | --- | --- | --- |
 | 1번 VPC | 데이터 처리 결과 조회, 위험도 표시, 사용자 관제 화면 | Dashboard Web, Dashboard Backend/API, Lambda data processor 연동, DynamoDB LATEST/HISTORY#STATE, S3 processed, Replay Builder, Near-miss Aggregator |
-| 2번 VPC | 중앙 제어, 배포, Hub-Spoke 연결, 운영 관측 | EKS Hub, ArgoCD, Tailscale, Prometheus Agent, Grafana, AWS Load Balancer Controller |
+| 2번 VPC | 중앙 제어, 배포, Hub-Spoke 연결, 운영 관측 | EKS Hub, ArgoCD, Tailscale, Grafana, AWS Load Balancer Controller |
 
-Grafana는 2번 Control / Management VPC에 둔다. 현재 클라우드 Grafana는 사용자용 Risk Twin 대시보드가 아니라 Hub EKS와 AMP 메트릭을 보는 운영자용 observability 도구이기 때문이다.
+Grafana는 2번 Control / Management VPC에 둔다. 현재 클라우드 Grafana는 사용자용 Risk Twin 대시보드가 아니라 Hub EKS와 AWS managed metrics를 보는 운영자용 observability 도구이기 때문이다. AMP/Prometheus Agent는 비용 최적화 기준에서 active 구성에서 제거했다.
 
 Dashboard Web/API는 1번 Data / Dashboard VPC에 둔다. Dashboard는 최종 사용자 또는 본사 관제 담당자가 보는 제품 화면이므로 ArgoCD/Tailscale 같은 제어 plane과 분리한다.
 
@@ -143,8 +143,7 @@ Private App subnet
   - EKS Hub worker nodes
   - ArgoCD
   - Tailscale Operator / Connector
-  - Prometheus Agent
-  - Grafana
+  - Grafana with CloudWatch datasource
   - AWS Load Balancer Controller
 ```
 
@@ -158,18 +157,17 @@ Private App subnet
 
 ```text
 Hub EKS
-  -> Prometheus Agent
-  -> AMP
+  -> CloudWatch Metrics/Logs
   -> Grafana
 ```
 
 현재 Grafana가 보는 대상:
 
 ```text
-Prometheus Agent 자체
 Kubernetes API server
 EKS node metrics
-prometheus.io/scrape: "true" annotation이 붙은 Hub 내부 Pod
+Hub 내부 Pod/Service 상태
+Lambda, DynamoDB, S3, IoT Core 같은 AWS managed metric
 ```
 
 현재 Grafana가 직접 보지 않는 대상:
@@ -189,7 +187,7 @@ Grafana: 운영자/개발자용 시스템 관측 화면
 Dashboard Web/API: 본사 관리자 또는 사용자용 제품 화면
 ```
 
-1번 VPC 서비스의 운영 메트릭도 필요하면 AMP로 remote_write하고, Grafana는 AMP를 통해 조회한다. Grafana가 1번 VPC의 DB, Redis, OpenSearch에 직접 붙는 구조는 MVP에서 피한다.
+1번 VPC 서비스의 운영 메트릭도 필요하면 CloudWatch custom metrics, EMF, 또는 후속 Prometheus-compatible collector를 검토한다. Grafana가 1번 VPC의 DB, Redis, OpenSearch에 직접 붙는 구조는 MVP에서 피한다.
 
 ## Dashboard Backend/API 경계
 
@@ -292,7 +290,7 @@ MVP에서는 1번 VPC와 2번 VPC를 직접 강하게 연결하지 않는다.
 
 ```text
 1. 관리형 서비스와 IAM 권한으로 경계 연결
-2. S3 / DynamoDB / AMP 같은 공유 계약 사용
+2. S3 / DynamoDB / CloudWatch 같은 공유 계약 사용
 3. 직접 DB 접근이나 private service 호출은 후순위
 ```
 

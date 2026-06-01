@@ -1,7 +1,7 @@
 # Cloud Expansion Draw.io Guide
 
 상태: draft
-기준일: 2026-04-29
+기준일: 2026-06-01
 
 ## 목적
 
@@ -11,7 +11,7 @@ M0 `factory-a` Safe-Edge 기준선을 AWS Hub 중심의 멀티 Spoke 구조로 �
 
 ## 최신 기준
 
-2026-05-09 기준 확정된 클라우드 리소스 배치와 VPC 명명은 `docs/planning/15_cloud_architecture_final.md`를 source of truth로 한다.
+2026-06-01 기준 확정된 클라우드 리소스 배치와 VPC 명명은 `docs/planning/15_cloud_architecture_final.md`를 source of truth로 한다.
 
 이 문서의 `Processing VPC`와 `Dashboard VPC` 분리 표현은 이전 다이어그램 초안이다. 새 다이어그램을 작성할 때는 아래 경계를 우선한다.
 
@@ -20,8 +20,7 @@ M0 `factory-a` Safe-Edge 기준선을 AWS Hub 중심의 멀티 Spoke 구조로 �
   - EKS Hub
   - Hub ArgoCD
   - Tailscale
-  - Prometheus Agent
-  - Grafana
+  - Grafana with CloudWatch datasource
 
 1번 VPC: Data / Dashboard VPC
   - Lambda data processor
@@ -119,7 +118,7 @@ factory-b / factory-c
                             v
                     AWS Cloud
         +------------------------------------------------+
-        | Control VPC: EKS Hub | ArgoCD | Grafana | AMP   |
+        | Control VPC: EKS Hub | ArgoCD | Grafana       |
         | Managed: IoT Core | Lambda | S3 | DynamoDB | ECR |
         +------------------------------------------------+
                             |
@@ -461,8 +460,8 @@ ApplicationSet은 공장별 values 경로를 읽어 Application을 만든다.
 ```text
 charts/aegis-spoke
 envs/factory-a/values.yaml -> aegis-spoke-factory-a
-envs/factory-b/values.yaml -> aegis-spoke-factory-b
-envs/factory-c/values.yaml -> aegis-spoke-factory-c
+GitOps repo envs/factory-b/values.yaml -> aegis-spoke-factory-b
+GitOps repo envs/factory-c/values.yaml -> aegis-spoke-factory-c
 ```
 
 draw.io에서는 아래처럼 그린다.
@@ -519,7 +518,7 @@ Developer push
     -> GitHub Actions build-push
     -> Amazon ECR
     -> GitHub Actions update-manifest
-    -> envs/{factory}/values.yaml commit
+    -> GitOps repo envs/{factory}/values.yaml commit
     -> ArgoCD detects OutOfSync
     -> ArgoCD sync
     -> Spoke rollout
@@ -535,8 +534,8 @@ apps/
 charts/aegis-spoke/
 charts/aegis-hub/
 envs/factory-a/values.yaml
-envs/factory-b/values.yaml
-envs/factory-c/values.yaml
+GitOps repo envs/factory-b/values.yaml
+GitOps repo envs/factory-c/values.yaml
 .github/workflows/
 ```
 
@@ -570,8 +569,8 @@ sha-<7 chars>
 | values 파일 | 대상 | 주요 값 |
 | --- | --- | --- |
 | `envs/factory-a/values.yaml` | `factory-a` | `factory_id=factory-a`, `environment_type=physical-rpi`, `adapter=factory-a-log-adapter` |
-| `envs/factory-b/values.yaml` | `factory-b` | `factory_id=factory-b`, `environment_type=vm-mac`, `generator=dummy-data-generator` |
-| `envs/factory-c/values.yaml` | `factory-c` | `factory_id=factory-c`, `environment_type=vm-windows`, `generator=dummy-data-generator` |
+| GitOps repo `envs/factory-b/values.yaml` | `factory-b` | `factory_id=factory-b`, `environment_type=vm-mac`, `generator=dummy-sensor` |
+| GitOps repo `envs/factory-c/values.yaml` | `factory-c` | `factory_id=factory-c`, `environment_type=vm-windows`, `generator=dummy-sensor` |
 
 ### CI/CD 관계
 

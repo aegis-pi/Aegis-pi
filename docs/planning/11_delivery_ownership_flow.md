@@ -1,7 +1,7 @@
 # Delivery Ownership Flow
 
 상태: source of truth
-기준일: 2026-05-04
+기준일: 2026-06-01
 
 ## 목적
 
@@ -39,7 +39,7 @@ GitHub + ArgoCD:
 
 | 영역 | 도구 | 담당 |
 | --- | --- | --- |
-| Cloud infrastructure | Terraform | VPC, subnet, NAT Gateway, EKS, IAM, OIDC, S3, ECR, AMP, IoT Core, Dashboard VPC 같은 AWS 리소스 |
+| Cloud infrastructure | Terraform | VPC, subnet, NAT Gateway, EKS, IAM, OIDC, S3, ECR, IoT Core, Lambda/Scheduler, Dashboard VPC 같은 AWS 리소스 |
 | Cluster bootstrap | Ansible | kubeconfig 갱신, namespace, LimitRange, Helm chart 설치, ArgoCD 설치, Tailscale bootstrap, 검증 |
 | Software configuration | Ansible | 클러스터 위 초기 설정, 운영 도구 설치, Secret 주입 절차, bootstrap 후 health check |
 | CI | GitHub Actions | lint, test, image build, vulnerability scan, ECR push, values/manifest update PR 또는 commit |

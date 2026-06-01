@@ -1,7 +1,7 @@
 # Cloud Architecture Final
 
 상태: source of truth
-기준일: 2026-05-09
+기준일: 2026-06-01
 
 ## 목적
 
@@ -52,7 +52,7 @@ factory-a / factory-b / factory-c
       -> EKS Hub
       -> Hub ArgoCD
       -> Grafana
-      -> Prometheus Agent
+      -> CloudWatch/Grafana 운영 관측
 
 factory-a / factory-b / factory-c
   -> telemetry
@@ -157,7 +157,6 @@ Private App Subnet
   - EKS Hub
   - Hub ArgoCD
   - Tailscale Operator / Connector
-  - Prometheus Agent
   - Grafana
   - AWS Load Balancer Controller
 ```
@@ -184,11 +183,10 @@ Grafana 관측 대상은 아래 범위다.
 ```text
 Grafana 관측 대상
   - Hub EKS
-  - Prometheus Agent
-  - AMP
   - Kubernetes API server
   - EKS node
   - Hub 내부 Pod
+  - AWS managed resource metrics via CloudWatch datasource
   - 필요 시 Edge data-plane metrics
 ```
 
@@ -293,8 +291,7 @@ Control / Management VPC
   - EKS Hub
   - Hub ArgoCD
   - Tailscale
-  - Prometheus Agent
-  - Grafana
+  - Grafana with CloudWatch datasource
   - AWS Load Balancer Controller
 ```
 
@@ -342,20 +339,20 @@ factory-a/b/c
 ### 관측 흐름
 
 ```text
-Hub EKS / Prometheus Agent / Edge data-plane metrics
-  -> AMP
-  -> Grafana
+Hub EKS / AWS managed resource / data-pipeline metrics
+  -> CloudWatch Metrics/Logs
+  -> Grafana CloudWatch datasource / Logs Insights
 ```
 
 ### 관측 확장 범위
 
-AMP는 Prometheus metric 저장/조회 백엔드로 사용한다. AWS managed resource의 설정 상태나 전체 리소스 상태를 직접 판정하는 source of truth로 쓰지 않는다.
+AMP와 Hub Prometheus Agent는 2026-05-27 비용 최적화 기준에서 active 구성에서 제거했다. 과거 M1 검증 이력은 `docs/ops/16_hub_prometheus_amp.md`와 `docs/ops/17_hub_grafana_amp.md`에 보존한다. 최신 관측 확장은 CloudWatch Metrics/Logs, Lambda EMF custom metrics, Grafana CloudWatch datasource, X-Ray/OpenTelemetry 역할 분리를 기준으로 한다.
 
 관측 레이어의 역할은 아래처럼 분리한다.
 
 | 영역 | 1차 수집/조회 | 용도 |
 | --- | --- | --- |
-| Kubernetes / Hub / Edge workload metric | Prometheus Agent -> AMP -> Grafana | EKS node/pod/service, Prometheus scrape 대상, 앱 `/metrics` 시계열 |
+| Kubernetes / Hub / Edge workload metric | CloudWatch Container Insights 또는 후속 Prometheus-compatible collector 후보 -> Grafana | EKS node/pod/service, 앱 `/metrics` 시계열 후보 |
 | AWS managed resource metric | CloudWatch Metrics -> Grafana CloudWatch datasource | Lambda, DynamoDB, S3, IoT Core, ALB, NAT Gateway, EKS managed metric |
 | Data-pipeline 업무 metric | Lambda EMF 또는 CloudWatch custom metrics -> Grafana CloudWatch datasource | 처리량, 실패율, end-to-end lag, DynamoDB/S3 write latency |
 | 실행 로그 | CloudWatch Logs / Logs Insights | Lambda 처리 로그, 오류 원인, message_id 추적 |
@@ -389,7 +386,7 @@ status
 error_type
 ```
 
-Dashboard Web/API의 사용자 화면은 DynamoDB/S3 processed를 기준으로 운영 상태를 보여준다. CloudWatch/AMP/Grafana/X-Ray는 내부 운영 관측과 트러블슈팅용으로 분리한다.
+Dashboard Web/API의 사용자 화면은 DynamoDB/S3 processed를 기준으로 운영 상태를 보여준다. CloudWatch/Grafana/X-Ray는 내부 운영 관측과 트러블슈팅용으로 분리한다.
 
 ## 2026-05-14 수정 방향
 

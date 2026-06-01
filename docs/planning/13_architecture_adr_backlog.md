@@ -1,7 +1,7 @@
 # Architecture ADR Backlog
 
 상태: draft
-기준일: 2026-05-14
+기준일: 2026-06-01
 
 ## 목적
 
@@ -30,7 +30,7 @@
 | ADR-CAND-003 | 2 VPC 구조에서 각 VPC에 어떤 리소스를 둘지 | 1번 Data/Dashboard, 2번 Control/Management로 정리. Dashboard와 Grafana를 다른 성격으로 분리 | `12_two_vpc_mvp_architecture_decision.md`, `07_dashboard_vpc_extension_plan.md` |
 | ADR-CAND-004 | Dashboard Web/API를 Control VPC에 둘지 Data/Dashboard VPC에 둘지 | 사용자-facing Dashboard는 Data/Dashboard VPC 쪽이 자연스럽다는 방향. Dashboard API의 역할 경계는 추가 명세 필요 | `12_two_vpc_mvp_architecture_decision.md` |
 | ADR-CAND-005 | Dashboard Web은 public subnet에 둘지 private subnet에 둘지 | 서버형 Web이면 private app subnet, public에는 ALB/WAF만. 정적 SPA면 S3/CloudFront 가능 | `12_two_vpc_mvp_architecture_decision.md` |
-| ADR-CAND-006 | Grafana는 어느 VPC에 둘지, 무엇을 관측하는지 | Grafana는 Control/Management VPC에 두고 Hub EKS/AMP 운영 관측 도구로 사용. 사용자 Dashboard와 분리 | `12_two_vpc_mvp_architecture_decision.md`, `docs/ops/17_hub_grafana_amp.md` |
+| ADR-CAND-006 | Grafana는 어느 VPC에 둘지, 무엇을 관측하는지 | Grafana는 Control/Management VPC에 두고 Hub EKS와 AWS managed metrics 운영 관측 도구로 사용. 사용자 Dashboard와 분리. AMP는 active 구성에서 제거 | `12_two_vpc_mvp_architecture_decision.md`, `docs/ops/17_hub_grafana_amp.md` |
 | ADR-CAND-007 | 공장 로컬 ArgoCD와 Hub ArgoCD의 역할을 어떻게 나눌지 | 초기 검토안은 factory-a 로컬 ArgoCD와 EKS Hub ArgoCD의 ownership 분리였다. 최신 목표는 ADR-CAND-013의 Hub ArgoCD 중심 이관이며, Local ArgoCD는 전환 기간에만 유지 | `README.md`, `00_current_architecture.md`, `M3_deploy-pipeline.md`, `14_argocd_hub_migration_plan.md` |
 | ADR-CAND-008 | ArgoCD와 Tailscale은 같은 영역에 있어야 하는지 | 둘 다 Hub-Spoke 제어 plane이므로 Control/Management VPC에 둔다 | `12_two_vpc_mvp_architecture_decision.md`, `M2_mesh-vpn-hub-spoke.md` |
 | ADR-CAND-009 | Tailscale 등록 기기 탈취 또는 IP 유출 시 피해 범위를 어떻게 줄일지 | MVP는 Tailscale 유지. 공장별 tag/ACL, 시스템/운영자 권한 분리, K8s RBAC 최소화, DB 접근망 확장 금지 필요 | `12_two_vpc_mvp_architecture_decision.md`, `M2_mesh-vpn-hub-spoke.md` |
@@ -129,8 +129,7 @@ Private Data subnet
   - EKS Hub
   - ArgoCD
   - Tailscale
-  - Prometheus Agent
-  - Grafana
+  - Grafana with CloudWatch datasource
   - AWS Load Balancer Controller
 ```
 
@@ -208,22 +207,21 @@ ALB와 API Gateway 중 어떤 entry를 사용할지
 
 ### 대화 중 나온 관점
 
-현재 클라우드 Grafana는 Hub EKS 운영 관측 도구다.
+현재 클라우드 Grafana는 Hub EKS와 AWS managed resource 운영 관측 도구다. AMP/Prometheus Agent 검증 이력은 보존하지만 active 구성에서는 제거한다.
 
 ```text
 Hub EKS
-  -> Prometheus Agent
-  -> AMP
+  -> CloudWatch Metrics/Logs
   -> Grafana
 ```
 
 현재 대상:
 
 ```text
-Prometheus Agent 자체
 Kubernetes API server
 EKS node metrics
-prometheus.io/scrape=true annotation이 붙은 Hub 내부 Pod
+Hub 내부 Pod/Service 상태
+Lambda, DynamoDB, S3, IoT Core 같은 AWS managed metric
 ```
 
 현재 직접 보지 않는 대상:

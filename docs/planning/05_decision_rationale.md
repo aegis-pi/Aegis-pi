@@ -1,7 +1,7 @@
 # Why
 
 상태: draft
-기준일: 2026-05-15
+기준일: 2026-06-01
 
 ## 목적
 
@@ -382,8 +382,8 @@ ArgoCD/ApplicationSet은 아래 구조와 맞다.
 ```text
 charts/aegis-spoke
 envs/factory-a/values.yaml
-envs/factory-b/values.yaml
-envs/factory-c/values.yaml
+GitOps repo envs/factory-b/values.yaml
+GitOps repo envs/factory-c/values.yaml
 ```
 
 GitHub Actions에서 직접 `kubectl apply`를 수행하면 빠르게 만들 수 있지만, 배포 상태, drift, sync 이력, 공장별 정책 관리가 약해진다.
@@ -403,7 +403,7 @@ GitHub Actions는 이미지 build/push와 manifest update에 집중한다.
 Terraform -> Ansible -> GitHub Actions CI -> GitHub + ArgoCD CD
 ```
 
-Terraform은 AWS 인프라의 source of truth로 둔다. VPC, subnet, NAT Gateway, EKS, IAM, OIDC, S3, ECR, AMP, IoT Core, Dashboard VPC처럼 클라우드 리소스의 생명주기를 관리한다.
+Terraform은 AWS 인프라의 source of truth로 둔다. VPC, subnet, NAT Gateway, EKS, IAM, OIDC, S3, ECR, IoT Core, Lambda/Scheduler, Dashboard VPC처럼 클라우드 리소스의 생명주기를 관리한다. AMP는 과거 검증 이력이며 active 구성에서는 제거했다.
 
 Ansible은 인프라 위에 올라가는 bootstrap과 설정을 담당한다. EKS kubeconfig 갱신, namespace, LimitRange, Helm chart 설치, ArgoCD 설치, 운영 도구 설치, health check처럼 절차와 검증이 필요한 작업에 사용한다.
 
