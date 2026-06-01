@@ -1,7 +1,7 @@
 # Build Scripts
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-06-01
 
 ## 목적
 
@@ -83,13 +83,13 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
    - Hub-only rebuild에서는 기존 IoT Secret을 유지하고 UI, factory별 cluster 등록, GitOps ApplicationSet을 별도 실행
 ```
 
-`build-all.sh`는 foundation → preflight → hub → data-pipe 순서로 실행한다. Foundation은 기본값에서 제외되며 별도 실행한다.
+`build-all.sh`는 선택한 범위에 따라 foundation → preflight → hub → data-pipe → admin-ui-after-ns → iot 순서로 실행한다. 기본값에서는 Foundation, data-pipeline, Admin UI Ingress, IoT를 제외하고 Hub만 실행한다.
 
 ## 파일
 
 | 파일 | 내용 |
 | --- | --- |
-| `build-all.sh` | 기본 hub-infra → hub-platform 실행. `--foundation`, `--admin-ui-after-ns`, `--iot`로 4단계 선택 실행. |
+| `build-all.sh` | 기본 hub-infra → hub-platform 실행. `--foundation`, `--data-pipe`, `--admin-ui-after-ns`, `--iot`로 선택 레이어 실행. |
 | `build-admin-ui-after-ns.sh` | Gabia NS 위임 후 ACM 발급을 기다리고 Admin UI HTTPS Ingress 활성화 |
 | `build-foundation.sh` | `infra/foundation` Terraform apply. 최초 1회 단독 실행. |
 | `build-data-pipe.sh` | `infra/data-pipeline` Terraform apply. IoT Rule × 3, Lambda, CloudWatch, IAM 생성. foundation의 S3/DynamoDB를 data source로 참조하므로 foundation이 먼저 존재해야 함. |
@@ -127,6 +127,7 @@ scripts/build/build-all.sh [MFA_OTP]
 ```text
 BUILD_FOUNDATION=false  ← Foundation은 기본 제외
 BUILD_HUB=true          ← hub-infra → hub-platform 순서 실행
+BUILD_DATA_PIPE=false
 BUILD_ADMIN_UI_AFTER_NS=false
 BUILD_IOT=false
 ```
@@ -147,6 +148,12 @@ IoT Thing/certificate와 K3s Secret 등록까지 포함하려면 `--iot`를 사�
 
 ```bash
 scripts/build/build-all.sh --iot [MFA_OTP]
+```
+
+data-pipeline까지 함께 올리려면 `--data-pipe`를 사용한다. 이 옵션은 foundation S3/DynamoDB가 이미 존재해야 한다.
+
+```bash
+scripts/build/build-all.sh --data-pipe [MFA_OTP]
 ```
 
 `build-all.sh`는 실제 생성 전에 preflight를 실행한다. preflight는 로컬 CLI, AWS 인증, Hub가 참조하는 foundation state, 기존 Hub Terraform state의 대표 AWS 리소스 조회 가능 여부를 먼저 확인한다. `--iot`가 포함되면 Tailscale secret/kubeconfig도 함께 확인한다.

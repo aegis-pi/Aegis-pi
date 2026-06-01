@@ -104,11 +104,14 @@ M3 Issue 3 기준 code repository의 GitHub Actions는 장기 AWS access key를 
 OIDC provider: arn:aws:iam::611058323802:oidc-provider/token.actions.githubusercontent.com
 role: arn:aws:iam::611058323802:role/AEGIS-GitHubActions-ECRPush
 allowed repository subject: repo:aegis-pi/Aegis-pi:ref:refs/heads/main
-allowed ECR repository: arn:aws:ecr:ap-south-1:611058323802:repository/aegis/edge-agent
+allowed ECR repositories:
+- arn:aws:ecr:ap-south-1:611058323802:repository/aegis/edge-agent
+- arn:aws:ecr:ap-south-1:611058323802:repository/aegis/factory-a-log-adapter
+- arn:aws:ecr:ap-south-1:611058323802:repository/aegis/edge-iot-publisher
 workflow: .github/workflows/build-push.yaml
 ```
 
-Role policy는 ECR authorization token 조회와 `aegis/edge-agent` repository image push에 필요한 권한만 허용한다. GitHub Actions가 Spoke K3s 또는 Hub EKS에 직접 `kubectl apply`하지 않는다는 CD 경계는 유지한다.
+Role policy는 ECR authorization token 조회와 현재 3개 ECR repository image push에 필요한 권한만 허용한다. GitHub Actions가 Spoke K3s 또는 Hub EKS에 직접 `kubectl apply`하지 않는다는 CD 경계는 유지한다.
 
 검증 결과:
 

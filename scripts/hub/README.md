@@ -1,11 +1,11 @@
 # Hub Scripts
 
 상태: source of truth
-기준일: 2026-05-08
+기준일: 2026-06-01
 
 ## 목적
 
-이 디렉터리는 Hub EKS 실험 환경을 로컬에서 올리고, ArgoCD bootstrap 이후 UI에 접근하고, 실험 종료 시 제거하기 위한 호환 wrapper 스크립트를 둔다.
+이 디렉터리는 기존 `scripts/hub/*` 경로를 보존하기 위한 호환 wrapper 스크립트를 둔다. 실제 생성/삭제/운영 진입점은 `scripts/build/`, `scripts/destroy/`, `scripts/ops/`가 기준이다.
 
 책임 경계는 `docs/planning/11_delivery_ownership_flow.md`를 따른다.
 
@@ -52,7 +52,7 @@ OTP를 인자로 넘길 수도 있다.
 scripts/build/build-hub.sh <MFA_OTP>
 ```
 
-실행 순서:
+현재 `build-hub.sh` 실행 순서:
 
 ```text
 1. MFA OTP 입력
@@ -61,9 +61,12 @@ scripts/build/build-hub.sh <MFA_OTP>
 4. infra/hub terraform validate
 5. infra/hub terraform plan -out=tfplan
 6. infra/hub terraform apply tfplan
-7. scripts/ansible Hub bootstrap/verify 실행
-8. Tailscale Operator, factory-a egress, ArgoCD/Grafana Tailscale UI, ArgoCD factory-a cluster Secret 복구
-9. 필요 시 scripts/ops/argocd-port-forward.sh 실행
+7. scripts/ansible Hub platform bootstrap/verify 실행
+   - ArgoCD
+   - legacy Prometheus Agent cleanup
+   - Grafana
+   - AWS Load Balancer Controller
+8. secret/hub-ui-credentials.txt 갱신
 ```
 
 ArgoCD Helm release가 이미 `deployed` 상태이고 chart version이 같으면 bootstrap playbook은 Helm upgrade를 건너뛴다. 강제 재적용은 아래처럼 실행한다.
@@ -72,11 +75,7 @@ ArgoCD Helm release가 이미 `deployed` 상태이고 chart version이 같으면
 FORCE_ARGOCD_UPGRADE=true scripts/build/build-hub.sh
 ```
 
-Tailscale Hub bootstrap은 기본 실행된다. `~/Aegis/.aegis/secrets/tailscale/operator.env`가 없으면 실패한다. 임시로 건너뛰려면 아래처럼 실행한다.
-
-```bash
-BUILD_TAILSCALE=false scripts/build/build-hub.sh
-```
+Tailscale Operator, Spoke egress, ArgoCD/Grafana Tailnet UI, ArgoCD cluster Secret, ApplicationSet은 `build-hub.sh` 기본 흐름에서 실행하지 않는다. 필요 시 `scripts/build/connect-hub-tailscale-ui.sh` 또는 `scripts/build/register-spoke-factory-a.sh`, `register-spoke-factory-b.sh`, `register-spoke-factory-c.sh`를 별도로 실행한다.
 
 `scripts/hub/run-hub.sh` wrapper를 사용하면 build 이후 port-forward까지 이어서 foreground로 실행된다. 중지하려면 `Ctrl+C`를 사용한다.
 
@@ -107,7 +106,7 @@ scripts/destroy/destroy-hub.sh <MFA_OTP>
 
 `destroy-hub.sh`는 EKS, node group, NAT Gateway 등 `infra/hub` Terraform state가 관리하는 리소스를 제거한다. ArgoCD, namespace, Tailscale Operator/proxy Service는 EKS 내부 리소스이므로 EKS destroy와 함께 제거된다. `factory-a-master` Tailscale device와 OAuth client는 삭제하지 않는다.
 
-IoT와 foundation까지 포함한 전체 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. 이 스크립트는 AWS MFA 전에 K3s IoT Secret을 먼저 삭제하고, 이후 IoT, Hub, foundation 순서로 정리한다.
+전체 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. 기본값은 reporting/data-pipeline/Hub 삭제이며 IoT와 foundation은 보존한다. `DESTROY_IOT=true`, `DESTROY_FOUNDATION=true`를 명시한 경우에만 IoT Thing/certificate/K3s Secret과 foundation 영속 리소스까지 삭제한다.
 
 ## `argocd-port-forward.sh`
 
@@ -195,4 +194,4 @@ scripts/destroy/destroy-hub.sh
 - `destroy-hub.sh`는 AWS 리소스를 삭제한다.
 - 장시간 사용하지 않을 때는 `destroy-hub.sh`로 제거한다.
 - ArgoCD public `LoadBalancer`는 만들지 않는다.
-- 현재 UI 접근은 kubeconfig 기반 `kubectl port-forward`를 사용한다.
+- UI 접근은 필요에 따라 kubeconfig 기반 `kubectl port-forward`, Admin UI HTTPS Ingress, 또는 Tailscale UI Service를 선택한다.

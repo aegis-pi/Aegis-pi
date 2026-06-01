@@ -12,7 +12,7 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 
 | 경로 | 내용 |
 | --- | --- |
-| `build/build-all.sh` | 기본 Hub 생성 실행. `--foundation`, `--admin-ui-after-ns`, `--iot`로 4단계 선택 실행 |
+| `build/build-all.sh` | 기본 Hub 생성 실행. `--foundation`, `--data-pipe`, `--admin-ui-after-ns`, `--iot`로 선택 레이어 실행 |
 | `build/build-admin-ui-after-ns.sh` | Gabia NS 입력 후 ACM 발급 대기와 Admin UI HTTPS Ingress 활성화 |
 | `build/connect-hub-tailscale-ui.sh` | Hub ArgoCD/Grafana Tailscale UI Service 연결 및 검증. ALB/Admin UI HTTPS를 쓰면 선택 실행 |
 | `build/register-spoke-factory-a.sh` | 기존 IoT Secret을 유지하고 `factory-a` Hub ArgoCD cluster 등록, GitOps ApplicationSet 적용, app sync 수행 |
@@ -21,7 +21,7 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | `build/build-reporting.sh` | `apps/daily-report-generator` Lambda package를 만들고 `infra/reporting` Terraform apply를 실행 |
 | `destroy/stop-dummy-generators.sh` | Hub 삭제 전 factory-b/c VM worker dummy generator systemd service 정지. legacy local publisher unit이 있으면 함께 정지 |
 | `destroy/destroy-reporting.sh` | daily factory report Scheduler/Step Functions/Lambda/IAM/Log Group 제거 |
-| `destroy/destroy-all.sh` | 기본 Hub 삭제 실행. `DESTROY_IOT=true`, `DESTROY_FOUNDATION=true`로 삭제 범위 확장 |
+| `destroy/destroy-all.sh` | 기본 reporting/data-pipeline/Hub 삭제 실행. `DESTROY_IOT=true`, `DESTROY_FOUNDATION=true`로 삭제 범위 확장 |
 | `hub/run-hub.sh` | `build/build-hub.sh` 실행 후 ArgoCD port-forward까지 연결하는 호환 wrapper |
 | `hub/destroy-hub.sh` | `destroy/destroy-hub.sh`를 호출하는 호환 wrapper |
 | `ops/argocd-initial-password.sh` | MFA 세션 확인 후 Hub ArgoCD 초기 admin 비밀번호 조회 |

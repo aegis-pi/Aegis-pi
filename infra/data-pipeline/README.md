@@ -1,7 +1,7 @@
 # infra/data-pipeline
 
 상태: source of truth
-기준일: 2026-05-29
+기준일: 2026-06-01
 
 ## 목적
 
@@ -24,8 +24,11 @@ Hub EKS와 독립적으로 올리고 내릴 수 있는 on-demand 레이어다.
 | Lambda | `AEGIS-Lambda-DataProcessor` | IoT Core 수신 메시지 처리 |
 | IAM Role | `AEGIS-IAMRole-Lambda-DataProcessor` | Lambda 실행 역할 (DynamoDB R/W, S3 processed PutObject) |
 | CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-DataProcessor` | Lambda 실행 로그 |
+| EventBridge Scheduler | `AEGIS-Schedule-DataProcessorRefresh1m` | 1분 주기 stale pipeline_status/risk refresh |
+| IAM Role | `AEGIS-IAMRole-Scheduler-DataProcessorRefresh` | DataProcessor refresh Scheduler의 Lambda invoke 역할 |
 | Lambda | `AEGIS-Lambda-GraphAggregator5m` | DynamoDB HISTORY#STATE → GRAPH#5M / S3 processed_agg 집계 |
 | EventBridge Scheduler | `AEGIS-Schedule-GraphAggregator5m` | 5분 주기 graph aggregator 호출 |
+| IAM Role | `AEGIS-IAMRole-Scheduler-GraphAggregator5m` | GraphAggregator5m Scheduler의 Lambda invoke 역할 |
 | CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-GraphAggregator5m` | graph aggregator 실행 로그 |
 
 ## Foundation 참조 구조
@@ -61,7 +64,7 @@ build-data-pipe.sh   ← foundation apply 후 실행
 | 파일 | 역할 |
 | --- | --- |
 | `iot_rule.tf` | IoT Rule × 3 (factory-a/b/c), IAM Role/Policy, S3 raw 적재 설정 |
-| `lambda.tf` | Lambda 함수, IAM Role/Policy, CloudWatch Log Group |
+| `lambda.tf` | DataProcessor Lambda 함수, IAM Role/Policy, CloudWatch Log Group, DataProcessorRefresh1m Scheduler |
 | `graph_aggregator_lambda.tf` | GraphAggregator5m Lambda, IAM, EventBridge Scheduler |
 | `dynamodb.tf` | foundation DynamoDB 테이블 data source 조회 |
 | `data.tf` | foundation S3 버킷 등 외부 리소스 data source 참조 |
