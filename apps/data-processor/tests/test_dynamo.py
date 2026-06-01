@@ -25,19 +25,22 @@ class FakeTable:
     def update_item(self, Key, UpdateExpression, ExpressionAttributeValues, ExpressionAttributeNames=None):
         self.item["pk"] = Key["pk"]
         self.item["sk"] = Key["sk"]
-        self.item["factory_id"] = ExpressionAttributeValues[":fid"]
-        self.item["schema_version"] = ExpressionAttributeValues[":sv"]
         self.item["updated_at"] = ExpressionAttributeValues[":u"]
+        if ":fid" in ExpressionAttributeValues:
+            self.item["factory_id"] = ExpressionAttributeValues[":fid"]
+        if ":sv" in ExpressionAttributeValues:
+            self.item["schema_version"] = ExpressionAttributeValues[":sv"]
+        if ":r" in ExpressionAttributeValues:
+            self.item["risk"] = ExpressionAttributeValues[":r"]
+        if ":ps" in ExpressionAttributeValues:
+            self.item["pipeline_status"] = ExpressionAttributeValues[":ps"]
 
         if ":fs" in ExpressionAttributeValues:
             self.item["factory_state"] = ExpressionAttributeValues[":fs"]
-            self.item["risk"] = ExpressionAttributeValues[":r"]
-            self.item["pipeline_status"] = ExpressionAttributeValues[":ps"]
             self.item["last_factory_state_at"] = ExpressionAttributeValues[":t"]
 
         if ":is" in ExpressionAttributeValues:
             self.item["infra_state"] = ExpressionAttributeValues[":is"]
-            self.item["pipeline_status"] = ExpressionAttributeValues[":ps"]
             self.item["last_infra_state_at"] = ExpressionAttributeValues[":t"]
 
     def get_item(self, Key):
@@ -87,3 +90,37 @@ def test_write_factory_state_snapshot_copies_latest_to_history(monkeypatch):
     assert s3_snapshot["sk"] == "HISTORY#STATE#2026-05-21T10:00:03.123Z"
     assert s3_snapshot["factory_state"]["temperature_celsius"] == 31.2
     assert s3_snapshot["risk"]["score"] == 91.43
+
+
+def test_write_pipeline_status_snapshot_recalculates_risk_and_history(monkeypatch):
+    table = FakeTable()
+    monkeypatch.setattr(dynamo, "_table", lambda: table)
+    monkeypatch.setattr(dynamo.time, "time", lambda: 1_800_000_000)
+
+    table.item["factory_state"] = {"message_id": "factory-message"}
+    table.item["risk"] = {"score": Decimal("100"), "level": "safe"}
+    pipeline_status = {"status": "critical", "latest_infra_state_age_seconds": 3600}
+    risk = {
+        "score": 49.0,
+        "base_score": 90.0,
+        "level": "danger",
+        "base_level": "safe",
+        "top_causes": [],
+        "gates": [{"name": "pipeline_status_critical"}],
+    }
+
+    s3_snapshot = dynamo.write_pipeline_status_snapshot(
+        "factory-a",
+        pipeline_status,
+        "2026-05-21T10:01:03.123Z",
+        risk,
+    )
+
+    history = table.history_item
+    assert table.item["sk"] == "LATEST"
+    assert table.item["pipeline_status"]["status"] == "critical"
+    assert table.item["risk"]["score"] == Decimal("49.0")
+    assert table.item["risk"]["calculation_version"] == "risk-v0.2.0"
+    assert history["sk"] == "HISTORY#STATE#2026-05-21T10:01:03.123Z"
+    assert s3_snapshot["pipeline_status"]["latest_infra_state_age_seconds"] == 3600
+    assert s3_snapshot["risk"]["score"] == 49

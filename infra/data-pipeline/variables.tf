@@ -70,6 +70,18 @@ variable "lambda_data_processor_memory" {
   default     = 512
 }
 
+variable "data_processor_refresh_enabled" {
+  description = "Whether the data processor freshness refresh schedule is enabled."
+  type        = bool
+  default     = true
+}
+
+variable "data_processor_factory_ids" {
+  description = "Factories refreshed by the data processor freshness schedule."
+  type        = list(string)
+  default     = ["factory-a", "factory-b", "factory-c"]
+}
+
 variable "lambda_graph_aggregator_name" {
   description = "Lambda function name for 5-minute graph metric aggregation."
   type        = string

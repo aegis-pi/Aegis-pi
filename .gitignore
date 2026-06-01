@@ -39,3 +39,4 @@ override.tf.json
 
 # Generated deployment artifacts
 infra/data-pipeline/lambda_data_processor.zip
+infra/data-pipeline/lambda_graph_metrics_aggregator.zip

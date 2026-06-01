@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime, timezone
 
 from processor import dynamo, s3_writer
@@ -12,6 +13,10 @@ logger.setLevel(logging.INFO)
 
 
 def handler(event, context):
+    event = event or {}
+    if event.get("action") == "refresh_pipeline_status":
+        return _refresh_pipeline_status(event)
+
     logger.info(
         "Received: message_id=%s factory_id=%s source_type=%s",
         event.get("message_id"),
@@ -43,13 +48,52 @@ def handler(event, context):
     return {"status": "ok", "message_id": message_id}
 
 
+def _refresh_pipeline_status(event):
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    factories = event.get("factories") or _factory_ids()
+    results = []
+
+    for factory_id in factories:
+        latest = dynamo.get_latest_state(factory_id)
+        if not latest:
+            results.append({"factory_id": factory_id, "status": "missing"})
+            continue
+
+        pipeline_status = calc_pipeline_status(latest.get("last_infra_state_at"), now)
+        latest_factory_state = latest.get("factory_state")
+        risk = (
+            calc_risk(latest_factory_state, latest.get("infra_state"), pipeline_status)
+            if latest_factory_state
+            else None
+        )
+        state_snapshot = dynamo.write_pipeline_status_snapshot(factory_id, pipeline_status, now_iso, risk)
+        if state_snapshot:
+            s3_writer.write_state_snapshot(factory_id, now_iso, state_snapshot)
+
+        results.append({
+            "factory_id": factory_id,
+            "pipeline_status": pipeline_status["status"],
+            "risk_score": risk["score"] if risk else None,
+        })
+        logger.info(
+            "pipeline refresh done: factory_id=%s pipeline_status=%s risk_score=%s",
+            factory_id,
+            pipeline_status["status"],
+            risk["score"] if risk else None,
+        )
+
+    return {"status": "ok", "refreshed": results}
+
+
 def _process_factory_state(envelope, factory_id, message_id, now, now_iso):
     normalized = normalize_factory_state(envelope["payload"])
-    risk = calc_risk(normalized)
 
     # Compute pipeline_status using the last known infra_state time in LATEST
-    last_infra_state_at = dynamo.get_last_infra_state_at(factory_id)
+    latest = dynamo.get_latest_state(factory_id)
+    last_infra_state_at = latest.get("last_infra_state_at")
     pipeline_status = calc_pipeline_status(last_infra_state_at, now)
+    risk = calc_risk(normalized, latest.get("infra_state"), pipeline_status)
 
     state_snapshot = dynamo.write_factory_state_snapshot(factory_id, envelope, normalized, risk, pipeline_status, now_iso)
 
@@ -80,8 +124,11 @@ def _process_infra_state(envelope, factory_id, message_id, now, now_iso):
     normalized = normalize_infra_state(envelope["payload"])
     # infra_state just arrived → pipeline_status is normal (age ≈ 0)
     pipeline_status = calc_pipeline_status(envelope["source_timestamp"], now)
+    latest = dynamo.get_latest_state(factory_id)
+    latest_factory_state = latest.get("factory_state")
+    risk = calc_risk(latest_factory_state, normalized, pipeline_status) if latest_factory_state else None
 
-    state_snapshot = dynamo.write_infra_state_snapshot(factory_id, envelope, normalized, pipeline_status, now_iso)
+    state_snapshot = dynamo.write_infra_state_snapshot(factory_id, envelope, normalized, pipeline_status, now_iso, risk)
 
     s3_writer.write_infra_state(
         factory_id,
@@ -106,3 +153,11 @@ def _process_infra_state(envelope, factory_id, message_id, now, now_iso):
         normalized.get("nodes_ready", 0),
         normalized.get("nodes_total", 0),
     )
+
+
+def _factory_ids() -> list[str]:
+    return [
+        item.strip()
+        for item in os.environ.get("FACTORY_IDS", "factory-a,factory-b,factory-c").split(",")
+        if item.strip()
+    ]

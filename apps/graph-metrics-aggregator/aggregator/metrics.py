@@ -1,7 +1,7 @@
 import math
 from datetime import timedelta
 
-from aggregator.bucket import format_utc, format_utc_millis
+from aggregator.bucket import format_utc, format_utc_millis, parse_utc
 
 
 SCHEMA_VERSION = "graph-5m-v0.1.0"
@@ -120,7 +120,7 @@ def aggregate_graph_item(
     ai_score_threshold: float,
 ) -> dict:
     source_items = sorted(source_items, key=_item_timestamp)
-    source_count = len(source_items)
+    source_count = _actual_observation_count(source_items, bucket_start, bucket_end)
     expected_count = _expected_count(bucket_start, bucket_end, expected_sample_interval_seconds)
     created_at_iso = format_utc(created_at)
     bucket_start_iso = format_utc(bucket_start)
@@ -169,18 +169,25 @@ def aggregate_graph_item(
         risk = source.get("risk") or {}
         factory_at = factory_state.get("source_timestamp") or _item_timestamp(source)
         infra_at = (source.get("infra_state") or {}).get("source_timestamp") or _item_timestamp(source)
+        factory_in_bucket = _timestamp_in_bucket(factory_at, bucket_start, bucket_end)
+        infra_in_bucket = _timestamp_in_bucket(infra_at, bucket_start, bucket_end)
 
-        for metric in SENSOR_METRICS:
-            _add_once(sensor_reducers[metric], seen_sensor[metric], factory_state.get(metric), factory_at)
+        if factory_in_bucket:
+            for metric in SENSOR_METRICS:
+                _add_once(sensor_reducers[metric], seen_sensor[metric], factory_state.get(metric), factory_at)
+            for metric in AI_METRICS:
+                ai_value = _number(factory_state.get(metric))
+                if ai_value is not None and factory_at not in seen_ai[metric]:
+                    ai_reducer.add(metric, ai_value, factory_at)
+                    seen_ai[metric].add(factory_at)
+
         for metric in RISK_METRICS:
-            _add_once(risk_reducers[metric], seen_risk[metric], risk.get(metric), factory_at)
-        for metric in AI_METRICS:
-            ai_value = _number(factory_state.get(metric))
-            if ai_value is not None and factory_at not in seen_ai[metric]:
-                ai_reducer.add(metric, ai_value, factory_at)
-                seen_ai[metric].add(factory_at)
-        for metric, value in _infra_snapshot_values(source).items():
-            _add_once(infra_reducers[metric], seen_infra[metric], value, infra_at)
+            risk_at = risk.get("calculated_at") or _item_timestamp(source)
+            _add_once(risk_reducers[metric], seen_risk[metric], risk.get(metric), risk_at)
+
+        if infra_in_bucket:
+            for metric, value in _infra_snapshot_values(source).items():
+                _add_once(infra_reducers[metric], seen_infra[metric], value, infra_at)
 
     item["sensor"] = _summaries(sensor_reducers, SENSOR_METRICS)
     item["risk"] = _summaries(risk_reducers, RISK_METRICS)
@@ -232,6 +239,26 @@ def _expected_count(bucket_start, bucket_end, interval_seconds: int) -> int:
 
 def _item_timestamp(item: dict) -> str:
     return item.get("updated_at") or item.get("sk", "").removeprefix("HISTORY#STATE#")
+
+
+def _actual_observation_count(source_items: list[dict], bucket_start, bucket_end) -> int:
+    count = 0
+    for source in source_items:
+        factory_at = (source.get("factory_state") or {}).get("source_timestamp") or _item_timestamp(source)
+        infra_at = (source.get("infra_state") or {}).get("source_timestamp") or _item_timestamp(source)
+        if _timestamp_in_bucket(factory_at, bucket_start, bucket_end) or _timestamp_in_bucket(infra_at, bucket_start, bucket_end):
+            count += 1
+    return count
+
+
+def _timestamp_in_bucket(value: str | None, bucket_start, bucket_end) -> bool:
+    if not value:
+        return False
+    try:
+        timestamp = parse_utc(value)
+    except (TypeError, ValueError):
+        return False
+    return bucket_start <= timestamp <= bucket_end
 
 
 def _number(value) -> float | None:

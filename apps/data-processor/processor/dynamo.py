@@ -21,6 +21,10 @@ def get_last_infra_state_at(factory_id: str) -> str | None:
     return item.get("last_infra_state_at") if item else None
 
 
+def get_latest_state(factory_id: str) -> dict:
+    return _from_dynamo(_get_latest_state(factory_id))
+
+
 def write_factory_state_snapshot(
     factory_id: str,
     envelope: dict,
@@ -60,23 +64,71 @@ def write_infra_state_snapshot(
     normalized: dict,
     pipeline_status: dict,
     now_iso: str,
+    risk: dict | None = None,
 ):
-    _table().update_item(
-        Key={"pk": f"FACTORY#{factory_id}", "sk": LATEST_SK},
-        UpdateExpression=(
-            "SET infra_state = :is, pipeline_status = :ps,"
-            " last_infra_state_at = :t, updated_at = :u,"
-            " factory_id = :fid, schema_version = :sv"
-        ),
-        ExpressionAttributeValues={
-            ":is": _to_dynamo(_state_payload(envelope, normalized)),
-            ":ps": _to_dynamo(pipeline_status),
-            ":t": envelope["source_timestamp"],
-            ":u": now_iso,
-            ":fid": factory_id,
-            ":sv": envelope["schema_version"],
-        },
+    expression = (
+        "SET infra_state = :is, pipeline_status = :ps,"
+        " last_infra_state_at = :t, updated_at = :u,"
+        " factory_id = :fid, schema_version = :sv"
     )
+    values = {
+        ":is": _to_dynamo(_state_payload(envelope, normalized)),
+        ":ps": _to_dynamo(pipeline_status),
+        ":t": envelope["source_timestamp"],
+        ":u": now_iso,
+        ":fid": factory_id,
+        ":sv": envelope["schema_version"],
+    }
+    names = None
+    if risk:
+        expression += ", #r = :r"
+        values[":r"] = _to_dynamo({
+            **risk,
+            "calculated_at": now_iso,
+            "calculation_version": RISK_CALCULATION_VERSION,
+        })
+        names = {"#r": "risk"}
+
+    kwargs = {
+        "Key": {"pk": f"FACTORY#{factory_id}", "sk": LATEST_SK},
+        "UpdateExpression": expression,
+        "ExpressionAttributeValues": values,
+    }
+    if names:
+        kwargs["ExpressionAttributeNames"] = names
+    _table().update_item(**kwargs)
+    return _write_history_from_latest(factory_id, now_iso)
+
+
+def write_pipeline_status_snapshot(
+    factory_id: str,
+    pipeline_status: dict,
+    now_iso: str,
+    risk: dict | None = None,
+):
+    expression = "SET pipeline_status = :ps, updated_at = :u"
+    values = {
+        ":ps": _to_dynamo(pipeline_status),
+        ":u": now_iso,
+    }
+    names = None
+    if risk:
+        expression += ", #r = :r"
+        values[":r"] = _to_dynamo({
+            **risk,
+            "calculated_at": now_iso,
+            "calculation_version": RISK_CALCULATION_VERSION,
+        })
+        names = {"#r": "risk"}
+
+    kwargs = {
+        "Key": {"pk": f"FACTORY#{factory_id}", "sk": LATEST_SK},
+        "UpdateExpression": expression,
+        "ExpressionAttributeValues": values,
+    }
+    if names:
+        kwargs["ExpressionAttributeNames"] = names
+    _table().update_item(**kwargs)
     return _write_history_from_latest(factory_id, now_iso)
 
 

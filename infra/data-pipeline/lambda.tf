@@ -85,6 +85,7 @@ resource "aws_lambda_function" "data_processor" {
   environment {
     variables = {
       DYNAMODB_TABLE_NAME = data.aws_dynamodb_table.factory_status.name
+      FACTORY_IDS         = join(",", var.data_processor_factory_ids)
       S3_BUCKET_NAME      = data.aws_s3_bucket.data.bucket
       HISTORY_TTL_HOURS   = tostring(var.dynamodb_history_ttl_hours)
     }
@@ -120,4 +121,56 @@ resource "aws_lambda_permission" "iot_factory_c" {
   function_name = aws_lambda_function.data_processor.function_name
   principal     = "iot.amazonaws.com"
   source_arn    = aws_iot_topic_rule.factory_c_raw_s3.arn
+}
+
+resource "aws_iam_role" "data_processor_scheduler" {
+  name               = "${local.naming_prefix}-IAMRole-Scheduler-DataProcessorRefresh"
+  assume_role_policy = data.aws_iam_policy_document.scheduler_assume_role.json
+  tags               = local.tags
+}
+
+data "aws_iam_policy_document" "data_processor_scheduler" {
+  statement {
+    sid    = "InvokeDataProcessorRefresh"
+    effect = "Allow"
+
+    actions = ["lambda:InvokeFunction"]
+
+    resources = [aws_lambda_function.data_processor.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "data_processor_scheduler" {
+  name   = "${local.naming_prefix}-IAMPolicy-Scheduler-DataProcessorRefresh"
+  role   = aws_iam_role.data_processor_scheduler.id
+  policy = data.aws_iam_policy_document.data_processor_scheduler.json
+}
+
+resource "aws_scheduler_schedule" "data_processor_refresh_1m" {
+  name                         = "${local.naming_prefix}-Schedule-DataProcessorRefresh1m"
+  description                  = "Refresh factory pipeline freshness and risk when IoT messages stop."
+  schedule_expression          = "rate(1 minute)"
+  schedule_expression_timezone = "UTC"
+  state                        = var.data_processor_refresh_enabled ? "ENABLED" : "DISABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.data_processor.arn
+    role_arn = aws_iam_role.data_processor_scheduler.arn
+    input = jsonencode({
+      action    = "refresh_pipeline_status"
+      factories = var.data_processor_factory_ids
+    })
+  }
+}
+
+resource "aws_lambda_permission" "data_processor_scheduler" {
+  statement_id  = "AllowSchedulerInvokeDataProcessorRefresh"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.data_processor.function_name
+  principal     = "scheduler.amazonaws.com"
+  source_arn    = aws_scheduler_schedule.data_processor_refresh_1m.arn
 }

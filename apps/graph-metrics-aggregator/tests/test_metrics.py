@@ -111,7 +111,45 @@ def test_aggregate_graph_item_deduplicates_repeated_snapshot_payloads():
     assert graph["risk"]["score"]["count"] == 2
     assert graph["ai_detection"]["by_type"]["fire_score"]["count"] == 2
     assert graph["ai_detection"]["above_threshold_count"] == 1
-    assert graph["infra"]["cpu_usage_percent"]["count"] == 2
+    assert graph["infra"]["cpu_usage_percent"]["count"] == 1
+    assert graph["infra"]["cpu_usage_percent"]["first_at"] == "2026-05-28T10:05:09Z"
+
+
+def test_aggregate_graph_item_excludes_stale_observations_but_keeps_refresh_risk():
+    start = datetime(2026, 5, 28, 10, 5, tzinfo=timezone.utc)
+    end = bucket_end(start, 5)
+    created_at = datetime(2026, 5, 28, 10, 10, 3, tzinfo=timezone.utc)
+    item = _history_item(
+        "2026-05-28T10:06:00.000Z",
+        temperature=24.0,
+        risk=0.0,
+        fire=0.8,
+        fall=0.7,
+        bend=0.6,
+        cpu=(20, 40),
+    )
+    item["factory_state"]["source_timestamp"] = "2026-05-28T09:59:30Z"
+    item["infra_state"]["source_timestamp"] = "2026-05-28T09:59:40Z"
+    item["risk"]["calculated_at"] = "2026-05-28T10:06:00.000Z"
+
+    graph = aggregate_graph_item(
+        "factory-b",
+        start,
+        end,
+        [item],
+        created_at=created_at,
+        graph_ttl_hours=48,
+        expected_sample_interval_seconds=3,
+        ai_score_threshold=0.7,
+    )
+
+    assert graph["sensor"] == {}
+    assert graph["infra"] == {}
+    assert graph["ai_detection"]["above_threshold_count"] == 0
+    assert graph["risk"]["score"]["count"] == 1
+    assert graph["risk"]["score"]["last"] == 0.0
+    assert graph["quality"]["source_count"] == 0
+    assert graph["quality"]["is_empty"] is True
 
 
 def _history_item(at, *, temperature, risk, fire, fall, bend, cpu):
