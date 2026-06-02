@@ -33,10 +33,14 @@ Factory별 프로파일:
 
 | Factory | Host | Profile | Node topology | 값 특성 |
 | --- | --- | --- | --- | --- |
-| `factory-b` | Mac UTM | `stable-lab` | 2-node `master`/`worker1` | 낮은 anomaly 확률, 낮은 온습도 기준 |
-| `factory-c` | Windows VirtualBox | `noisy-vm` | 2-node `factory-c-master`/`factory-c-worker` | 높은 anomaly 확률, 높은 온습도 jitter |
+| `factory-b` | Mac UTM | `stable-lab` | 2-node `master`/`worker1` | warning 중심 sensor/infra coverage, 25~30분 AI event |
+| `factory-c` | Windows VirtualBox | `noisy-vm` | 2-node `factory-c-master`/`factory-c-worker` | critical/gate 중심 sensor/infra coverage, 25~30분 AI event |
 
 공통 envelope는 Factory A 구현과 맞춰 `data_plane_instance_id`를 포함한다.
+
+기본 profile은 순수 확률이 아니라 `랜덤 간격 + round-robin 이벤트 타입 + 랜덤 값`으로 risk input을 만든다. 평상시 baseline jitter는 유지하고, 이벤트가 due일 때만 sensor spike, infra 상태 변화, AI score를 주입한다. AI score는 기본 25~30분 간격이며 발생 시 `fire_score`/`fall_score`/`bend_score` 중 일부만 `0.5~1.0` 범위의 0.1 단위 값으로 설정한다.
+
+pipeline freshness 확인용 이벤트는 payload에 status를 직접 넣지 않고 `--loop`에서 `infra_state` 생성을 건너뛰어 만든다. `factory-b`는 warning gap, `factory-c`는 critical/outage gap을 기본 round-robin에 포함한다.
 
 ## Local Preview
 

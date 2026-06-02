@@ -105,7 +105,7 @@ generator는 `--loop` 모드에서 두 주기를 독립적으로 관리한다. �
 }
 ```
 
-factory별 기본값:
+factory별 baseline 기본값:
 
 | 항목 | factory-b | factory-c |
 | --- | ---: | ---: |
@@ -115,11 +115,28 @@ factory별 기본값:
 | humidity jitter | 8.0 | 10.0 |
 | pressure baseline | 1013.5 | 1012.0 |
 | pressure jitter | 1.5 | 2.0 |
-| anomaly probability | 0.03 | 0.06 |
-| anomaly score range | 0.35-0.75 | 0.55-0.98 |
 | abnormal_sound | `brief lab impact` | `intermittent vibration` |
 
-anomaly가 발생하지 않으면 `fire_score`, `fall_score`, `bend_score`는 모두 `0.0`이고 `abnormal_sound`는 `none`이다.
+기본 profile은 순수 확률 기반 anomaly가 아니라 `랜덤 간격 + round-robin 이벤트 타입 + 랜덤 값` 구조다. baseline jitter는 매번 유지하고, 이벤트가 due일 때만 sensor spike나 AI score를 주입한다.
+
+| 이벤트 | factory-b stable-lab | factory-c noisy-vm |
+| --- | --- | --- |
+| AI event interval | 25~30분 | 25~30분 |
+| AI event type | `ai_warning` | `ai_warning`, `ai_critical` |
+| AI score | fire/fall/bend 중 1~2개, 0.5~0.8, 0.1 단위 | fire/fall/bend 중 1~3개, 0.5~1.0, 0.1 단위 |
+| sensor event interval | 6~10분 | 4~7분 |
+| sensor event type | `temperature_high`, `humidity_high`, `pressure_high`, `pressure_low` | `temperature_critical`, `humidity_critical`, `pressure_high_critical`, `pressure_low_critical` |
+
+AI event가 발생하지 않으면 `fire_score`, `fall_score`, `bend_score`는 모두 `0.0`이고 `abnormal_sound`는 `none`이다.
+
+override 환경변수:
+
+| 환경변수 | 의미 |
+| --- | --- |
+| `AEGIS_DUMMY_AI_EVENT_MIN_SECONDS` / `AEGIS_DUMMY_AI_EVENT_MAX_SECONDS` | AI round-robin event 간격 |
+| `AEGIS_DUMMY_SENSOR_EVENT_MIN_SECONDS` / `AEGIS_DUMMY_SENSOR_EVENT_MAX_SECONDS` | sensor spike round-robin event 간격 |
+| `AEGIS_DUMMY_INFRA_EVENT_MIN_SECONDS` / `AEGIS_DUMMY_INFRA_EVENT_MAX_SECONDS` | infra 상태 round-robin event 간격 |
+| `AEGIS_DUMMY_PIPELINE_GAP_EVENT_MIN_SECONDS` / `AEGIS_DUMMY_PIPELINE_GAP_EVENT_MAX_SECONDS` | freshness gap round-robin event 간격 |
 
 ## infra_state 생성 로직
 
@@ -135,6 +152,21 @@ anomaly가 발생하지 않으면 `fire_score`, `fall_score`, `bend_score`는 �
 - `devices.bme280/camera/microphone.available=true`
 - `workloads.dummy-data-generator`와 `workloads.edge-iot-publisher`는 `Running`, `ready=true`
 - `heartbeat.dummy_scenario=normal`
+
+infra event가 due이면 기본 ready 상태에 round-robin 이벤트를 한 번 적용한다.
+
+| 이벤트 | factory-b stable-lab | factory-c noisy-vm |
+| --- | --- | --- |
+| infra event interval | 5~8분 | 3~6분 |
+| node/pod | `pods_partial`, `nodes_partial` | `pods_all_unready`, `nodes_all_not_ready` |
+| device/storage/network | `device_unavailable`, `storage_warning` | `device_unavailable`, `storage_critical`, `network_unreachable` |
+
+pipeline freshness event는 payload에 `pipeline_status_*`를 직접 넣지 않는다. `--loop`에서 `infra_state` 생성을 일정 시간 건너뛰어 DataProcessor가 `LATEST.last_infra_state_at` 기준으로 계산하게 한다.
+
+| Factory | freshness gap event |
+| --- | --- |
+| `factory-b` | `pipeline_warning_gap`: 45~55초 |
+| `factory-c` | `pipeline_critical_gap`: 70~120초, `pipeline_outage_gap`: 301~330초 |
 
 예시:
 

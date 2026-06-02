@@ -36,6 +36,7 @@
 | `27_dummy_data_generation_and_risk_scenarios.md` | `factory-b/c` dummy data 생성, outbox cleanup, Risk Score 계산, scenario 운영 기준 |
 | `28_data_pipeline_refresh_flow_explained.md` | 데이터가 끊겼을 때 refresh, LATEST/HISTORY, processed_agg가 어떻게 동작하는지 설명 |
 | `29_cloud_infra_metrics_pipeline_plan.md` | Cloud infra metric을 필요한 항목만 수집해 DynamoDB/S3 read model로 저장하는 구현/운영 기준 |
+| `30_factory_bc_dummy_generator_risk_coverage_backtest.md` | `factory-b/c` dummy generator risk coverage 수정, VM 배포, DynamoDB/S3 backtest 결과 |
 
 ## 기준
 
