@@ -1,7 +1,7 @@
 # Factory B/C Dummy Data systemd Runbook
 
 상태: source of truth
-기준일: 2026-05-21
+기준일: 2026-06-02
 
 ## 목적
 
@@ -52,6 +52,64 @@ AWS IoT Rule
 - Factory B와 Factory C는 서로 다른 IoT Thing/client id를 사용한다.
 - 같은 factory 안에서 같은 MQTT client id를 쓰는 프로세스를 동시에 두 개 띄우지 않는다.
 - K3s `edge-iot-publisher`가 Running인 현재 표준 운영에서는 VM 로컬 dummy publisher systemd를 설치하거나 활성화하지 않는다.
+- SSH user, host/IP, password 같은 접속 정보는 문서에 기록하지 않는다. 운영자는 로컬 보안 저장소나 별도 env 파일에서만 관리한다.
+
+## 실제 실행 위치와 접근 방식
+
+factory-b/c dummy data generator는 **worker VM에서 systemd service로 실행**된다. master VM에서 generator를 실행하면 master-local `/var/lib/aegis/outbox`에만 JSON이 쌓이고, worker node에 떠 있는 K3s `edge-iot-publisher` Pod가 읽는 hostPath와 달라져 S3/DynamoDB 파이프라인으로 전달되지 않는다.
+
+표준 흐름:
+
+```text
+worker VM systemd generator
+  -> worker-local /var/lib/aegis/outbox/*.json
+  -> worker node K3s edge-iot-publisher Pod hostPath mount
+  -> AWS IoT Core
+  -> S3 raw / processed
+  -> DynamoDB LATEST / HISTORY
+```
+
+접근은 보통 master VM을 jump host로 사용해 worker VM에 들어간다. 실제 user, host/IP, password는 문서에 남기지 않고 운영자 로컬 설정으로만 주입한다.
+
+권장 관리 명령:
+
+```bash
+# repo root 기준. scripts/ops/dummy-generators.env 또는
+# AEGIS_DUMMY_GENERATORS_ENV가 가리키는 로컬 env 파일에서 접속 대상을 읽는다.
+scripts/ops/manage-dummy-generators.sh status factory-b
+scripts/ops/manage-dummy-generators.sh status factory-c
+
+scripts/ops/manage-dummy-generators.sh start factory-b
+scripts/ops/manage-dummy-generators.sh stop factory-b
+```
+
+수동 접근이 필요할 때는 같은 구조를 직접 사용한다.
+
+```bash
+ssh -J <ssh-user>@<master-host> <ssh-user>@<worker-host>
+```
+
+worker VM 안에서 확인할 항목:
+
+```bash
+systemctl status aegis-factory-b-dummy-generator.service --no-pager
+systemctl cat aegis-factory-b-dummy-generator.service
+cat /etc/aegis/factory-b-dummy.env
+ls -lt /var/lib/aegis/outbox | head
+journalctl -u aegis-factory-b-dummy-generator.service -n 50 --no-pager
+```
+
+factory-c에서는 service와 env 파일 이름만 `factory-c`로 바꾼다.
+
+정상 기준:
+
+- service `ExecStart`가 `/usr/bin/python3 /opt/aegis/dummy-sensor/factory_*_dummy_generator.py --loop`다.
+- `EnvironmentFile`은 `/etc/aegis/factory-*-dummy.env`다.
+- `AEGIS_OUTBOX_DIR=/var/lib/aegis/outbox`다.
+- worker-local outbox에 `factory_state`가 약 3초마다 생성된다.
+- worker-local outbox에 `infra_state`가 약 20초마다 생성된다.
+- K3s `edge-iot-publisher`가 같은 worker-local outbox hostPath를 읽어 publish한다.
+- master VM의 generator service는 표준 운영에서 중지 상태여야 한다.
 
 ## Factory B와 C 차이
 
@@ -72,12 +130,20 @@ AWS IoT Rule
 | temperature baseline/jitter | `24.5 ± 3.0` | `27.0 ± 4.0` |
 | humidity baseline/jitter | `45.0 ± 8.0` | `52.0 ± 10.0` |
 | pressure baseline/jitter | `1013.5 ± 1.5` | `1012.0 ± 2.0` |
-| anomaly probability | `0.03` | `0.06` |
+| sensor event interval | `6~10분` | `4~7분` |
+| sensor event hold | `30초` | `30초` |
+| AI event interval | `25~30분` | `25~30분` |
+| AI event type | `ai_warning` | `ai_warning`, `ai_critical` |
+| AI score selection | fire/fall/bend 중 1~2개, `0.5~0.8` | warning은 fire/fall/bend 중 1~3개, `0.5~0.8`; critical은 1~3개, `0.8~1.0` |
 | abnormal_sound label | `brief lab impact` | `intermittent vibration` |
 | sequence file | `/var/lib/aegis/factory-b-publish-sequence` | `/var/lib/aegis/factory-c-publish-sequence` |
 | infra_state 기본 모드 | synthetic fixed-ready | synthetic fixed-ready |
 
 이 차이 때문에 Dashboard나 S3 raw에서 두 testbed가 같은 데이터를 반복 송신하는 것처럼 보이지 않는다.
+
+AI event는 화재, 넘어짐, 굽힘, 이상소음을 각각 독립 스케줄로 발생시키지 않는다. `ai_warning` 또는 `ai_critical`이 due일 때 `fire_score`, `fall_score`, `bend_score` 중 일부를 랜덤으로 올리고, `abnormal_sound` 라벨도 같은 `factory_state` 1건에 함께 넣는다. Sensor spike와 달리 AI event에는 hold window가 없다.
+
+Sensor event별 재발 주기와 sensor 외 AI/infra/pipeline gap event 기본 주기는 `docs/ops/27_dummy_data_generation_and_risk_scenarios.md`의 `Sensor event 세부 주기`와 `infra_state 생성 로직`을 기준으로 한다. worker env 파일에서 event interval을 override하지 않으면 factory-b는 sensor event가 `6~10분`마다 1개, factory-c는 `4~7분`마다 1개 round-robin으로 발생한다.
 
 ## infra_state node 상태 기준
 

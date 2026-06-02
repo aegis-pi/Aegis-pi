@@ -103,14 +103,15 @@ class FactoryBDummyGeneratorTest(unittest.TestCase):
             os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
             os.environ["AEGIS_DUMMY_SENSOR_EVENT_MIN_SECONDS"] = "0"
             os.environ["AEGIS_DUMMY_SENSOR_EVENT_MAX_SECONDS"] = "0"
+            os.environ["AEGIS_DUMMY_SENSOR_EVENT_HOLD_SECONDS"] = "0"
             generator = generator_module.FactoryBDummyGenerator(rng=random.Random(5))
 
             sensors = [generator.factory_state()["payload"]["sensor"] for _ in range(4)]
 
-            self.assertGreater(sensors[0]["temperature_celsius_avg"], 32.0)
-            self.assertGreater(sensors[1]["humidity_percent_avg"], 70.0)
-            self.assertGreater(sensors[2]["pressure_hpa_avg"], 1030.0)
-            self.assertLess(sensors[3]["pressure_hpa_avg"], 990.0)
+            self.assertGreaterEqual(sensors[0]["temperature_celsius_avg"], 39.0)
+            self.assertGreaterEqual(sensors[1]["humidity_percent_avg"], 88.0)
+            self.assertGreaterEqual(sensors[2]["pressure_hpa_avg"], 1055.0)
+            self.assertLessEqual(sensors[3]["pressure_hpa_avg"], 960.0)
 
     def test_infra_round_robin_can_emit_warning_states(self):
         with tempfile.TemporaryDirectory() as tmp:

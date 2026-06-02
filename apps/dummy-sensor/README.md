@@ -38,7 +38,22 @@ Factory별 프로파일:
 
 공통 envelope는 Factory A 구현과 맞춰 `data_plane_instance_id`를 포함한다.
 
-기본 profile은 순수 확률이 아니라 `랜덤 간격 + round-robin 이벤트 타입 + 랜덤 값`으로 risk input을 만든다. 평상시 baseline jitter는 유지하고, 이벤트가 due일 때만 sensor spike, infra 상태 변화, AI score를 주입한다. AI score는 기본 25~30분 간격이며 발생 시 `fire_score`/`fall_score`/`bend_score` 중 일부만 `0.5~1.0` 범위의 0.1 단위 값으로 설정한다.
+기본 profile은 순수 확률이 아니라 `랜덤 간격 + round-robin 이벤트 타입 + 랜덤 값`으로 risk input을 만든다. 평상시 baseline jitter는 유지하고, 이벤트가 due일 때만 sensor spike, infra 상태 변화, AI score를 주입한다. Sensor spike는 기본 30초 동안 유지해서 LATEST 기반 화면에서도 관찰 가능하게 한다.
+
+AI score는 화재, 넘어짐, 굽힘, 이상소음을 각각 독립 이벤트로 스케줄링하지 않는다. `ai_warning` 또는 `ai_critical`이 25~30분 간격으로 due일 때 `fire_score`/`fall_score`/`bend_score` 중 일부를 랜덤으로 올리고 `abnormal_sound` label도 같은 `factory_state` 1건에 함께 넣는다. `factory-b`는 `ai_warning`만 쓰며 1~2개 score를 `0.5~0.8`로 설정한다. `factory-c`는 `ai_warning`/`ai_critical`을 round-robin으로 쓰며 warning은 1~3개 score를 `0.5~0.8`, critical은 1~3개 score를 `0.8~1.0`으로 설정한다.
+
+Sensor spike 값 범위:
+
+| Factory | Event | Range |
+| --- | --- | --- |
+| `factory-b` | `temperature_high` | `39.0~45.0` Celsius |
+| `factory-b` | `humidity_high` | `88.0~96.0` percent |
+| `factory-b` | `pressure_high` | `1055.0~1075.0` hPa |
+| `factory-b` | `pressure_low` | `940.0~960.0` hPa |
+| `factory-c` | `temperature_critical` | `45.0~52.0` Celsius |
+| `factory-c` | `humidity_critical` | `95.0~99.0` percent |
+| `factory-c` | `pressure_high_critical` | `1070.0~1090.0` hPa |
+| `factory-c` | `pressure_low_critical` | `930.0~950.0` hPa |
 
 pipeline freshness 확인용 이벤트는 payload에 status를 직접 넣지 않고 `--loop`에서 `infra_state` 생성을 건너뛰어 만든다. `factory-b`는 warning gap, `factory-c`는 critical/outage gap을 기본 round-robin에 포함한다.
 
@@ -103,6 +118,7 @@ private.pem.key
 | `AEGIS_CLUSTER_STATE_MODE` | `synthetic` (`kubernetes`는 workload만 조회하고 node ready는 고정) |
 | `AEGIS_DUMMY_SCENARIO` | `normal`. node 장애 테스트 시 `node_down` |
 | `AEGIS_DUMMY_SCENARIO_DOWN_NODES` | `node_down` 대상 node id CSV. 미지정 시 worker node |
+| `AEGIS_DUMMY_SENSOR_EVENT_HOLD_SECONDS` | sensor spike 유지 시간. 기본 `30` |
 | `KUBECONFIG` | 선택. systemd 실행 시 특정 kubeconfig를 지정할 때 사용 |
 
 ## Factory B VM systemd 예시

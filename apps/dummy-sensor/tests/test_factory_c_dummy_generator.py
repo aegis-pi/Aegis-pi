@@ -126,14 +126,15 @@ class FactoryCDummyGeneratorTest(unittest.TestCase):
             os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
             os.environ["AEGIS_DUMMY_SENSOR_EVENT_MIN_SECONDS"] = "0"
             os.environ["AEGIS_DUMMY_SENSOR_EVENT_MAX_SECONDS"] = "0"
+            os.environ["AEGIS_DUMMY_SENSOR_EVENT_HOLD_SECONDS"] = "0"
             generator = generator_module.FactoryCDummyGenerator(rng=random.Random(6))
 
             sensors = [generator.factory_state()["payload"]["sensor"] for _ in range(4)]
 
-            self.assertGreaterEqual(sensors[0]["temperature_celsius_avg"], 38.0)
-            self.assertGreaterEqual(sensors[1]["humidity_percent_avg"], 85.0)
-            self.assertGreaterEqual(sensors[2]["pressure_hpa_avg"], 1050.0)
-            self.assertLessEqual(sensors[3]["pressure_hpa_avg"], 970.0)
+            self.assertGreaterEqual(sensors[0]["temperature_celsius_avg"], 45.0)
+            self.assertGreaterEqual(sensors[1]["humidity_percent_avg"], 95.0)
+            self.assertGreaterEqual(sensors[2]["pressure_hpa_avg"], 1070.0)
+            self.assertLessEqual(sensors[3]["pressure_hpa_avg"], 950.0)
 
     def test_infra_round_robin_can_emit_noisy_vm_states(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -111,6 +111,9 @@ class FactoryCDummyGenerator:
             env_float("AEGIS_DUMMY_SENSOR_EVENT_MIN_SECONDS", 4 * 60),
             env_float("AEGIS_DUMMY_SENSOR_EVENT_MAX_SECONDS", 7 * 60),
         )
+        self.sensor_event_hold_seconds = env_float("AEGIS_DUMMY_SENSOR_EVENT_HOLD_SECONDS", 30.0)
+        self.active_sensor_event: str | None = None
+        self.active_sensor_event_until = 0.0
         self.infra_event_schedule = RoundRobinEventSchedule(
             self.rng,
             [
@@ -139,7 +142,7 @@ class FactoryCDummyGenerator:
             "humidity_percent_avg": self._jitter(self.humidity_baseline, self.humidity_jitter),
             "pressure_hpa_avg": self._jitter(self.pressure_baseline, self.pressure_jitter),
         }
-        sensor_event = self.sensor_event_schedule.due_event()
+        sensor_event = self._sensor_event()
         if sensor_event:
             self._apply_sensor_event(sensor, sensor_event)
 
@@ -312,13 +315,26 @@ class FactoryCDummyGenerator:
 
     def _apply_sensor_event(self, sensor: dict[str, Any], event: str) -> None:
         if event == "temperature_critical":
-            sensor["temperature_celsius_avg"] = round(self.rng.uniform(38.0, 44.0), 2)
+            sensor["temperature_celsius_avg"] = round(self.rng.uniform(45.0, 52.0), 2)
         elif event == "humidity_critical":
-            sensor["humidity_percent_avg"] = round(self.rng.uniform(85.0, 94.0), 2)
+            sensor["humidity_percent_avg"] = round(self.rng.uniform(95.0, 99.0), 2)
         elif event == "pressure_high_critical":
-            sensor["pressure_hpa_avg"] = round(self.rng.uniform(1050.0, 1066.0), 2)
+            sensor["pressure_hpa_avg"] = round(self.rng.uniform(1070.0, 1090.0), 2)
         elif event == "pressure_low_critical":
-            sensor["pressure_hpa_avg"] = round(self.rng.uniform(955.0, 970.0), 2)
+            sensor["pressure_hpa_avg"] = round(self.rng.uniform(930.0, 950.0), 2)
+
+    def _sensor_event(self) -> str | None:
+        now = time.monotonic()
+        if self.active_sensor_event and now < self.active_sensor_event_until:
+            return self.active_sensor_event
+
+        event = self.sensor_event_schedule.due_event(now)
+        if not event:
+            return None
+
+        self.active_sensor_event = event
+        self.active_sensor_event_until = now + max(self.sensor_event_hold_seconds, 0.0)
+        return event
 
     def _apply_infra_event(
         self,
