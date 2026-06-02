@@ -66,6 +66,91 @@ class FactoryBDummyGeneratorTest(unittest.TestCase):
             self.assertEqual(worker["network_reachability"], "not_ready")
             self.assertEqual(message["payload"]["heartbeat"]["dummy_scenario"], "node_down")
 
+    def test_default_factory_state_does_not_emit_ai_every_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
+            generator = generator_module.FactoryBDummyGenerator(rng=random.Random(3))
+
+            messages = [generator.factory_state() for _ in range(5)]
+
+            for message in messages:
+                ai = message["payload"]["ai_result"]
+                self.assertEqual(ai["fire_score"], 0.0)
+                self.assertEqual(ai["fall_score"], 0.0)
+                self.assertEqual(ai["bend_score"], 0.0)
+                self.assertEqual(ai["abnormal_sound"], "none")
+
+    def test_ai_event_scores_use_tenth_steps_in_expected_range(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
+            os.environ["AEGIS_DUMMY_AI_EVENT_MIN_SECONDS"] = "0"
+            os.environ["AEGIS_DUMMY_AI_EVENT_MAX_SECONDS"] = "0"
+            generator = generator_module.FactoryBDummyGenerator(rng=random.Random(4))
+
+            ai = generator.factory_state()["payload"]["ai_result"]
+
+            scores = [ai["fire_score"], ai["fall_score"], ai["bend_score"]]
+            active_scores = [score for score in scores if score > 0]
+            self.assertGreaterEqual(len(active_scores), 1)
+            self.assertLess(len(active_scores), 3)
+            for score in active_scores:
+                self.assertGreaterEqual(score, 0.5)
+                self.assertLessEqual(score, 1.0)
+                self.assertAlmostEqual(score * 10, round(score * 10))
+
+    def test_sensor_round_robin_can_emit_risk_spikes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
+            os.environ["AEGIS_DUMMY_SENSOR_EVENT_MIN_SECONDS"] = "0"
+            os.environ["AEGIS_DUMMY_SENSOR_EVENT_MAX_SECONDS"] = "0"
+            generator = generator_module.FactoryBDummyGenerator(rng=random.Random(5))
+
+            sensors = [generator.factory_state()["payload"]["sensor"] for _ in range(4)]
+
+            self.assertGreater(sensors[0]["temperature_celsius_avg"], 32.0)
+            self.assertGreater(sensors[1]["humidity_percent_avg"], 70.0)
+            self.assertGreater(sensors[2]["pressure_hpa_avg"], 1030.0)
+            self.assertLess(sensors[3]["pressure_hpa_avg"], 990.0)
+
+    def test_infra_round_robin_can_emit_warning_states(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
+            os.environ["AEGIS_DUMMY_INFRA_EVENT_MIN_SECONDS"] = "0"
+            os.environ["AEGIS_DUMMY_INFRA_EVENT_MAX_SECONDS"] = "0"
+            generator = generator_module.FactoryBDummyGenerator(rng=random.Random(6))
+
+            storage = generator.infra_state()["payload"]
+            device = generator.infra_state()["payload"]
+            pods = generator.infra_state()["payload"]
+            nodes = generator.infra_state()["payload"]
+
+            self.assertGreater(max(node["disk_usage_percent"] for node in storage["nodes"]), 75.0)
+            self.assertTrue(any(info["available"] is False for info in device["devices"].values()))
+            self.assertEqual(pods["workload_summary"], {"total": 2, "running": 1, "not_running": 1})
+            self.assertEqual(nodes["node_summary"], {"total": 2, "ready": 1, "not_ready": 1})
+
+    def test_pipeline_gap_event_uses_warning_freshness_range(self):
+        generator = generator_module.FactoryBDummyGenerator(rng=random.Random(7))
+
+        gap = generator._pipeline_gap_seconds("pipeline_warning_gap")
+
+        self.assertGreaterEqual(gap, 45.0)
+        self.assertLessEqual(gap, 55.0)
+
+    def test_write_outbox_is_idempotent_for_same_message_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
+            generator = generator_module.FactoryBDummyGenerator(rng=random.Random(8))
+            message = generator.factory_state()
+            outbox = Path(tmp) / "outbox"
+
+            first = generator.write_outbox(message, outbox)
+            second = generator.write_outbox(message, outbox)
+
+            self.assertEqual(first, second)
+            self.assertTrue(first.exists())
+            self.assertTrue((outbox / "tmp").is_dir())
+
 
 if __name__ == "__main__":
     unittest.main()

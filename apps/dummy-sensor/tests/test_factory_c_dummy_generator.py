@@ -81,6 +81,89 @@ class FactoryCDummyGeneratorTest(unittest.TestCase):
             self.assertTrue(first.exists())
             self.assertTrue((outbox / "tmp").is_dir())
 
+    def test_default_factory_state_does_not_emit_ai_every_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
+            generator = generator_module.FactoryCDummyGenerator(rng=random.Random(4))
+
+            messages = [generator.factory_state() for _ in range(5)]
+
+            for message in messages:
+                ai = message["payload"]["ai_result"]
+                self.assertEqual(ai["fire_score"], 0.0)
+                self.assertEqual(ai["fall_score"], 0.0)
+                self.assertEqual(ai["bend_score"], 0.0)
+                self.assertEqual(ai["abnormal_sound"], "none")
+
+    def test_ai_event_scores_use_tenth_steps_in_expected_range(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
+            os.environ["AEGIS_DUMMY_AI_EVENT_MIN_SECONDS"] = "0"
+            os.environ["AEGIS_DUMMY_AI_EVENT_MAX_SECONDS"] = "0"
+            generator = generator_module.FactoryCDummyGenerator(rng=random.Random(5))
+
+            warning_ai = generator.factory_state()["payload"]["ai_result"]
+            critical_ai = generator.factory_state()["payload"]["ai_result"]
+
+            scores = [
+                warning_ai["fire_score"],
+                warning_ai["fall_score"],
+                warning_ai["bend_score"],
+                critical_ai["fire_score"],
+                critical_ai["fall_score"],
+                critical_ai["bend_score"],
+            ]
+            active_scores = [score for score in scores if score > 0]
+            self.assertGreaterEqual(len(active_scores), 2)
+            self.assertTrue(any(score >= 0.8 for score in active_scores))
+            for score in active_scores:
+                self.assertGreaterEqual(score, 0.5)
+                self.assertLessEqual(score, 1.0)
+                self.assertAlmostEqual(score * 10, round(score * 10))
+
+    def test_sensor_round_robin_can_emit_critical_spikes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
+            os.environ["AEGIS_DUMMY_SENSOR_EVENT_MIN_SECONDS"] = "0"
+            os.environ["AEGIS_DUMMY_SENSOR_EVENT_MAX_SECONDS"] = "0"
+            generator = generator_module.FactoryCDummyGenerator(rng=random.Random(6))
+
+            sensors = [generator.factory_state()["payload"]["sensor"] for _ in range(4)]
+
+            self.assertGreaterEqual(sensors[0]["temperature_celsius_avg"], 38.0)
+            self.assertGreaterEqual(sensors[1]["humidity_percent_avg"], 85.0)
+            self.assertGreaterEqual(sensors[2]["pressure_hpa_avg"], 1050.0)
+            self.assertLessEqual(sensors[3]["pressure_hpa_avg"], 970.0)
+
+    def test_infra_round_robin_can_emit_noisy_vm_states(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_SEQUENCE_FILE"] = str(Path(tmp) / "seq")
+            os.environ["AEGIS_DUMMY_INFRA_EVENT_MIN_SECONDS"] = "0"
+            os.environ["AEGIS_DUMMY_INFRA_EVENT_MAX_SECONDS"] = "0"
+            generator = generator_module.FactoryCDummyGenerator(rng=random.Random(7))
+
+            pods = generator.infra_state()["payload"]
+            nodes = generator.infra_state()["payload"]
+            network = generator.infra_state()["payload"]
+            device = generator.infra_state()["payload"]
+            storage = generator.infra_state()["payload"]
+
+            self.assertEqual(pods["workload_summary"], {"total": 2, "running": 0, "not_running": 2})
+            self.assertEqual(nodes["node_summary"], {"total": 2, "ready": 0, "not_ready": 2})
+            self.assertTrue(all(node["network_reachability"] == "unreachable" for node in network["nodes"]))
+            self.assertTrue(any(info["available"] is False for info in device["devices"].values()))
+            self.assertGreater(max(node["disk_usage_percent"] for node in storage["nodes"]), 90.0)
+
+    def test_pipeline_gap_events_cover_critical_and_outage_ranges(self):
+        generator = generator_module.FactoryCDummyGenerator(rng=random.Random(8))
+
+        critical_gap = generator._pipeline_gap_seconds("pipeline_critical_gap")
+        outage_gap = generator._pipeline_gap_seconds("pipeline_outage_gap")
+
+        self.assertGreaterEqual(critical_gap, 70.0)
+        self.assertLessEqual(critical_gap, 120.0)
+        self.assertGreaterEqual(outage_gap, 301.0)
+
 
 if __name__ == "__main__":
     unittest.main()
