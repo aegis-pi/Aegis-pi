@@ -26,6 +26,24 @@ locals {
       memory  = 512
       timeout = 120
     }
+    aggregate_cloud_infra_hour = {
+      name    = "${local.naming_prefix}-Lambda-AggregateCloudInfraHour"
+      handler = "lambda_aggregate_cloud_infra_hour.handler"
+      memory  = var.lambda_memory_mb
+      timeout = var.lambda_timeout_seconds
+    }
+    merge_cloud_infra_daily = {
+      name    = "${local.naming_prefix}-Lambda-MergeCloudInfraDaily"
+      handler = "lambda_merge_cloud_infra_daily.handler"
+      memory  = 512
+      timeout = 120
+    }
+    generate_cloud_infra_report = {
+      name    = "${local.naming_prefix}-Lambda-GenerateCloudInfraReport"
+      handler = "lambda_generate_cloud_infra_report.handler"
+      memory  = 512
+      timeout = 120
+    }
   }
 
   state_machine_name = "${local.naming_prefix}-DailyFactoryReportStateMachine"
@@ -38,4 +56,3 @@ locals {
     Component   = "reporting"
   }
 }
-

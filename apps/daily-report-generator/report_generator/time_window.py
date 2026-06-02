@@ -59,6 +59,8 @@ def prepare_report_window(
     }
     factory_items = [
         {
+            "target_type": "factory",
+            "target_id": factory_id,
             "factory_id": factory_id,
             "report_date": report_date_value,
             "timezone": timezone_name,
@@ -69,6 +71,15 @@ def prepare_report_window(
         }
         for factory_id in factories
     ]
+    cloud_infra_item = {
+        "target_type": "cloud_infra",
+        "target_id": "cloud-infra",
+        "report_date": report_date_value,
+        "timezone": timezone_name,
+        "window": window,
+        "hour_items": hour_items,
+        "output_prefix": f"{output_prefix}/cloud-infra",
+    }
     return {
         "report_date": report_date_value,
         "timezone": timezone_name,
@@ -77,6 +88,7 @@ def prepare_report_window(
         "datasets": datasets,
         "output_prefix": output_prefix,
         "factory_items": factory_items,
+        "report_targets": [*factory_items, cloud_infra_item],
     }
 
 

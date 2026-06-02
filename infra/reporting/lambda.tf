@@ -65,6 +65,7 @@ data "aws_iam_policy_document" "reporting_lambda" {
 
     resources = [
       "${data.aws_s3_bucket.data.arn}/processed/*",
+      "${data.aws_s3_bucket.data.arn}/processed/cloud_infra/*",
       "${data.aws_s3_bucket.data.arn}/reports/daily/*",
     ]
   }

@@ -73,16 +73,32 @@ resource "aws_sfn_state_machine" "daily_factory_report" {
       PrepareReportWindow = {
         Type     = "Task"
         Resource = aws_lambda_function.reporting["prepare_report_window"].arn
-        Next     = "FactoryMap"
+        Next     = "ReportTargetMap"
       }
-      FactoryMap = {
+      ReportTargetMap = {
         Type           = "Map"
-        ItemsPath      = "$.factory_items"
-        MaxConcurrency = 3
+        ItemsPath      = "$.report_targets"
+        MaxConcurrency = 4
         Iterator = {
-          StartAt = "HourMap"
+          StartAt = "SelectReportTarget"
           States = {
-            HourMap = {
+            SelectReportTarget = {
+              Type = "Choice"
+              Choices = [
+                {
+                  Variable     = "$.target_type"
+                  StringEquals = "factory"
+                  Next         = "FactoryHourMap"
+                },
+                {
+                  Variable     = "$.target_type"
+                  StringEquals = "cloud_infra"
+                  Next         = "CloudInfraHourMap"
+                }
+              ]
+              Default = "UnsupportedReportTarget"
+            }
+            FactoryHourMap = {
               Type           = "Map"
               ItemsPath      = "$.hour_items"
               MaxConcurrency = 6
@@ -117,6 +133,45 @@ resource "aws_sfn_state_machine" "daily_factory_report" {
               Type     = "Task"
               Resource = aws_lambda_function.reporting["generate_factory_report"].arn
               End      = true
+            }
+            CloudInfraHourMap = {
+              Type           = "Map"
+              ItemsPath      = "$.hour_items"
+              MaxConcurrency = 6
+              ItemSelector = {
+                "target_id.$"     = "$.target_id"
+                "report_date.$"   = "$.report_date"
+                "timezone.$"      = "$.timezone"
+                "output_prefix.$" = "$.output_prefix"
+                "hour.$"          = "$$.Map.Item.Value.hour"
+                "hour_window.$"   = "$$.Map.Item.Value.hour_window"
+              }
+              Iterator = {
+                StartAt = "AggregateCloudInfraHour"
+                States = {
+                  AggregateCloudInfraHour = {
+                    Type     = "Task"
+                    Resource = aws_lambda_function.reporting["aggregate_cloud_infra_hour"].arn
+                    End      = true
+                  }
+                }
+              }
+              ResultPath = "$.hour_results"
+              Next       = "MergeCloudInfraDaily"
+            }
+            MergeCloudInfraDaily = {
+              Type     = "Task"
+              Resource = aws_lambda_function.reporting["merge_cloud_infra_daily"].arn
+              Next     = "GenerateCloudInfraReport"
+            }
+            GenerateCloudInfraReport = {
+              Type     = "Task"
+              Resource = aws_lambda_function.reporting["generate_cloud_infra_report"].arn
+              End      = true
+            }
+            UnsupportedReportTarget = {
+              Type  = "Fail"
+              Error = "UnsupportedReportTarget"
             }
           }
         }
