@@ -41,6 +41,33 @@ def env_list(name: str) -> set[str]:
     return {item.strip() for item in value.split(",") if item.strip()}
 
 
+class RoundRobinEventSchedule:
+    def __init__(self, rng: random.Random, events: list[str], min_seconds: float, max_seconds: float) -> None:
+        self.rng = rng
+        self.events = events
+        self.min_seconds = min_seconds
+        self.max_seconds = max(max_seconds, min_seconds)
+        self.index = 0
+        self.next_due = time.monotonic() + self._next_interval()
+
+    def due_event(self, now: float | None = None) -> str | None:
+        if not self.events:
+            return None
+        if now is None:
+            now = time.monotonic()
+        if now < self.next_due:
+            return None
+        event = self.events[self.index % len(self.events)]
+        self.index += 1
+        self.next_due = now + self._next_interval()
+        return event
+
+    def _next_interval(self) -> float:
+        if self.max_seconds <= 0:
+            return 0.0
+        return self.rng.uniform(self.min_seconds, self.max_seconds)
+
+
 class FactoryBDummyGenerator:
     def __init__(self, rng: random.Random | None = None) -> None:
         self.rng = rng or random.Random()
@@ -66,14 +93,47 @@ class FactoryBDummyGenerator:
         self.humidity_jitter = env_float("AEGIS_DUMMY_HUMIDITY_JITTER", 8.0)
         self.pressure_baseline = env_float("AEGIS_DUMMY_PRESSURE_BASELINE", 1013.5)
         self.pressure_jitter = env_float("AEGIS_DUMMY_PRESSURE_JITTER", 1.5)
-        self.anomaly_probability = env_float("AEGIS_DUMMY_ANOMALY_PROBABILITY", 0.03)
         self.scenario = os.getenv("AEGIS_DUMMY_SCENARIO", "normal").strip().lower() or "normal"
         self.scenario_down_nodes = env_list("AEGIS_DUMMY_SCENARIO_DOWN_NODES")
+        self.ai_event_schedule = RoundRobinEventSchedule(
+            self.rng,
+            ["ai_warning"],
+            env_float("AEGIS_DUMMY_AI_EVENT_MIN_SECONDS", 25 * 60),
+            env_float("AEGIS_DUMMY_AI_EVENT_MAX_SECONDS", 30 * 60),
+        )
+        self.sensor_event_schedule = RoundRobinEventSchedule(
+            self.rng,
+            ["temperature_high", "humidity_high", "pressure_high", "pressure_low"],
+            env_float("AEGIS_DUMMY_SENSOR_EVENT_MIN_SECONDS", 6 * 60),
+            env_float("AEGIS_DUMMY_SENSOR_EVENT_MAX_SECONDS", 10 * 60),
+        )
+        self.infra_event_schedule = RoundRobinEventSchedule(
+            self.rng,
+            ["storage_warning", "device_unavailable", "pods_partial", "nodes_partial"],
+            env_float("AEGIS_DUMMY_INFRA_EVENT_MIN_SECONDS", 5 * 60),
+            env_float("AEGIS_DUMMY_INFRA_EVENT_MAX_SECONDS", 8 * 60),
+        )
+        self.pipeline_gap_schedule = RoundRobinEventSchedule(
+            self.rng,
+            ["pipeline_warning_gap"],
+            env_float("AEGIS_DUMMY_PIPELINE_GAP_EVENT_MIN_SECONDS", 12 * 60),
+            env_float("AEGIS_DUMMY_PIPELINE_GAP_EVENT_MAX_SECONDS", 18 * 60),
+        )
 
     def factory_state(self) -> dict[str, Any]:
         source_timestamp = utc_now()
         timestamp = format_utc(source_timestamp)
-        anomaly = self.rng.random() < self.anomaly_probability
+        sensor = {
+            "sample_count": 1,
+            "temperature_celsius_avg": self._jitter(self.temperature_baseline, self.temperature_jitter),
+            "humidity_percent_avg": self._jitter(self.humidity_baseline, self.humidity_jitter),
+            "pressure_hpa_avg": self._jitter(self.pressure_baseline, self.pressure_jitter),
+        }
+        sensor_event = self.sensor_event_schedule.due_event()
+        if sensor_event:
+            self._apply_sensor_event(sensor, sensor_event)
+
+        ai_result = self._ai_result(self.ai_event_schedule.due_event())
 
         return self._message(
             message_id=f"{self.factory_id}:factory_state:{self.worker_node_id}:{timestamp}",
@@ -82,19 +142,8 @@ class FactoryBDummyGenerator:
             source_timestamp=source_timestamp,
             payload={
                 "aggregation_window_seconds": self.window_seconds,
-                "sensor": {
-                    "sample_count": 1,
-                    "temperature_celsius_avg": self._jitter(self.temperature_baseline, self.temperature_jitter),
-                    "humidity_percent_avg": self._jitter(self.humidity_baseline, self.humidity_jitter),
-                    "pressure_hpa_avg": self._jitter(self.pressure_baseline, self.pressure_jitter),
-                },
-                "ai_result": {
-                    "sample_count": 1,
-                    "fire_score": self._anomaly_score() if anomaly else 0.0,
-                    "fall_score": self._anomaly_score() if anomaly else 0.0,
-                    "bend_score": self._anomaly_score() if anomaly else 0.0,
-                    "abnormal_sound": "brief lab impact" if anomaly else "none",
-                },
+                "sensor": sensor,
+                "ai_result": ai_result,
             },
         )
 
@@ -103,6 +152,12 @@ class FactoryBDummyGenerator:
         timestamp = format_utc(source_timestamp)
         sequence = self._next_sequence()
         nodes, workloads, source = self._cluster_state()
+        devices = {
+            "bme280": {"available": True, "last_seen_at": timestamp},
+            "camera": {"available": True, "last_seen_at": timestamp},
+            "microphone": {"available": True, "last_seen_at": timestamp},
+        }
+        self._apply_infra_event(nodes, workloads, devices, self.infra_event_schedule.due_event(), timestamp)
         self._apply_scenario(nodes, workloads)
         ready_nodes = sum(1 for item in nodes if item["ready"])
         running_workloads = sum(1 for item in workloads if item["status"] == "Running" and item["ready"])
@@ -117,6 +172,7 @@ class FactoryBDummyGenerator:
                     "agent_status": "alive",
                     "last_spool_write_status": "unknown",
                     "last_spool_write_at": None,
+                    "publish_sequence": sequence,
                     "cluster_state_source": source,
                     "dummy_scenario": self.scenario,
                 },
@@ -132,11 +188,7 @@ class FactoryBDummyGenerator:
                     "not_running": max(len(workloads) - running_workloads, 0),
                 },
                 "workloads": workloads,
-                "devices": {
-                    "bme280": {"available": True, "last_seen_at": timestamp},
-                    "camera": {"available": True, "last_seen_at": timestamp},
-                    "microphone": {"available": True, "last_seen_at": timestamp},
-                },
+                "devices": devices,
             },
         )
 
@@ -177,8 +229,12 @@ class FactoryBDummyGenerator:
                 next_factory_state = now + self.factory_state_interval_seconds
             sleep_until.append(next_factory_state)
             if now >= next_infra_state:
-                self._write_one("infra_state", outbox_dir)
-                next_infra_state = now + self.infra_state_interval_seconds
+                gap_seconds = self._pipeline_gap_seconds(self.pipeline_gap_schedule.due_event(now))
+                if gap_seconds:
+                    next_infra_state = now + gap_seconds
+                else:
+                    self._write_one("infra_state", outbox_dir)
+                    next_infra_state = now + self.infra_state_interval_seconds
             sleep_until.append(next_infra_state)
             time.sleep(max(min(sleep_until) - time.monotonic(), 0.1))
 
@@ -216,7 +272,61 @@ class FactoryBDummyGenerator:
         return round(baseline + self.rng.uniform(-jitter, jitter), 2)
 
     def _anomaly_score(self) -> float:
-        return round(self.rng.uniform(0.35, 0.75), 4)
+        return self.rng.randint(5, 8) / 10
+
+    def _ai_result(self, event: str | None) -> dict[str, Any]:
+        result = {
+            "sample_count": 1,
+            "fire_score": 0.0,
+            "fall_score": 0.0,
+            "bend_score": 0.0,
+            "abnormal_sound": "none",
+        }
+        if not event:
+            return result
+
+        score_fields = ["fire_score", "fall_score", "bend_score"]
+        selected = self.rng.sample(score_fields, self.rng.randint(1, 2))
+        for field in selected:
+            result[field] = self._anomaly_score()
+        result["abnormal_sound"] = "brief lab impact"
+        return result
+
+    def _apply_sensor_event(self, sensor: dict[str, Any], event: str) -> None:
+        if event == "temperature_high":
+            sensor["temperature_celsius_avg"] = round(self.rng.uniform(33.0, 36.5), 2)
+        elif event == "humidity_high":
+            sensor["humidity_percent_avg"] = round(self.rng.uniform(72.0, 82.0), 2)
+        elif event == "pressure_high":
+            sensor["pressure_hpa_avg"] = round(self.rng.uniform(1034.0, 1046.0), 2)
+        elif event == "pressure_low":
+            sensor["pressure_hpa_avg"] = round(self.rng.uniform(978.0, 988.0), 2)
+
+    def _apply_infra_event(
+        self,
+        nodes: list[dict[str, Any]],
+        workloads: list[dict[str, Any]],
+        devices: dict[str, Any],
+        event: str | None,
+        timestamp: str,
+    ) -> None:
+        if event == "storage_warning":
+            nodes[-1]["disk_usage_percent"] = round(self.rng.uniform(76.0, 84.0), 2)
+        elif event == "device_unavailable":
+            device = self.rng.choice(["camera", "microphone"])
+            devices[device] = {"available": False, "last_seen_at": timestamp}
+        elif event == "pods_partial" and workloads:
+            workloads[-1]["ready"] = False
+            workloads[-1]["status"] = "CrashLoopBackOff"
+            workloads[-1]["restart_count"] = self.rng.randint(1, 4)
+        elif event == "nodes_partial" and nodes:
+            nodes[-1]["ready"] = False
+            nodes[-1]["network_reachability"] = "not_ready"
+
+    def _pipeline_gap_seconds(self, event: str | None) -> float | None:
+        if event == "pipeline_warning_gap":
+            return self.rng.uniform(45.0, 55.0)
+        return None
 
     def _node(self, node_id: str, role: str, cpu: float, memory: float, disk: float) -> dict[str, Any]:
         return {
