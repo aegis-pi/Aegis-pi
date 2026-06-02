@@ -20,6 +20,8 @@
 원본: `docs/issues/troubleshooting-wiki-curation.md`
 
 - [x] Troubleshooting Wiki/Issue 리포트 정리 완료
+- [x] RiskAlertDispatcher Lambda pipeline 구현/배포/검증 및 `docs/ops/31_risk_alert_dispatcher.md` 운영 문서 추가
+- [x] CloudInfraSlowCollector EKS access entry 보정 및 cloud slow collector error alert grouping 적용
 
 ## M0. `factory-a` Safe-Edge 기준선 복구
 

@@ -1,7 +1,7 @@
 # Monitoring Dashboard 화면 계획
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-06-02
 
 ## 목적
 
@@ -67,7 +67,8 @@ Node Exporter Full 1860
 - 현재 화면은 `factory-a` 단일 공장 운영용이다.
 - Grafana dashboard 등록은 사용자가 UI에서 수행한다.
 - 별도 Web dashboard는 Data / Dashboard VPC 확장 단계에서 다룬다.
-- 멀티 공장 비교 화면은 AWS Hub/Risk Twin 단계에서 다룬다.
+- 멀티 공장 비교 화면은 AWS Hub/Risk Twin 단계에서 다룬다. 2026-06-02 기준 해당 화면의 기본 read model은 DynamoDB `FACTORY#{factory_id}/LATEST`, `GRAPH#5M`, `CLOUD#infra/LATEST`다.
+- Slack risk alert는 Dashboard 화면이 아니라 운영 알림 채널이다. 필요 시 Dashboard는 DynamoDB `ALERT#{scope}`를 alert cooldown 상태로만 참고한다.
 
 ## 장애 테스트 시 확인할 화면
 

@@ -1,7 +1,7 @@
 # Monitoring Dashboard 요구사항
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-06-02
 
 ## 목적
 
@@ -75,6 +75,8 @@ is_danger -> 감지된 소리 레이블 또는 이상 소음
 - AWS Hub의 멀티 공장 Risk Twin dashboard와 혼동하지 않는다.
 - 후속 사용자 대시보드는 Tailscale 접근이 아니라 1번 Data / Dashboard VPC의 ALB/WAF/Auth 뒤에서 제공한다.
 - 후속 Dashboard Web/API는 Spoke K3s, ArgoCD, Control / Management VPC의 EKS API, Tailscale 관리망을 직접 조회하지 않고 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg를 조회한다.
+- 2026-06-02 기준 후속 Dashboard Web/API가 사용할 cloud infra 현재 상태는 DynamoDB `CLOUD#infra/LATEST`를 우선 조회한다.
+- Risk alert 상태는 Slack 운영 알림이 1차 채널이며, 중복 제어 상태는 DynamoDB `ALERT#{scope}` item으로 유지된다. Dashboard 화면에 alert history를 표시할 경우 이 item은 장기 이력이 아니라 cooldown/dedupe 상태임을 전제로 한다.
 
 후속 계획:
 

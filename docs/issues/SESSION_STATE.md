@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-05-29
+기준일: 2026-06-02
 
 ## 목적
 
@@ -69,6 +69,8 @@
 | M5 | Issue 7 - 데이터 플레인 연결 확인 (S3 적재) | 완료 | `docs/issues/M5_vm-spoke-expansion.md` |
 | M6 | Issue 1 - Lambda Risk 계산 로직 | 완료 | `docs/issues/M6_risk-twin-dashboard.md` |
 | Daily Report | Reporting stack 로컬/AWS 수동 실행 검증 | 완료 | `docs/ops/24_daily_factory_report.md` |
+| Data Pipeline | CloudInfraFast/SlowCollector read model | 완료 | `docs/ops/29_cloud_infra_metrics_pipeline_plan.md` |
+| Data Pipeline | RiskAlertDispatcher S3 processed alert pipeline | 완료 | `docs/ops/31_risk_alert_dispatcher.md` |
 
 현재 바로 이어서 할 이슈/작업:
 
@@ -76,7 +78,8 @@
 M6 Issue 2~4 - runtime-config 적용, 온도/습도 기준값 계산 연결, Risk Twin 출력 구조 구현
 Daily Factory Report 고도화 - S3 read 병렬화/state_snapshot 축소, generation metadata 비용 관측 필드 추가, CloudWatch 기반 reporting pipeline health 보조 조회
 Dashboard page 및 Dashboard VPC - 별도 담당 범위. 이 repo는 DynamoDB/S3 processed read model과 Risk 계약을 제공
-factory-a 운영 복구 - 2026-05-28T07:54Z 이후 factory-a IoT 입력이 중단된 상태다. data-plane Pod/Secret/outbox/publisher 재확인이 필요하다.
+RiskAlertDispatcher 운영 안정화 - 실제 Slack 운영 전 webhook rotate, 필요 시 알림 reason label 한글화/그룹핑 추가
+factory-a 운영 복구 - 현재 최신 raw/processed 상태를 먼저 재확인한 뒤 data-plane Pod/Secret/outbox/publisher를 점검한다.
 ```
 
 ## 다음 세션 시작 지점
@@ -109,6 +112,8 @@ scripts/destroy/destroy-hub.sh <MFA_OTP>
 Hub 상태와 무관하게 다음 구현 작업은 M6 Risk 데이터 계약 고도화와 Daily Factory Report 성능/관측성 개선이다. Daily report는 `apps/daily-report-generator/`와 `infra/reporting/` 로컬 구현, Bedrock Sonnet 실호출, 24시간 `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. 2026-05-28 최종 검증에서는 `manual-factory-report-20260528T064840Z`가 `SUCCEEDED`였고, `report.md`의 핵심 지표/데이터 수집/Risk Score/센서 및 AI 이벤트/인프라 상태/주요 이벤트/확인 필요 항목 표와 분석 문단을 확인했다. 검증 후 reporting stack은 `destroy-reporting.sh`로 삭제했고 S3 `processed/` 입력과 `reports/daily/` 출력은 보존한다.
 
 2026-05-29에는 DataProcessor freshness refresh를 배포했다. `AEGIS-Schedule-DataProcessorRefresh1m`가 `AEGIS-Lambda-DataProcessor`를 1분마다 `action=refresh_pipeline_status`로 호출한다. 이 경로는 새 IoT 메시지가 없는 factory도 DynamoDB LATEST의 `pipeline_status`와 `risk`를 현재 시각 기준으로 재계산하고, HISTORY#STATE와 S3 `state_snapshot`을 남긴다.
+
+2026-06-02에는 RiskAlertDispatcher를 data-pipeline에 포함해 배포/검증했다. `AEGIS-Lambda-RiskAlertDispatcher`는 S3 `processed/{factory}/state_snapshot/`와 `processed/cloud_infra/{fast,slow}/` ObjectCreated 이벤트를 받아 warning/danger 조건을 평가하고, DynamoDB `ALERT#{scope}` cooldown/dedupe 후 Slack으로 한글 알림을 보낸다. Slack webhook은 cloud/factory-a/factory-b/factory-c 별도 Secrets Manager secret으로 라우팅한다. URL 값은 repo에 저장하지 않는다. CloudInfraSlowCollector의 EKS Kubernetes API 401 문제는 EKS access entry 적용으로 해결했고, collector 오류가 있을 때 cloud slow unknown section 알림은 대표 collector error 1건으로 묶는다.
 
 ## 2026-05-27 Hub Cost Optimization 상태
 
@@ -182,7 +187,7 @@ Lambda:
 ## 현재 큰 상태
 
 ```text
-현재 단계: M6 Risk 데이터 계약 고도화 및 MVP Daily Factory Report 검증 완료, DataProcessor freshness refresh 배포 완료 상태 (2026-05-29)
+현재 단계: M6 Risk 데이터 계약 고도화 및 MVP Daily Factory Report 검증 완료, DataProcessor freshness refresh/CloudInfra collectors/RiskAlertDispatcher 배포 완료 상태 (2026-06-02)
 
 완료: M3 Issue 1~5 배포 파이프라인 전체
 완료: M4 Issue 1~5/8 raw 데이터 플레인
@@ -213,6 +218,14 @@ Lambda:
   - 2026-05-29 검증: factory-a stale LATEST가 refresh 후 pipeline_status critical, risk.score 0, risk.level danger로 갱신됨
   - 단위 테스트: apps/data-processor/tests/test_risk.py
   - 남은 보강: runtime-config.yaml 적용, risk_enabled/override 반영, Risk Twin 공식 출력 구조
+
+완료: Data-pipeline CloudInfra/RiskAlertDispatcher 운영 경로
+  - CloudInfraFastCollector1m: ECS/ALB/Lambda/DynamoDB/Scheduler/factory freshness -> DynamoDB CLOUD#infra/LATEST.fast + S3 processed/cloud_infra/fast
+  - CloudInfraSlowCollector5m: EKS/Kubernetes/ArgoCD/S3 freshness -> DynamoDB CLOUD#infra/LATEST.slow + S3 processed/cloud_infra/slow
+  - SlowCollector EKS access entry: AEGIS-IAMRole-Lambda-CloudInfraSlowCollector, AmazonEKSAdminViewPolicy, cluster scope
+  - RiskAlertDispatcher: S3 processed ObjectCreated trigger, DynamoDB ALERT# cooldown/dedupe, Slack cloud/factory별 webhook routing
+  - Slack message format: 한글 템플릿 + 상하단 구분선
+  - 보안 기준: webhook URL은 repo/Terraform state에 저장하지 않고 Secrets Manager value로만 관리
 
 완료: MVP Daily Factory Report AWS 수동 실행 검증
   - python -m compileall -q apps/daily-report-generator 통과
@@ -314,9 +327,9 @@ Hub-only 삭제/재생성 운영 순서:
 보류: EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 상태: 2026-05-29 기준 Foundation/IoT/data-pipeline 리소스 활성. foundation S3/ECR/DynamoDB, IoT Rule 3개, Lambda data processor, DataProcessorRefresh1m Scheduler, GraphAggregator5m Scheduler, `factory-a/b/c` IoT Thing/Policy/certificate, K3s IoT Secret 활성 상태. Hub EKS/Admin UI는 build/destroy로 재생성 가능하다. AMP workspace는 삭제 완료. Hub NAT Gateway는 Azone 단일 NAT로 전환 완료.
+AWS 실제 리소스 상태: 2026-06-02 기준 Foundation/IoT/data-pipeline 리소스 활성. foundation S3/ECR/DynamoDB, IoT Rule 3개, Lambda DataProcessor/GraphAggregator5m/CloudInfraFastCollector/CloudInfraSlowCollector/RiskAlertDispatcher, Scheduler 4개, S3 processed alert trigger, SlowCollector EKS access entry, Slack webhook secret metadata, `factory-a/b/c` IoT Thing/Policy/certificate, K3s IoT Secret 활성 상태. Hub EKS/Admin UI는 build/destroy로 재생성 가능하다. AMP workspace는 삭제 완료. Hub NAT Gateway는 Azone 단일 NAT로 전환 완료.
 Terraform state: infra/hub apply 완료, infra/foundation apply 완료, infra/data-pipeline apply 완료
-다음 작업 우선순위: daily factory report 검증/AWS 실행 완료 후 M6 Risk Twin/Dashboard 구현.
+다음 작업 우선순위: M6 Risk Twin read model/runtime-config 연결, factory-a 최신 data-plane 상태 재확인, Daily Factory Report 고도화, RiskAlertDispatcher 운영 문구/secret rotation 보강.
 ```
 
 ## 지금까지 완료한 일

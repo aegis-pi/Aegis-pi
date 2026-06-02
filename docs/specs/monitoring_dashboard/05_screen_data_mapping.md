@@ -1,7 +1,7 @@
 # Risk Twin Web Screen Data Mapping
 
 상태: source of truth
-기준일: 2026-05-29
+기준일: 2026-06-02
 
 ## 목적
 
@@ -16,11 +16,14 @@
 | `DynamoDB LATEST` | `AEGIS-DynamoDB-FactoryStatus` | 공장별 현재 상태, 카드, 현재 요약 |
 | `DynamoDB GRAPH#5M` | `AEGIS-DynamoDB-FactoryStatus` | Safety/Risk, 환경, AI score, 노드 CPU/memory/disk 그래프 기본 read model |
 | `DynamoDB HISTORY#STATE` | `AEGIS-DynamoDB-FactoryStatus` | 상세 snapshot, 상태 변화 timeline, graph drill-down |
+| `DynamoDB CLOUD#infra/LATEST` | `AEGIS-DynamoDB-FactoryStatus` | Cloud infra 현재 상태 |
+| `DynamoDB ALERT#` | `AEGIS-DynamoDB-FactoryStatus` | Slack alert cooldown/dedupe 상태 |
 | `S3 processed` | `processed/*` | 상세 이력, 리포트, 장기 조회 |
 | `S3 processed_agg` | `processed_agg/*` | 5분 graph aggregate 장기 보조 조회 |
 | `S3 raw` | `raw/*` | 원본 확인, 감사, 재처리 |
 
 MVP 기본 화면은 DynamoDB만으로 그린다. S3는 상세/감사/장기 이력에서만 조회한다.
+Cloud infra card/panel은 CloudWatch/EKS/Kubernetes API를 직접 반복 조회하지 않고 `CLOUD#infra/LATEST`를 읽는다. Alert history를 화면에 노출할 경우 `ALERT#` item은 장기 이력이 아니라 cooldown/dedupe state라는 점을 UI에 반영한다.
 
 ## DynamoDB Key 기준
 
@@ -49,6 +52,20 @@ GRAPH#5M:
 ```text
 pk = FACTORY#{factory_id}
 sk = GRAPH#5M#{bucket_start}
+```
+
+CLOUD#infra:
+
+```text
+pk = CLOUD#infra
+sk = LATEST
+```
+
+ALERT#:
+
+```text
+pk = ALERT#{scope}
+sk = {severity}#{reason}#{status}
 ```
 
 timestamp는 UTC ISO 8601 문자열을 사용한다. lexicographical sort가 시간순과 같아야 하므로 아래 형식을 사용한다.

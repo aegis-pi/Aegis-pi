@@ -6,7 +6,7 @@
 
 | 파일 | 내용 |
 | --- | --- |
-| `00_current_architecture.md` | 현재 구축된 `factory-a` Safe-Edge 로컬 기준선 |
+| `00_current_architecture.md` | 현재 구축된 `factory-a` Safe-Edge 로컬 기준선, Hub/data-pipeline read model, Risk alert pipeline |
 | `01_target_architecture.md` | AWS Hub, Dashboard VPC, 멀티 Spoke 목표 구조 |
 | `02_cloud_expansion_drawio_guide.md` | 클라우드 확장 구조를 draw.io 다이어그램으로 작성하기 위한 가이드 |
 

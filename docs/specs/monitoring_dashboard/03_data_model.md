@@ -1,7 +1,7 @@
 # Monitoring Dashboard Data Model
 
 상태: source of truth
-기준일: 2026-04-28
+기준일: 2026-06-02
 
 ## 목적
 
@@ -132,7 +132,19 @@ SensorObservation
 DeviceStatus
 PipelineStatus
 RiskState
+CloudInfraStatus
+AlertDedupeState
 RecentLog
 ```
 
 현재 `factory-a` dashboard에서는 위 후속 모델을 사용하지 않는다.
+
+후속 Dashboard Web/API의 현재 source of truth:
+
+| 모델 | 기본 저장소 |
+| --- | --- |
+| `FactorySummary`, `RiskState`, `PipelineStatus` | DynamoDB `FACTORY#{factory_id}/LATEST` |
+| 최근 그래프 | DynamoDB `GRAPH#5M` |
+| Cloud infra status | DynamoDB `CLOUD#infra/LATEST` |
+| Alert cooldown/dedupe | DynamoDB `ALERT#{scope}` |
+| 상세/감사/리포트 입력 | S3 `processed/`, `processed_agg/` |

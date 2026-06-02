@@ -1,7 +1,7 @@
 # Requirements Definition Traceability
 
 상태: source of truth
-기준일: 2026-05-29
+기준일: 2026-06-02
 
 ## 목적
 
@@ -95,6 +95,7 @@
 | DEC-23 | Tailscale은 MVP Hub-Spoke 제어망으로 유지한다 | Site-to-Site VPN, TGW, Direct Connect, WireGuard보다 MVP 복잡도가 낮다 | 전용망을 즉시 구현 | `docs/planning/12_two_vpc_mvp_architecture_decision.md`, `docs/ops/20_tailscale_hub_spoke_runbook.md` |
 | DEC-24 | WAF/Cognito/OIDC, 장기 분석, 별도 이벤트 파이프라인은 MVP 후속으로 둔다 | MVP 핵심 검증 범위를 데이터 수집, Risk, 관제, 배포, 일일 운영 보고서 초안에 집중한다 | 모든 운영 자동화와 보안 기능을 MVP에 포함 | `docs/product/00_mvp_scope.md`, `docs/ops/21_hub_admin_ui_ingress.md` |
 | DEC-25 | Bedrock 기반 factory별 일일 운영 보고서 초안 생성을 MVP에 포함한다 | 데이터 플레인과 Risk/Dashboard의 운영 가치를 설명하고, 모델/설정 업데이트 후보를 찾는 피드백 루프를 만든다 | S3 raw 원본 직접 LLM 분석, 전체 공장 통합 보고서, DOCX/PDF 자동 생성 | `docs/planning/17_llm_daily_factory_report_plan.md`, `docs/product/00_mvp_scope.md` |
+| DEC-26 | S3 processed 기반 RiskAlertDispatcher를 MVP 운영 알림 경로로 둔다 | Dashboard를 계속 보고 있지 않아도 warning/danger 상태를 Slack으로 받을 수 있어야 한다 | Slack webhook URL을 repo/Terraform state에 저장, collector가 직접 Slack 호출 | `docs/ops/31_risk_alert_dispatcher.md`, `docs/ops/23_data_pipeline.md` |
 
 ## 요구사항 정의
 
@@ -137,9 +138,9 @@
 | AI snapshot 보존 | 24시간 | 이미지 스냅샷이 로컬 디스크를 장기 점유하지 않아야 한다. | cleanup sidecar와 purge 결과 확인 | `docs/ops/08_data_retention.md` |
 | failover 관측 bucket | 10초/1초 | 장애 전환 중 데이터 공백과 중복 write를 측정할 수 있어야 한다. | InfluxDB bucket count 분석 | `docs/ops/09_failover_failback_test_results.md` |
 | 장애 테스트 초기 판정 보류 | 5분 | 일시적인 Ready/Running 흔들림을 성공으로 오판하지 않아야 한다. | 장애 테스트 체크리스트 확인 | `docs/ops/03_test_checklist.md` |
-| Hub active 고정 비용 | 약 $0.3606/hour | MVP Hub 운영 비용을 설명 가능해야 한다. | 비용 baseline 재계산 | `docs/ops/15_aws_cost_baseline.md` |
-| Hub active 24시간 비용 | 약 $8.65/day | 단기 테스트 운영 비용을 예측할 수 있어야 한다. | 비용 baseline 재계산 | `docs/ops/15_aws_cost_baseline.md` |
-| Hub active 월 비용 | 약 $263.24/730h | 상시 운영 비용 규모를 설명 가능해야 한다. | 비용 baseline 재계산 | `docs/ops/15_aws_cost_baseline.md` |
+| Hub active 고정 비용 | 최신값은 cost baseline 참조 | MVP Hub 운영 비용을 설명 가능해야 한다. | 비용 baseline 재계산 | `docs/ops/15_aws_cost_baseline.md` |
+| Hub active 24시간 비용 | 최신값은 cost baseline 참조 | 단기 테스트 운영 비용을 예측할 수 있어야 한다. | 비용 baseline 재계산 | `docs/ops/15_aws_cost_baseline.md` |
+| Hub active 월 비용 | 최신값은 cost baseline 참조 | 상시 운영 비용 규모를 설명 가능해야 한다. | 비용 baseline 재계산 | `docs/ops/15_aws_cost_baseline.md` |
 | destroy 이후 고정 비용 | $0.0000/hour | 테스트 종료 후 비용을 제거할 수 있어야 한다. | destroy-all 후 리소스 조회 | `docs/ops/15_aws_cost_baseline.md` |
 
 ### 업무/사용자 요구사항
@@ -165,6 +166,8 @@
 | FR-07 | Hub ArgoCD는 `factory-a/b/c` Spoke의 Edge data-plane workload와 공통 구성요소를 공장별 값으로 배포할 수 있어야 한다. | DEC-02, DEC-17 |
 | FR-08 | Daily reporting pipeline은 S3 `processed/`의 `factory_state`, `risk_score`, `infra_state`를 factory/hour 단위로 집계해 `factory-daily-summary.json`과 `report-context.json`을 생성해야 한다. | DEC-25 |
 | FR-09 | `GenerateFactoryReport`는 `report-context.json`만 Bedrock 입력으로 사용해 한국어 Markdown 보고서 초안을 생성하고, 저장 전 factory ID/date/핵심 수치 invariant를 검증해야 한다. | DEC-25 |
+| FR-10 | RiskAlertDispatcher는 S3 `processed/{factory}/state_snapshot/`와 `processed/cloud_infra/{fast,slow}/` snapshot에서 warning/danger 조건을 판단하고 cloud/factory별 Slack webhook으로 알림을 전송해야 한다. | DEC-26 |
+| FR-11 | RiskAlertDispatcher는 DynamoDB `ALERT#{scope}` item으로 cooldown/dedupe를 적용해 동일 조건 반복 알림을 억제해야 한다. | DEC-26 |
 
 ### 비기능 요구사항
 
@@ -178,6 +181,8 @@
 | NFR-06 | 로컬 저장소는 무한 증가하지 않도록 보존 정책을 가져야 한다. | InfluxDB 1일, AI snapshot 24시간 cleanup | DEC-21 |
 | NFR-07 | 장애 테스트 결과는 데이터 공백, failover/failback 시간, 중복 write 가능성을 측정 가능해야 한다. | 1초/10초 bucket 분석 | DEC-19 |
 | NFR-08 | 일일 보고서는 원본 raw payload 전체를 LLM prompt에 넣지 않고 compact context를 사용해야 한다. | `MAX_CONTEXT_BYTES=120000`, factory별 token target 8k~15k | DEC-25 |
+| NFR-09 | Slack webhook URL은 repo, 문서, Terraform 변수, Terraform state, 로그에 노출되지 않아야 한다. | Secrets Manager value + 로컬 `.secrets/` 파일, 문서에는 secret name만 기록 | DEC-26 |
+| NFR-10 | Cloud slow collector 오류가 하나의 원인에서 발생하면 같은 snapshot에서 파생 unknown 알림을 여러 개 보내지 않아야 한다. | collector error 대표 알림 1건, 독립 storage/EKS active 이상은 별도 유지 | DEC-26 |
 | NFR-09 | factory별 보고서 생성 실패는 다른 factory 보고서 생성을 막지 않아야 한다. | Step Functions Map branch 단위 실패 격리 | DEC-25 |
 
 ### 아키텍처/제약 요구사항

@@ -1,7 +1,7 @@
 # 데모 시나리오
 
 상태: source of truth
-기준일: 2026-06-01
+기준일: 2026-06-02
 
 ## 목적
 
@@ -17,7 +17,7 @@ Longhorn storage 확인
 worker2 장애 -> worker1 failover -> worker2 failback 확인
 ```
 
-AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, Grafana, AWS Load Balancer Controller, Admin UI HTTPS Ingress, Foundation S3/ECR/DynamoDB, data-pipeline IoT Rule/Lambda/Scheduler, `factory-a/b/c` IoT Thing/Policy/K3s Secret, Hub IRSA S3 권한은 build/등록 스크립트로 재생성/검증 가능하다. Hub Prometheus Agent와 Grafana AMP datasource는 active 구성에서 제거하고 이력만 보존한다. 현재 Hub-only 데모 준비 순서는 `scripts/build/build-hub.sh` 이후 필요한 UI 연결과 `scripts/build/register-spoke-factory-a.sh`, `scripts/build/register-spoke-factory-b.sh`, `scripts/build/register-spoke-factory-c.sh`를 단계별 실행하는 방식이다. `factory-b/c` raw/processed 수집과 DynamoDB/S3 read model 데모는 가능하고, Risk Twin 통합 화면은 후속 데모다.
+AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, Grafana, AWS Load Balancer Controller, Admin UI HTTPS Ingress, Foundation S3/ECR/DynamoDB, data-pipeline IoT Rule/Lambda/Scheduler/RiskAlertDispatcher, `factory-a/b/c` IoT Thing/Policy/K3s Secret, Hub IRSA S3 권한은 build/등록 스크립트로 재생성/검증 가능하다. Hub Prometheus Agent와 Grafana AMP datasource는 active 구성에서 제거하고 이력만 보존한다. 현재 Hub-only 데모 준비 순서는 `scripts/build/build-hub.sh` 이후 필요한 UI 연결과 `scripts/build/register-spoke-factory-a.sh`, `scripts/build/register-spoke-factory-b.sh`, `scripts/build/register-spoke-factory-c.sh`를 단계별 실행하는 방식이다. `factory-b/c` raw/processed 수집, DynamoDB/S3 read model, cloud infra collector, S3 processed 기반 Slack alert 데모는 가능하고, Risk Twin 통합 화면은 후속 데모다.
 
 ## 데모 순서
 
@@ -90,6 +90,21 @@ docs/ops/09_failover_failback_test_results.md
 - LAN 제거와 k3s-agent 중지 테스트에서 failover/failback이 성공했다.
 - AI snapshot PVC 제거 후 Longhorn Multi-Attach 없이 AI가 worker1로 정상 failover됐다.
 - 데이터 공백과 중복 write 후보도 측정했다.
+
+### 6. Data Pipeline / Risk Alert 확인
+
+보여줄 것:
+
+```text
+docs/ops/23_data_pipeline.md
+docs/ops/29_cloud_infra_metrics_pipeline_plan.md
+docs/ops/31_risk_alert_dispatcher.md
+```
+
+전달 메시지:
+- `factory-a/b/c`와 cloud infra 상태는 DynamoDB/S3 read model로 저장된다.
+- S3 `processed/`에 warning/danger snapshot이 생성되면 RiskAlertDispatcher가 DynamoDB cooldown/dedupe를 적용하고 Slack으로 한글 알림을 보낸다.
+- Slack webhook URL은 repo에 저장하지 않고 Secrets Manager에서 읽는다.
 
 ## 핵심 수치
 

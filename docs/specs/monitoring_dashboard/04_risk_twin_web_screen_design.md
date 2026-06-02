@@ -1,7 +1,7 @@
 # Risk Twin Web Screen Design
 
 상태: source of truth
-기준일: 2026-05-29
+기준일: 2026-06-02
 
 ## 목적
 
@@ -17,6 +17,7 @@
 | Factory Overview | 이 공장은 현재 왜 위험한가? |
 | Environment | 센서/AI 값이 어떻게 변하고 있는가? |
 | Infrastructure | 데이터와 노드는 믿을 수 있는가? |
+| Cloud Infra | Hub/backend/data-pipeline은 정상인가? |
 | Timeline | 언제부터 어떤 일이 있었는가? |
 
 ## 전체 화면 구조
@@ -43,7 +44,11 @@ Risk Twin Web은 MVP 기준으로 두 단계 화면을 가진다.
 | 현재 상태 카드 | `DynamoDB LATEST` |
 | Risk / 환경 그래프 | `DynamoDB GRAPH#5M` |
 | 노드/워크로드 그래프 | `DynamoDB GRAPH#5M` |
+| Cloud infra 현재 상태 | `DynamoDB CLOUD#infra/LATEST` |
+| Slack alert cooldown 상태 | `DynamoDB ALERT#` |
 | 상세 이력/감사 | `DynamoDB HISTORY#STATE`, `S3 processed`, 필요 시 `S3 raw` |
+
+`ALERT#` item은 장기 alert history가 아니라 RiskAlertDispatcher의 cooldown/dedupe state다. 화면에 표시할 경우 “최근 발송/재전송 제한 상태”로만 사용한다.
 
 ## 1. Fleet Overview
 

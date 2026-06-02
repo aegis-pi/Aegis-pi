@@ -1,7 +1,7 @@
 # Monitoring Dashboard API Spec
 
 상태: draft
-기준일: 2026-06-01
+기준일: 2026-06-02
 
 ## 목적
 
@@ -50,6 +50,7 @@ GET /api/systems/abnormal
 GET /api/logs/recent
 GET /api/pipeline/status
 GET /api/cloud-infra/status
+GET /api/alerts/status
 ```
 
 예상 접근 경로:
@@ -81,6 +82,16 @@ GET /api/cloud-infra/status
 ```
 
 UI가 실제로 쓰는 card/summary 필드가 안정화되면 backend에서 compact response를 추가할 수 있지만, collector가 만든 `LATEST`를 source of truth로 둔다.
+
+Alert status:
+
+```text
+GET /api/alerts/status
+  -> DynamoDB Query/GetItem pk=ALERT#{scope}
+  -> RiskAlertDispatcher cooldown/dedupe state 조회
+```
+
+이 API는 필수 MVP 화면 API가 아니라 운영 보조 후보이다. 실제 Slack 전송 내역의 장기 이력은 별도 event store가 없으며, `ALERT#` item은 현재 cooldown/dedupe state만 의미한다.
 
 목표 반영 지연:
 

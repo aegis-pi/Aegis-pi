@@ -1,7 +1,7 @@
 # Factory-A 현재 상태
 
 상태: source of truth
-기준일: 2026-05-29
+기준일: 2026-06-02
 
 ## 목적
 
@@ -110,6 +110,11 @@ factory-a IoT data-plane 입력은 2026-05-28T07:54Z 이후 중단된 상태로 
 DataProcessor 1분 freshness refresh 배포 후 DynamoDB LATEST는 pipeline_status critical, risk.score 0, risk.level danger로 갱신된다.
 마지막 raw infra_state는 node_summary.ready=3/3이었으나, 과거 processed/LATEST에는 구형 normalizer 결과로 nodes_ready=0/3이 남아 있다.
 factory-a가 다시 infra_state를 보내면 현재 normalizer 기준으로 LATEST.infra_state가 덮어써진다.
+
+2026-06-02:
+DataProcessorRefresh1m, CloudInfra collectors, RiskAlertDispatcher는 data-pipeline 생명주기에 포함되어 동작한다.
+factory-a 입력 중단 여부는 다음 운영 시작 시 DynamoDB LATEST와 S3 raw/processed 최신 timestamp를 먼저 재확인한다.
+warning/danger state_snapshot이 생성되면 RiskAlertDispatcher가 factory-a Slack webhook으로 알림을 보낼 수 있다.
 ```
 
 ## 시작 시 확인 명령

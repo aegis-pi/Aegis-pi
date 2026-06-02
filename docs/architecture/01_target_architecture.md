@@ -1,7 +1,7 @@
 # 목표 확장 아키텍처
 
 상태: draft
-기준일: 2026-05-29
+기준일: 2026-06-02
 
 ## 목적
 
@@ -9,7 +9,7 @@
 
 ## 최신 기준
 
-2026-05-29 기준 확정된 클라우드 리소스 배치와 VPC 명명은 `docs/planning/15_cloud_architecture_final.md`를 source of truth로 한다.
+2026-06-02 기준 확정된 클라우드 리소스 배치와 VPC 명명은 `docs/planning/15_cloud_architecture_final.md`를 source of truth로 한다.
 
 이 문서는 기존 목표 Hub/Spoke 구조를 설명하는 보조 문서다. Dashboard page와 Dashboard VPC 구현은 별도 담당 범위이며, 이 repo에서는 Dashboard가 조회할 DynamoDB/S3 processed read model과 Risk output 계약을 유지한다. 최신 기준의 VPC 경계는 아래와 같다.
 
@@ -29,6 +29,8 @@ M1 Issue 0~10/12 Hub EKS/VPC/namespace/ArgoCD bootstrap, foundation, IoT, Admin 
 M4 data-pipeline Lambda/DynamoDB/S3 processed 검증
 M5 factory-b/c 테스트베드 Spoke 확장과 S3 raw/processed 검증
 M6 Issue 1 risk-v0.2.0 Risk 계산 및 DataProcessor freshness refresh 구현
+CloudInfraFast/SlowCollector read model 구현
+RiskAlertDispatcher S3 processed Slack alert pipeline 구현
 Daily Factory Report 로컬/AWS 수동 실행 검증 후 reporting stack destroy
 ```
 
@@ -93,6 +95,8 @@ Edge input
         -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed
         -> DataProcessorRefresh1m -> stale pipeline_status/risk refresh
         -> GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg
+        -> CloudInfraFast/SlowCollector -> DynamoDB CLOUD#infra/LATEST + S3 processed/cloud_infra
+        -> RiskAlertDispatcher -> DynamoDB ALERT# cooldown/dedupe + Slack alert
     -> Data / Dashboard VPC Web/API
 ```
 
@@ -122,6 +126,7 @@ aegis/factory-c/infra_state
 사용자 대시보드는 Tailscale/VPN 의존 없이 ALB, WAF, Cognito 또는 사내 IdP 인증 뒤에 제공한다.
 
 Dashboard Web/API는 ArgoCD, Tailscale, EKS API 같은 제어 plane에 직접 접근하지 않는다. 데이터 조회는 1번 Data / Dashboard VPC의 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg를 기준으로 한다.
+Cloud infra 현재 상태는 `CLOUD#infra/LATEST`를 읽고, Slack alert cooldown 상태가 필요하면 `ALERT#{scope}`를 보조로 참조한다.
 
 ```text
 1번 Data / Dashboard VPC

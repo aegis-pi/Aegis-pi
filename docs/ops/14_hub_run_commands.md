@@ -1,7 +1,7 @@
 # Hub Run Commands
 
 상태: source of truth
-기준일: 2026-05-29
+기준일: 2026-06-02
 
 ## Hub-only 재시작 실행 순서
 
@@ -17,6 +17,8 @@ scripts/ops/manage-dummy-generators.sh start factory-c
 ```
 
 현재 표준 순서는 Hub -> Admin UI -> factory별 Spoke 등록 -> factory-b/c local dummy generator start다. Hub만 삭제/재생성한 경우 IoT Core Thing/certificate와 Spoke K3s Secret은 다시 만들지 않는다.
+
+data-pipeline은 Hub/Spoke registration과 별도 생명주기다. `scripts/build/build-data-pipe.sh`는 IoT Rule, DataProcessor, GraphAggregator5m, CloudInfraFast/SlowCollector, RiskAlertDispatcher, S3 processed alert trigger, Slack webhook secret metadata를 생성/갱신한다. Slack webhook URL 값은 로컬 `.secrets/` 파일에서 Secrets Manager로 주입하며 명령 출력이나 repo에 남기지 않는다.
 
 개발 중 데이터 수집을 계속 유지하면서 비용만 줄이는 경우에는 아래 Hub-only reconnect 절차를 우선 사용한다.
 
@@ -114,7 +116,7 @@ scripts/destroy/destroy-hub.sh
 
 `stop-dummy-generators.sh`는 Hub가 내려간 뒤에도 factory-b/c worker outbox가 계속 쌓이는 것을 막는다. legacy local publisher unit이 설치돼 있으면 함께 정지하지만, 현재 표준 publish 경로는 K3s `edge-iot-publisher`다. `destroy-hub.sh`는 Hub EKS/VPC/NAT Gateway/node group과 EKS 내부 ArgoCD/Tailscale/ApplicationSet 리소스를 제거한다. Foundation S3/ECR/DynamoDB, IoT 리소스와 Spoke K3s Secret은 별도 삭제 대상이다.
 
-데이터를 계속 쌓는 개발 모드에서는 `stop-dummy-generators.sh`를 실행하지 않는다. 이 경우 Hub ArgoCD self-heal은 멈추지만, 기존 Spoke K3s `edge-iot-publisher`와 data-pipeline이 살아 있으면 IoT Core -> S3 raw -> Lambda -> DynamoDB/S3 processed 흐름은 계속 유지된다. `build-data-pipe.sh`로 배포된 DataProcessorRefresh1m Scheduler가 살아 있으면 새 IoT 메시지가 없는 factory도 DynamoDB LATEST의 `pipeline_status`와 `risk`가 1분 주기로 stale 보정된다.
+데이터를 계속 쌓는 개발 모드에서는 `stop-dummy-generators.sh`를 실행하지 않는다. 이 경우 Hub ArgoCD self-heal은 멈추지만, 기존 Spoke K3s `edge-iot-publisher`와 data-pipeline이 살아 있으면 IoT Core -> S3 raw -> Lambda -> DynamoDB/S3 processed 흐름은 계속 유지된다. `build-data-pipe.sh`로 배포된 DataProcessorRefresh1m Scheduler가 살아 있으면 새 IoT 메시지가 없는 factory도 DynamoDB LATEST의 `pipeline_status`와 `risk`가 1분 주기로 stale 보정된다. CloudInfra collectors와 RiskAlertDispatcher도 data-pipeline이 살아 있는 동안 계속 동작한다.
 
 ## 전체 삭제
 
