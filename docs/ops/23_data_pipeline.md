@@ -1,7 +1,7 @@
 # Data Pipeline 구현 레퍼런스
 
 상태: 구현 기준 source of truth
-기준일: 2026-06-01
+기준일: 2026-06-02
 관련 스펙: `docs/specs/data_storage_pipeline.md`
 
 ---
@@ -15,7 +15,7 @@ Aegis 데이터 파이프라인은 Edge factory에서 발생한 센서·인프�
 - **상세 이력 조회** → DynamoDB HISTORY#STATE
 - **장기 보존·재처리** → S3 processed / raw
 
-2026-06-01 기준 `factory-a/b/c` IoT -> Lambda -> DynamoDB/S3 processed 적재, `risk-v0.2.0` Risk Score 계산, DataProcessor 1분 freshness refresh, GraphAggregator5m의 DynamoDB `GRAPH#5M` 및 S3 `processed_agg` 집계는 검증 완료 상태다. 추가로 CloudInfraFastCollector1m/SlowCollector5m이 `CLOUD#infra/LATEST`, `HISTORY#FAST`, `HISTORY#SLOW`, S3 `processed/cloud_infra/` snapshot을 저장한다. `configs/runtime/runtime-config.yaml`은 아직 Lambda Risk 계산에 연결되지 않았으며, 다음 고도화는 runtime config 기반 weight/threshold/factory override 적용과 Risk Twin read model 안정화다.
+2026-06-02 기준 `factory-a/b/c` IoT -> Lambda -> DynamoDB/S3 processed 적재, `risk-v0.2.0` Risk Score 계산, DataProcessor 1분 freshness refresh, GraphAggregator5m의 DynamoDB `GRAPH#5M` 및 S3 `processed_agg` 집계는 검증 완료 상태다. 추가로 CloudInfraFastCollector1m/SlowCollector5m이 `CLOUD#infra/LATEST`, `HISTORY#FAST`, `HISTORY#SLOW`, S3 `processed/cloud_infra/` snapshot을 저장한다. RiskAlertDispatcher는 S3 `processed/` ObjectCreated 이벤트를 받아 factory state_snapshot 및 cloud infra fast/slow snapshot의 warning/danger 조건을 Slack으로 알린다. `configs/runtime/runtime-config.yaml`은 아직 Lambda Risk 계산에 연결되지 않았으며, 다음 고도화는 runtime config 기반 weight/threshold/factory override 적용과 Risk Twin read model 안정화다.
 
 ---
 
@@ -80,6 +80,27 @@ EventBridge Scheduler (rate 1 minute)
       -> UpdateItem DynamoDB LATEST
       -> PutItem DynamoDB HISTORY#STATE
       -> PutObject S3 processed/{factory_id}/state_snapshot/...
+```
+
+Alert dispatching은 processed snapshot 저장 뒤 S3 event로 동작한다.
+
+```text
+S3 ObjectCreated
+  prefixes:
+    processed/factory-a/state_snapshot/
+    processed/factory-b/state_snapshot/
+    processed/factory-c/state_snapshot/
+    processed/cloud_infra/fast/
+    processed/cloud_infra/slow/
+  -> Lambda: AEGIS-Lambda-RiskAlertDispatcher
+      -> GetObject S3 processed snapshot
+      -> warning/danger rule evaluate
+      -> DynamoDB UpdateItem ALERT#{scope} / {severity}#{reason}#{status}
+         cooldown + stale snapshot dedupe
+      -> Secrets Manager GetSecretValue
+      -> Slack webhook routing
+         cloud-infra -> cloud channel
+         factory-a/b/c -> factory별 channel
 ```
 
 ---
@@ -227,7 +248,14 @@ sk = HISTORY#SLOW#{updated_at}
   - TTL 24시간
   - 5분 slow cloud infra snapshot
 
-HISTORY#STATE, GRAPH#5M, HISTORY#FAST, HISTORY#SLOW 아이템은 ttl 값에 따라 DynamoDB TTL로 자동 삭제된다.
+pk = ALERT#{scope}
+sk = {severity}#{reason}#{status}
+  - TTL 있음
+  - RiskAlertDispatcher cooldown/dedupe 상태
+  - scope 예: cloud-infra, factory-a, factory-b, factory-c
+  - last_source_updated_at보다 오래된 snapshot 또는 cooldown 중인 동일 조건은 Slack 재전송 skip
+
+HISTORY#STATE, GRAPH#5M, HISTORY#FAST, HISTORY#SLOW, ALERT# item은 ttl 값에 따라 DynamoDB TTL로 자동 삭제된다.
 LATEST와 CLOUD#infra/LATEST는 삭제되지 않고 계속 overwrite된다.
 ```
 
@@ -383,8 +411,17 @@ http://prometheus-svc.monitoring.svc.cluster.local:9090
 | EventBridge Scheduler | `AEGIS-Schedule-DataProcessorRefresh1m` | rate(1 minute), DataProcessor freshness refresh 호출 |
 | Scheduler IAM Role | `AEGIS-IAMRole-Scheduler-DataProcessorRefresh` | DataProcessor Lambda InvokeFunction |
 | Lambda Function | `AEGIS-Lambda-GraphAggregator5m` | python3.12, 512MB, timeout 60s |
+| Lambda Function | `AEGIS-Lambda-CloudInfraFastCollector` | python3.12, 1분 cloud infra fast read model |
+| Lambda Function | `AEGIS-Lambda-CloudInfraSlowCollector` | python3.12, 5분 cloud infra slow read model |
+| Lambda Function | `AEGIS-Lambda-RiskAlertDispatcher` | python3.12, S3 processed snapshot warning/danger Slack alert |
 | EventBridge Scheduler | `AEGIS-Schedule-GraphAggregator5m` | rate(5 minutes), GraphAggregator5m 호출 |
+| EventBridge Scheduler | `AEGIS-Schedule-CloudInfraFastCollector1m` | rate(1 minute), FastCollector 호출 |
+| EventBridge Scheduler | `AEGIS-Schedule-CloudInfraSlowCollector5m` | rate(5 minutes), SlowCollector 호출 |
 | CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-GraphAggregator5m` | 보존 30일 |
+| CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-RiskAlertDispatcher` | 보존 30일 |
+| S3 Bucket Notification | `aegis-bucket-data` processed prefixes | RiskAlertDispatcher ObjectCreated trigger |
+| Secrets Manager | `AEGIS/foundation-mvp/risk-alert/slack-webhook-url` | cloud/default Slack webhook URL value, build script가 값 주입 |
+| Secrets Manager | `AEGIS/foundation-mvp/risk-alert/slack-webhook/factory-a,b,c` | factory별 Slack webhook URL value, build script가 값 주입 |
 | DynamoDB Table | `AEGIS-DynamoDB-FactoryStatus` | PAY_PER_REQUEST, PITR 활성화, Streams NEW_AND_OLD_IMAGES |
 | IoT Rule (factory-a) | `AEGIS_IoTRule_factory_a_raw_s3` | S3 + Lambda 액션 |
 | IoT Rule (factory-b) | `AEGIS_IoTRule_factory_b_raw_s3` | S3 + Lambda 액션 |
@@ -413,6 +450,24 @@ http://prometheus-svc.monitoring.svc.cluster.local:9090
 | `EXPECTED_SAMPLE_INTERVAL_SECONDS` | `3` |
 | `AI_SCORE_THRESHOLD` | `0.7` |
 | `S3_OUTPUT_PREFIX` | `processed_agg` |
+
+### RiskAlertDispatcher 환경 변수
+
+| 변수 | 값 (Terraform 주입) |
+|---|---|
+| `DYNAMODB_TABLE_NAME` | `AEGIS-DynamoDB-FactoryStatus` |
+| `ALERT_STATE_TTL_SECONDS` | alert dedupe state TTL seconds |
+| `SLACK_HTTP_TIMEOUT_SECONDS` | Slack webhook HTTP timeout |
+| `SLACK_WEBHOOK_SECRET_CLOUD` | cloud/default Secrets Manager ARN |
+| `SLACK_WEBHOOK_SECRET_FACTORY_A` | factory-a Secrets Manager ARN |
+| `SLACK_WEBHOOK_SECRET_FACTORY_B` | factory-b Secrets Manager ARN |
+| `SLACK_WEBHOOK_SECRET_FACTORY_C` | factory-c Secrets Manager ARN |
+| `COOLDOWN_FACTORY_STATE_SNAPSHOT_WARNING_SECONDS` | factory warning cooldown |
+| `COOLDOWN_FACTORY_STATE_SNAPSHOT_DANGER_SECONDS` | factory danger cooldown |
+| `COOLDOWN_CLOUD_INFRA_FAST_WARNING_SECONDS` | cloud fast warning cooldown |
+| `COOLDOWN_CLOUD_INFRA_FAST_DANGER_SECONDS` | cloud fast danger cooldown |
+| `COOLDOWN_CLOUD_INFRA_SLOW_WARNING_SECONDS` | cloud slow warning cooldown |
+| `COOLDOWN_CLOUD_INFRA_SLOW_DANGER_SECONDS` | cloud slow danger cooldown |
 
 ---
 
@@ -605,8 +660,10 @@ GraphAggregator5m이 DynamoDB `HISTORY#STATE`를 5분 bucket으로 집계한 S3 
 | `LATEST` | factory_state / infra_state 수신 | 3초 / 20초 덮어씀 | 없음 | 최신 전체 상태 |
 | `HISTORY#STATE#{updated_at}` | factory_state / infra_state 수신 또는 1분 refresh | 3초 / 20초 / 1분 | `HISTORY_TTL_HOURS` | LATEST와 같은 구조 + ttl |
 | `GRAPH#5M#{bucket_start}` | GraphAggregator5m 실행 | 5분 | `GRAPH_TTL_HOURS` | 5분 그래프 집계 |
+| `{severity}#{reason}#{status}` under `ALERT#{scope}` | RiskAlertDispatcher alert reserve | event driven | `ALERT_STATE_TTL_SECONDS` | Slack cooldown/dedupe state |
 
 > `pk`는 모두 `FACTORY#{factory_id}` 고정.
+> Cloud infra는 `pk=CLOUD#infra`, alert dedupe는 `pk=ALERT#{scope}`를 사용한다.
 
 ---
 
@@ -737,8 +794,13 @@ Grafana는 내부 관리 UI로 유지하고, 필요 시 CloudWatch datasource �
 | `apps/graph-metrics-aggregator/aggregator/handler.py` | GraphAggregator5m Lambda 핸들러 |
 | `apps/graph-metrics-aggregator/aggregator/metrics.py` | 5분 그래프 집계 item 생성 |
 | `apps/graph-metrics-aggregator/aggregator/dynamo.py` | HISTORY#STATE query, GRAPH#5M put |
+| `apps/cloud-infra-collector/` | CloudInfraFast/SlowCollector Lambda |
+| `apps/risk-alert-dispatcher/` | S3 processed snapshot alert evaluator, DynamoDB dedupe, Slack sender |
 | `infra/data-pipeline/lambda.tf` | DataProcessor Lambda, IAM, CloudWatch, 1분 freshness refresh Scheduler |
 | `infra/data-pipeline/graph_aggregator_lambda.tf` | GraphAggregator5m Lambda와 Scheduler |
+| `infra/data-pipeline/cloud_infra_fast_collector.tf` | CloudInfraFastCollector Lambda, IAM, Scheduler |
+| `infra/data-pipeline/cloud_infra_slow_collector.tf` | CloudInfraSlowCollector Lambda, IAM, EKS access entry, Scheduler |
+| `infra/data-pipeline/risk_alert_dispatcher.tf` | RiskAlertDispatcher Lambda, IAM, S3 notification, Slack secret metadata |
 | `infra/foundation/dynamodb.tf` | DynamoDB 테이블 리소스 |
 | `infra/data-pipeline/iot_rule.tf` | IoT Topic Rule 리소스 |
 
@@ -759,3 +821,11 @@ Grafana는 내부 관리 UI로 유지하고, 필요 시 CloudWatch datasource �
 - `AEGIS-Schedule-DataProcessorRefresh1m`를 배포해 1분마다 DataProcessor Lambda를 `action=refresh_pipeline_status`로 호출하도록 했다.
 - 배포 검증 결과 `factory-a`는 `pipeline_status=critical`, `risk.score=0`, `risk.level=danger`로 갱신됐다.
 - 같은 시점 `factory-b/c`는 최신 메시지가 계속 들어오므로 refresh 후에도 `pipeline_status=normal`, `risk.score=100`을 유지했다.
+
+## 2026-06-02 운영 메모
+
+- RiskAlertDispatcher를 data-pipeline Terraform root와 build/destroy 생명주기에 포함했다.
+- S3 `processed/` ObjectCreated notification은 factory-a/b/c `state_snapshot`과 cloud infra `fast`/`slow` JSON prefix만 Lambda를 호출한다.
+- Slack webhook secret metadata는 Terraform이 관리하고, secret value는 `scripts/build/build-data-pipe.sh`가 로컬 `.secrets/` 파일에서 Secrets Manager로 주입한다. URL 값은 repo와 Terraform state에 저장하지 않는다.
+- CloudInfraSlowCollector의 EKS Kubernetes API 401 원인은 EKS access entry 누락이었다. `AEGIS-IAMRole-Lambda-CloudInfraSlowCollector`에 `AmazonEKSAdminViewPolicy` cluster scope read access를 적용한 뒤 `errors=[]`, nodes/pods/ArgoCD 정상 수집을 확인했다.
+- RiskAlertDispatcher cloud slow rule은 collector error가 있을 때 같은 원인에서 파생된 unknown section 알림을 억제하고 대표 collector error 1건만 전송한다.

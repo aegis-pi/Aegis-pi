@@ -1,7 +1,7 @@
 # DynamoDB Key Model
 
 상태: 운영 확인 기준
-기준일: 2026-06-01
+기준일: 2026-06-02
 
 ## 목적
 
@@ -53,6 +53,7 @@ pk = FACTORY#{factory_id}
 | `FACTORY#factory-b` | Factory B 상태/이력/그래프 |
 | `FACTORY#factory-c` | Factory C 상태/이력/그래프 |
 | `CLOUD#infra` | Cloud infra 상태/이력 read model |
+| `ALERT#{scope}` | RiskAlertDispatcher cooldown/dedupe 상태 |
 
 ## 현재 SK 패턴
 
@@ -63,6 +64,7 @@ pk = FACTORY#{factory_id}
 | `GRAPH#5M#{bucket_start}` | Graph metrics aggregator | `GRAPH_TTL_HOURS` | 5분 단위 그래프/지표 집계 |
 | `HISTORY#FAST#{updated_at}` | CloudInfraFastCollector | 6시간 | Cloud infra 1분 snapshot 이력 |
 | `HISTORY#SLOW#{updated_at}` | CloudInfraSlowCollector | 24시간 | Cloud infra 5분 snapshot 이력 |
+| `{severity}#{reason}#{status}` | RiskAlertDispatcher | `ALERT_STATE_TTL_SECONDS` | Slack alert cooldown/dedupe |
 
 ### LATEST
 
@@ -160,9 +162,56 @@ SlowCollector가 `LATEST.slow`를 갱신한 뒤 `LATEST` snapshot을 복사해 �
 
 Cloud infra history item도 테이블 TTL attribute인 `ttl`로 자동 삭제된다. `CLOUD#infra/LATEST`에는 TTL을 두지 않는다.
 
+## ALERT#{scope}
+
+RiskAlertDispatcher는 같은 테이블을 alert state 저장소로 재사용한다.
+
+```text
+pk = ALERT#{scope}
+sk = {severity}#{reason}#{status}
+```
+
+scope 예시:
+
+| Scope | 의미 |
+| --- | --- |
+| `cloud-infra` | Cloud infra fast/slow alert |
+| `factory-a` | Factory A state_snapshot alert |
+| `factory-b` | Factory B state_snapshot alert |
+| `factory-c` | Factory C state_snapshot alert |
+
+예시:
+
+```text
+pk = ALERT#factory-c
+sk = danger#nodes_all_not_ready#normal
+
+pk = ALERT#cloud-infra
+sk = warning#kubernetes_api_unauthorized#slow
+```
+
+주요 필드:
+
+- `scope`
+- `source_type`
+- `severity`
+- `reason`
+- `status`
+- `last_sent_at`
+- `last_observed_at`
+- `cooldown_until`
+- `last_score`
+- `last_source_key`
+- `last_source_updated_at`
+- `last_slack_status`
+- `last_slack_error`
+- `ttl`
+
+동일 `pk/sk`는 `cooldown_until` 전까지 Slack 재전송을 skip한다. 또한 `last_source_updated_at`보다 오래된 snapshot은 stale로 보고 skip한다. Alert state item은 TTL 대상이며, `LATEST` read model과 달리 장기 보존 목적이 아니다.
+
 ## 실제 조회 샘플
 
-아래는 실제 AWS 테이블에서 확인한 샘플이다. 시간 값은 테이블에 저장된 UTC 문자열이다. Factory 샘플은 2026-05-29 조회 기준이고, Cloud infra 샘플은 2026-06-01 검증 기준이다.
+아래는 실제 AWS 테이블에서 확인한 샘플이다. 시간 값은 테이블에 저장된 UTC 문자열이다. Factory 샘플은 2026-05-29 조회 기준이고, Cloud infra/alert 샘플은 2026-06-02 검증 기준이다.
 
 | PK | LATEST | 최신 HISTORY#STATE 샘플 | 최신 GRAPH#5M 샘플 |
 | --- | --- | --- | --- |
@@ -175,6 +224,13 @@ Cloud infra sample:
 | PK | LATEST | 최신 fast history | 최신 slow history |
 | --- | --- | --- | --- |
 | `CLOUD#infra` | `overall_status=normal`, `fast.errors=[]`, `slow.errors=[]` | `HISTORY#FAST#{updated_at}` | `HISTORY#SLOW#{updated_at}` |
+
+Alert sample:
+
+| PK | SK 예시 | 의미 |
+| --- | --- | --- |
+| `ALERT#cloud-infra` | `warning#kubernetes_api_unauthorized#slow` | Cloud slow Kubernetes API unauthorized alert dedupe |
+| `ALERT#factory-c` | `danger#nodes_all_not_ready#normal` | Factory C danger cause alert dedupe |
 
 공장별 Query count 샘플:
 
@@ -230,6 +286,14 @@ pk = CLOUD#infra
 sk begins_with HISTORY#SLOW#
 ```
 
+Alert dedupe item 조회:
+
+```text
+GetItem
+pk = ALERT#{scope}
+sk = {severity}#{reason}#{status}
+```
+
 특정 시간 범위 조회는 SK가 ISO-8601 UTC 문자열을 포함하므로 `between` 조건을 사용한다.
 
 ## 관련 코드
@@ -242,14 +306,17 @@ sk begins_with HISTORY#SLOW#
 | `apps/graph-metrics-aggregator/aggregator/dynamo.py` | `HISTORY#STATE` query, graph item put |
 | `apps/graph-metrics-aggregator/aggregator/metrics.py` | `GRAPH#5M` item 생성 |
 | `apps/cloud-infra-collector/cloud_infra/dynamo.py` | `CLOUD#infra/LATEST`, `HISTORY#FAST`, `HISTORY#SLOW` 읽기/쓰기 |
+| `apps/risk-alert-dispatcher/alert_dispatcher/dedupe.py` | `ALERT#{scope}` cooldown/dedupe item update |
 | `infra/data-pipeline/cloud_infra_fast_collector.tf` | Fast collector Lambda/Scheduler/IAM |
 | `infra/data-pipeline/cloud_infra_slow_collector.tf` | Slow collector Lambda/Scheduler/IAM/EKS access entry |
+| `infra/data-pipeline/risk_alert_dispatcher.tf` | RiskAlertDispatcher Lambda/S3 trigger/IAM/secret metadata |
 | `docs/ops/23_data_pipeline.md` | 전체 데이터 파이프라인 운영 기준 |
+| `docs/ops/31_risk_alert_dispatcher.md` | alert pipeline 운영 기준 |
 
 ## 주의 사항
 
 - 테이블에는 GSI가 없다. 현재 조회는 `pk`와 `sk` range 조건에 의존한다.
 - `LATEST`는 TTL이 없어 계속 유지된다.
-- `HISTORY#STATE`, `GRAPH#5M`, `HISTORY#FAST`, `HISTORY#SLOW`는 TTL 대상이다. 보존 시간은 item의 `ttl` 값으로 결정된다.
+- `HISTORY#STATE`, `GRAPH#5M`, `HISTORY#FAST`, `HISTORY#SLOW`, `ALERT#` item은 TTL 대상이다. 보존 시간은 item의 `ttl` 값으로 결정된다.
 - Dashboard/API가 전체 공장 목록을 직접 조회해야 한다면 현재 구조에서는 factory id 목록을 별도 설정으로 갖거나, 제한적인 scan 또는 별도 registry item을 추가해야 한다.
 - Cloud infra dashboard/API는 `CLOUD#infra/LATEST`를 읽고, AWS service API를 직접 반복 조회하지 않는다.

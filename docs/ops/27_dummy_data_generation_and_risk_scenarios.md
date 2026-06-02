@@ -1,7 +1,7 @@
 # Dummy Data 생성과 Risk Scenario 운영 기준
 
 상태: 구현 기준 source of truth  
-기준일: 2026-05-29  
+기준일: 2026-06-02
 관련 문서:
 
 - `docs/ops/22_factory_bc_testbed_data_plane.md`
@@ -52,6 +52,10 @@ AWS
 ## 생성 컴포넌트
 
 `factory-b/c`는 실제 센서 대신 VM 로컬 script가 canonical JSON을 만든다. Kubernetes Deployment로 dummy generator를 띄우지 않는다.
+
+현재 표준 운영에서 dummy generator는 **worker VM의 systemd service**로 실행된다. master VM에서 generator를 실행하면 master-local `/var/lib/aegis/outbox`에만 JSON이 생성되고, worker node에 배포된 K3s `edge-iot-publisher`가 읽는 hostPath와 분리된다. 따라서 S3 raw, S3 processed, DynamoDB LATEST/HISTORY 검증 대상은 worker-local outbox에서 생성된 데이터다.
+
+접근 정보는 보안 정보로 취급한다. 문서에는 SSH user, host/IP, password를 기록하지 않고, 운영자는 `scripts/ops/manage-dummy-generators.sh`가 읽는 로컬 env 파일이나 별도 보안 저장소로 관리한다.
 
 | Factory | Generator | 실행 방식 | 기본 profile |
 | --- | --- | --- | --- |
@@ -117,17 +121,67 @@ factory별 baseline 기본값:
 | pressure jitter | 1.5 | 2.0 |
 | abnormal_sound | `brief lab impact` | `intermittent vibration` |
 
-기본 profile은 순수 확률 기반 anomaly가 아니라 `랜덤 간격 + round-robin 이벤트 타입 + 랜덤 값` 구조다. baseline jitter는 매번 유지하고, 이벤트가 due일 때만 sensor spike나 AI score를 주입한다.
+기본 profile은 순수 확률 기반 anomaly가 아니라 `랜덤 간격 + round-robin 이벤트 타입 + 랜덤 값` 구조다. baseline jitter는 매번 유지하고, 이벤트가 due일 때만 sensor spike나 AI score를 주입한다. Sensor spike는 기본 30초 동안 유지해 LATEST 기반 화면에서도 관찰할 수 있게 한다.
 
 | 이벤트 | factory-b stable-lab | factory-c noisy-vm |
 | --- | --- | --- |
 | AI event interval | 25~30분 | 25~30분 |
 | AI event type | `ai_warning` | `ai_warning`, `ai_critical` |
-| AI score | fire/fall/bend 중 1~2개, 0.5~0.8, 0.1 단위 | fire/fall/bend 중 1~3개, 0.5~1.0, 0.1 단위 |
+| AI score | fire/fall/bend 중 1~2개, 0.5~0.8, 0.1 단위 | warning은 fire/fall/bend 중 1~3개, 0.5~0.8, 0.1 단위. critical은 1~3개, 0.8~1.0, 0.1 단위 |
 | sensor event interval | 6~10분 | 4~7분 |
 | sensor event type | `temperature_high`, `humidity_high`, `pressure_high`, `pressure_low` | `temperature_critical`, `humidity_critical`, `pressure_high_critical`, `pressure_low_critical` |
+| sensor event hold | 30초 | 30초 |
+| temperature spike | 39.0~45.0 | 45.0~52.0 |
+| humidity spike | 88.0~96.0 | 95.0~99.0 |
+| pressure high spike | 1055.0~1075.0 | 1070.0~1090.0 |
+| pressure low spike | 940.0~960.0 | 930.0~950.0 |
 
 AI event가 발생하지 않으면 `fire_score`, `fall_score`, `bend_score`는 모두 `0.0`이고 `abnormal_sound`는 `none`이다.
+
+### Sensor event 세부 주기
+
+2026-06-02 worker 재검증 기준으로 `/etc/aegis/factory-b-dummy.env`와 `/etc/aegis/factory-c-dummy.env`에는 event interval override가 없다. 따라서 아래 값은 worker에 배포된 코드 기본값이다.
+
+| Factory | Sensor event | 값 범위 | 발생 순서/주기 | 동일 event 재발 | 지속 |
+| --- | --- | --- | --- | --- | --- |
+| `factory-b` | `temperature_high` | `39.0~45.0 C` | sensor event가 `6~10분`마다 1개씩 round-robin | `24~40분`마다 | `30초` |
+| `factory-b` | `humidity_high` | `88.0~96.0 %` | 동일 | `24~40분`마다 | `30초` |
+| `factory-b` | `pressure_high` | `1055.0~1075.0 hPa` | 동일 | `24~40분`마다 | `30초` |
+| `factory-b` | `pressure_low` | `940.0~960.0 hPa` | 동일 | `24~40분`마다 | `30초` |
+| `factory-c` | `temperature_critical` | `45.0~52.0 C` | sensor event가 `4~7분`마다 1개씩 round-robin | `16~28분`마다 | `30초` |
+| `factory-c` | `humidity_critical` | `95.0~99.0 %` | 동일 | `16~28분`마다 | `30초` |
+| `factory-c` | `pressure_high_critical` | `1070.0~1090.0 hPa` | 동일 | `16~28분`마다 | `30초` |
+| `factory-c` | `pressure_low_critical` | `930.0~950.0 hPa` | 동일 | `16~28분`마다 | `30초` |
+
+factory-b는 sensor event 자체가 `6~10분`마다 하나 발생하고, 4개 event를 순서대로 돌기 때문에 특정 event 하나는 `24~40분`마다 다시 온다. factory-c는 sensor event 자체가 `4~7분`마다 하나 발생하므로 특정 event 하나는 `16~28분`마다 다시 온다.
+
+각 sensor event는 `AEGIS_DUMMY_SENSOR_EVENT_HOLD_SECONDS=30` 기본값 때문에 30초 동안 유지된다. `factory_state` 생성 주기가 3초라서 event 한 번당 보통 약 10개 샘플이 high/critical 값으로 나온다.
+
+### AI event 세부 동작
+
+dummy generator는 화재, 넘어짐, 굽힘, 이상소음을 각각 독립 이벤트로 스케줄링하지 않는다. AI 스케줄러는 `ai_warning` 또는 `ai_critical` 이벤트만 만들고, 이벤트가 due일 때 `factory_state.payload.ai_result`의 여러 필드를 한 번에 갱신한다.
+
+| Factory | AI event | 발생/재발 주기 | score 선택 | abnormal_sound | 지속 |
+| --- | --- | --- | --- | --- | --- |
+| `factory-b` | `ai_warning` | 25~30분마다 | `fire_score`, `fall_score`, `bend_score` 중 1~2개를 랜덤 선택해 `0.5~0.8` 설정 | `brief lab impact` | factory_state 1건 |
+| `factory-c` | `ai_warning` | AI event는 25~30분마다 1개, 동일 event는 50~60분마다 | `fire_score`, `fall_score`, `bend_score` 중 1~3개를 랜덤 선택해 `0.5~0.8` 설정 | `intermittent vibration` | factory_state 1건 |
+| `factory-c` | `ai_critical` | AI event는 25~30분마다 1개, 동일 event는 50~60분마다 | `fire_score`, `fall_score`, `bend_score` 중 1~3개를 랜덤 선택해 `0.8~1.0` 설정 | `intermittent vibration` | factory_state 1건 |
+
+AI event에는 sensor spike처럼 hold window가 없다. 따라서 이벤트 한 번은 현재 loop에서 생성되는 `factory_state` 1건에만 반영된다.
+
+예시:
+
+```json
+{
+  "ai_result": {
+    "sample_count": 1,
+    "fire_score": 0.6,
+    "fall_score": 0.0,
+    "bend_score": 0.8,
+    "abnormal_sound": "brief lab impact"
+  }
+}
+```
 
 override 환경변수:
 
@@ -135,6 +189,7 @@ override 환경변수:
 | --- | --- |
 | `AEGIS_DUMMY_AI_EVENT_MIN_SECONDS` / `AEGIS_DUMMY_AI_EVENT_MAX_SECONDS` | AI round-robin event 간격 |
 | `AEGIS_DUMMY_SENSOR_EVENT_MIN_SECONDS` / `AEGIS_DUMMY_SENSOR_EVENT_MAX_SECONDS` | sensor spike round-robin event 간격 |
+| `AEGIS_DUMMY_SENSOR_EVENT_HOLD_SECONDS` | sensor spike 유지 시간. 기본 `30` |
 | `AEGIS_DUMMY_INFRA_EVENT_MIN_SECONDS` / `AEGIS_DUMMY_INFRA_EVENT_MAX_SECONDS` | infra 상태 round-robin event 간격 |
 | `AEGIS_DUMMY_PIPELINE_GAP_EVENT_MIN_SECONDS` / `AEGIS_DUMMY_PIPELINE_GAP_EVENT_MAX_SECONDS` | freshness gap round-robin event 간격 |
 
@@ -160,6 +215,17 @@ infra event가 due이면 기본 ready 상태에 round-robin 이벤트를 한 번
 | infra event interval | 5~8분 | 3~6분 |
 | node/pod | `pods_partial`, `nodes_partial` | `pods_all_unready`, `nodes_all_not_ready` |
 | device/storage/network | `device_unavailable`, `storage_warning` | `device_unavailable`, `storage_critical`, `network_unreachable` |
+
+Sensor 외 event 기본 주기:
+
+| Factory | 분류 | Event | 발생/재발 주기 |
+| --- | --- | --- | --- |
+| `factory-b` | AI | `ai_warning` | `25~30분`마다 |
+| `factory-b` | Infra | `storage_warning`, `device_unavailable`, `pods_partial`, `nodes_partial` | infra event가 `5~8분`마다 1개, 동일 event는 `20~32분`마다 |
+| `factory-b` | Pipeline gap | `pipeline_warning_gap` | `12~18분`마다 |
+| `factory-c` | AI | `ai_warning`, `ai_critical` | AI event가 `25~30분`마다 1개, 동일 event는 `50~60분`마다 |
+| `factory-c` | Infra | `pods_all_unready`, `nodes_all_not_ready`, `network_unreachable`, `device_unavailable`, `storage_critical` | infra event가 `3~6분`마다 1개, 동일 event는 `15~30분`마다 |
+| `factory-c` | Pipeline gap | `pipeline_critical_gap`, `pipeline_outage_gap` | pipeline event가 `18~30분`마다 1개, 동일 event는 `36~60분`마다 |
 
 pipeline freshness event는 payload에 `pipeline_status_*`를 직접 넣지 않는다. `--loop`에서 `infra_state` 생성을 일정 시간 건너뛰어 DataProcessor가 `LATEST.last_infra_state_at` 기준으로 계산하게 한다.
 
@@ -317,6 +383,16 @@ Risk Score는 `apps/data-processor/processor/risk.py`의 `risk-v0.2.0` 로직이
 | data_freshness | 10 | pipeline_status |
 | storage_pressure | 5 | infra_state |
 | network_reachability | 5 | infra_state |
+
+AI score는 `fire_score`, `fall_score`, `bend_score`를 각각 별도 weighted field로 계산하지 않는다. 세 score의 최댓값을 `ai_event_rate` severity의 기본값으로 쓰고, `abnormal_sound`가 `none`이나 빈 문자열이 아니면 작은 bonus를 더한다. 따라서 `risk.top_causes`에는 대개 `fire_score`, `fall_score`, `bend_score` 개별 이름이 아니라 `ai_event_rate`가 원인 field로 들어간다.
+
+AI gate 기준:
+
+| 조건 | Gate | Level cap |
+| --- | --- | --- |
+| `max(fire_score, fall_score, bend_score) >= 0.95` | `ai_score_critical` | danger |
+| `max(fire_score, fall_score, bend_score) >= 0.8` | `ai_score_warning` | warning |
+| `max(fire_score, fall_score, bend_score) >= 0.6` and `abnormal_sound != none` | `ai_score_warning` | warning |
 
 계산 개념:
 

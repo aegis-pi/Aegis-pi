@@ -1,7 +1,7 @@
 # AWS Cost Baseline
 
 상태: source of truth
-기준일: 2026-06-01
+기준일: 2026-06-02
 리전: `ap-south-1` / Asia Pacific (Mumbai)
 
 ## 목적
@@ -27,8 +27,10 @@
 | IoT Rules | `AEGIS_IoTRule_factory_a/b/c_raw_s3` (data-pipeline layer) | 3 | active (build-data-pipe 실행 시) |
 | Lambda | `AEGIS-Lambda-DataProcessor`, `AEGIS-Lambda-GraphAggregator5m` (data-pipeline layer) | 2 | active (build-data-pipe 실행 시) |
 | Lambda | `AEGIS-Lambda-CloudInfraFastCollector`, `AEGIS-Lambda-CloudInfraSlowCollector` | 2 | active (build-data-pipe 실행 시, usage based) |
+| Lambda | `AEGIS-Lambda-RiskAlertDispatcher` | 1 | active (build-data-pipe 실행 시, S3 event based) |
 | EventBridge Scheduler | `AEGIS-Schedule-DataProcessorRefresh1m`, `AEGIS-Schedule-GraphAggregator5m`, `AEGIS-Schedule-CloudInfraFastCollector1m`, `AEGIS-Schedule-CloudInfraSlowCollector5m` | 4 | active (build-data-pipe 실행 시, usage based) |
 | DynamoDB | `AEGIS-DynamoDB-FactoryStatus` (foundation layer) | 1 | active (PAY_PER_REQUEST, 상시) |
+| Secrets Manager | RiskAlertDispatcher Slack webhook secret metadata | 4 | active (cloud, factory-a, factory-b, factory-c) |
 | AMP | removed | 0 | deletion target |
 | ECR | `aegis/edge-agent`, `aegis/factory-a-log-adapter`, `aegis/edge-iot-publisher` | 3 repo | active |
 | Route53 | public hosted zone `minsoo-tech.cloud` | 1 | active |
@@ -288,6 +290,26 @@ SlowCollector 5분 = 8,640회/month
 SlowCollector는 EKS access entry로 `AmazonEKSAdminViewPolicy`를 cluster scope에 연결한다. 이는 쓰기 권한 비용이 아니라 cluster-wide read visibility를 부여하는 보안/권한 영향이다.
 
 이 collector 방식은 CloudWatch Container Insights를 기본 OFF로 유지하면서 Dashboard에 필요한 요약만 DynamoDB/S3 read model로 저장하기 위한 비용 절감 경로다. Container Insights optional 활성화 비용(`~$65~75/month`)과 별개로 계산한다.
+
+### RiskAlertDispatcher
+
+2026-06-02 기준 RiskAlertDispatcher가 data-pipeline layer에 추가됐다.
+
+| 항목 | 값 |
+| --- | --- |
+| Lambda | `AEGIS-Lambda-RiskAlertDispatcher`, S3 event based |
+| Trigger | S3 `processed/{factory}/state_snapshot/`, `processed/cloud_infra/{fast,slow}/` ObjectCreated |
+| DynamoDB write | alert reserve/result 기록 시 `ALERT#{scope}` UpdateItem |
+| Secrets Manager read | Slack 전송 시 scope별 webhook secret GetSecretValue |
+| Secrets Manager secrets | cloud/default 1개 + factory-a/b/c 3개 |
+| CloudWatch Logs | `/aws/lambda/AEGIS-Lambda-RiskAlertDispatcher`, 30일 retention |
+
+비용 영향:
+
+- Lambda/S3 event/DynamoDB write는 warning/danger snapshot이 발생할 때만 의미 있게 증가한다.
+- DynamoDB cooldown/dedupe 때문에 동일 조건 반복 알림은 지정된 cooldown 동안 Slack 재전송을 건너뛴다.
+- Secrets Manager secret 4개는 secret value 저장용 관리형 리소스 비용이 발생한다. 로컬 `.secrets/`의 URL 값은 repo와 Terraform state에 저장하지 않는다.
+- 개발/MVP 규모에서는 월 추가 비용이 소액이지만, 알림 채널을 factory별로 늘리면 Secrets Manager secret 수와 Slack 전송 횟수 기준으로 재산정한다.
 
 ### Daily Factory Report Reporting Stack
 
