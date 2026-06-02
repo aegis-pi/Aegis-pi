@@ -92,3 +92,28 @@ output "cloud_infra_slow_collector_schedule_name" {
   description = "Cloud infra slow collector schedule name."
   value       = aws_scheduler_schedule.cloud_infra_slow_collector_5m.name
 }
+
+output "risk_alert_dispatcher_lambda_name" {
+  description = "Risk alert dispatcher Lambda name."
+  value       = aws_lambda_function.risk_alert_dispatcher.function_name
+}
+
+output "risk_alert_dispatcher_lambda_arn" {
+  description = "Risk alert dispatcher Lambda ARN."
+  value       = aws_lambda_function.risk_alert_dispatcher.arn
+}
+
+output "risk_alert_dispatcher_slack_secret_name" {
+  description = "Secrets Manager secret name for the RiskAlertDispatcher Slack webhook URL."
+  value       = aws_secretsmanager_secret.risk_alert_slack_webhook.name
+}
+
+output "risk_alert_dispatcher_slack_secret_arn" {
+  description = "Secrets Manager secret ARN for the RiskAlertDispatcher Slack webhook URL."
+  value       = aws_secretsmanager_secret.risk_alert_slack_webhook.arn
+}
+
+output "risk_alert_dispatcher_factory_slack_secret_names" {
+  description = "Factory-specific Secrets Manager secret names for RiskAlertDispatcher Slack webhook URLs."
+  value       = { for scope, secret in aws_secretsmanager_secret.risk_alert_slack_webhook_factory : scope => secret.name }
+}

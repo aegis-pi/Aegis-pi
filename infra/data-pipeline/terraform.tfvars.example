@@ -15,13 +15,17 @@ lambda_data_processor_timeout = 60
 lambda_data_processor_memory  = 512
 
 # GraphAggregator5m Lambda
-lambda_graph_aggregator_name    = "AEGIS-Lambda-GraphAggregator5m"
-lambda_graph_aggregator_timeout = 60
-lambda_graph_aggregator_memory  = 512
-graph_aggregator_enabled        = true
-graph_aggregator_factory_ids    = ["factory-a", "factory-b", "factory-c"]
-graph_bucket_minutes            = 5
-graph_aggregator_lookback_buckets = 1
-graph_bucket_ttl_hours            = 48
+lambda_graph_aggregator_name           = "AEGIS-Lambda-GraphAggregator5m"
+lambda_graph_aggregator_timeout        = 60
+lambda_graph_aggregator_memory         = 512
+graph_aggregator_enabled               = true
+graph_aggregator_factory_ids           = ["factory-a", "factory-b", "factory-c"]
+graph_bucket_minutes                   = 5
+graph_aggregator_lookback_buckets      = 1
+graph_bucket_ttl_hours                 = 48
 graph_expected_sample_interval_seconds = 3
-graph_ai_score_threshold                = 0.7
+graph_ai_score_threshold               = 0.7
+
+# RiskAlertDispatcher
+risk_alert_dispatcher_s3_trigger_enabled = true
+risk_alert_slack_webhook_secret_name      = "AEGIS/foundation-mvp/risk-alert/slack-webhook-url"

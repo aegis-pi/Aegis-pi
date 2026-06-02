@@ -88,7 +88,28 @@ build-data-pipe.sh   ← foundation + hub apply 후 실행
 
 ## Lambda 배포 아티팩트
 
-`lambda_data_processor.zip`은 Terraform `archive_file` data source가 `apps/data-processor/`의 Python 코드를 패키징해 생성한다. `lambda_graph_metrics_aggregator.zip`은 `apps/graph-metrics-aggregator/`를 패키징한다. `lambda_cloud_infra_collector.zip`은 `apps/cloud-infra-collector/`를 패키징한다. 모두 수동 zip 생성은 필요 없다.
+`lambda_data_processor.zip`은 Terraform `archive_file` data source가 `apps/data-processor/`의 Python 코드를 패키징해 생성한다. `lambda_graph_metrics_aggregator.zip`은 `apps/graph-metrics-aggregator/`를 패키징한다. `lambda_cloud_infra_collector.zip`은 `apps/cloud-infra-collector/`를 패키징한다. `lambda_risk_alert_dispatcher.zip`은 `apps/risk-alert-dispatcher/`를 패키징한다. 모두 수동 zip 생성은 필요 없다.
+
+RiskAlertDispatcher도 이 data-pipeline root의 생명주기에 포함된다. `scripts/build/build-data-pipe.sh`는 Terraform apply 후 로컬 Slack webhook 파일이 있으면 값을 Secrets Manager에 주입한다. URL 값은 Terraform state나 repo에 넣지 않는다.
+
+기본 webhook 파일 경로:
+
+```text
+/home/vicbear/Aegis/.secrets/aegis_slack_webhook_url
+/home/vicbear/Aegis/.secrets/aegis_slack_webhook_factory_a
+/home/vicbear/Aegis/.secrets/aegis_slack_webhook_factory_b
+/home/vicbear/Aegis/.secrets/aegis_slack_webhook_factory_c
+```
+
+다른 파일을 쓰려면:
+
+```bash
+AEGIS_RISK_ALERT_SLACK_WEBHOOK_FILE=/path/to/cloud-webhook \
+AEGIS_RISK_ALERT_SLACK_WEBHOOK_FACTORY_A_FILE=/path/to/factory-a-webhook \
+AEGIS_RISK_ALERT_SLACK_WEBHOOK_FACTORY_B_FILE=/path/to/factory-b-webhook \
+AEGIS_RISK_ALERT_SLACK_WEBHOOK_FACTORY_C_FILE=/path/to/factory-c-webhook \
+scripts/build/build-data-pipe.sh [MFA_OTP]
+```
 
 코드 변경 후 재배포 시:
 
@@ -116,6 +137,9 @@ lambda_cloud_infra_slow_collector_name   = "AEGIS-Lambda-CloudInfraSlowCollector
 cloud_infra_fast_collector_enabled       = true
 cloud_infra_slow_collector_enabled       = true
 cloud_infra_eks_cluster_name             = "AEGIS-EKS"
+
+risk_alert_dispatcher_s3_trigger_enabled = true
+risk_alert_slack_webhook_secret_name      = "AEGIS/foundation-mvp/risk-alert/slack-webhook-url"
 ```
 
 ## 실행
@@ -142,3 +166,4 @@ terraform apply
 6. DynamoDB `GRAPH#5M#...` 아이템과 S3 `processed_agg/{factory_id}/metrics_5m/...` 객체 확인. `GRAPH#5M.infra.nodes[]`에는 node별 CPU/memory/disk 5분 집계가 있어야 한다.
 7. EventBridge Scheduler `AEGIS-Schedule-CloudInfraFastCollector1m`, `AEGIS-Schedule-CloudInfraSlowCollector5m` 상태 확인
 8. DynamoDB `pk=CLOUD#infra`, `sk=LATEST`의 `fast`/`slow` 필드와 S3 `processed/cloud_infra/{fast,slow}/...` snapshot 확인
+9. S3 `processed/{factory}/state_snapshot/` 또는 `processed/cloud_infra/{fast,slow}/`의 warning/danger snapshot 생성 시 `AEGIS-Lambda-RiskAlertDispatcher`가 실행되고 DynamoDB `ALERT#...` dedupe item과 Slack alert가 기록되는지 확인

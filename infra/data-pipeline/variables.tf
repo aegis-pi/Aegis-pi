@@ -267,3 +267,111 @@ variable "cloud_infra_k8s_top_pods_limit" {
   type        = number
   default     = 5
 }
+
+variable "lambda_risk_alert_dispatcher_name" {
+  description = "Lambda function name for S3 processed snapshot risk alert dispatching."
+  type        = string
+  default     = "AEGIS-Lambda-RiskAlertDispatcher"
+}
+
+variable "lambda_risk_alert_dispatcher_timeout" {
+  description = "Risk alert dispatcher Lambda timeout in seconds."
+  type        = number
+  default     = 30
+}
+
+variable "lambda_risk_alert_dispatcher_memory" {
+  description = "Risk alert dispatcher Lambda memory in MB."
+  type        = number
+  default     = 256
+}
+
+variable "lambda_risk_alert_dispatcher_reserved_concurrency" {
+  description = "Reserved concurrency for the risk alert dispatcher Lambda."
+  type        = number
+  default     = 3
+}
+
+variable "risk_alert_dispatcher_s3_trigger_enabled" {
+  description = "Whether to attach S3 ObjectCreated notifications for processed alert source snapshots."
+  type        = bool
+  default     = true
+}
+
+variable "risk_alert_dispatcher_s3_prefixes" {
+  description = "S3 processed prefixes that invoke the risk alert dispatcher. S3 notifications do not support middle wildcards, so factory prefixes are explicit."
+  type        = list(string)
+  default = [
+    "processed/factory-a/state_snapshot/",
+    "processed/factory-b/state_snapshot/",
+    "processed/factory-c/state_snapshot/",
+    "processed/cloud_infra/fast/",
+    "processed/cloud_infra/slow/",
+  ]
+}
+
+variable "risk_alert_slack_webhook_secret_arn" {
+  description = "Optional external Secrets Manager secret ARN containing the Slack webhook URL. Leave empty to use the data-pipeline managed secret."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "risk_alert_slack_webhook_secret_name" {
+  description = "Secrets Manager secret name managed by the data-pipeline layer for the RiskAlertDispatcher Slack webhook URL."
+  type        = string
+  default     = "AEGIS/foundation-mvp/risk-alert/slack-webhook-url"
+}
+
+variable "risk_alert_factory_slack_webhook_secret_names" {
+  description = "Secrets Manager secret names managed by the data-pipeline layer for factory-specific RiskAlertDispatcher Slack webhook URLs."
+  type        = map(string)
+  default = {
+    factory-a = "AEGIS/foundation-mvp/risk-alert/slack-webhook/factory-a"
+    factory-b = "AEGIS/foundation-mvp/risk-alert/slack-webhook/factory-b"
+    factory-c = "AEGIS/foundation-mvp/risk-alert/slack-webhook/factory-c"
+  }
+}
+
+variable "risk_alert_slack_webhook_ssm_parameter_name" {
+  description = "SSM SecureString parameter name containing the Slack webhook URL. Leave empty when using Secrets Manager or when alerts are not ready to send."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "risk_alert_state_ttl_seconds" {
+  description = "TTL in seconds for ALERT# DynamoDB state items."
+  type        = number
+  default     = 604800
+}
+
+variable "risk_alert_factory_warning_cooldown_seconds" {
+  description = "Factory warning Slack resend cooldown in seconds."
+  type        = number
+  default     = 900
+}
+
+variable "risk_alert_factory_danger_cooldown_seconds" {
+  description = "Factory danger Slack resend cooldown in seconds."
+  type        = number
+  default     = 300
+}
+
+variable "risk_alert_cloud_warning_cooldown_seconds" {
+  description = "Cloud infra warning Slack resend cooldown in seconds."
+  type        = number
+  default     = 900
+}
+
+variable "risk_alert_cloud_danger_cooldown_seconds" {
+  description = "Cloud infra danger Slack resend cooldown in seconds."
+  type        = number
+  default     = 300
+}
+
+variable "risk_alert_slack_http_timeout_seconds" {
+  description = "Slack webhook HTTP timeout in seconds."
+  type        = number
+  default     = 4
+}

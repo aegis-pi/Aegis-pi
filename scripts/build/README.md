@@ -19,7 +19,8 @@ Layer 0 │ Foundation      │ S3 data bucket, ECR, DynamoDB, GitHub Actions OI
         │                 │ 영구 리소스. 최초 1회 생성 후 일반 빌드 흐름에서 제외.
 
 Layer 0 │ Data-pipeline   │ IoT Rule (factory-a/b/c), DataProcessor, GraphAggregator5m,
-        │                 │ CloudInfraFast/SlowCollector Lambda/Scheduler
+        │                 │ CloudInfraFast/SlowCollector Lambda/Scheduler,
+        │                 │ RiskAlertDispatcher Lambda/S3 trigger/Slack secret metadata
         │                 │ 필요 시 생성/삭제. foundation과 Hub EKS가 먼저 존재해야 함.
         │                 │ DynamoDB는 foundation에 포함(영구). build-data-pipe.sh / destroy-data-pipe.sh 로 관리.
 
@@ -61,10 +62,11 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 
 3. data-pipeline (필요 시 생성/삭제)
    - infra/data-pipeline Terraform apply
-   - IoT Rule (factory-a/b/c), DataProcessor, GraphAggregator5m, CloudInfraFastCollector, CloudInfraSlowCollector
-   - CloudWatch log group, IAM, EventBridge Scheduler
+   - IoT Rule (factory-a/b/c), DataProcessor, GraphAggregator5m, CloudInfraFastCollector, CloudInfraSlowCollector, RiskAlertDispatcher
+   - CloudWatch log group, IAM, EventBridge Scheduler, S3 processed ObjectCreated notification, Slack webhook Secrets Manager metadata
    - foundation의 S3와 DynamoDB를 data source로 조회
    - SlowCollector의 EKS access entry 때문에 Hub EKS 생성 이후 배포한다.
+   - RiskAlertDispatcher webhook 값은 apply 후 로컬 secret 파일에서 Secrets Manager로 주입한다. 값은 repo/Terraform state에 저장하지 않는다.
 
 3.5. reporting (필요 시 생성/삭제)
    - apps/daily-report-generator Lambda package 생성
@@ -94,7 +96,7 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 | `build-all.sh` | 기본 hub-infra → hub-platform 실행. `--foundation`, `--data-pipe`, `--admin-ui-after-ns`, `--iot`로 선택 레이어 실행. |
 | `build-admin-ui-after-ns.sh` | Gabia NS 위임 후 ACM 발급을 기다리고 Admin UI HTTPS Ingress 활성화 |
 | `build-foundation.sh` | `infra/foundation` Terraform apply. 최초 1회 단독 실행. |
-| `build-data-pipe.sh` | `infra/data-pipeline` Terraform apply. IoT Rule × 3, DataProcessor/GraphAggregator5m/CloudInfra collector Lambda, Scheduler, CloudWatch, IAM, SlowCollector EKS access entry 생성. foundation S3/DynamoDB와 Hub EKS가 먼저 존재해야 함. |
+| `build-data-pipe.sh` | `infra/data-pipeline` Terraform apply. IoT Rule × 3, DataProcessor/GraphAggregator5m/CloudInfra collector/RiskAlertDispatcher Lambda, Scheduler, S3 processed alert trigger, CloudWatch, IAM, SlowCollector EKS access entry, Slack webhook secret metadata 생성. foundation S3/DynamoDB와 Hub EKS가 먼저 존재해야 함. |
 | `build-reporting.sh` | `apps/daily-report-generator` Lambda package 생성 후 `infra/reporting` Terraform apply. daily report Scheduler/Step Functions/Lambda/IAM/Logs 생성. |
 | `build-hub-infra.sh` | `infra/hub` Terraform apply (VPC, EKS, IRSA). Admin UI DNS/ACM은 foundation output 참조 |
 | `build-hub-platform.sh` | Ansible bootstrap (ArgoCD, legacy Prometheus cleanup, Grafana, LB Controller) |
