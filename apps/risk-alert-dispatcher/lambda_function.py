@@ -47,6 +47,15 @@ def _dispatch(alert, now_epoch: int) -> dict:
         logger.info("Slack webhook is not configured; skipping alert=%s/%s", alert.pk, alert.sk)
         return {"status": "skipped", "reason": "slack_not_configured"}
 
+    confirmation = dedupe.confirm(alert, now_epoch)
+    if not confirmation.get("confirmed"):
+        return {
+            "status": "skipped",
+            "reason": confirmation.get("reason"),
+            "observation_count": confirmation.get("observation_count"),
+            "required_observations": confirmation.get("required_observations"),
+        }
+
     reservation = dedupe.reserve(alert, now_epoch)
     if not reservation.get("reserved"):
         return {"status": "skipped", "reason": reservation.get("reason")}

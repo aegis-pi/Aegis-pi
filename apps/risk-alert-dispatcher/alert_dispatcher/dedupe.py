@@ -23,6 +23,88 @@ DEFAULT_COOLDOWNS = {
 }
 
 
+def confirm(alert: Alert, now_epoch: int | None = None) -> dict:
+    required = max(int(alert.confirmation_observations), 1)
+    if required <= 1:
+        return {"confirmed": True, "observation_count": 1}
+
+    now_epoch = now_epoch or int(time.time())
+    window_start = now_epoch - max(int(alert.confirmation_window_seconds), 1)
+    ttl = now_epoch + ALERT_TTL_SECONDS
+    key = {"pk": alert.pk, "sk": f"OBSERVATION#{alert.sk}"}
+    names = {
+        "#observation_count": "observation_count",
+        "#last_observed_at": "last_observed_at",
+        "#last_source_updated_at": "last_source_updated_at",
+        "#source_type": "source_type",
+        "#reason": "reason",
+        "#ttl": "ttl",
+    }
+    values = _to_dynamo({
+        ":zero": 0,
+        ":one": 1,
+        ":now": now_epoch,
+        ":window_start": window_start,
+        ":source_updated_at": alert.source_updated_at,
+        ":source_type": alert.source_type,
+        ":reason": alert.reason,
+        ":ttl": ttl,
+    })
+    reset_values = {
+        key: value
+        for key, value in values.items()
+        if key not in {":zero", ":window_start"}
+    }
+
+    try:
+        response = _table().update_item(
+            Key=key,
+            UpdateExpression=(
+                "SET #observation_count = if_not_exists(#observation_count, :zero) + :one,"
+                " #last_observed_at = :now, #last_source_updated_at = :source_updated_at,"
+                " #source_type = :source_type, #reason = :reason, #ttl = :ttl"
+            ),
+            ConditionExpression=(
+                "#last_observed_at >= :window_start"
+                " AND #last_source_updated_at < :source_updated_at"
+            ),
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+            ReturnValues="ALL_NEW",
+        )
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+        try:
+            response = _table().update_item(
+                Key=key,
+                UpdateExpression=(
+                    "SET #observation_count = :one, #last_observed_at = :now,"
+                    " #last_source_updated_at = :source_updated_at, #source_type = :source_type,"
+                    " #reason = :reason, #ttl = :ttl"
+                ),
+                ConditionExpression=(
+                    "attribute_not_exists(#last_source_updated_at)"
+                    " OR #last_source_updated_at < :source_updated_at"
+                ),
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=reset_values,
+                ReturnValues="ALL_NEW",
+            )
+        except ClientError as reset_exc:
+            if reset_exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return {"confirmed": False, "reason": "stale_snapshot"}
+            raise
+
+    observation_count = int(response.get("Attributes", {}).get("observation_count", 1))
+    return {
+        "confirmed": observation_count >= required,
+        "observation_count": observation_count,
+        "required_observations": required,
+        "reason": None if observation_count >= required else "awaiting_confirmation",
+    }
+
+
 def reserve(alert: Alert, now_epoch: int | None = None) -> dict:
     now_epoch = now_epoch or int(time.time())
     cooldown_seconds = _cooldown_seconds(alert)
