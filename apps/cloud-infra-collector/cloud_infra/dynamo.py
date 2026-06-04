@@ -92,7 +92,9 @@ def _overall_status(fast: dict, slow: dict | None) -> str:
     if fast:
         values.extend([
             (fast.get("backend_runtime") or {}).get("status"),
+            (fast.get("datastores") or {}).get("status"),
             (fast.get("data_pipeline") or {}).get("status"),
+            (fast.get("factory_freshness") or {}).get("status"),
         ])
     if slow:
         values.extend([

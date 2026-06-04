@@ -119,7 +119,7 @@ pk = CLOUD#infra
 sk = LATEST
 ```
 
-`AEGIS-Lambda-CloudInfraFastCollector`와 `AEGIS-Lambda-CloudInfraSlowCollector`가 같은 item을 부분 갱신한다. `overall_status`는 Cloud 자체 상태만 나타내며 `fast.factory_freshness`는 판정에서 제외한다.
+`AEGIS-Lambda-CloudInfraFastCollector`와 `AEGIS-Lambda-CloudInfraSlowCollector`가 같은 item을 부분 갱신한다. 2026-06-04 AWS 배포본 기준 `overall_status`는 `fast.factory_freshness`도 판정에 포함한다.
 
 | Collector | 갱신 필드 | 주기 |
 | --- | --- | ---: |

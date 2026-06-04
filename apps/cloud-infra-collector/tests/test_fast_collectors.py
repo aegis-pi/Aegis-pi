@@ -27,10 +27,10 @@ def test_backend_status_helpers():
     assert _alb_status({"healthy_host_count": 1, "target_5xx_count_5m": 1}, config) == "warning"
     assert _alb_status({"healthy_host_count": 1, "target_response_time_p95": 1.2}, config) == "warning"
     assert _alb_status({"healthy_host_count": 1}, config) == "normal"
-    assert _alb_status({"target_group_name": "missing-tg", "status": "unknown"}, config) == "unknown"
+    assert _alb_status({"target_group_name": "missing-tg", "status": "unknown"}, config) == "critical"
 
 
-def test_ecs_summary_includes_load_balancers(monkeypatch):
+def test_ecs_summary_excludes_load_balancers(monkeypatch):
     ecs = _FakeEcsClient()
     monkeypatch.setattr(fast_collectors, "_boto3_client", lambda service: ecs)
 
@@ -39,41 +39,24 @@ def test_ecs_summary_includes_load_balancers(monkeypatch):
         "ecs_service_name": "service",
     })
 
-    assert summary["load_balancers"] == [{"targetGroupArn": _TARGET_GROUP_ARN}]
+    assert "load_balancers" not in summary
 
 
-def test_alb_summary_prefers_ecs_target_group_arn(monkeypatch):
+def test_alb_summary_uses_configured_target_group_name(monkeypatch):
     elbv2 = _FakeElbv2Client()
     monkeypatch.setattr(fast_collectors, "_boto3_client", lambda service: elbv2)
     monkeypatch.setattr(fast_collectors, "_get_metric_values", lambda queries, now, minutes: {})
 
     summary = _alb_summary(
-        {"target_group_name": "old-name", "metric_window_minutes": 5},
-        datetime(2026, 6, 4, tzinfo=timezone.utc),
-        {"load_balancers": [{"targetGroupArn": _TARGET_GROUP_ARN}]},
-    )
-
-    assert elbv2.target_group_calls == [{"TargetGroupArns": [_TARGET_GROUP_ARN]}]
-    assert summary["target_group_name"] == "current-name"
-    assert summary["target_group_arn"] == _TARGET_GROUP_ARN
-    assert summary["healthy_host_count"] == 1
-    assert summary["unhealthy_host_count"] == 1
-    assert summary["draining_host_count"] == 1
-    assert summary["initial_host_count"] == 1
-
-
-def test_alb_summary_falls_back_to_configured_name(monkeypatch):
-    elbv2 = _FakeElbv2Client()
-    monkeypatch.setattr(fast_collectors, "_boto3_client", lambda service: elbv2)
-    monkeypatch.setattr(fast_collectors, "_get_metric_values", lambda queries, now, minutes: {})
-
-    _alb_summary(
         {"target_group_name": "configured-name", "metric_window_minutes": 5},
         datetime(2026, 6, 4, tzinfo=timezone.utc),
-        {},
     )
 
     assert elbv2.target_group_calls == [{"Names": ["configured-name"]}]
+    assert summary["target_group_name"] == "configured-name"
+    assert summary["target_group_arn"] == _TARGET_GROUP_ARN
+    assert summary["healthy_host_count"] == 1
+    assert summary["unhealthy_host_count"] == 3
 
 
 def test_scheduler_and_factory_summary():

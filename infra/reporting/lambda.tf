@@ -2,7 +2,16 @@ data "archive_file" "daily_report_generator_zip" {
   type        = "zip"
   source_dir  = "${path.module}/../../apps/daily-report-generator"
   output_path = "${path.module}/lambda_daily_report_generator.zip"
-  excludes    = ["**/__pycache__/**", "**/*.pyc", "**/*.pyo", "tests/**", ".pytest_cache/**"]
+  excludes = [
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "**/*.pyo",
+    "tests/**",
+    ".pytest_cache/**",
+    "scripts/backfill_daily_reports.py",
+    "scripts/inventory_daily_report_backfill.py",
+    "scripts/invoke_reporting_lambdas_backfill.py",
+  ]
 }
 
 resource "aws_cloudwatch_log_group" "reporting_lambda" {

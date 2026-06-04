@@ -326,7 +326,7 @@ Hub-only 삭제/재생성 운영 순서:
 보류: EKS API endpoint CIDR 축소는 전체 설계 마무리 후 재검토
 완료: Safe-Edge start_test Ansible playbook
 확정: Terraform = 인프라, Ansible = 설정/소프트웨어/bootstrap, GitHub Actions = CI, GitHub+ArgoCD = CD
-AWS 실제 리소스 상태: 2026-06-02 기준 Foundation/IoT/data-pipeline 리소스 활성. foundation S3/ECR/DynamoDB, IoT Rule 3개, Lambda DataProcessor/GraphAggregator5m/CloudInfraFastCollector/CloudInfraSlowCollector/RiskAlertDispatcher, Scheduler 4개, S3 processed alert trigger, SlowCollector EKS access entry, Slack webhook secret metadata, `factory-a/b/c` IoT Thing/Policy/certificate, K3s IoT Secret 활성 상태. Hub EKS/Admin UI는 build/destroy로 재생성 가능하다. AMP workspace는 삭제 완료. Hub NAT Gateway는 Azone 단일 NAT로 전환 완료.
+AWS 실제 리소스 상태: 2026-06-04 기준 Foundation/IoT/data-pipeline/reporting Lambda 리소스 활성. foundation S3/ECR/DynamoDB, IoT Rule 3개, Lambda DataProcessor/GraphAggregator5m/CloudInfraFastCollector/CloudInfraSlowCollector/RiskAlertDispatcher, reporting Lambda 7개, Scheduler 4개, S3 processed alert trigger, SlowCollector EKS access entry, Slack webhook secret metadata, `factory-a/b/c` IoT Thing/Policy/certificate, K3s IoT Secret 활성 상태. ap-south-1 실제 Lambda zip을 다운로드해 repo 관리 Lambda 12개의 로컬 실행 로직과 동기화했다. AWS에는 repo 매핑이 확인되지 않은 `KJW-AEGIS-Data-Lambda-notifier`가 별도 존재한다. Hub EKS/Admin UI는 build/destroy로 재생성 가능하다. AMP workspace는 삭제 완료. Hub NAT Gateway는 Azone 단일 NAT로 전환 완료.
 Terraform state: infra/hub apply 완료, infra/foundation apply 완료, infra/data-pipeline apply 완료
 다음 작업 우선순위: M6 Risk Twin read model/runtime-config 연결, factory-a 최신 data-plane 상태 재확인, Daily Factory Report 고도화, RiskAlertDispatcher 운영 문구/secret rotation 보강.
 ```

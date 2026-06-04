@@ -177,7 +177,7 @@ processed/cloud_infra/fast/**/*.json
 주요 판단:
 
 - `backend_runtime`, `data_pipeline` status가 normal이 아님
-- `factory_freshness`는 Cloud fast snapshot과 대시보드 참고 데이터에는 유지하지만, Cloud `overall_status`와 Cloud Slack alert에서는 제외
+- `factory_freshness`는 Cloud fast snapshot과 대시보드 참고 데이터에 유지되며, 2026-06-04 AWS 배포본 기준 Cloud `overall_status`에도 포함
 - Lambda `errors_5m > 0`
 - Lambda `throttles_5m > 0`
 - DynamoDB read/write throttle events가 있음
@@ -356,12 +356,13 @@ DynamoDB table과 S3 bucket은 foundation 리소스이므로 data-pipeline destr
   - fast: `data_pipeline_lambda_errors`, `dynamodb_throttles`, `alb_unhealthy_hosts` 생성, `data_pipeline_warning`/`backend_runtime_warning` 억제
   - slow: `nodes_warning`, `pods_warning` 생성, `eks_management_warning` 억제
 
-2026-06-04 CloudInfraFastCollector Target Group 조회 수정 후 재검증:
+2026-06-04 Lambda zip 동기화 후 상태:
 
-- `python -m pytest apps/cloud-infra-collector/tests -q`: 17 passed
-- `AEGIS-Lambda-CloudInfraFastCollector` 배포 상태: `State=Active`, `LastUpdateStatus=Successful`, `CodeSha256=WfNF8ZgkTxCgoCqOxWyDKVzFun5O1t5e9D+3i9lq/nQ=`
-- `target_group_name`을 존재하지 않는 값으로 override한 FastCollector 수동 invoke가 `backend=normal`, `errors=0`으로 완료됐다.
-- 따라서 Target Group 이름 drift로 인한 collector error가 `backend_runtime` critical Slack 알림으로 오탐되는 경로는 차단됐다.
+- ap-south-1 실제 Lambda zip을 다운로드해 repo 관리 Lambda 12개와 로컬 배포 포함 파일을 비교했다.
+- `AEGIS-Lambda-RiskAlertDispatcher` 배포 상태: `State=Active`, `LastUpdateStatus=Successful`, `CodeSha256=/GosrfobqNAMqmWFfeTDPky/ij2LmsPQF8b83e7fDrw=`
+- CloudInfraFastCollector/SlowCollector 배포 상태: `CodeSha256=/FapoibjVCVSbJMI8n/LeJx/0K6UrE3U6MazSzCUezE=`
+- 로컬 실행 로직은 AWS 배포본 기준으로 동기화했다.
+- 검증: `apps/data-processor`, `apps/graph-metrics-aggregator`, `apps/cloud-infra-collector`, `apps/risk-alert-dispatcher` 테스트 80 passed, `apps/daily-report-generator` 테스트 15 passed.
 
 2026-06-02 검증:
 

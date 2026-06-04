@@ -81,9 +81,9 @@ def test_kubernetes_summary_includes_nodes_pods_and_argocd():
     assert summary["argocd"]["synced"] == 1
 
 
-def test_single_failed_pod_is_warning_and_two_are_critical():
+def test_failed_pod_is_critical():
     one_failed = {"items": [{"status": {"phase": "Failed"}}]}
     two_failed = {"items": [{"status": {"phase": "Failed"}}, {"status": {"phase": "Failed"}}]}
 
-    assert _pods_summary(one_failed, None, 3)["status"] == "warning"
+    assert _pods_summary(one_failed, None, 3)["status"] == "critical"
     assert _pods_summary(two_failed, None, 3)["status"] == "critical"

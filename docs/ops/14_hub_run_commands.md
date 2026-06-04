@@ -49,7 +49,7 @@ HUB_ONLY_RECONNECT=true SYNC_SPOKE_APP=true scripts/build/register-spoke-factory
 
 `build-hub.sh`는 Hub AWS infra를 올린 직후 유지 중인 CloudInfraSlowCollector의 EKS access entry와 `AmazonEKSAdminViewPolicy` association을 자동 복구하고, Hub Kubernetes platform을 설치한다. 자동 reconcile은 data-pipeline Terraform state와 SlowCollector IAM role이 모두 존재할 때 실행된다.
 
-`reconcile-data-pipe-eks-access.sh`는 ECS Fargate backend와 관계없다. ECS backend 상태는 유지 중인 CloudInfraFastCollector가 ECS cluster/service 이름으로 `DescribeServices`를 호출하고, 응답의 `loadBalancers[].targetGroupArn`으로 실제 ALB Target Group을 확인한다. AWS resource tag 탐색은 사용하지 않는다.
+`reconcile-data-pipe-eks-access.sh`는 ECS Fargate backend와 관계없다. ECS backend 상태는 유지 중인 CloudInfraFastCollector가 ECS cluster/service 이름으로 `DescribeServices`를 호출하고, ALB 상태는 2026-06-04 AWS 배포본 기준 `ALB_TARGET_GROUP_NAME` 이름으로 Target Group을 조회한다. AWS resource tag 탐색은 사용하지 않는다.
 
 `build-admin-ui-after-ns.sh`는 Gabia NS 위임 이후 ACM certificate가 `ISSUED`가 될 때까지 기다린 뒤 ArgoCD/Grafana HTTPS Ingress를 활성화한다.
 

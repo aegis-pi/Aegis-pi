@@ -28,6 +28,10 @@ def config() -> dict:
         "eks_cluster_name": os.environ.get("EKS_CLUSTER_NAME", "AEGIS-EKS"),
         "argocd_namespace": os.environ.get("ARGOCD_NAMESPACE", "argocd"),
         "target_group_name": os.environ.get("ALB_TARGET_GROUP_NAME", "kjw-aegis-data-tg-backend"),
+        "cloudfront_distribution_id": os.environ.get("CLOUDFRONT_DISTRIBUTION_ID", "ETJBZLAO51AZW"),
+        "redis_replication_group_id": os.environ.get("REDIS_REPLICATION_GROUP_ID", "kjw-aegis-data-redis"),
+        "rds_db_instance_id": os.environ.get("RDS_DB_INSTANCE_ID", "kjw-aegis-data-pg"),
+        "dlq_queue_name": os.environ.get("DLQ_QUEUE_NAME", "kjw-aegis-data-notifier-dlq"),
         "lambda_function_names": csv_env(
             "PIPELINE_LAMBDA_NAMES",
             "AEGIS-Lambda-DataProcessor,AEGIS-Lambda-GraphAggregator5m",
@@ -41,4 +45,9 @@ def config() -> dict:
         "ecs_cpu_warning_percent": float_env("ECS_CPU_WARNING_PERCENT", 85.0),
         "ecs_memory_warning_percent": float_env("ECS_MEMORY_WARNING_PERCENT", 85.0),
         "alb_latency_warning_seconds": float_env("ALB_LATENCY_WARNING_SECONDS", 1.0),
+        "redis_cpu_warning_percent": float_env("REDIS_CPU_WARNING_PERCENT", 85.0),
+        "redis_freeable_memory_warning_mib": float_env("REDIS_FREEABLE_MEMORY_WARNING_MIB", 128.0),
+        "rds_cpu_warning_percent": float_env("RDS_CPU_WARNING_PERCENT", 85.0),
+        "rds_free_storage_warning_mib": float_env("RDS_FREE_STORAGE_WARNING_MIB", 1024.0),
+        "cloudfront_5xx_warning_percent": float_env("CLOUDFRONT_5XX_WARNING_PERCENT", 1.0),
     }

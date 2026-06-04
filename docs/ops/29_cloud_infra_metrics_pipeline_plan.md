@@ -179,9 +179,8 @@ S3 latest object time
 | 영역 | 값 | 출처 |
 | --- | --- | --- |
 | ECS | desired/running/pending count | `ecs:DescribeServices` |
-| ECS | backend service에 연결된 Target Group ARN | `ecs:DescribeServices`의 `loadBalancers[].targetGroupArn` |
 | ECS | CPU/Memory utilization | CloudWatch `AWS/ECS` |
-| ALB | healthy/unhealthy/draining/initial/unused/unknown host count | `elbv2:DescribeTargetHealth`, CloudWatch `AWS/ApplicationELB` |
+| ALB | healthy/unhealthy host count | `elbv2:DescribeTargetHealth`, CloudWatch `AWS/ApplicationELB` |
 | ALB | Target 5xx, latency | CloudWatch `AWS/ApplicationELB` |
 | Lambda | invocations/errors/duration/throttles | CloudWatch `AWS/Lambda` |
 | DynamoDB | read/write throttles, errors, latency | CloudWatch `AWS/DynamoDB` |
@@ -194,12 +193,11 @@ S3 latest object time
 
 ALB Target Group 식별 기준:
 
-- FastCollector는 backend ALB Target Group을 이름만으로 고정 조회하지 않는다.
-- 우선 `ecs:DescribeServices` 결과의 `loadBalancers[].targetGroupArn`을 사용해 `elbv2:DescribeTargetGroups(TargetGroupArns=[...])`를 호출한다.
-- `ALB_TARGET_GROUP_NAME`은 ECS service에서 Target Group ARN을 찾지 못할 때의 fallback 값이다.
-- Target Group 삭제/재생성 또는 이름 drift로 이름 조회가 실패해도 ECS service가 현재 참조하는 ARN이 있으면 ALB health/metric 수집을 계속한다.
-- ALB 수집 실패 fallback이 `status=unknown`이고 `healthy_host_count`가 없으면 `backend_runtime`을 `critical`로 승격하지 않는다. collector 조회 실패와 실제 healthy target 0개 장애를 분리하기 위한 기준이다.
-- `unhealthy_host_count`는 ALB target state가 실제 `unhealthy`인 target만 센다. ECS rolling deployment나 scale-in 중 `Target.DeregistrationInProgress` 상태인 `draining` target은 `draining_host_count`로 별도 기록하고 `alb_unhealthy_hosts` 알림 조건에 포함하지 않는다.
+- 2026-06-04 AWS 배포본 기준 FastCollector는 `ALB_TARGET_GROUP_NAME` 이름으로 `elbv2:DescribeTargetGroups(Names=[...])`를 호출한다.
+- `ecs:DescribeServices`는 ECS desired/running/pending count 수집에 사용한다. ECS service의 `loadBalancers[].targetGroupArn`을 ALB 조회 우선 키로 쓰는 로직은 현재 AWS 배포본에는 없다.
+- Target Group health는 `healthy_host_count`와 `unhealthy_host_count`로 저장한다. `unhealthy_host_count`는 healthy가 아닌 target 전체를 센다.
+- ALB 수집 실패 fallback이 `status=unknown`이고 `healthy_host_count`가 없으면 2026-06-04 AWS 배포본 기준 `_alb_status()`는 `critical`을 반환한다.
+- ECS Target Group ARN 우선 조회, `draining_host_count` 분리, ALB 조회 실패 unknown 유지 정책은 후속 개선 후보로 남긴다.
 
 ### 5분 Slow Collector
 
@@ -285,10 +283,6 @@ SlowCollector -> LATEST.slow 갱신
         "target_group_arn": "arn:aws:elasticloadbalancing:ap-south-1:611058323802:targetgroup/kjw-aegis-data-tg-backend/321996048f2765f5",
         "healthy_host_count": 1,
         "unhealthy_host_count": 0,
-        "draining_host_count": 0,
-        "initial_host_count": 0,
-        "unused_host_count": 0,
-        "unknown_host_count": 0,
         "target_5xx_count_5m": 7,
         "target_response_time_avg_seconds": 0.8,
         "target_response_time_p95_seconds": 1.9

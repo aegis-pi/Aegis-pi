@@ -1,7 +1,7 @@
 # data-processor
 
 상태: source of truth
-기준일: 2026-06-04
+기준일: 2026-05-28
 
 ## 목적
 

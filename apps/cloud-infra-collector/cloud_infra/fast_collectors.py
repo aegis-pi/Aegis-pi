@@ -5,20 +5,23 @@ from cloud_infra.time_utils import format_utc, parse_utc
 
 
 def collect_fast(config: dict, now) -> dict:
-    errors = []
-    backend_runtime = _collect_backend_runtime(config, now, errors)
-    data_pipeline = _collect_data_pipeline(config, now, errors)
-    factory_freshness = _collect_factory_freshness(config, errors)
+    backend_runtime = _collect_backend_runtime(config, now)
+    datastores = _collect_datastores(config, now)
+    data_pipeline = _collect_data_pipeline(config, now)
+    factory_freshness = _collect_factory_freshness(config, now)
+    errors = _section_errors(backend_runtime, datastores, data_pipeline, factory_freshness)
 
     return {
         "backend_runtime": backend_runtime,
+        "datastores": datastores,
         "data_pipeline": data_pipeline,
         "factory_freshness": factory_freshness,
         "errors": errors,
     }
 
 
-def _collect_backend_runtime(config: dict, now, errors: list[dict]) -> dict:
+def _collect_backend_runtime(config: dict, now) -> dict:
+    errors: list[dict] = []
     ecs = _safe(
         "ecs",
         lambda: _ecs_summary(config),
@@ -27,23 +30,37 @@ def _collect_backend_runtime(config: dict, now, errors: list[dict]) -> dict:
             "cluster_name": config["ecs_cluster_name"],
             "service_name": config["ecs_service_name"],
         },
+        now,
     )
-    ecs_metrics = _safe("ecs_cloudwatch", lambda: _ecs_metrics(config, now), errors, {})
+    ecs_metrics = _safe("ecs_cloudwatch", lambda: _ecs_metrics(config, now), errors, {}, now)
     ecs.update(ecs_metrics)
 
     alb = _safe(
         "alb",
-        lambda: _alb_summary(config, now, ecs),
+        lambda: _alb_summary(config, now),
         errors,
         {"target_group_name": config["target_group_name"]},
+        now,
+    )
+    cloudfront = _safe(
+        "cloudfront",
+        lambda: _cloudfront_summary(config, now),
+        errors,
+        {"distribution_id": config["cloudfront_distribution_id"]},
+        now,
     )
 
     ecs_status = _ecs_status(ecs, config)
     alb_status = _alb_status(alb, config)
+    cloudfront_status = _cloudfront_status(cloudfront, config)
+    reasons = _backend_reasons(ecs, alb, cloudfront, config)
     return {
-        "status": section_status(ecs_status, alb_status),
+        "status": "unknown" if errors else section_status(ecs_status, alb_status, cloudfront_status),
+        "reasons": [] if errors else reasons,
+        "errors": errors,
         "ecs": ecs,
         "alb": alb,
+        "cloudfront": cloudfront,
     }
 
 
@@ -73,7 +90,6 @@ def _ecs_summary(config: dict) -> dict:
         "desired_count": service.get("desiredCount", 0),
         "running_count": service.get("runningCount", 0),
         "pending_count": service.get("pendingCount", 0),
-        "load_balancers": service.get("loadBalancers") or [],
     }
 
 
@@ -105,16 +121,11 @@ def _ecs_metrics(config: dict, now) -> dict:
     }
 
 
-def _alb_summary(config: dict, now, ecs: dict | None = None) -> dict:
+def _alb_summary(config: dict, now) -> dict:
     elbv2 = _boto3_client("elbv2")
-    target_group_arn = _ecs_target_group_arn(ecs or {})
-    if target_group_arn:
-        response = elbv2.describe_target_groups(TargetGroupArns=[target_group_arn])
-    else:
-        response = elbv2.describe_target_groups(Names=[config["target_group_name"]])
+    response = elbv2.describe_target_groups(Names=[config["target_group_name"]])
     target_group = response["TargetGroups"][0]
     target_group_arn = target_group["TargetGroupArn"]
-    target_group_name = target_group.get("TargetGroupName", config["target_group_name"])
     target_group_label = _arn_suffix(target_group_arn, "targetgroup/")
     load_balancer_arns = target_group.get("LoadBalancerArns") or []
     load_balancer_label = None
@@ -123,16 +134,13 @@ def _alb_summary(config: dict, now, ecs: dict | None = None) -> dict:
 
     health = elbv2.describe_target_health(TargetGroupArn=target_group_arn)
     descriptions = health.get("TargetHealthDescriptions", [])
-    target_state_counts = _target_state_counts(descriptions)
+    healthy = sum(1 for item in descriptions if (item.get("TargetHealth") or {}).get("State") == "healthy")
+    unhealthy = sum(1 for item in descriptions if (item.get("TargetHealth") or {}).get("State") != "healthy")
     alb = {
-        "target_group_name": target_group_name,
+        "target_group_name": config["target_group_name"],
         "target_group_arn": target_group_arn,
-        "healthy_host_count": target_state_counts.get("healthy", 0),
-        "unhealthy_host_count": target_state_counts.get("unhealthy", 0),
-        "draining_host_count": target_state_counts.get("draining", 0),
-        "initial_host_count": target_state_counts.get("initial", 0),
-        "unused_host_count": target_state_counts.get("unused", 0),
-        "unknown_host_count": target_state_counts.get("unknown", 0),
+        "healthy_host_count": healthy,
+        "unhealthy_host_count": unhealthy,
     }
 
     if load_balancer_label:
@@ -149,23 +157,145 @@ def _alb_summary(config: dict, now, ecs: dict | None = None) -> dict:
             "target_5xx_count_5m": int(values.get("alb_5xx") or 0),
             "target_response_time_avg": values.get("alb_latency_avg"),
             "target_response_time_p95": values.get("alb_latency_p95"),
+            "target_response_time_avg_seconds": values.get("alb_latency_avg"),
+            "target_response_time_p95_seconds": values.get("alb_latency_p95"),
         })
     return alb
 
 
-def _collect_data_pipeline(config: dict, now, errors: list[dict]) -> dict:
-    lambdas = _safe("lambda_cloudwatch", lambda: _lambda_summaries(config, now), errors, [])
+def _cloudfront_summary(config: dict, now) -> dict:
+    distribution_id = config.get("cloudfront_distribution_id")
+    if not distribution_id:
+        return {"distribution_id": None, "error_rate_5xx_5m": None}
+    dimensions = [
+        {"Name": "DistributionId", "Value": distribution_id},
+        {"Name": "Region", "Value": "Global"},
+    ]
+    values = _get_metric_values([
+        _metric_query("cloudfront_5xx", "AWS/CloudFront", "5xxErrorRate", "Average", dimensions),
+    ], now, config["metric_window_minutes"], region_name="us-east-1")
+    return {
+        "distribution_id": distribution_id,
+        "error_rate_5xx_5m": values.get("cloudfront_5xx") or 0.0,
+    }
+
+
+def _collect_datastores(config: dict, now) -> dict:
+    errors: list[dict] = []
+    redis = _safe(
+        "elasticache",
+        lambda: _redis_summary(config, now),
+        errors,
+        {"replication_group_id": config["redis_replication_group_id"]},
+        now,
+    )
+    rds = _safe(
+        "rds",
+        lambda: _rds_summary(config, now),
+        errors,
+        {"db_instance_id": config["rds_db_instance_id"]},
+        now,
+    )
+    redis_status = _redis_status(redis, config)
+    rds_status = _rds_status(rds, config)
+    reasons = _datastore_reasons(redis, rds, config)
+    return {
+        "status": "unknown" if errors else section_status(redis_status, rds_status),
+        "reasons": [] if errors else reasons,
+        "errors": errors,
+        "redis": redis,
+        "rds": rds,
+    }
+
+
+def _redis_summary(config: dict, now) -> dict:
+    replication_group_id = config["redis_replication_group_id"]
+    client = _boto3_client("elasticache")
+    response = client.describe_replication_groups(ReplicationGroupId=replication_group_id)
+    group = response["ReplicationGroups"][0]
+    member_clusters = group.get("MemberClusters") or []
+    values = _redis_metric_values(member_clusters, now, config["metric_window_minutes"])
+    return {
+        "replication_group_id": replication_group_id,
+        "status": group.get("Status"),
+        "node_count": len(member_clusters),
+        "cpu_utilization_avg": _avg_present(values.get("cpu") or []),
+        "freeable_memory_mib": _bytes_to_mib(_sum_present(values.get("memory") or [])),
+        "current_connections": _int_or_none(_sum_present(values.get("connections") or [])),
+        "evictions_5m": int(_sum_present(values.get("evictions") or []) or 0),
+    }
+
+
+def _redis_metric_values(member_clusters: list[str], now, minutes: int) -> dict:
+    queries = []
+    lookup: dict[str, str] = {}
+    for index, cluster_id in enumerate(member_clusters):
+        dimensions = [
+            {"Name": "CacheClusterId", "Value": cluster_id},
+            {"Name": "CacheNodeId", "Value": "0001"},
+        ]
+        for field, metric_name, stat in [
+            ("cpu", "EngineCPUUtilization", "Average"),
+            ("memory", "FreeableMemory", "Average"),
+            ("connections", "CurrConnections", "Average"),
+            ("evictions", "Evictions", "Sum"),
+        ]:
+            metric_id = f"redis_{field}_{index}"
+            lookup[metric_id] = field
+            queries.append(_metric_query(metric_id, "AWS/ElastiCache", metric_name, stat, dimensions))
+    raw = _get_metric_values(queries, now, minutes) if queries else {}
+    result = {"cpu": [], "memory": [], "connections": [], "evictions": []}
+    for metric_id, value in raw.items():
+        result[lookup[metric_id]].append(value)
+    return result
+
+
+def _rds_summary(config: dict, now) -> dict:
+    db_instance_id = config["rds_db_instance_id"]
+    client = _boto3_client("rds")
+    response = client.describe_db_instances(DBInstanceIdentifier=db_instance_id)
+    instance = response["DBInstances"][0]
+    dimensions = [{"Name": "DBInstanceIdentifier", "Value": db_instance_id}]
+    values = _get_metric_values([
+        _metric_query("rds_cpu", "AWS/RDS", "CPUUtilization", "Average", dimensions),
+        _metric_query("rds_connections", "AWS/RDS", "DatabaseConnections", "Average", dimensions),
+        _metric_query("rds_memory", "AWS/RDS", "FreeableMemory", "Average", dimensions),
+        _metric_query("rds_storage", "AWS/RDS", "FreeStorageSpace", "Average", dimensions),
+    ], now, config["metric_window_minutes"])
+    return {
+        "db_instance_id": db_instance_id,
+        "status": instance.get("DBInstanceStatus"),
+        "cpu_utilization_avg": values.get("rds_cpu"),
+        "database_connections": _int_or_none(values.get("rds_connections")),
+        "freeable_memory_mib": _bytes_to_mib(values.get("rds_memory")),
+        "free_storage_mib": _bytes_to_mib(values.get("rds_storage")),
+    }
+
+
+def _collect_data_pipeline(config: dict, now) -> dict:
+    errors: list[dict] = []
+    lambdas = _safe("lambda_cloudwatch", lambda: _lambda_summaries(config, now), errors, [], now)
     dynamodb = _safe("dynamodb_cloudwatch", lambda: _dynamodb_summary(config, now), errors, {
         "table_name": config["dynamodb_table_name"],
-    })
-    schedulers = _safe("scheduler", lambda: _scheduler_summaries(config), errors, [])
+    }, now)
+    dlq = _safe(
+        "sqs_dlq_cloudwatch",
+        lambda: _dlq_summary(config, now),
+        errors,
+        {"queue_name": config["dlq_queue_name"]},
+        now,
+    )
+    schedulers = _safe("scheduler", lambda: _scheduler_summaries(config), errors, [], now)
     status = worst_status([
         _lambda_status(item) for item in lambdas
-    ] + [_dynamodb_status(dynamodb), _scheduler_status(schedulers)])
+    ] + [_dynamodb_status(dynamodb), _dlq_status(dlq), _scheduler_status(schedulers)])
     return {
-        "status": status,
+        "status": "unknown" if errors else status,
+        "reasons": [] if errors else _data_pipeline_reasons(lambdas, dynamodb, dlq, schedulers),
+        "errors": errors,
         "lambdas": lambdas,
         "dynamodb": dynamodb,
+        "dlq": dlq,
         "schedulers": schedulers,
     }
 
@@ -206,6 +336,20 @@ def _dynamodb_summary(config: dict, now) -> dict:
     }
 
 
+def _dlq_summary(config: dict, now) -> dict:
+    queue_name = config["dlq_queue_name"]
+    dimensions = [{"Name": "QueueName", "Value": queue_name}]
+    values = _get_metric_values([
+        _metric_query("dlq_visible", "AWS/SQS", "ApproximateNumberOfMessagesVisible", "Average", dimensions),
+        _metric_query("dlq_age", "AWS/SQS", "ApproximateAgeOfOldestMessage", "Maximum", dimensions),
+    ], now, config["metric_window_minutes"])
+    return {
+        "queue_name": queue_name,
+        "messages_visible": _int_or_none(values.get("dlq_visible")) or 0,
+        "oldest_message_age_seconds": _int_or_none(values.get("dlq_age")) or 0,
+    }
+
+
 def _scheduler_summaries(config: dict) -> list[dict]:
     client = _boto3_client("scheduler")
     result = []
@@ -215,19 +359,22 @@ def _scheduler_summaries(config: dict) -> list[dict]:
     return result
 
 
-def _collect_factory_freshness(config: dict, errors: list[dict]) -> dict:
+def _collect_factory_freshness(config: dict, now) -> dict:
     from cloud_infra import dynamo
 
+    errors: list[dict] = []
     factories = []
     for factory_id in config["factory_ids"]:
         try:
             latest = dynamo.get_factory_latest(factory_id)
             factories.append(_factory_summary(factory_id, latest))
         except Exception as exc:
-            errors.append({"collector": "factory_freshness", "factory_id": factory_id, "error": str(exc)})
+            errors.append(_error_item("dynamodb:GetItem", exc, now, factory_id=factory_id))
             factories.append({"factory_id": factory_id, "status": "unknown"})
     return {
-        "status": worst_status([item.get("pipeline_status") or item.get("status") for item in factories]),
+        "status": "unknown" if errors else worst_status([item.get("pipeline_status") or item.get("status") for item in factories]),
+        "reasons": [] if errors else _factory_freshness_reasons(factories),
+        "errors": errors,
         "factories": factories,
     }
 
@@ -246,8 +393,8 @@ def _factory_summary(factory_id: str, latest: dict) -> dict:
     }
 
 
-def _get_metric_values(queries: list[dict], now, minutes: int) -> dict:
-    client = _boto3_client("cloudwatch")
+def _get_metric_values(queries: list[dict], now, minutes: int, region_name: str | None = None) -> dict:
+    client = _boto3_client("cloudwatch", region_name=region_name)
     response = client.get_metric_data(
         MetricDataQueries=queries,
         StartTime=now - timedelta(minutes=minutes),
@@ -292,14 +439,42 @@ def _ecs_status(ecs: dict, config: dict) -> str:
 
 
 def _alb_status(alb: dict, config: dict) -> str:
-    if alb.get("status") == "unknown" and "healthy_host_count" not in alb:
-        return "unknown"
     healthy = int(alb.get("healthy_host_count") or 0)
     if healthy == 0:
         return "critical"
     if int(alb.get("target_5xx_count_5m") or 0) > 0:
         return "warning"
     if (alb.get("target_response_time_p95") or alb.get("target_response_time_avg") or 0) >= config["alb_latency_warning_seconds"]:
+        return "warning"
+    return "normal"
+
+
+def _cloudfront_status(cloudfront: dict, config: dict) -> str:
+    if (cloudfront.get("error_rate_5xx_5m") or 0) >= config["cloudfront_5xx_warning_percent"]:
+        return "warning"
+    return "normal"
+
+
+def _redis_status(redis: dict, config: dict) -> str:
+    if redis.get("status") and redis.get("status") != "available":
+        return "critical"
+    if (redis.get("cpu_utilization_avg") or 0) >= config["redis_cpu_warning_percent"]:
+        return "warning"
+    freeable = redis.get("freeable_memory_mib")
+    if freeable is not None and freeable < config["redis_freeable_memory_warning_mib"]:
+        return "warning"
+    if int(redis.get("evictions_5m") or 0) > 0:
+        return "warning"
+    return "normal"
+
+
+def _rds_status(rds: dict, config: dict) -> str:
+    if rds.get("status") and rds.get("status") != "available":
+        return "critical"
+    if (rds.get("cpu_utilization_avg") or 0) >= config["rds_cpu_warning_percent"]:
+        return "warning"
+    free_storage = rds.get("free_storage_mib")
+    if free_storage is not None and free_storage < config["rds_free_storage_warning_mib"]:
         return "warning"
     return "normal"
 
@@ -318,6 +493,12 @@ def _dynamodb_status(item: dict) -> str:
     return "normal"
 
 
+def _dlq_status(item: dict) -> str:
+    if int(item.get("messages_visible") or 0) > 0:
+        return "warning"
+    return "normal"
+
+
 def _scheduler_status(items: list[dict]) -> str:
     if not items:
         return "unknown"
@@ -325,41 +506,143 @@ def _scheduler_status(items: list[dict]) -> str:
     return "warning" if disabled else "normal"
 
 
-def _safe(collector: str, func, errors: list[dict], fallback):
+def _backend_reasons(ecs: dict, alb: dict, cloudfront: dict, config: dict) -> list[str]:
+    reasons = []
+    desired = int(ecs.get("desired_count") or 0)
+    running = int(ecs.get("running_count") or 0)
+    if desired > 0 and running == 0:
+        reasons.append("ecs_running_count=0")
+    elif running < desired:
+        reasons.append("ecs_running_count<desired_count")
+    if (ecs.get("cpu_utilization_max") or 0) >= config["ecs_cpu_warning_percent"]:
+        reasons.append("ecs_cpu_utilization_max>=threshold")
+    if (ecs.get("memory_utilization_max") or 0) >= config["ecs_memory_warning_percent"]:
+        reasons.append("ecs_memory_utilization_max>=threshold")
+    if int(alb.get("healthy_host_count") or 0) == 0:
+        reasons.append("alb_healthy_host_count=0")
+    if int(alb.get("target_5xx_count_5m") or 0) > 0:
+        reasons.append("alb_target_5xx_count_5m>0")
+    if (alb.get("target_response_time_p95") or alb.get("target_response_time_avg") or 0) >= config["alb_latency_warning_seconds"]:
+        reasons.append("alb_target_response_time>=threshold")
+    if (cloudfront.get("error_rate_5xx_5m") or 0) >= config["cloudfront_5xx_warning_percent"]:
+        reasons.append("cloudfront_5xx_error_rate>=threshold")
+    return reasons
+
+
+def _datastore_reasons(redis: dict, rds: dict, config: dict) -> list[str]:
+    reasons = []
+    if redis.get("status") and redis.get("status") != "available":
+        reasons.append("redis_status!=available")
+    if (redis.get("cpu_utilization_avg") or 0) >= config["redis_cpu_warning_percent"]:
+        reasons.append("redis_cpu_utilization_avg>=threshold")
+    freeable = redis.get("freeable_memory_mib")
+    if freeable is not None and freeable < config["redis_freeable_memory_warning_mib"]:
+        reasons.append("redis_freeable_memory_low")
+    if int(redis.get("evictions_5m") or 0) > 0:
+        reasons.append("redis_evictions_5m>0")
+    if rds.get("status") and rds.get("status") != "available":
+        reasons.append("rds_status!=available")
+    if (rds.get("cpu_utilization_avg") or 0) >= config["rds_cpu_warning_percent"]:
+        reasons.append("rds_cpu_utilization_avg>=threshold")
+    free_storage = rds.get("free_storage_mib")
+    if free_storage is not None and free_storage < config["rds_free_storage_warning_mib"]:
+        reasons.append("rds_free_storage_low")
+    return reasons
+
+
+def _data_pipeline_reasons(lambdas: list[dict], dynamodb: dict, dlq: dict, schedulers: list[dict]) -> list[str]:
+    reasons = []
+    for item in lambdas:
+        name = item.get("name", "unknown")
+        if int(item.get("errors_5m") or 0) > 0:
+            reasons.append(f"lambda_errors_5m>0:{name}")
+        if int(item.get("throttles_5m") or 0) > 0:
+            reasons.append(f"lambda_throttles_5m>0:{name}")
+    if int(dynamodb.get("system_errors_5m") or 0) > 0:
+        reasons.append("dynamodb_system_errors_5m>0")
+    if int(dynamodb.get("read_throttle_events_5m") or 0) > 0:
+        reasons.append("dynamodb_read_throttle_events_5m>0")
+    if int(dynamodb.get("write_throttle_events_5m") or 0) > 0:
+        reasons.append("dynamodb_write_throttle_events_5m>0")
+    if int(dlq.get("messages_visible") or 0) > 0:
+        reasons.append("dlq_messages_visible>0")
+    for item in schedulers:
+        if item.get("state") != "ENABLED":
+            reasons.append(f"scheduler_disabled:{item.get('name', 'unknown')}")
+    return reasons
+
+
+def _factory_freshness_reasons(factories: list[dict]) -> list[str]:
+    reasons = []
+    for item in factories:
+        status = item.get("pipeline_status") or item.get("status")
+        if status and status != "normal":
+            reasons.append(f"factory_pipeline_status:{item.get('factory_id', 'unknown')}={status}")
+    return reasons
+
+
+def _section_errors(*sections: dict) -> list[dict]:
+    errors = []
+    for section in sections:
+        errors.extend(section.get("errors") or [])
+    return errors
+
+
+def _safe(collector: str, func, errors: list[dict], fallback, now=None):
     try:
         return func()
     except Exception as exc:
-        errors.append({"collector": collector, "error": str(exc)})
+        errors.append(_error_item(collector, exc, now))
         if isinstance(fallback, dict):
             return {**fallback, "status": "unknown"}
         return fallback
 
 
+def _error_item(source: str, exc: Exception, now=None, **extra) -> dict:
+    code = None
+    response = getattr(exc, "response", None)
+    if isinstance(response, dict):
+        code = (response.get("Error") or {}).get("Code")
+    item = {
+        "source": source,
+        "message": str(exc),
+    }
+    if code:
+        item["code"] = code
+    if now is not None:
+        item["at"] = format_utc(now)
+    item.update(extra)
+    return item
+
+
+def _bytes_to_mib(value) -> float | None:
+    if value is None:
+        return None
+    return round(float(value) / 1024 / 1024, 2)
+
+
+def _avg_present(values: list) -> float | None:
+    present = [float(value) for value in values if value is not None]
+    if not present:
+        return None
+    return round(sum(present) / len(present), 4)
+
+
+def _sum_present(values: list) -> float | None:
+    present = [float(value) for value in values if value is not None]
+    if not present:
+        return None
+    return round(sum(present), 4)
+
+
+def _int_or_none(value):
+    if value is None:
+        return None
+    return int(round(float(value)))
+
+
 def _arn_suffix(arn: str, marker: str) -> str:
     return arn.split(marker, 1)[1]
-
-
-def _target_state_counts(descriptions: list[dict]) -> dict[str, int]:
-    counts = {
-        "healthy": 0,
-        "unhealthy": 0,
-        "draining": 0,
-        "initial": 0,
-        "unused": 0,
-        "unknown": 0,
-    }
-    for item in descriptions:
-        state = (item.get("TargetHealth") or {}).get("State") or "unknown"
-        counts[state if state in counts else "unknown"] += 1
-    return counts
-
-
-def _ecs_target_group_arn(ecs: dict) -> str | None:
-    for load_balancer in ecs.get("load_balancers") or []:
-        target_group_arn = load_balancer.get("targetGroupArn")
-        if target_group_arn:
-            return target_group_arn
-    return None
 
 
 def _safe_metric_id(name: str) -> str:
@@ -370,7 +653,9 @@ def _safe_metric_id(name: str) -> str:
     return result[:100]
 
 
-def _boto3_client(service: str):
+def _boto3_client(service: str, region_name: str | None = None):
     import boto3
 
+    if region_name:
+        return boto3.client(service, region_name=region_name)
     return boto3.client(service)

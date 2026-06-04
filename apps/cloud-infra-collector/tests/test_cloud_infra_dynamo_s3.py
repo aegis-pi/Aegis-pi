@@ -84,7 +84,7 @@ def test_write_slow_snapshot_preserves_fast_and_writes_history(monkeypatch):
     assert history["snapshot_type"] == "slow"
 
 
-def test_overall_status_excludes_factory_freshness(monkeypatch):
+def test_overall_status_includes_factory_freshness(monkeypatch):
     table = FakeTable()
     table.current = {
         "pk": "CLOUD#infra",
@@ -108,7 +108,7 @@ def test_overall_status_excludes_factory_freshness(monkeypatch):
         6,
     )
 
-    assert history["overall_status"] == "normal"
+    assert history["overall_status"] == "critical"
     assert history["fast"]["factory_freshness"]["status"] == "critical"
 
 
@@ -126,7 +126,7 @@ def test_overall_status_keeps_cloud_section_warning(monkeypatch):
             "eks_management": {"status": "normal"},
             "storage_freshness": {"status": "normal"},
         },
-    ) == "warning"
+    ) == "critical"
 
 
 def test_fast_s3_snapshot_key_and_body_excludes_ttl(monkeypatch):
