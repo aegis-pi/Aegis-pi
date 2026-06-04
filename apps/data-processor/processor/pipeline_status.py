@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 
 # Thresholds from docs/specs/data_storage_pipeline.md (M4 Issue 7 MVP criteria)
-_WARNING_SECONDS = 40
-_CRITICAL_SECONDS = 60
+WARNING_SECONDS = 60
+CRITICAL_SECONDS = 120
 
 
 def calculate(last_infra_state_at: str | None, now: datetime | None = None) -> dict:
@@ -19,9 +19,9 @@ def calculate(last_infra_state_at: str | None, now: datetime | None = None) -> d
 
     age = int((now - last_seen).total_seconds())
 
-    if age > _CRITICAL_SECONDS:
+    if age > CRITICAL_SECONDS:
         status = "critical"
-    elif age > _WARNING_SECONDS:
+    elif age > WARNING_SECONDS:
         status = "warning"
     else:
         status = "normal"

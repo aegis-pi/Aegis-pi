@@ -1,3 +1,6 @@
+from processor.pipeline_status import CRITICAL_SECONDS as FRESHNESS_CRITICAL_SECONDS
+from processor.pipeline_status import WARNING_SECONDS as FRESHNESS_WARNING_SECONDS
+
 # Higher score is safer: 100-85 safe, 84-50 warning, 49-0 danger.
 _WEIGHTS = {
     "temperature": 10.0,
@@ -22,8 +25,6 @@ _PRESSURE_HIGH_WARNING = 1030.0
 _PRESSURE_HIGH_CRITICAL = 1050.0
 _STORAGE_WARNING = 75.0
 _STORAGE_CRITICAL = 90.0
-_FRESHNESS_WARNING_SECONDS = 40
-_FRESHNESS_CRITICAL_SECONDS = 60
 _FRESHNESS_OUTAGE_SECONDS = 300
 _REQUIRED_DEVICES = ("bme280", "camera", "microphone")
 
@@ -212,10 +213,10 @@ def _freshness_risk(pipeline_status: dict | None) -> float:
     age = _nullable_number(age)
     if age is None:
         return 1.0
-    if age >= _FRESHNESS_CRITICAL_SECONDS:
+    if age > FRESHNESS_CRITICAL_SECONDS:
         return 1.0
-    if age > _FRESHNESS_WARNING_SECONDS:
-        return (age - _FRESHNESS_WARNING_SECONDS) / (_FRESHNESS_CRITICAL_SECONDS - _FRESHNESS_WARNING_SECONDS)
+    if age > FRESHNESS_WARNING_SECONDS:
+        return (age - FRESHNESS_WARNING_SECONDS) / (FRESHNESS_CRITICAL_SECONDS - FRESHNESS_WARNING_SECONDS)
     return 0.0
 
 

@@ -341,7 +341,7 @@ class FactoryBDummyGenerator:
 
     def _pipeline_gap_seconds(self, event: str | None) -> float | None:
         if event == "pipeline_warning_gap":
-            return self.rng.uniform(45.0, 55.0)
+            return self.rng.uniform(75.0, 105.0)
         return None
 
     def _node(self, node_id: str, role: str, cpu: float, memory: float, disk: float) -> dict[str, Any]:

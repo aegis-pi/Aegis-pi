@@ -88,7 +88,7 @@ def test_all_nodes_not_ready_caps_score_to_danger():
 
 
 def test_pipeline_warning_caps_score_to_warning():
-    result = calculate(_sensor(), {}, {"status": "warning", "latest_infra_state_age_seconds": 55})
+    result = calculate(_sensor(), {}, {"status": "warning", "latest_infra_state_age_seconds": 90})
 
     assert result["score"] == 84.0
     assert result["level"] == "warning"

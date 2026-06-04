@@ -161,8 +161,8 @@ class FactoryCDummyGeneratorTest(unittest.TestCase):
         critical_gap = generator._pipeline_gap_seconds("pipeline_critical_gap")
         outage_gap = generator._pipeline_gap_seconds("pipeline_outage_gap")
 
-        self.assertGreaterEqual(critical_gap, 70.0)
-        self.assertLessEqual(critical_gap, 120.0)
+        self.assertGreaterEqual(critical_gap, 135.0)
+        self.assertLessEqual(critical_gap, 180.0)
         self.assertGreaterEqual(outage_gap, 301.0)
 
 

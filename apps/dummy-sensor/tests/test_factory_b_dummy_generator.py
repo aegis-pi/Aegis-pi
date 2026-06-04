@@ -135,8 +135,8 @@ class FactoryBDummyGeneratorTest(unittest.TestCase):
 
         gap = generator._pipeline_gap_seconds("pipeline_warning_gap")
 
-        self.assertGreaterEqual(gap, 45.0)
-        self.assertLessEqual(gap, 55.0)
+        self.assertGreaterEqual(gap, 75.0)
+        self.assertLessEqual(gap, 105.0)
 
     def test_write_outbox_is_idempotent_for_same_message_id(self):
         with tempfile.TemporaryDirectory() as tmp:

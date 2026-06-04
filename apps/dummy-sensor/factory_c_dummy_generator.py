@@ -367,7 +367,7 @@ class FactoryCDummyGenerator:
 
     def _pipeline_gap_seconds(self, event: str | None) -> float | None:
         if event == "pipeline_critical_gap":
-            return self.rng.uniform(70.0, 120.0)
+            return self.rng.uniform(135.0, 180.0)
         if event == "pipeline_outage_gap":
             return self.rng.uniform(301.0, 330.0)
         return None
