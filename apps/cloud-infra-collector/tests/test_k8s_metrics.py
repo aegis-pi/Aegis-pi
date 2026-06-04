@@ -1,4 +1,4 @@
-from cloud_infra.k8s_metrics import _parse_cpu, _parse_memory, kubernetes_summary
+from cloud_infra.k8s_metrics import _parse_cpu, _parse_memory, _pods_summary, kubernetes_summary
 
 
 class FakeClient:
@@ -80,3 +80,10 @@ def test_kubernetes_summary_includes_nodes_pods_and_argocd():
     assert summary["pods"]["top_by_cpu"][0]["cpu_millicores"] == 50
     assert summary["argocd"]["synced"] == 1
 
+
+def test_single_failed_pod_is_warning_and_two_are_critical():
+    one_failed = {"items": [{"status": {"phase": "Failed"}}]}
+    two_failed = {"items": [{"status": {"phase": "Failed"}}, {"status": {"phase": "Failed"}}]}
+
+    assert _pods_summary(one_failed, None, 3)["status"] == "warning"
+    assert _pods_summary(two_failed, None, 3)["status"] == "critical"

@@ -84,6 +84,51 @@ def test_write_slow_snapshot_preserves_fast_and_writes_history(monkeypatch):
     assert history["snapshot_type"] == "slow"
 
 
+def test_overall_status_excludes_factory_freshness(monkeypatch):
+    table = FakeTable()
+    table.current = {
+        "pk": "CLOUD#infra",
+        "sk": "LATEST",
+        "slow_updated_at": "2026-06-01T15:25:00.000Z",
+        "slow": {
+            "eks_management": {"status": "normal"},
+            "storage_freshness": {"status": "normal"},
+        },
+    }
+    _install_boto3(monkeypatch, table=table)
+    dynamo = importlib.import_module("cloud_infra.dynamo")
+
+    history = dynamo.write_fast_snapshot(
+        {
+            "backend_runtime": {"status": "normal"},
+            "data_pipeline": {"status": "normal"},
+            "factory_freshness": {"status": "critical"},
+        },
+        "2026-06-01T15:30:00.000Z",
+        6,
+    )
+
+    assert history["overall_status"] == "normal"
+    assert history["fast"]["factory_freshness"]["status"] == "critical"
+
+
+def test_overall_status_keeps_cloud_section_warning(monkeypatch):
+    _install_boto3(monkeypatch)
+    dynamo = importlib.import_module("cloud_infra.dynamo")
+
+    assert dynamo._overall_status(
+        {
+            "backend_runtime": {"status": "warning"},
+            "data_pipeline": {"status": "normal"},
+            "factory_freshness": {"status": "critical"},
+        },
+        {
+            "eks_management": {"status": "normal"},
+            "storage_freshness": {"status": "normal"},
+        },
+    ) == "warning"
+
+
 def test_fast_s3_snapshot_key_and_body_excludes_ttl(monkeypatch):
     s3 = FakeS3()
     _install_boto3(monkeypatch, s3=s3)

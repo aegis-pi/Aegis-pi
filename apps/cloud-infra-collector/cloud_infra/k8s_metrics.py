@@ -62,7 +62,13 @@ def _pods_summary(pods_doc: dict, pod_metrics_doc: dict | None, top_pods_limit: 
             restart_count_total += int(container.get("restartCount") or 0)
 
     top = _top_pods(pod_metrics_doc or {}, top_pods_limit)
-    status = "critical" if counts["failed"] > 0 else "warning" if counts["pending"] > 0 or counts["unknown"] > 0 else "normal"
+    status = (
+        "critical"
+        if counts["failed"] >= 2
+        else "warning"
+        if counts["failed"] == 1 or counts["pending"] > 0 or counts["unknown"] > 0
+        else "normal"
+    )
     return {
         "status": status,
         **counts,
@@ -191,4 +197,3 @@ def _optional_get(client, path: str) -> dict | None:
         return client.get(path)
     except Exception:
         return None
-

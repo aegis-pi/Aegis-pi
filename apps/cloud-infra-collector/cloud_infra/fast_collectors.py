@@ -33,7 +33,7 @@ def _collect_backend_runtime(config: dict, now, errors: list[dict]) -> dict:
 
     alb = _safe(
         "alb",
-        lambda: _alb_summary(config, now),
+        lambda: _alb_summary(config, now, ecs),
         errors,
         {"target_group_name": config["target_group_name"]},
     )
@@ -73,6 +73,7 @@ def _ecs_summary(config: dict) -> dict:
         "desired_count": service.get("desiredCount", 0),
         "running_count": service.get("runningCount", 0),
         "pending_count": service.get("pendingCount", 0),
+        "load_balancers": service.get("loadBalancers") or [],
     }
 
 
@@ -104,11 +105,16 @@ def _ecs_metrics(config: dict, now) -> dict:
     }
 
 
-def _alb_summary(config: dict, now) -> dict:
+def _alb_summary(config: dict, now, ecs: dict | None = None) -> dict:
     elbv2 = _boto3_client("elbv2")
-    response = elbv2.describe_target_groups(Names=[config["target_group_name"]])
+    target_group_arn = _ecs_target_group_arn(ecs or {})
+    if target_group_arn:
+        response = elbv2.describe_target_groups(TargetGroupArns=[target_group_arn])
+    else:
+        response = elbv2.describe_target_groups(Names=[config["target_group_name"]])
     target_group = response["TargetGroups"][0]
     target_group_arn = target_group["TargetGroupArn"]
+    target_group_name = target_group.get("TargetGroupName", config["target_group_name"])
     target_group_label = _arn_suffix(target_group_arn, "targetgroup/")
     load_balancer_arns = target_group.get("LoadBalancerArns") or []
     load_balancer_label = None
@@ -117,13 +123,16 @@ def _alb_summary(config: dict, now) -> dict:
 
     health = elbv2.describe_target_health(TargetGroupArn=target_group_arn)
     descriptions = health.get("TargetHealthDescriptions", [])
-    healthy = sum(1 for item in descriptions if (item.get("TargetHealth") or {}).get("State") == "healthy")
-    unhealthy = sum(1 for item in descriptions if (item.get("TargetHealth") or {}).get("State") != "healthy")
+    target_state_counts = _target_state_counts(descriptions)
     alb = {
-        "target_group_name": config["target_group_name"],
+        "target_group_name": target_group_name,
         "target_group_arn": target_group_arn,
-        "healthy_host_count": healthy,
-        "unhealthy_host_count": unhealthy,
+        "healthy_host_count": target_state_counts.get("healthy", 0),
+        "unhealthy_host_count": target_state_counts.get("unhealthy", 0),
+        "draining_host_count": target_state_counts.get("draining", 0),
+        "initial_host_count": target_state_counts.get("initial", 0),
+        "unused_host_count": target_state_counts.get("unused", 0),
+        "unknown_host_count": target_state_counts.get("unknown", 0),
     }
 
     if load_balancer_label:
@@ -283,6 +292,8 @@ def _ecs_status(ecs: dict, config: dict) -> str:
 
 
 def _alb_status(alb: dict, config: dict) -> str:
+    if alb.get("status") == "unknown" and "healthy_host_count" not in alb:
+        return "unknown"
     healthy = int(alb.get("healthy_host_count") or 0)
     if healthy == 0:
         return "critical"
@@ -326,6 +337,29 @@ def _safe(collector: str, func, errors: list[dict], fallback):
 
 def _arn_suffix(arn: str, marker: str) -> str:
     return arn.split(marker, 1)[1]
+
+
+def _target_state_counts(descriptions: list[dict]) -> dict[str, int]:
+    counts = {
+        "healthy": 0,
+        "unhealthy": 0,
+        "draining": 0,
+        "initial": 0,
+        "unused": 0,
+        "unknown": 0,
+    }
+    for item in descriptions:
+        state = (item.get("TargetHealth") or {}).get("State") or "unknown"
+        counts[state if state in counts else "unknown"] += 1
+    return counts
+
+
+def _ecs_target_group_arn(ecs: dict) -> str | None:
+    for load_balancer in ecs.get("load_balancers") or []:
+        target_group_arn = load_balancer.get("targetGroupArn")
+        if target_group_arn:
+            return target_group_arn
+    return None
 
 
 def _safe_metric_id(name: str) -> str:
