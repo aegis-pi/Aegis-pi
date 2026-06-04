@@ -2,6 +2,8 @@
 
 이 디렉터리는 실제 운영, 점검, 장애 대응, 인증서 주입 같은 실행 절차 문서를 둔다.
 
+현재 운영 기준일은 2026-06-04다. Hub-only 데이터 수집 유지 재시작은 `14_hub_run_commands.md`, data-pipeline과 Cloud collector는 `23_data_pipeline.md` 및 `29_cloud_infra_metrics_pipeline_plan.md`, Slack alert 정책은 `31_risk_alert_dispatcher.md`를 source of truth로 사용한다.
+
 ## 파일
 
 | 파일 | 내용 |

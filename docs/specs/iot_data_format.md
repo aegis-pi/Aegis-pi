@@ -1,7 +1,7 @@
 # IoT Core Data Format
 
 상태: source of truth
-기준일: 2026-05-18
+기준일: 2026-06-04
 
 ## 목적
 
@@ -392,11 +392,11 @@ Cloud-side Lambda data processor는 아래 입력을 바탕으로 `pipeline_stat
 
 | 상태 | 조건 |
 | --- | --- |
-| `normal` | latest `infra_state` age <= 20초 |
-| `warning` | latest `infra_state` age > 40초 |
-| `critical` | latest `infra_state` age > 60초 |
+| `normal` | latest `infra_state` age <= 60초 |
+| `warning` | latest `infra_state` age > 60초 |
+| `critical` | latest `infra_state` age > 120초 |
 
-이 기준은 20초 주기에서 1분 내 파이프라인 이상을 감지하기 위한 MVP 기준이다. M7 통합 검증에서 실제 지연과 누락률을 보고 보정한다.
+이 기준은 20초 주기 메시지의 일시 지연과 DataProcessorRefresh1m 실행 간격을 고려해 오탐을 줄이기 위한 운영 기준이다. warning/critical 경계에서는 `60초`, `120초`가 각각 normal/warning이며 초과할 때 다음 상태로 전환한다.
 
 ## Payload Size and Traffic
 

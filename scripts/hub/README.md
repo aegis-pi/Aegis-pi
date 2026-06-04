@@ -1,7 +1,7 @@
 # Hub Scripts
 
 상태: source of truth
-기준일: 2026-06-01
+기준일: 2026-06-04
 
 ## 목적
 
@@ -61,13 +61,16 @@ scripts/build/build-hub.sh <MFA_OTP>
 4. infra/hub terraform validate
 5. infra/hub terraform plan -out=tfplan
 6. infra/hub terraform apply tfplan
-7. scripts/ansible Hub platform bootstrap/verify 실행
+7. 유지 중인 SlowCollector IAM role이 있으면 data-pipeline EKS access entry/view policy 자동 복구
+8. scripts/ansible Hub platform bootstrap/verify 실행
    - ArgoCD
    - legacy Prometheus Agent cleanup
    - Grafana
    - AWS Load Balancer Controller
-8. secret/hub-ui-credentials.txt 갱신
+9. secret/hub-ui-credentials.txt 갱신
 ```
+
+SlowCollector IAM role이 존재하지만 `infra/data-pipeline/terraform.tfstate`가 없으면 안전한 target apply를 보장할 수 없어 중단한다. 명시적으로 건너뛰려면 `RECONCILE_DATA_PIPE_EKS_ACCESS=false`를 사용한다.
 
 ArgoCD Helm release가 이미 `deployed` 상태이고 chart version이 같으면 bootstrap playbook은 Helm upgrade를 건너뛴다. 강제 재적용은 아래처럼 실행한다.
 
@@ -76,6 +79,8 @@ FORCE_ARGOCD_UPGRADE=true scripts/build/build-hub.sh
 ```
 
 Tailscale Operator, Spoke egress, ArgoCD/Grafana Tailnet UI, ArgoCD cluster Secret, ApplicationSet은 `build-hub.sh` 기본 흐름에서 실행하지 않는다. 필요 시 `scripts/build/connect-hub-tailscale-ui.sh` 또는 `scripts/build/register-spoke-factory-a.sh`, `register-spoke-factory-b.sh`, `register-spoke-factory-c.sh`를 별도로 실행한다.
+
+Hub-only 데이터 수집 유지 재시작에서는 factory별 등록 스크립트에 `HUB_ONLY_RECONNECT=true`를 사용한다. 이 모드에서는 data-pipeline, ECS backend, factory-b/c dummy generator와 Spoke publisher를 재생성하거나 재시작하지 않는다.
 
 `scripts/hub/run-hub.sh` wrapper를 사용하면 build 이후 port-forward까지 이어서 foreground로 실행된다. 중지하려면 `Ctrl+C`를 사용한다.
 
@@ -105,6 +110,8 @@ scripts/destroy/destroy-hub.sh <MFA_OTP>
 ```
 
 `destroy-hub.sh`는 EKS, node group, NAT Gateway 등 `infra/hub` Terraform state가 관리하는 리소스를 제거한다. ArgoCD, namespace, Tailscale Operator/proxy Service는 EKS 내부 리소스이므로 EKS destroy와 함께 제거된다. `factory-a-master` Tailscale device와 OAuth client는 삭제하지 않는다.
+
+Hub-only 데이터 수집 유지 모드에서는 `destroy-hub.sh`만 실행한다. data-pipeline을 유지하면 다음 `build-hub.sh`가 SlowCollector EKS access binding을 새 Hub에 자동 복구한다.
 
 전체 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. 기본값은 reporting/data-pipeline/Hub 삭제이며 IoT와 foundation은 보존한다. `DESTROY_IOT=true`, `DESTROY_FOUNDATION=true`를 명시한 경우에만 IoT Thing/certificate/K3s Secret과 foundation 영속 리소스까지 삭제한다.
 

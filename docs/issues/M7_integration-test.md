@@ -245,7 +245,8 @@ moving tags: main, latest
 - [ ] Risk Score 계산 및 관제 화면 반영 확인
 - [ ] Data / Dashboard VPC 반영 지연 측정
   - 일반 상태 변화: 10~35초 목표
-  - 장애 판정: 40~60초 목표
+  - pipeline warning: 60초 초과
+  - pipeline critical: 120초 초과
 - [ ] 센서 무수신 시나리오
   - BME280 센서 연결 해제 → `sensor_no_data` 판정 → Risk Score 반영
   - 관제 화면 이상 시스템 목록 갱신 확인

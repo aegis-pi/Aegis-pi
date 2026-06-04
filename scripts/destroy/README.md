@@ -1,7 +1,7 @@
 # Destroy Scripts
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-06-04
 
 ## 목적
 
@@ -126,7 +126,7 @@ ACM Certificate                $0              ✗ 보존 (재발급 + ACM 검�
 
 ### 권장 삭제 범위
 
-**개발 중단 시 (일반)** — Hub만 내린다. Foundation과 IoT는 그대로 유지.
+**개발 중단 시 (전체 수집 중단)** — Data-pipeline과 Hub를 내린다. Foundation과 IoT는 그대로 유지.
 
 ```text
 삭제: VM dummy generator 정지 → Data-pipeline (IoT Rules, Lambda) → Hub Platform (ALB) → Hub Infra (EKS, NAT GW, VPC)
@@ -288,6 +288,7 @@ scripts/destroy/destroy-hub.sh [MFA_OTP]
 
 # 출근 시
 scripts/build/build-hub.sh [MFA_OTP]
+scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]
 HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a.sh [MFA_OTP]
 HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-b.sh [MFA_OTP]
 HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-c.sh [MFA_OTP]
@@ -295,6 +296,10 @@ scripts/ops/check-spoke-publisher-safety.sh
 ```
 
 이 모드에서는 `stop-dummy-generators.sh`를 실행하지 않는다. factory-b/c dummy generator와 Spoke K3s `edge-iot-publisher`가 계속 동작해야 밤새 데이터가 누적된다.
+
+`build-hub.sh`는 Hub infra 생성 직후 유지 중인 data-pipeline의 SlowCollector EKS access entry와 `AmazonEKSAdminViewPolicy` association을 자동 복구한 뒤 Hub platform을 설치한다. 별도로 `reconcile-data-pipe-eks-access.sh`를 실행할 필요는 없다.
+
+Hub destroy는 ECS Fargate backend와 CloudInfraFastCollector를 삭제하지 않는다. FastCollector는 유지 중인 ECS cluster/service를 계속 조회하며, ECS service가 반환한 Target Group ARN을 기준으로 backend ALB 상태를 확인한다.
 
 `HUB_ONLY_RECONNECT=true`는 register 단계에서 ArgoCD `app sync`와 ECR pull secret refresh/restart를 기본 비활성화한다. 기존 Spoke Deployment를 Hub ArgoCD에 다시 붙이되, 불필요한 rollout을 피하기 위한 모드다.
 

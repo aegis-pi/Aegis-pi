@@ -123,6 +123,8 @@ ACM certificate가 `ISSUED`가 되기 전에는 HTTPS listener가 정상 구성�
 
 이후 Terraform destroy가 LBC IRSA와 EKS/VPC 리소스를 삭제한다. Route53 Hosted Zone과 ACM certificate는 foundation에 보존된다.
 
+Admin UI Ingress는 `alb.ingress.kubernetes.io/load-balancer-name: aegis-admin-ui` 고정 이름을 사용한다. Hub-only 반복 생성/삭제에서는 이 이름을 변경하지 않는 것을 운영 기준으로 한다. ECS Fargate backend처럼 ECS service의 Target Group ARN을 사용하는 구조가 아니며, Admin UI ALB는 Kubernetes Ingress와 AWS Load Balancer Controller가 관리한다.
+
 ## 비용 기준
 
 Admin Ingress를 활성화하면 Public ALB 1개, ALB LCU, internet-facing ALB public IPv4 비용이 발생한다. ACM public certificate는 비용이 없고, AWS Load Balancer Controller pod는 기존 EKS node 위에서 실행되므로 별도 고정 비용이 없다.

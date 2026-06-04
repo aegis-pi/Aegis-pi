@@ -1,7 +1,7 @@
 # Build Scripts
 
 상태: source of truth
-기준일: 2026-06-01
+기준일: 2026-06-04
 
 ## 목적
 
@@ -97,10 +97,11 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 | `build-admin-ui-after-ns.sh` | Gabia NS 위임 후 ACM 발급을 기다리고 Admin UI HTTPS Ingress 활성화 |
 | `build-foundation.sh` | `infra/foundation` Terraform apply. 최초 1회 단독 실행. |
 | `build-data-pipe.sh` | `infra/data-pipeline` Terraform apply. IoT Rule × 3, DataProcessor/GraphAggregator5m/CloudInfra collector/RiskAlertDispatcher Lambda, Scheduler, S3 processed alert trigger, CloudWatch, IAM, SlowCollector EKS access entry, Slack webhook secret metadata 생성. foundation S3/DynamoDB와 Hub EKS가 먼저 존재해야 함. |
+| `reconcile-data-pipe-eks-access.sh` | Hub만 삭제/재생성하고 data-pipeline은 유지한 경우, SlowCollector EKS access entry와 `AmazonEKSAdminViewPolicy` association만 target apply로 복구. |
 | `build-reporting.sh` | `apps/daily-report-generator` Lambda package 생성 후 `infra/reporting` Terraform apply. daily report Scheduler/Step Functions/Lambda/IAM/Logs 생성. |
 | `build-hub-infra.sh` | `infra/hub` Terraform apply (VPC, EKS, IRSA). Admin UI DNS/ACM은 foundation output 참조 |
 | `build-hub-platform.sh` | Ansible bootstrap (ArgoCD, legacy Prometheus cleanup, Grafana, LB Controller) |
-| `build-hub.sh` | `build-hub-infra.sh` → `build-hub-platform.sh` 순서 실행 wrapper |
+| `build-hub.sh` | `build-hub-infra.sh` → 기존 SlowCollector EKS access binding 자동 복구 → `build-hub-platform.sh` 순서 실행 |
 | `build-iot-factory-a.sh` | `factory-a` IoT Thing/certificate, K3s Secret, Hub-Spoke Tailscale, ArgoCD cluster Secret, ApplicationSet 등록 |
 | `connect-hub-tailscale-ui.sh` | Tailnet UI가 필요할 때 Hub ArgoCD/Grafana Tailscale UI Service만 연결/검증. Spoke cluster Secret은 등록하지 않음 |
 | `register-spoke-factory-a.sh` | 기존 `factory-a` K3s/IoT Secret을 유지하고 Hub ArgoCD cluster Secret과 Spoke Application sync 복구 |
@@ -176,8 +177,7 @@ AEGIS_PREFLIGHT_AWS_STATE=false scripts/build/build-all.sh
 
 ## Hub 재개 (개발 재시작)
 
-`stop-dummy-generators.sh`로 VM 데이터 생성을 멈추고 `destroy-all.sh` 또는 `destroy-hub.sh`로 Hub를 내린 뒤 개발을 재개할 때의 절차다.
-Foundation은 살아있으므로 Foundation 생성은 건너뛴다.
+Hub만 반복 생성/삭제하면서 data-pipeline과 factory-b/c dummy generator를 유지하는 절차다. Foundation과 data-pipeline은 살아있으므로 다시 생성하지 않는다.
 
 ### 케이스 1 — Hub만 내렸다가 올릴 때 (IoT 유지)
 
@@ -185,7 +185,22 @@ Foundation은 살아있으므로 Foundation 생성은 건너뛴다.
 
 ```bash
 scripts/build/build-hub.sh [MFA_OTP]
-scripts/build/build-data-pipe.sh [MFA_OTP]   # data-pipeline도 재생성 필요한 경우
+scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-c.sh [MFA_OTP]
+scripts/ops/check-spoke-publisher-safety.sh
+```
+
+`build-hub.sh`는 Hub infra 재생성 직후 기존 SlowCollector IAM role이 있으면 EKS access binding을 자동 복구한 다음 Hub platform을 설치한다. 최초 구축처럼 data-pipeline이 아직 없으면 이 단계를 건너뛴다. SlowCollector IAM role이 있는데 data-pipeline Terraform state가 없으면 안전한 target apply를 보장할 수 없으므로 중단한다. 자동 복구를 명시적으로 건너뛰려면 `RECONCILE_DATA_PIPE_EKS_ACCESS=false`를 사용한다.
+
+이 Hub-only 데이터 수집 유지 흐름에서는 `build-data-pipe.sh`, `stop-dummy-generators.sh`, `manage-dummy-generators.sh start factory-b/c`를 실행하지 않는다.
+
+수동 plan 확인이나 별도 복구가 필요한 경우 아래 스크립트를 직접 실행한다.
+
+```bash
+scripts/build/reconcile-data-pipe-eks-access.sh --plan-only [MFA_OTP]
+scripts/build/reconcile-data-pipe-eks-access.sh [MFA_OTP]
 ```
 
 Admin UI HTTPS가 필요하면 Hub 생성 직후 출력된 NS를 Gabia와 비교하고, NS 위임과 ACM 발급이 끝난 뒤 후속 단계를 실행한다.
@@ -200,15 +215,15 @@ Tailnet 안에서 ArgoCD/Grafana UI에 접근하려면 Tailscale UI 연결만 �
 scripts/build/connect-hub-tailscale-ui.sh [MFA_OTP]
 ```
 
-기존 Spoke K3s와 IoT Secret이 살아있는 경우 factory별로 ArgoCD cluster 등록을 복구한다.
+기존 Spoke K3s와 IoT Secret이 살아있는 경우 factory별로 ArgoCD cluster 등록을 복구한다. 기존 publisher pod를 건드리지 않도록 Hub-only reconnect 모드를 사용한다.
 
 ```bash
-scripts/build/register-spoke-factory-a.sh [MFA_OTP]
-scripts/build/register-spoke-factory-b.sh [MFA_OTP]
-scripts/build/register-spoke-factory-c.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-c.sh [MFA_OTP]
 ```
 
-factory-b/c의 K3s publisher는 ArgoCD가 배포한다. VM 로컬 dummy generator는 Hub가 내려간 동안 멈췄다면 Spoke 등록 후 다시 시작한다.
+factory-b/c의 K3s publisher는 ArgoCD가 배포한다. 데이터 수집 유지 모드에서는 VM 로컬 dummy generator가 계속 실행 중이므로 다시 시작하지 않는다. 데이터 수집을 별도로 중단했던 경우에만 다시 시작한다.
 
 ```bash
 scripts/ops/manage-dummy-generators.sh start factory-b

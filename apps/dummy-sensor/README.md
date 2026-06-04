@@ -2,6 +2,8 @@
 
 `factory-b`, `factory-c` 테스트베드 Spoke에서 사용하는 더미 데이터 생성 코드를 둔다.
 
+기준일: 2026-06-04
+
 현재 구현 범위는 `factory-b` Mac UTM K3s testbed 와 `factory-c` Windows VirtualBox K3s testbed 용이다.
 
 ## Factory B/C 구조
@@ -55,7 +57,7 @@ Sensor spike 값 범위:
 | `factory-c` | `pressure_high_critical` | `1070.0~1090.0` hPa |
 | `factory-c` | `pressure_low_critical` | `930.0~950.0` hPa |
 
-pipeline freshness 확인용 이벤트는 payload에 status를 직접 넣지 않고 `--loop`에서 `infra_state` 생성을 건너뛰어 만든다. `factory-b`는 warning gap, `factory-c`는 critical/outage gap을 기본 round-robin에 포함한다.
+pipeline freshness 확인용 이벤트는 payload에 status를 직접 넣지 않고 `--loop`에서 `infra_state` 생성을 건너뛰어 만든다. `factory-b`의 `pipeline_warning_gap`은 75~105초, `factory-c`의 `pipeline_critical_gap`은 135~180초, `pipeline_outage_gap`은 301~330초다. 현재 DataProcessor 기준은 warning 60초 초과, critical 120초 초과다.
 
 ## Local Preview
 

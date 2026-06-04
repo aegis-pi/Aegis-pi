@@ -1,7 +1,7 @@
 # Data Storage Pipeline and Formats
 
 상태: source of truth
-기준일: 2026-06-02
+기준일: 2026-06-04
 
 ## 목적
 
@@ -14,7 +14,7 @@ DynamoDB LATEST
 DynamoDB HISTORY#STATE
 DynamoDB GRAPH#5M
 DynamoDB CLOUD#infra LATEST/HISTORY
-DynamoDB ALERT# alert dedupe state
+DynamoDB ALERT# alert cooldown/dedupe and confirmation state
 S3 raw
 S3 processed
 S3 processed_agg
@@ -57,7 +57,7 @@ factory-a-log-adapter / dummy-data-generator
               -> S3 processed/cloud_infra/slow
           -> S3 processed ObjectCreated
               -> RiskAlertDispatcher
-              -> DynamoDB ALERT#{scope} cooldown/dedupe
+              -> DynamoDB ALERT#{scope} observation confirmation + cooldown/dedupe
               -> Slack webhook routing
 
 Dashboard API/Web
@@ -77,12 +77,12 @@ Dashboard API/Web
 | Lambda GraphAggregator5m | HISTORY#STATE를 5분 단위 graph read model로 집계 |
 | Lambda CloudInfraFastCollector1m | Backend/ECS/ALB/Lambda/DynamoDB/Scheduler/factory freshness 요약을 수집 |
 | Lambda CloudInfraSlowCollector5m | EKS/Kubernetes/ArgoCD/S3 freshness 요약을 수집 |
-| Lambda RiskAlertDispatcher | S3 processed snapshot warning/danger 조건을 Slack으로 알림 |
+| Lambda RiskAlertDispatcher | S3 processed snapshot warning/danger 조건 평가, 필요한 warning 연속 관측 확인, cooldown/dedupe 후 Slack 알림 |
 | DynamoDB LATEST | Dashboard 카드와 현재 상태 조회용 read model |
 | DynamoDB CLOUD#infra LATEST | Cloud infra dashboard 현재 상태 read model |
 | DynamoDB GRAPH#5M | 최근 1시간/2시간/24시간 그래프 조회용 5분 집계 |
 | DynamoDB HISTORY#STATE | 상세 이력과 GraphAggregator5m 입력 snapshot |
-| DynamoDB ALERT# | Slack alert cooldown/dedupe state |
+| DynamoDB ALERT# | Slack alert 연속 관측 확인 및 cooldown/dedupe state |
 | S3 raw | Edge data-plane 원본 JSON 장기 보존 |
 | S3 processed | Lambda 계산 결과와 상태 요약 이력 보존 |
 | S3 processed_agg | 5분 graph aggregate 장기 보조 산출물 |
@@ -99,7 +99,7 @@ Dashboard API/Web
 | `DynamoDB HISTORY#STATE` | 전체 상태 snapshot short-term 시계열 | 상세 이력, graph aggregate 입력 | TTL로 최근 N시간/일만 보존 |
 | `DynamoDB CLOUD#infra HISTORY` | Cloud infra fast/slow snapshot | 운영 디버깅, 최근 추이 | TTL로 최근 N시간만 보존 |
 | `DynamoDB GRAPH#5M` | 5분 단위 sensor/risk/AI/infra 집계 | 최근 그래프 | TTL로 최근 N시간/일만 보존 |
-| `DynamoDB ALERT#` | RiskAlertDispatcher cooldown/dedupe item | Slack 중복 알림 억제 | TTL로 최근 alert state만 보존 |
+| `DynamoDB ALERT#` | RiskAlertDispatcher observation/cooldown/dedupe item | 일시 warning 및 Slack 중복 알림 억제 | TTL로 최근 alert state만 보존 |
 
 DynamoDB는 원본의 source of truth가 아니다. 원본 정본은 `S3 raw`이고, 처리 결과 이력 정본은 `S3 processed`다. DynamoDB는 Dashboard가 빠르게 읽기 위한 hot store다.
 
@@ -507,13 +507,18 @@ ttl = now + 24h
 - `CloudInfraSlowCollector5m`은 `LATEST.slow`, `slow_updated_at`, `overall_status`, `updated_at`을 갱신한다.
 - 두 collector는 기존 반대쪽 필드를 보존해서 1분 fast 갱신이 5분 slow 값을 지우지 않고, slow 갱신도 fast 값을 지우지 않는다.
 - 각 실행은 TTL이 있는 history item을 추가하고, S3 `processed/cloud_infra/{fast,slow}/...` snapshot을 저장한다.
+- `overall_status`는 Cloud 자체 section인 `backend_runtime`, `data_pipeline`, `eks_management`, `storage_freshness`만 사용한다. `fast.factory_freshness`는 대시보드 참고 데이터로 유지하지만 overall 판정에서는 제외한다.
 
 주요 필드:
 
 | 필드 | 의미 |
 | --- | --- |
-| `overall_status` | fast/slow section 중 가장 나쁜 상태 |
+| `overall_status` | Cloud 자체 fast/slow section 중 가장 나쁜 상태. `factory_freshness` 제외 |
 | `fast.backend_runtime` | ECS backend service와 ALB target/latency/5xx |
+| `fast.backend_runtime.ecs.load_balancers[].targetGroupArn` | ECS service가 현재 참조하는 backend ALB Target Group ARN. FastCollector의 ALB 조회 1차 기준 |
+| `fast.backend_runtime.alb.target_group_arn` | ALB health/metric을 조회한 Target Group ARN. 정상 수집 시 ECS `targetGroupArn`과 일치 |
+| `fast.backend_runtime.alb.unhealthy_host_count` | ALB target state가 실제 `unhealthy`인 target 수. `draining`은 포함하지 않음 |
+| `fast.backend_runtime.alb.draining_host_count` | ECS 배포/scale-in 등으로 deregistration 중인 ALB target 수 |
 | `fast.data_pipeline` | Lambda, DynamoDB, EventBridge Scheduler 상태 |
 | `fast.factory_freshness` | factory별 pipeline freshness/risk 요약 |
 | `slow.eks_management` | EKS cluster/nodegroup/ASG, Kubernetes node/pod, ArgoCD 상태 |

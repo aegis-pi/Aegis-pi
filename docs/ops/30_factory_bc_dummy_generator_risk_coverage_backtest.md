@@ -1,7 +1,7 @@
 # Factory B/C Dummy Generator Risk Coverage Backtest
 
 상태: 배포 및 검증 기록  
-기준일: 2026-06-02  
+기준일: 2026-06-04
 관련 문서:
 
 - `docs/ops/27_dummy_data_generation_and_risk_scenarios.md`
@@ -48,7 +48,7 @@
 | AI | `ai_warning`, 25~30분 간격 |
 | sensor | `temperature_high`, `humidity_high`, `pressure_high`, `pressure_low`, 6~10분 간격 |
 | infra | `storage_warning`, `device_unavailable`, `pods_partial`, `nodes_partial`, 5~8분 간격 |
-| freshness | `pipeline_warning_gap`, 45~55초 infra skip |
+| freshness | `pipeline_warning_gap`, 75~105초 infra skip |
 
 ### factory-c noisy-vm
 
@@ -59,7 +59,7 @@
 | AI | `ai_warning`, `ai_critical`, 25~30분 간격 |
 | sensor | `temperature_critical`, `humidity_critical`, `pressure_high_critical`, `pressure_low_critical`, 4~7분 간격 |
 | infra | `pods_all_unready`, `nodes_all_not_ready`, `network_unreachable`, `device_unavailable`, `storage_critical`, 3~6분 간격 |
-| freshness | `pipeline_critical_gap`, `pipeline_outage_gap`, 70~120초 또는 301~330초 infra skip |
+| freshness | `pipeline_critical_gap`, `pipeline_outage_gap`, 135~180초 또는 301~330초 infra skip |
 
 ## Local Test
 

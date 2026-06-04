@@ -1,7 +1,7 @@
 # Requirements Definition Traceability
 
 상태: source of truth
-기준일: 2026-06-02
+기준일: 2026-06-04
 
 ## 목적
 
@@ -109,12 +109,12 @@
 | `infra_state` 전송 주기 | 20초 | 노드/워크로드/장치/heartbeat 상태를 1분 내 운영자가 인지할 수 있어야 한다. | M4에서 `infra_state` 누락 시 warning/critical 판정 확인 | `docs/specs/iot_data_format.md` |
 | AI score 방식 | 최근 3초 또는 최근 N개 평균, `0.0~1.0` | AI 모델 순간 오탐에 즉시 반응하지 않고 Lambda data processor에서 가중치를 곱해 계산할 수 있어야 한다. | 샘플 window의 `fire_score`, `fall_score`, `bend_score` 계산 확인 | `docs/specs/iot_data_format.md`, `docs/specs/monitoring_dashboard/00_requirements.md` |
 | source type 수 | 2개 | IoT topic, S3 partition, Dashboard 처리 경로를 단순하게 유지해야 한다. | `factory_state`, `infra_state` 두 경로 분리 적재 확인 | `docs/specs/iot_data_format.md` |
-| `pipeline_status.normal` | latest `infra_state` age <= 20초 | 최신 인프라 상태가 정상 주기 안에 들어오면 정상으로 본다. | Lambda data processor 판단 결과 확인 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
-| `pipeline_status.warning` | latest `infra_state` age > 40초 | 20초 주기 기준 1회 이상 누락 가능성이 있으면 주의로 본다. | edge-iot-publisher 또는 data-plane 지연 테스트 | `docs/specs/iot_data_format.md` |
-| `pipeline_status.critical` | latest `infra_state` age > 60초 | 인프라 상태 이상을 1분 내 감지해야 한다. | edge-iot-publisher 중지 후 critical 전환 시간 측정 | `docs/specs/iot_data_format.md` |
+| `pipeline_status.normal` | latest `infra_state` age <= 60초 | 20초 주기 메시지의 일시 지연과 refresh 실행 간격 안이면 정상으로 본다. | Lambda data processor 판단 결과 확인 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
+| `pipeline_status.warning` | latest `infra_state` age > 60초 | 일시적인 단일 지연을 넘긴 경우 주의로 본다. | edge-iot-publisher 또는 data-plane 지연 테스트 | `docs/specs/iot_data_format.md` |
+| `pipeline_status.critical` | latest `infra_state` age > 120초 | 파이프라인 지연이 2분을 초과하면 critical로 본다. | edge-iot-publisher 중지 후 critical 전환 시간 측정 | `docs/specs/iot_data_format.md` |
 | DataProcessor freshness refresh | 1분 | 새 IoT 메시지가 없어도 DynamoDB LATEST의 pipeline_status/risk가 stale 값으로 남지 않아야 한다. | `AEGIS-Schedule-DataProcessorRefresh1m`, CloudWatch refresh 로그, LATEST 갱신 확인 | `docs/specs/data_storage_pipeline.md`, `docs/ops/23_data_pipeline.md` |
 | 일반 상태 Dashboard 반영 | 10~35초 목표 | 관제 화면은 실시간 제어가 아니라 준실시간 운영 관제 수준을 만족해야 한다. | M6에서 상태 변화 후 화면 반영 시간 측정 | `docs/planning/03_evaluation_plan.md`, `docs/planning/07_dashboard_vpc_extension_plan.md` |
-| 장애 판정 Dashboard 반영 | 40~60초 목표 | 파이프라인/노드 장애는 운영자가 1분 내 파악할 수 있어야 한다. | M6/M7 장애 시나리오에서 반영 시간 측정 | `docs/planning/03_evaluation_plan.md`, `docs/planning/07_dashboard_vpc_extension_plan.md` |
+| 장애 판정 Dashboard 반영 | warning 60초 초과, critical 120초 초과 | 일시 지연 오탐을 줄이면서 지속 장애를 2분 이후 critical로 구분한다. | M6/M7 장애 시나리오에서 반영 시간 측정 | `docs/planning/03_evaluation_plan.md`, `docs/planning/07_dashboard_vpc_extension_plan.md` |
 | `factory_state` payload 크기 | 약 0.6 KB | 3초 주기 전송이 IoT Core/S3 병목을 만들 가능성이 낮아야 한다. | compact JSON 기준 실제 payload 크기 측정 | `docs/specs/iot_data_format.md` |
 | `infra_state` payload 크기 | 약 1.6 KB | 20초 주기 상태 전송이 운영 부담 대비 충분한 헬스 체크 정보를 제공해야 한다. | compact JSON 기준 실제 payload 크기 측정 | `docs/specs/iot_data_format.md` |
 | 공장 1개 일일 raw payload | 약 25 MB/day | S3 raw 보존과 재처리 비용이 MVP 규모에서 감당 가능해야 한다. | M4/M7에서 실제 S3 object 크기 합산 | `docs/specs/iot_data_format.md` |
@@ -174,9 +174,9 @@
 | ID | 요구사항 | 기준 | 근거 선택 |
 | --- | --- | --- | --- |
 | NFR-01 | 공장 상태 데이터는 준실시간 Risk 계산에 사용할 수 있어야 한다. | Edge publish 주기 3초 | DEC-09 |
-| NFR-02 | 인프라 이상은 운영자가 1분 내 인지할 수 있어야 한다. | Edge publish 주기 20초, heartbeat miss는 cloud-side에서 판정 | DEC-11, DEC-12 |
+| NFR-02 | 인프라 이상은 일시 지연과 지속 장애를 구분해 운영자가 인지할 수 있어야 한다. | Edge publish 주기 20초, warning 60초 초과, critical 120초 초과 | DEC-11, DEC-12 |
 | NFR-03 | Dashboard의 일반 상태 변화는 MVP 목표 지연 범위 안에 반영되어야 한다. | 10~35초 목표 | DEC-13 |
-| NFR-04 | 장애 판정은 운영 관제에서 실용적인 시간 안에 반영되어야 한다. | 40~60초 목표 | DEC-11, DEC-13 |
+| NFR-04 | 장애 판정은 운영 관제에서 실용적인 시간 안에 반영되어야 한다. | warning 60초 초과, critical 120초 초과 | DEC-11, DEC-13 |
 | NFR-05 | AI 오탐 민감도를 낮추기 위해 순간 `0/1` 이벤트보다 최근 window 평균 score를 사용해야 한다. | 최근 3초 또는 최근 N개 평균 | DEC-10 |
 | NFR-06 | 로컬 저장소는 무한 증가하지 않도록 보존 정책을 가져야 한다. | InfluxDB 1일, AI snapshot 24시간 cleanup | DEC-21 |
 | NFR-07 | 장애 테스트 결과는 데이터 공백, failover/failback 시간, 중복 write 가능성을 측정 가능해야 한다. | 1초/10초 bucket 분석 | DEC-19 |
@@ -239,7 +239,7 @@
 | FR-03, NFR-02 | Edge data-plane이 `infra_state`를 20초 주기로 publish하고 cloud-side가 pipeline 상태를 계산한다. | M4에서 infra 상태 적재와 latest 반영 확인 | `docs/specs/iot_data_format.md`, `docs/planning/03_evaluation_plan.md` |
 | FR-04, NFR-05 | Lambda data processor가 센서, AI, infra, pipeline freshness를 기반으로 `risk-v0.2.0` Risk Score를 계산한다. | M6 Issue 1에서 `risk-v0.2.0` 계산과 DataProcessorRefresh1m stale 보정 확인. 후속은 runtime-config 연결과 read model 필드 고정 | `docs/specs/iot_data_format.md`, `docs/specs/data_storage_pipeline.md` |
 | FR-05 | IoT Rule이 raw JSON을 `raw/{factory_id}/{source_type}/...` 경로에 저장한다. | M4에서 S3 raw object와 partition 확인 | `docs/planning/05_decision_rationale.md`, `docs/specs/iot_data_format.md` |
-| FR-06, NFR-03, NFR-04 | Dashboard Backend/API가 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg result를 조회한다. | M6에서 일반 상태 10~35초, 장애 판정 40~60초 목표 확인 | `docs/specs/data_storage_pipeline.md`, `docs/planning/03_evaluation_plan.md` |
+| FR-06, NFR-03, NFR-04 | Dashboard Backend/API가 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg result를 조회한다. | M6에서 일반 상태 10~35초, pipeline warning 60초 초과, critical 120초 초과 기준 확인 | `docs/specs/data_storage_pipeline.md`, `docs/planning/03_evaluation_plan.md` |
 | BR-05, FR-08, FR-09, NFR-08, NFR-09 | EventBridge Scheduler -> Step Functions -> 4개 reporting Lambda -> S3 `reports/daily/` 경로로 factory별 보고서를 생성한다. | 2026-05-28 `factory-b` 수동 실행에서 `report-context.json`, `factory-daily-summary.json`, `report.md`, `generation-metadata.json` 확인 완료. `factory-a/c`는 후속 반복 검증 | `docs/planning/17_llm_daily_factory_report_plan.md`, `docs/ops/24_daily_factory_report.md` |
 | ARC-01, OPS-06 | `factory-a` K3s workload는 worker2 preferred, worker1 failover, 조건부 failback을 유지한다. | failover/failback 테스트 결과와 M0 회귀 확인 | `docs/ops/09_failover_failback_test_results.md` |
 | ARC-02, ARC-03 | K3s + adapter/generator + edge-iot-publisher + IoT Core 구조를 사용한다. | Edge data-plane 배포와 MQTT publish 확인 | `docs/planning/05_decision_rationale.md` |

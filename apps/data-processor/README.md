@@ -1,7 +1,7 @@
 # data-processor
 
 상태: source of truth
-기준일: 2026-05-28
+기준일: 2026-06-04
 
 ## 목적
 
@@ -75,9 +75,9 @@ s3://aegis-bucket-data/processed/{factory_id}/state_snapshot/yyyy={YYYY}/mm={MM}
 
 | 상태 | 조건 |
 | --- | --- |
-| `normal` | latest `infra_state` age <= 40초 |
-| `warning` | latest `infra_state` age > 40초 |
-| `critical` | latest `infra_state` age > 60초 |
+| `normal` | latest `infra_state` age <= 60초 |
+| `warning` | latest `infra_state` age > 60초 |
+| `critical` | latest `infra_state` age > 120초 |
 
 ## Risk 계산 상태
 

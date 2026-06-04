@@ -1,7 +1,7 @@
 # Session State
 
 상태: working tracker
-기준일: 2026-06-02
+기준일: 2026-06-04
 
 ## 목적
 
@@ -91,21 +91,20 @@ cd /home/vicbear/Aegis/git_clone/Aegis-pi
 git status --short
 ```
 
-Hub가 내려가 있는 개발 중단 상태라면 아래 순서로 복구한다. IoT Core Thing/certificate와 Spoke K3s Secret은 유지한다.
+데이터 수집을 유지한 채 Hub만 내려간 상태라면 아래 순서로 복구한다. IoT Core Thing/certificate, Spoke K3s Secret, data-pipeline, ECS backend, factory-b/c dummy generator와 Spoke publisher는 유지한다.
 
 ```bash
 scripts/build/build-hub.sh <MFA_OTP>
-scripts/build/build-admin-ui-after-ns.sh <MFA_OTP>        # Public HTTPS Admin UI가 필요할 때
+scripts/build/build-admin-ui-after-ns.sh <MFA_OTP>
 scripts/build/connect-hub-tailscale-ui.sh <MFA_OTP>       # Tailnet ArgoCD/Grafana UI가 필요할 때만 선택 실행
-scripts/build/register-spoke-factory-a.sh <MFA_OTP>
-scripts/build/register-spoke-factory-b.sh <MFA_OTP>
-scripts/build/register-spoke-factory-c.sh <MFA_OTP>
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a.sh <MFA_OTP>
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-b.sh <MFA_OTP>
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-c.sh <MFA_OTP>
 ```
 
-Hub를 다시 내릴 때는 VM 데이터 생성을 먼저 멈춘다.
+Hub를 다시 내릴 때 데이터 수집을 유지하려면 Hub만 삭제한다.
 
 ```bash
-scripts/destroy/stop-dummy-generators.sh
 scripts/destroy/destroy-hub.sh <MFA_OTP>
 ```
 
@@ -252,14 +251,14 @@ Lambda:
   - fix 4: factory-a-log-adapter outbox 파일 chmod 0o640 (NamedTemporaryFile 기본 600 -> cross-user 읽기 불가)
 
 현재 배포 방식:
-  - build-hub.sh: Hub EKS/ArgoCD/legacy Prometheus Agent cleanup/Grafana/AWS Load Balancer Controller 등록
+  - build-hub.sh: Hub EKS 생성, 유지 중인 SlowCollector EKS access binding 자동 복구, ArgoCD/legacy Prometheus Agent cleanup/Grafana/AWS Load Balancer Controller 등록
   - build-admin-ui-after-ns.sh: Admin UI HTTPS Ingress 활성화
   - connect-hub-tailscale-ui.sh: ArgoCD/Grafana Tailscale UI Service 연결/검증
   - register-spoke-factory-a.sh: 기존 IoT Secret 유지, factory-a egress/cluster Secret/ApplicationSet/app sync 복구
   - register-spoke-factory-b.sh: 기존 IoT Secret 유지, factory-b egress/cluster Secret/ApplicationSet/app sync 복구
   - register-spoke-factory-c.sh: 기존 IoT Secret 유지, factory-c egress/cluster Secret/ApplicationSet/app sync 복구
   - build-iot-factory-a.sh: factory-a IoT Thing/certificate/K3s Secret을 새로 만들거나 갱신해야 할 때만 사용
-  - stop-dummy-generators.sh: Hub 삭제 전 factory-b/c VM dummy generator 정지
+  - stop-dummy-generators.sh: 데이터 수집까지 중단할 때 factory-b/c VM dummy generator 정지
   - verify-complete.sh: Hub/IoT/factory-a rollout 통합 검증
 
 현재 AWS 상태: Foundation/IoT/ECR 리소스 활성, Hub EKS는 build/destroy로 반복 재생성 가능
@@ -294,10 +293,10 @@ Longhorn PVC: aegis-spoke-outbox 유지 중
   - factory-a는 기존 Longhorn PVC outbox + factory-a-log-adapter 구조 유지
 
 Hub-only 삭제/재생성 운영 순서:
-  - 내릴 때: scripts/destroy/stop-dummy-generators.sh -> scripts/destroy/destroy-hub.sh 또는 destroy-all.sh
-  - 올릴 때: scripts/build/build-hub.sh -> 필요 시 build-admin-ui-after-ns.sh -> register-spoke-factory-a/b/c.sh -> manage-dummy-generators.sh start factory-b/c
+  - 내릴 때: scripts/destroy/destroy-hub.sh
+  - 올릴 때: scripts/build/build-hub.sh -> build-admin-ui-after-ns.sh -> HUB_ONLY_RECONNECT=true register-spoke-factory-a/b/c.sh
   - connect-hub-tailscale-ui.sh는 ALB/Admin UI HTTPS가 아닌 Tailnet UI 직접 접근이 필요할 때만 선택 실행
-  - 이 경로에서는 IoT Core Thing/certificate와 Spoke K3s Secret을 다시 만들지 않는다.
+  - 이 경로에서는 IoT Core Thing/certificate, Spoke K3s Secret, data-pipeline, ECS backend, dummy generator와 Spoke publisher를 다시 만들거나 재시작하지 않는다.
 
 다음 우선: M6 Issue 2~4 runtime-config 적용, 온도/습도 기준값 계산 연결, Risk Twin 출력 구조 구현
 보류/별도 담당: M3 Issue 6 manifest 자동 갱신 workflow, M6 Dashboard page/VPC 세부 화면, M7 전체 통합 검증
@@ -433,7 +432,7 @@ Capacity: On-Demand
 
 ### M1 Issue 3 Hub ArgoCD
 
-- 2026-05-21 기준 Hub-only 생성 순서는 `build-hub.sh` -> 필요 시 `build-admin-ui-after-ns.sh` -> `register-spoke-factory-a/b/c.sh` -> `manage-dummy-generators.sh start factory-b/c`다. `connect-hub-tailscale-ui.sh`는 Tailnet UI 직접 접근이 필요할 때만 선택 실행한다.
+- 2026-06-04 기준 Hub-only 데이터 수집 유지 생성 순서는 `build-hub.sh` -> `build-admin-ui-after-ns.sh` -> `HUB_ONLY_RECONNECT=true register-spoke-factory-a/b/c.sh`다. `build-hub.sh`는 SlowCollector EKS access binding을 자동 복구하며, `connect-hub-tailscale-ui.sh`는 Tailnet UI 직접 접근이 필요할 때만 선택 실행한다.
 - `aws eks update-kubeconfig --region ap-south-1 --name AEGIS-EKS` 완료.
 - `kubectl get nodes -o wide`에서 EKS worker node 2대 `Ready` 확인.
 - Hub namespace/LimitRange는 처음 Terraform으로 검증했고, 최종 기준은 Ansible bootstrap으로 전환했다.

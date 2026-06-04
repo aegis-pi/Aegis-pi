@@ -230,7 +230,7 @@ Hub 재생성 범위와 foundation/IoT/Spoke 영구 자산의 수명주기가 �
 
 **해결 방법:**
 
-Hub-only rebuild 표준 순서는 `build-hub.sh`, 필요 시 `build-admin-ui-after-ns.sh`, `register-spoke-factory-a/b/c.sh`, `manage-dummy-generators.sh start factory-b/c`로 둔다.
+Hub-only 데이터 수집 유지 rebuild 표준 순서는 `build-hub.sh`, `build-admin-ui-after-ns.sh`, `HUB_ONLY_RECONNECT=true register-spoke-factory-a/b/c.sh`로 둔다. 이 흐름에서는 dummy generator와 data-pipeline을 유지하며, `build-hub.sh`가 SlowCollector EKS access binding을 자동 복구한다.
 
 **재발 방지:**
 
@@ -296,4 +296,3 @@ Automation / Script, Network, Operations / DR
 **재발 방지:**
 
 dummy generator 운영 문서에 ProxyJump 경로, SSH key 등록, systemd generator 구조를 함께 기록한다.
-

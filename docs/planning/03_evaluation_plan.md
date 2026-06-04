@@ -166,7 +166,7 @@ LAN 제거 테스트에서는 10초 bucket 기준 명확한 데이터 공백은 
 - Risk Score 변화가 관제 화면에 반영되는지 확인
 - 상태 카드 / 이상 목록 / 로그 패널 동작 확인
 - Data / Dashboard VPC Web/API가 DynamoDB LATEST/HISTORY#STATE와 S3 processed를 조회하는지 확인
-- 일반 상태 변화 10~35초, 장애 판정 40~60초 목표 범위 확인
+- 일반 상태 변화 10~35초, pipeline warning 60초 초과, critical 120초 초과 기준 확인
 
 ### M7 후 검증
 

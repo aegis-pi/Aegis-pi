@@ -658,7 +658,8 @@ Dashboard Access 그림 하단에는 아래 지연 기준을 note로 붙인다.
 
 ```text
 일반 상태 변화: 10~35초
-장애 판정: 40~60초
+pipeline warning: 60초 초과
+pipeline critical: 120초 초과
 heartbeat: 10초
 full status: 30초
 ```

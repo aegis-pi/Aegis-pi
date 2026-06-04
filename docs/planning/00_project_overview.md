@@ -1,7 +1,7 @@
 # 프로젝트 개요
 
 상태: source of truth
-기준일: 2026-05-27
+기준일: 2026-06-04
 
 ## 목적
 
@@ -12,7 +12,7 @@ Aegis-Pi 프로젝트의 문제 정의, 목표, 사용자, 핵심 기능, 현재
 - 현재 완료된 범위는 `factory-a` Safe-Edge 기준선 구축/실장 테스트, M1 Hub Issue 0~10/12, M2 Issue 1~6, M3 Issue 1~5/7/8, M4 Issue 1~8, M5 Issue 1~7이다.
 - `factory-a`는 로컬 K3s 3노드, ArgoCD, Helm, Longhorn, InfluxDB, Grafana, AI 앱 failover/failback 기준선을 갖는다.
 - GitOps 원격 저장소는 `https://github.com/aegis-pi/safe-edge-config-main.git`를 사용한다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/ECR/DynamoDB, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 현재 build/등록 스크립트로 재생성/검증 가능하다. 2026-05-27 비용 최적화 기준으로 AMP/Prometheus Agent는 active 구성에서 제거하고 Hub NAT Gateway는 단일 NAT로 전환한다. Hub-only 재시작은 `build-hub.sh` 이후 필요 시 `build-admin-ui-after-ns.sh`, `register-spoke-factory-a/b/c.sh`, `manage-dummy-generators.sh start factory-b/c`를 순서대로 실행한다. `connect-hub-tailscale-ui.sh`는 Tailnet UI 직접 접근이 필요할 때만 선택 실행한다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap 기준선, foundation S3/ECR/DynamoDB, AWS Load Balancer Controller, Route53/ACM, Admin UI HTTPS Ingress는 현재 build/등록 스크립트로 재생성/검증 가능하다. AMP/Prometheus Agent는 active 구성에서 제거했고 Hub NAT Gateway는 단일 NAT로 운영한다. Hub-only 데이터 수집 유지 재시작은 `build-hub.sh` → `build-admin-ui-after-ns.sh` → `HUB_ONLY_RECONNECT=true register-spoke-factory-a/b/c.sh` 순서다. data-pipeline, ECS backend, dummy generator와 Spoke publisher는 유지하며 `build-hub.sh`가 SlowCollector EKS access binding을 자동 복구한다. `connect-hub-tailscale-ui.sh`는 Tailnet UI 직접 접근이 필요할 때만 선택 실행한다.
 - M1 Issue 5에서 IoT Rule -> S3 raw 적재와 M1 검증용 `risk/risk-normalizer` IRSA S3 권한 검증을 완료했다. 최신 데이터 처리 방향은 별도 risk-normalizer 파드가 아니라 Lambda data processor와 DynamoDB/S3 processed다.
 - M1 Issue 6~8에서 AMP Workspace, Hub Prometheus Agent, Grafana AMP datasource 검증을 완료한 이력은 보존한다. 2026-05-27 비용 최적화 기준에서는 active 구성에서 제거한다.
 - M1 Issue 9에서 AWS Load Balancer Controller를 설치하고 IRSA/subnet discovery 기준을 검증했다.

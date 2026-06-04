@@ -1,7 +1,7 @@
 # MVP 범위
 
 상태: source of truth
-기준일: 2026-06-02
+기준일: 2026-06-04
 
 ## 목적
 
@@ -13,7 +13,8 @@
 - AWS Hub EKS/ArgoCD, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/ECR/DynamoDB, data-pipeline IoT Rule/Lambda/Scheduler/CloudInfra collectors/RiskAlertDispatcher, `factory-a/b/c` IoT Thing/Policy/K3s Secret은 현재 build 스크립트와 factory별 등록 스크립트로 재생성/검증 가능하다. Hub는 `scripts/build/build-hub.sh`, Admin UI는 `scripts/build/build-admin-ui-after-ns.sh`, Tailnet UI는 `scripts/build/connect-hub-tailscale-ui.sh`, Spoke 등록은 `scripts/build/register-spoke-factory-a.sh`, `scripts/build/register-spoke-factory-b.sh`, `scripts/build/register-spoke-factory-c.sh`, data-pipeline은 `scripts/build/build-data-pipe.sh`, 최종 확인은 `scripts/build/verify-complete.sh`가 담당한다. AMP/Prometheus Agent는 active 구성에서 제거했다.
 - 전체 MVP는 운영형 Spoke 1개와 테스트베드형 Spoke 2개를 포함한 멀티 공장 관제 구조를 목표로 한다.
 - 2026-06-02 기준 IoT Core -> Lambda data processor -> DynamoDB LATEST/HISTORY#STATE + S3 processed, DataProcessorRefresh1m -> stale factory `pipeline_status`/`risk` 재계산, GraphAggregator5m -> DynamoDB GRAPH#5M + S3 processed_agg data-pipeline은 `factory-a/b/c` 기준으로 실제 AWS 리소스 검증을 완료했다. `GRAPH#5M.infra.nodes[]`는 node별 CPU/memory/disk 5분 집계를 제공한다.
-- CloudInfraFastCollector1m/SlowCollector5m은 `CLOUD#infra/LATEST`, `HISTORY#FAST`, `HISTORY#SLOW`, S3 `processed/cloud_infra/` read model을 저장한다. CloudWatch Container Insights는 기본 OFF이고 `metrics-server`는 기본 ON이다.
+- CloudInfraFastCollector1m/SlowCollector5m은 `CLOUD#infra/LATEST`, `HISTORY#FAST`, `HISTORY#SLOW`, S3 `processed/cloud_infra/` read model을 저장한다. FastCollector는 ECS service의 Target Group ARN을 우선 사용하고 ALB target state를 분리해 수집한다. Cloud `overall_status`와 Cloud Slack alert에서는 factory freshness를 제외한다. CloudWatch Container Insights는 기본 OFF이고 `metrics-server`는 기본 ON이다.
+- RiskAlertDispatcher는 specific 원인 알림을 우선하고 generic section 알림을 fallback으로 사용한다. 일부 Cloud warning은 서로 다른 최신 snapshot 2회 연속 관측 후 전송한다.
 - RiskAlertDispatcher는 S3 `processed/` snapshot ObjectCreated 이벤트를 받아 warning/danger 조건을 판단하고, DynamoDB `ALERT#` cooldown/dedupe 후 cloud/factory별 Slack webhook으로 한글 알림을 보낸다. Slack webhook URL은 Secrets Manager value로 관리하고 repo/Terraform state에는 저장하지 않는다.
 - Lambda data processor의 `risk-v0.2.0` Risk Score 계산은 구현/검증 완료 상태다. runtime-config 기반 weight/threshold/factory override 연결과 Risk Twin read model 고정은 후속 고도화다.
 - Bedrock 기반 factory별 일일 운영 보고서 초안 생성은 MVP 포함 범위로 확정했고, 로컬 테스트, Bedrock Sonnet 실호출, AWS reporting stack 배포, `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. reporting stack은 비용 방지를 위해 검증 후 삭제했으며 S3 input/output object는 보존한다. 세부 설계 source of truth는 `docs/planning/17_llm_daily_factory_report_plan.md`다.

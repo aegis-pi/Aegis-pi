@@ -1,7 +1,7 @@
 # Monitoring Dashboard API Spec
 
 상태: draft
-기준일: 2026-06-02
+기준일: 2026-06-04
 
 ## 목적
 
@@ -97,7 +97,8 @@ GET /api/alerts/status
 
 ```text
 일반 상태 변화: 10~35초
-장애 판정: 40~60초
+pipeline warning: 60초 초과
+pipeline critical: 120초 초과
 ```
 
 ## 현재 판단

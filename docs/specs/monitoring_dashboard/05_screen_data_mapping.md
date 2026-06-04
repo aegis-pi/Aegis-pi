@@ -1,7 +1,7 @@
 # Risk Twin Web Screen Data Mapping
 
 상태: source of truth
-기준일: 2026-06-02
+기준일: 2026-06-04
 
 ## 목적
 
@@ -17,13 +17,13 @@
 | `DynamoDB GRAPH#5M` | `AEGIS-DynamoDB-FactoryStatus` | Safety/Risk, 환경, AI score, 노드 CPU/memory/disk 그래프 기본 read model |
 | `DynamoDB HISTORY#STATE` | `AEGIS-DynamoDB-FactoryStatus` | 상세 snapshot, 상태 변화 timeline, graph drill-down |
 | `DynamoDB CLOUD#infra/LATEST` | `AEGIS-DynamoDB-FactoryStatus` | Cloud infra 현재 상태 |
-| `DynamoDB ALERT#` | `AEGIS-DynamoDB-FactoryStatus` | Slack alert cooldown/dedupe 상태 |
+| `DynamoDB ALERT#` | `AEGIS-DynamoDB-FactoryStatus` | Slack alert 연속 관측 확인 및 cooldown/dedupe 상태 |
 | `S3 processed` | `processed/*` | 상세 이력, 리포트, 장기 조회 |
 | `S3 processed_agg` | `processed_agg/*` | 5분 graph aggregate 장기 보조 조회 |
 | `S3 raw` | `raw/*` | 원본 확인, 감사, 재처리 |
 
 MVP 기본 화면은 DynamoDB만으로 그린다. S3는 상세/감사/장기 이력에서만 조회한다.
-Cloud infra card/panel은 CloudWatch/EKS/Kubernetes API를 직접 반복 조회하지 않고 `CLOUD#infra/LATEST`를 읽는다. Alert history를 화면에 노출할 경우 `ALERT#` item은 장기 이력이 아니라 cooldown/dedupe state라는 점을 UI에 반영한다.
+Cloud infra card/panel은 CloudWatch/EKS/Kubernetes API를 직접 반복 조회하지 않고 `CLOUD#infra/LATEST`를 읽는다. Cloud overall status에는 `fast.factory_freshness`를 포함하지 않는다. Alert history를 화면에 노출할 경우 `ALERT#` item은 장기 이력이 아니라 observation/cooldown/dedupe state라는 점을 UI에 반영한다.
 
 ## DynamoDB Key 기준
 
@@ -940,5 +940,5 @@ stale 기본 기준:
 | 항목 | 기준 |
 | --- | --- |
 | `factory_state` | 최신값 age > 10초 |
-| `infra_state` | 최신값 age > 40초 warning, > 60초 critical |
+| `infra_state` | 최신값 age > 60초 warning, > 120초 critical |
 | `pipeline_status` | 저장된 `pipeline_status.status` 우선. DataProcessor refresh가 1분마다 stale 상태를 갱신하므로 Dashboard는 LATEST 값을 신뢰한다. |

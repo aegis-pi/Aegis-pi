@@ -1,7 +1,7 @@
 # DynamoDB Key Model
 
 상태: 운영 확인 기준
-기준일: 2026-06-02
+기준일: 2026-06-04
 
 ## 목적
 
@@ -65,6 +65,7 @@ pk = FACTORY#{factory_id}
 | `HISTORY#FAST#{updated_at}` | CloudInfraFastCollector | 6시간 | Cloud infra 1분 snapshot 이력 |
 | `HISTORY#SLOW#{updated_at}` | CloudInfraSlowCollector | 24시간 | Cloud infra 5분 snapshot 이력 |
 | `{severity}#{reason}#{status}` | RiskAlertDispatcher | `ALERT_STATE_TTL_SECONDS` | Slack alert cooldown/dedupe |
+| `OBSERVATION#{severity}#{reason}#{status}` | RiskAlertDispatcher | `ALERT_STATE_TTL_SECONDS` | 연속 관측이 필요한 Cloud warning 확인 상태 |
 
 ### LATEST
 
@@ -118,7 +119,7 @@ pk = CLOUD#infra
 sk = LATEST
 ```
 
-`AEGIS-Lambda-CloudInfraFastCollector`와 `AEGIS-Lambda-CloudInfraSlowCollector`가 같은 item을 부분 갱신한다.
+`AEGIS-Lambda-CloudInfraFastCollector`와 `AEGIS-Lambda-CloudInfraSlowCollector`가 같은 item을 부분 갱신한다. `overall_status`는 Cloud 자체 상태만 나타내며 `fast.factory_freshness`는 판정에서 제외한다.
 
 | Collector | 갱신 필드 | 주기 |
 | --- | --- | ---: |
@@ -184,10 +185,13 @@ scope 예시:
 
 ```text
 pk = ALERT#factory-c
-sk = danger#nodes_all_not_ready#normal
+sk = danger#nodes_all_not_ready#state_snapshot
 
 pk = ALERT#cloud-infra
 sk = warning#kubernetes_api_unauthorized#slow
+
+pk = ALERT#cloud-infra
+sk = OBSERVATION#warning#pods_warning#slow
 ```
 
 주요 필드:
@@ -208,6 +212,8 @@ sk = warning#kubernetes_api_unauthorized#slow
 - `ttl`
 
 동일 `pk/sk`는 `cooldown_until` 전까지 Slack 재전송을 skip한다. 또한 `last_source_updated_at`보다 오래된 snapshot은 stale로 보고 skip한다. Alert state item은 TTL 대상이며, `LATEST` read model과 달리 장기 보존 목적이 아니다.
+
+Factory의 비-pipeline 알림은 pipeline 상태 변화와 무관하게 `{severity}#{reason}#state_snapshot` fingerprint를 공유한다. `pipeline_status` 알림은 warning/critical 상태를 fingerprint에 유지한다. 일부 Cloud warning은 cooldown 예약 전에 `OBSERVATION#...` item에서 서로 다른 최신 snapshot의 연속 관측 횟수를 확인한다.
 
 ## 실제 조회 샘플
 
@@ -230,7 +236,8 @@ Alert sample:
 | PK | SK 예시 | 의미 |
 | --- | --- | --- |
 | `ALERT#cloud-infra` | `warning#kubernetes_api_unauthorized#slow` | Cloud slow Kubernetes API unauthorized alert dedupe |
-| `ALERT#factory-c` | `danger#nodes_all_not_ready#normal` | Factory C danger cause alert dedupe |
+| `ALERT#factory-c` | `danger#nodes_all_not_ready#state_snapshot` | Factory C danger cause alert dedupe |
+| `ALERT#cloud-infra` | `OBSERVATION#warning#pods_warning#slow` | Cloud slow warning 연속 관측 확인 |
 
 공장별 Query count 샘플:
 

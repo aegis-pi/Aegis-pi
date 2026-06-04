@@ -1,7 +1,7 @@
 # scripts/ops
 
 상태: source of truth
-기준일: 2026-05-28
+기준일: 2026-06-04
 
 ## 목적
 
@@ -27,7 +27,7 @@ Hub 재생성/삭제 진입점은 `scripts/build/`, `scripts/destroy/`이며, �
 ## 주요 사용 예시
 
 ```bash
-# Hub 재시작 후 factory-b/c dummy generator 시작
+# 데이터 수집을 별도로 중단했던 경우 factory-b/c dummy generator 시작
 scripts/ops/manage-dummy-generators.sh start factory-b
 scripts/ops/manage-dummy-generators.sh start factory-c
 
@@ -50,5 +50,6 @@ scripts/ops/check-spoke-publisher-safety.sh factory-b factory-c
 
 ## 참고
 
-- dummy generator 정지(Hub 내리기 전)는 `scripts/destroy/stop-dummy-generators.sh`를 사용한다.
+- Hub-only 데이터 수집 유지 모드에서는 dummy generator를 정지하거나 다시 시작하지 않는다.
+- 데이터 수집까지 중단할 때는 `scripts/destroy/stop-dummy-generators.sh`를 사용한다.
 - dummy generator 설정 파일은 `dummy-generators.env`이며, `scripts/destroy/stop-dummy-generators.sh`와 이 디렉터리의 `manage-dummy-generators.sh`가 공유한다.

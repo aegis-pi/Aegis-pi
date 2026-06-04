@@ -3,7 +3,7 @@
 Status: working note
 Date: 2026-05-19
 
-현재 Hub-only build 경로는 `build-hub.sh` 이후 필요한 UI 연결과 factory별 `register-spoke-factory-a/b/c.sh`를 개별 실행하는 방식이다. 이 문서는 과거 `build-all.sh --admin-ui` 실행 중 발생한 장애 기록이며, `--admin-ui` 옵션은 현재 no-op으로 남아 있다.
+현재 Hub-only 데이터 수집 유지 build 경로는 `build-hub.sh` 이후 `build-admin-ui-after-ns.sh`와 `HUB_ONLY_RECONNECT=true register-spoke-factory-a/b/c.sh`를 실행하는 방식이다. `build-hub.sh`는 유지 중인 SlowCollector EKS access binding을 자동 복구한다. 이 문서는 과거 `build-all.sh --admin-ui` 실행 중 발생한 장애 기록이며, `--admin-ui` 옵션은 현재 no-op으로 남아 있다.
 
 ## Command
 

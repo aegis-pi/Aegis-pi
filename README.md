@@ -109,7 +109,7 @@ Public ALB: 단기 유지
 
 M1 Issue 0~10에서는 AWS MFA/Terraform 접근, Hub EKS/VPC 기준선, Hub namespace 기준선, Hub ArgoCD bootstrap, foundation S3 data bucket `aegis-bucket-data`, `factory-a` IoT Thing/certificate/policy/K3s Secret, IoT Rule -> S3 `raw/` prefix 적재, M1 검증용 `risk/risk-normalizer` IRSA S3 권한, AWS Load Balancer Controller, Route53/ACM, ArgoCD/Grafana HTTPS Admin Ingress를 검증했다. 과거 AMP/Prometheus Agent/Grafana AMP datasource 검증 이력은 보존하지만, 2026-05-27 비용 최적화 기준에서는 active 구성에서 제거한다.
 
-2026-05-21 기준 `scripts/build/build-hub.sh`는 Hub EKS와 Hub 내부 플랫폼까지만 자동 복구/검증한다. Tailscale Operator, Spoke egress, ArgoCD/Grafana Tailscale UI, ArgoCD cluster Secret, ApplicationSet은 Hub 이후 단계에서 실행한다. 기본 전체 재생성은 `scripts/build/build-all.sh`, Admin UI까지 포함한 재생성은 `scripts/build/build-all.sh --admin-ui-after-ns`, 전체 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. Hub 삭제 전에는 `scripts/destroy/stop-dummy-generators.sh`로 factory-b/c VM 데이터 생성을 먼저 멈추고, 그 다음 `destroy-hub.sh` 또는 `destroy-all.sh`를 실행한다. Hub만 삭제/재생성했고 Spoke K3s Secret과 IoT Core Thing/certificate가 유지된 경우에는 `build-hub.sh` 이후 `build-admin-ui-after-ns.sh`, `register-spoke-factory-a.sh`, `register-spoke-factory-b.sh`, `register-spoke-factory-c.sh`, factory-b/c dummy generator start를 필요 순서대로 개별 실행한다. ALB 기반 Admin UI를 쓰는 경우 `connect-hub-tailscale-ui.sh`는 선택 사항이다. 비용 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.
+2026-06-04 기준 데이터 수집을 유지하면서 Hub만 반복 생성/삭제하는 표준 흐름은 종료 시 `scripts/destroy/destroy-hub.sh`만 실행하고, 시작 시 `scripts/build/build-hub.sh` -> `scripts/build/build-admin-ui-after-ns.sh` -> `HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a/b/c.sh` 순서로 실행하는 것이다. 이 모드에서는 factory-b/c dummy generator, Spoke publisher, data-pipeline, ECS Fargate backend를 계속 유지하며 `stop-dummy-generators.sh`, `destroy-data-pipe.sh`, `build-data-pipe.sh`는 실행하지 않는다. `build-hub.sh`는 Hub EKS 생성 직후 유지 중인 CloudInfraSlowCollector의 EKS access entry와 view policy를 자동 복구한 뒤 Hub 플랫폼을 설치한다. 전체 재생성은 `scripts/build/build-all.sh`, 전체 수집 중단과 삭제는 `scripts/destroy/destroy-all.sh`를 사용한다. ALB 기반 Admin UI를 쓰는 경우 `connect-hub-tailscale-ui.sh`는 선택 사항이다. 비용 기준은 `docs/ops/15_aws_cost_baseline.md`를 따른다.
 
 앞으로 모든 작업은 `docs/planning/11_delivery_ownership_flow.md`의 책임 경계를 따른다.
 
@@ -322,4 +322,4 @@ infra/
 | `draft` | 방향은 있으나 세부값 미정 |
 | `candidate` | 후속 확장 또는 검토용 |
 
-기준일: 2026-06-01
+기준일: 2026-06-04

@@ -247,7 +247,7 @@ MVP 기준 예상 지연은 수집 주기, AWS 처리 지연, 대시보드 refre
 | `factory_state` 센서 최신값 | 3초 | 10~35초 |
 | AI/audio 이벤트 | 이벤트 발생 즉시 publish | 5~20초 |
 | Risk score | 입력 반영 후 계산 | 15~45초 |
-| 장애 감지 | heartbeat miss 기준 | 40~60초 |
+| 장애 감지 | pipeline freshness 기준 | warning 60초 초과, critical 120초 초과 |
 
 권장 MVP 기준:
 

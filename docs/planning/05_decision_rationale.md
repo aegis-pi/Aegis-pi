@@ -343,7 +343,7 @@ DynamoDB LATEST/GRAPH#5M/HISTORY#STATE와 S3 processed/processed_agg만 read-onl
 
 Grafana는 내부 관측 또는 AMP 탐색용으로 유지할 수 있지만, public 관리자 화면의 기본 방향은 Dashboard Web/API다.
 
-S3만으로 대시보드를 구성하면 최신 상태와 최근 그래프 조회가 느릴 수 있으므로 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE hot store를 둔다. 일반 상태 변화는 10~35초, 장애 판정은 40~60초 반영을 MVP 목표로 삼는다.
+S3만으로 대시보드를 구성하면 최신 상태와 최근 그래프 조회가 느릴 수 있으므로 DynamoDB LATEST/GRAPH#5M/HISTORY#STATE hot store를 둔다. 일반 상태 변화는 10~35초를 목표로 하고, pipeline freshness는 warning 60초 초과, critical 120초 초과 기준을 사용한다.
 
 ### 결론
 

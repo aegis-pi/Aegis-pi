@@ -1,7 +1,7 @@
 # Hub Run Commands
 
 상태: source of truth
-기준일: 2026-06-02
+기준일: 2026-06-04
 
 ## Hub-only 재시작 실행 순서
 
@@ -9,14 +9,12 @@
 cd /home/vicbear/Aegis/git_clone/Aegis-pi
 scripts/build/build-hub.sh [MFA_OTP]
 scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]
-scripts/build/register-spoke-factory-a.sh [MFA_OTP]
-scripts/build/register-spoke-factory-b.sh [MFA_OTP]
-scripts/build/register-spoke-factory-c.sh [MFA_OTP]
-scripts/ops/manage-dummy-generators.sh start factory-b
-scripts/ops/manage-dummy-generators.sh start factory-c
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-b.sh [MFA_OTP]
+HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-c.sh [MFA_OTP]
 ```
 
-현재 표준 순서는 Hub -> Admin UI -> factory별 Spoke 등록 -> factory-b/c local dummy generator start다. Hub만 삭제/재생성한 경우 IoT Core Thing/certificate와 Spoke K3s Secret은 다시 만들지 않는다.
+현재 Hub-only 데이터 수집 유지 표준 순서는 Hub -> Admin UI -> factory별 Spoke Hub-only reconnect다. Hub만 삭제/재생성한 경우 IoT Core Thing/certificate, Spoke K3s Secret, factory-b/c dummy generator, data-pipeline, ECS Fargate backend는 다시 만들거나 재시작하지 않는다.
 
 data-pipeline은 Hub/Spoke registration과 별도 생명주기다. `scripts/build/build-data-pipe.sh`는 IoT Rule, DataProcessor, GraphAggregator5m, CloudInfraFast/SlowCollector, RiskAlertDispatcher, S3 processed alert trigger, Slack webhook secret metadata를 생성/갱신한다. Slack webhook URL 값은 로컬 `.secrets/` 파일에서 Secrets Manager로 주입하며 명령 출력이나 repo에 남기지 않는다.
 
@@ -26,8 +24,11 @@ data-pipeline은 Hub/Spoke registration과 별도 생명주기다. `scripts/buil
 # 퇴근 시: data-pipeline과 Spoke publisher는 유지하고 Hub만 내림
 scripts/destroy/destroy-hub.sh [MFA_OTP]
 
-# 출근 시: Hub 제어 plane만 복구
+# 출근 시: Hub infra, SlowCollector EKS access binding, Hub platform 복구
 scripts/build/build-hub.sh [MFA_OTP]
+
+# Admin UI HTTPS Ingress/ALB 복구
+scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]
 
 # 기존 Spoke pod를 건드리지 않고 Hub ArgoCD/ApplicationSet 제어 경로만 재연결
 HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a.sh [MFA_OTP]
@@ -46,7 +47,9 @@ GitOps 변경을 실제로 반영해야 할 때만 명시적으로 sync를 켠�
 HUB_ONLY_RECONNECT=true SYNC_SPOKE_APP=true scripts/build/register-spoke-factory-b.sh [MFA_OTP]
 ```
 
-`build-hub.sh`는 Hub AWS 인프라와 Hub Kubernetes platform을 올린다. 이 단계는 factory-a K3s 가용성에 의존하지 않으며 ArgoCD, legacy Prometheus Agent cleanup, Grafana, AWS Load Balancer Controller까지만 준비한다.
+`build-hub.sh`는 Hub AWS infra를 올린 직후 유지 중인 CloudInfraSlowCollector의 EKS access entry와 `AmazonEKSAdminViewPolicy` association을 자동 복구하고, Hub Kubernetes platform을 설치한다. 자동 reconcile은 data-pipeline Terraform state와 SlowCollector IAM role이 모두 존재할 때 실행된다.
+
+`reconcile-data-pipe-eks-access.sh`는 ECS Fargate backend와 관계없다. ECS backend 상태는 유지 중인 CloudInfraFastCollector가 ECS cluster/service 이름으로 `DescribeServices`를 호출하고, 응답의 `loadBalancers[].targetGroupArn`으로 실제 ALB Target Group을 확인한다. AWS resource tag 탐색은 사용하지 않는다.
 
 `build-admin-ui-after-ns.sh`는 Gabia NS 위임 이후 ACM certificate가 `ISSUED`가 될 때까지 기다린 뒤 ArgoCD/Grafana HTTPS Ingress를 활성화한다.
 
@@ -54,7 +57,7 @@ HUB_ONLY_RECONNECT=true SYNC_SPOKE_APP=true scripts/build/register-spoke-factory
 
 `build-iot-factory-a.sh`는 `factory-a` IoT Thing/Policy/certificate와 K3s Secret을 새로 준비해야 할 때 사용한다. Hub-only 재시작에서는 `register-spoke-factory-a.sh`를 사용한다.
 
-`register-spoke-factory-a/b/c.sh`는 기존 IoT Secret을 유지하고 해당 factory의 Hub Tailscale egress, ArgoCD cluster Secret, ApplicationSet repo 연결, Application sync/wait만 수행한다.
+`register-spoke-factory-a/b/c.sh`는 기존 IoT Secret을 유지하고 해당 factory의 Hub Tailscale egress, ArgoCD cluster Secret과 ApplicationSet repo 연결을 복구한다. `HUB_ONLY_RECONNECT=true`에서는 기존 Spoke workload 보호를 위해 Application sync/wait와 ECR pull secret refresh/restart를 기본 생략한다.
 
 `manage-dummy-generators.sh start factory-b/c`는 VM worker의 local dummy generator만 켠다. IoT publish는 각 Spoke K3s에 배포된 `edge-iot-publisher`가 담당한다.
 
@@ -107,7 +110,7 @@ ADMIN_UI_INGRESS_ENABLED=true scripts/build/build-hub.sh
 
 ## 비용 절감 삭제
 
-장시간 사용하지 않을 때는 Hub EKS/VPC/NAT Gateway/node group을 먼저 내린다.
+데이터 수집까지 멈추는 경우에는 dummy generator를 먼저 정지한 뒤 Hub를 내린다.
 
 ```bash
 scripts/destroy/stop-dummy-generators.sh
@@ -116,7 +119,7 @@ scripts/destroy/destroy-hub.sh
 
 `stop-dummy-generators.sh`는 Hub가 내려간 뒤에도 factory-b/c worker outbox가 계속 쌓이는 것을 막는다. legacy local publisher unit이 설치돼 있으면 함께 정지하지만, 현재 표준 publish 경로는 K3s `edge-iot-publisher`다. `destroy-hub.sh`는 Hub EKS/VPC/NAT Gateway/node group과 EKS 내부 ArgoCD/Tailscale/ApplicationSet 리소스를 제거한다. Foundation S3/ECR/DynamoDB, IoT 리소스와 Spoke K3s Secret은 별도 삭제 대상이다.
 
-데이터를 계속 쌓는 개발 모드에서는 `stop-dummy-generators.sh`를 실행하지 않는다. 이 경우 Hub ArgoCD self-heal은 멈추지만, 기존 Spoke K3s `edge-iot-publisher`와 data-pipeline이 살아 있으면 IoT Core -> S3 raw -> Lambda -> DynamoDB/S3 processed 흐름은 계속 유지된다. `build-data-pipe.sh`로 배포된 DataProcessorRefresh1m Scheduler가 살아 있으면 새 IoT 메시지가 없는 factory도 DynamoDB LATEST의 `pipeline_status`와 `risk`가 1분 주기로 stale 보정된다. CloudInfra collectors와 RiskAlertDispatcher도 data-pipeline이 살아 있는 동안 계속 동작한다.
+데이터를 계속 쌓는 개발 모드에서는 `stop-dummy-generators.sh`, `destroy-data-pipe.sh`, `build-data-pipe.sh`를 실행하지 않는다. Hub ArgoCD self-heal은 멈추지만 기존 Spoke K3s `edge-iot-publisher`, factory-b/c dummy generator, IoT Core, data-pipeline과 ECS Fargate backend는 계속 동작한다.
 
 ## 전체 삭제
 

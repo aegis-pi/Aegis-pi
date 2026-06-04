@@ -1,7 +1,7 @@
 # Monitoring Dashboard Data Model
 
 상태: source of truth
-기준일: 2026-06-02
+기준일: 2026-06-04
 
 ## 목적
 
@@ -133,7 +133,7 @@ DeviceStatus
 PipelineStatus
 RiskState
 CloudInfraStatus
-AlertDedupeState
+AlertObservationAndDedupeState
 RecentLog
 ```
 
@@ -146,5 +146,5 @@ RecentLog
 | `FactorySummary`, `RiskState`, `PipelineStatus` | DynamoDB `FACTORY#{factory_id}/LATEST` |
 | 최근 그래프 | DynamoDB `GRAPH#5M` |
 | Cloud infra status | DynamoDB `CLOUD#infra/LATEST` |
-| Alert cooldown/dedupe | DynamoDB `ALERT#{scope}` |
+| Alert observation/cooldown/dedupe | DynamoDB `ALERT#{scope}` |
 | 상세/감사/리포트 입력 | S3 `processed/`, `processed_agg/` |

@@ -1,6 +1,6 @@
 # Apps
 
-기준일: 2026-06-01
+기준일: 2026-06-04
 
 이 디렉터리는 Aegis-Pi에서 직접 구현할 애플리케이션 코드를 서비스별로 나누어 두는 공간이다.
 
@@ -17,7 +17,7 @@ dummy-sensor factory-b/c generator
   factory-b/c 테스트베드 canonical JSON 생성 -> local spool/outbox
 ```
 
-IoT Core 이후 정규화/Risk 계산/latest 저장은 별도 `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` 파드가 아니라 Lambda data processor와 DynamoDB/S3 processed로 처리한다. 최근 그래프 read model은 `graph-metrics-aggregator` Lambda가 DynamoDB `HISTORY#STATE`를 읽어 `GRAPH#5M`과 S3 `processed_agg`로 집계한다.
+IoT Core 이후 정규화/Risk 계산/latest 저장은 별도 `risk-normalizer`, `risk-score-engine`, `pipeline-status-aggregator` 파드가 아니라 Lambda data processor와 DynamoDB/S3 processed로 처리한다. 최근 그래프 read model은 `graph-metrics-aggregator` Lambda가 DynamoDB `HISTORY#STATE`를 읽어 `GRAPH#5M`과 S3 `processed_agg`로 집계한다. Cloud 상태는 `cloud-infra-collector`, Slack 알림은 `risk-alert-dispatcher`가 담당한다.
 
 ## 하위 폴더
 
@@ -27,6 +27,8 @@ IoT Core 이후 정규화/Risk 계산/latest 저장은 별도 `risk-normalizer`,
 | `edge-iot-publisher/` | M4 Issue 3 실제 구현. local spool/outbox canonical JSON을 AWS IoT Core로 publish |
 | `data-processor/` | M4 Issue 6 실제 구현. AWS Lambda data processor. IoT Core 수신 메시지 → DynamoDB LATEST/HISTORY#STATE, S3 processed 저장, Risk/pipeline_status 계산 |
 | `graph-metrics-aggregator/` | 5분 그래프 집계 Lambda. DynamoDB `HISTORY#STATE` 조회 → DynamoDB `GRAPH#5M` 및 S3 `processed_agg/metrics_5m` 저장 |
+| `cloud-infra-collector/` | 1분 fast/5분 slow Cloud infra collector. ECS/ALB/data-pipeline/EKS/Kubernetes 상태 → DynamoDB `CLOUD#infra`, S3 `processed/cloud_infra` 저장 |
+| `risk-alert-dispatcher/` | Factory/Cloud processed snapshot의 warning/danger 평가, 연속 관측 확인, DynamoDB cooldown/dedupe, Slack 전송 |
 | `edge-agent/` | M3 GitHub Actions/ECR 검증용 smoke image. 실제 Edge data-plane 로직은 M4에서 adapter/publisher로 분리 구현 |
 | `dummy-sensor/` | legacy 이름을 유지하지만 실제 factory-b/c dummy generator, legacy/manual publisher, systemd unit/runbook, 테스트를 포함 |
 | `risk-normalizer/` | legacy placeholder. 최신 기준에서는 Lambda data processor의 정규화 로직으로 대체 |

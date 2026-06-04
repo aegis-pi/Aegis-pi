@@ -311,7 +311,8 @@ Dashboard page/VPC 구현은 별도 담당 범위다. 이 이슈에서는 Dashbo
 - [ ] 관제 화면 변화(카드 색상, 이상 목록, 로그)가 시나리오와 일치 확인
 - [ ] 현장 상태 변화부터 Dashboard 반영까지 지연 측정
   - 일반 상태 변화 목표: 10~35초
-  - 장애 판정 목표: 40~60초
+  - pipeline warning: 60초 초과
+  - pipeline critical: 120초 초과
 - [ ] 검증 결과를 Risk 관련 문서와 `docs/ops/03_test_checklist.md`에 반영
 
 ### 🔍 Acceptance Criteria

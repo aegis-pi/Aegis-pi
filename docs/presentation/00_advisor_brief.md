@@ -1,7 +1,7 @@
 # 지도/검토용 브리프
 
 상태: source of truth
-기준일: 2026-06-02
+기준일: 2026-06-04
 
 ## 현재 진행 상태
 
@@ -33,7 +33,7 @@ LAN 제거 InfluxDB 공백: 10초 bucket 기준 AI/audio 80초, BME 70초
 
 - M0는 핵심 기준선 완료로 볼 수 있다.
 - NFS Cold Storage와 Ansible tiering은 보류했다.
-- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, Grafana, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/ECR/DynamoDB, data-pipeline IoT Rule/Lambda/Scheduler/RiskAlertDispatcher, `factory-a/b/c` IoT Thing/Policy/K3s Secret, IRSA S3 권한은 현재 build/등록 스크립트로 재생성/검증 가능하다. AMP/Prometheus Agent는 active 구성에서 제거했고 검증 이력만 보존한다. Hub-only 재시작은 `scripts/build/build-hub.sh` 이후 UI 연결과 `scripts/build/register-spoke-factory-a.sh`, `scripts/build/register-spoke-factory-b.sh`, `scripts/build/register-spoke-factory-c.sh`를 단계별 실행한다.
+- AWS Hub EKS/VPC/namespace/ArgoCD bootstrap, Grafana, AWS Load Balancer Controller, Admin UI HTTPS Ingress, foundation S3/ECR/DynamoDB, data-pipeline IoT Rule/Lambda/Scheduler/RiskAlertDispatcher, `factory-a/b/c` IoT Thing/Policy/K3s Secret, IRSA S3 권한은 현재 build/등록 스크립트로 재생성/검증 가능하다. AMP/Prometheus Agent는 active 구성에서 제거했고 검증 이력만 보존한다. Hub-only 데이터 수집 유지 재시작은 `scripts/build/build-hub.sh` 이후 Admin UI를 복구하고 `HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a/b/c.sh`를 실행한다. data-pipeline과 dummy generator는 유지하며 SlowCollector EKS access binding은 Hub build 중 자동 복구된다.
 - `factory-b/c` VM 테스트베드 raw/processed 수집은 local dummy generator와 공통 `edge-iot-publisher`로 검증했다.
 - Cloud infra collectors는 `CLOUD#infra/LATEST` read model을 만들고, RiskAlertDispatcher는 S3 `processed/` warning/danger snapshot을 Slack으로 알린다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.

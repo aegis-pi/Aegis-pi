@@ -1,7 +1,7 @@
 # Dummy Data 생성과 Risk Scenario 운영 기준
 
 상태: 구현 기준 source of truth  
-기준일: 2026-06-02
+기준일: 2026-06-04
 관련 문서:
 
 - `docs/ops/22_factory_bc_testbed_data_plane.md`
@@ -231,8 +231,8 @@ pipeline freshness event는 payload에 `pipeline_status_*`를 직접 넣지 않�
 
 | Factory | freshness gap event |
 | --- | --- |
-| `factory-b` | `pipeline_warning_gap`: 45~55초 |
-| `factory-c` | `pipeline_critical_gap`: 70~120초, `pipeline_outage_gap`: 301~330초 |
+| `factory-b` | `pipeline_warning_gap`: 75~105초 |
+| `factory-c` | `pipeline_critical_gap`: 135~180초, `pipeline_outage_gap`: 301~330초 |
 
 예시:
 

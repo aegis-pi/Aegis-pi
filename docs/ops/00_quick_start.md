@@ -122,8 +122,8 @@ Daily Factory Report local/AWS manual execution 검증
 
 ## 다음 단계
 
-1. Hub를 내리는 경우 `scripts/destroy/stop-dummy-generators.sh`로 VM 데이터 생성을 먼저 멈춘 뒤 `scripts/destroy/destroy-hub.sh <MFA_OTP>` 또는 `scripts/destroy/destroy-all.sh <MFA_OTP>`를 실행한다.
-2. Hub만 다시 올리는 경우 `scripts/build/build-hub.sh <MFA_OTP>`를 먼저 실행하고, 필요에 따라 `build-admin-ui-after-ns.sh`, `register-spoke-factory-a.sh`, `register-spoke-factory-b.sh`, `register-spoke-factory-c.sh`, `scripts/ops/manage-dummy-generators.sh start factory-b`, `scripts/ops/manage-dummy-generators.sh start factory-c`를 순서대로 실행한다. ALB/Admin UI HTTPS를 쓰면 `connect-hub-tailscale-ui.sh`는 선택 사항이다.
+1. 데이터 수집을 유지하면서 Hub만 내리는 경우 dummy generator와 data-pipeline은 건드리지 않고 `scripts/destroy/destroy-hub.sh <MFA_OTP>`만 실행한다.
+2. Hub만 다시 올리는 경우 `scripts/build/build-hub.sh <MFA_OTP>`를 먼저 실행하고, `scripts/build/build-admin-ui-after-ns.sh`, `HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a/b/c.sh`를 순서대로 실행한다. `build-hub.sh`가 유지 중인 SlowCollector의 새 EKS access binding을 자동 복구한다.
 3. 계획과 실제 구현이 달라진 항목은 `docs/changes/`에 Change Record로 남긴다.
 4. `README.md`, `docs/README.md`, architecture 문서를 현재 `factory-a/b/c` 기준으로 유지한다.
 5. Grafana/dashboard 스펙을 실제 InfluxDB + Prometheus 기준으로 유지한다.
@@ -137,7 +137,7 @@ Daily Factory Report local/AWS manual execution 검증
 | 순서 | 명령 | 생성/복구되는 리소스 |
 | --- | --- | --- |
 | 1 | `scripts/build/build-foundation.sh [MFA_OTP]` | S3 `aegis-bucket-data`, ECR x3, DynamoDB `AEGIS-DynamoDB-FactoryStatus`, GitHub Actions OIDC/IAM, Admin UI Route53 Hosted Zone/ACM certificate. AMP는 active 구성에서 제거됨 |
-| 2 | `scripts/build/build-hub.sh [MFA_OTP]` | Hub VPC, Subnet x4, NAT Gateway x1, EKS Cluster/NodeGroup, EKS-bound IRSA, Hub platform(ArgoCD/Grafana/AWS LB Controller, Prometheus Agent cleanup). Admin UI DNS/ACM은 foundation output 참조 |
+| 2 | `scripts/build/build-hub.sh [MFA_OTP]` | Hub VPC, Subnet x4, NAT Gateway x1, EKS Cluster/NodeGroup, EKS-bound IRSA 생성 → 유지 중인 SlowCollector EKS access binding 자동 복구 → Hub platform(ArgoCD/Grafana/AWS LB Controller, Prometheus Agent cleanup) 설치. Admin UI DNS/ACM은 foundation output 참조 |
 | 3 | `scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]` | 선택: ArgoCD/Grafana HTTPS Ingress, ALB/TargetGroup/SecurityGroup, Route53 record |
 | 4 | `scripts/build/connect-hub-tailscale-ui.sh [MFA_OTP]` | 선택: Tailnet 경유 ArgoCD/Grafana UI 접근 |
 | 5 | `scripts/build/register-spoke-factory-a.sh [MFA_OTP]` | factory-a Tailscale egress, ArgoCD cluster Secret, `aegis-spoke-factory-a` Application |
@@ -162,14 +162,19 @@ Daily Factory Report local/AWS manual execution 검증
 
 퇴근 후에도 데이터를 계속 쌓아야 하면 data-pipeline과 Spoke publisher는 유지하고 Hub만 내린다.
 
+이 모드에서는 factory-b/c dummy generator, Spoke K3s `edge-iot-publisher`, IoT Core, data-pipeline, ECS Fargate backend를 계속 유지한다. `stop-dummy-generators.sh`, `destroy-data-pipe.sh`, `build-data-pipe.sh`는 실행하지 않는다.
+
 | 시점 | 명령 | 목적 |
 | --- | --- | --- |
 | 퇴근 | `scripts/destroy/destroy-hub.sh [MFA_OTP]` | Hub EKS/VPC/NAT 고정비만 제거 |
-| 출근 | `scripts/build/build-hub.sh [MFA_OTP]` | Hub 제어 plane 복구 |
+| 출근 | `scripts/build/build-hub.sh [MFA_OTP]` | Hub infra 생성 직후 유지 중인 SlowCollector EKS access entry/view policy를 자동 복구하고 Hub platform 설치 |
+| 출근 | `scripts/build/build-admin-ui-after-ns.sh [MFA_OTP]` | ArgoCD/Grafana HTTPS Ingress와 고정 이름 ALB `aegis-admin-ui` 복구 |
 | 출근 | `HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-a.sh [MFA_OTP]` | 기존 factory-a pod를 건드리지 않고 Hub ArgoCD 제어 경로 재연결 |
 | 출근 | `HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-b.sh [MFA_OTP]` | 기존 factory-b publisher 유지하며 재연결 |
 | 출근 | `HUB_ONLY_RECONNECT=true scripts/build/register-spoke-factory-c.sh [MFA_OTP]` | 기존 factory-c publisher 유지하며 재연결 |
 | 확인 | `scripts/ops/check-spoke-publisher-safety.sh` | factory별 `edge-iot-publisher` 중복 pod와 rollout strategy 확인 |
+
+`reconcile-data-pipe-eks-access.sh`는 ECS Fargate backend를 변경하거나 조회하지 않는다. 이 스크립트는 유지 중인 CloudInfraSlowCollector IAM role을 새 Hub EKS에 연결한다. ECS Fargate backend는 CloudInfraFastCollector가 ECS cluster/service 이름으로 조회하고, ECS service가 반환한 Target Group ARN을 우선 사용한다.
 
 ### 보고서 파이프라인 메모
 

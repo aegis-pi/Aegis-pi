@@ -590,14 +590,14 @@ IoT Core 수신 상태와 S3 적재 상태를 기준으로 `pipeline_status`가 
 
 pipeline_status 계산 로직 (`apps/data-processor/lambda_function.py`):
 - `infra_state` 수신 시 현재 시각과 source_timestamp 차이로 지연 판단
-- `infra_state` 20초 주기 기준: age > 40초이면 `warning`, age > 60초이면 `critical`, 정상이면 `normal`
+- `infra_state` 20초 주기와 DataProcessorRefresh1m 기준: age > 60초이면 `warning`, age > 120초이면 `critical`, 정상이면 `normal`
 - DynamoDB LATEST `pk=FACTORY#factory-a`, `sk=LATEST`의 `pipeline_status`를 부분 갱신
 - DynamoDB HISTORY#STATE: `pk=FACTORY#factory-a`, `sk=HISTORY#STATE#{updated_at}`, `LATEST`와 같은 구조 + `HISTORY_TTL_HOURS` 기준 TTL
 
 검증 시나리오 (build-data-pipe.sh 실행 후):
 1. `edge-iot-publisher` 정상 동작 중: DynamoDB LATEST pipeline_status = `normal`
-2. `edge-iot-publisher` 강제 중지 후 40초 초과: DynamoDB LATEST pipeline_status = `warning`
-3. `edge-iot-publisher` 강제 중지 후 60초 초과: DynamoDB LATEST pipeline_status = `critical`
+2. `edge-iot-publisher` 강제 중지 후 60초 초과: DynamoDB LATEST pipeline_status = `warning`
+3. `edge-iot-publisher` 강제 중지 후 120초 초과: DynamoDB LATEST pipeline_status = `critical`
 4. `edge-iot-publisher` 재시작 후: DynamoDB LATEST pipeline_status = `normal` 복구 확인
 
 2026-05-27 검증 결과:

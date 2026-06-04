@@ -1,7 +1,7 @@
 # Data Pipeline 구현 레퍼런스
 
 상태: 구현 기준 source of truth
-기준일: 2026-06-02
+기준일: 2026-06-04
 관련 스펙: `docs/specs/data_storage_pipeline.md`
 
 ---
@@ -15,7 +15,7 @@ Aegis 데이터 파이프라인은 Edge factory에서 발생한 센서·인프�
 - **상세 이력 조회** → DynamoDB HISTORY#STATE
 - **장기 보존·재처리** → S3 processed / raw
 
-2026-06-02 기준 `factory-a/b/c` IoT -> Lambda -> DynamoDB/S3 processed 적재, `risk-v0.2.0` Risk Score 계산, DataProcessor 1분 freshness refresh, GraphAggregator5m의 DynamoDB `GRAPH#5M` 및 S3 `processed_agg` 집계는 검증 완료 상태다. 추가로 CloudInfraFastCollector1m/SlowCollector5m이 `CLOUD#infra/LATEST`, `HISTORY#FAST`, `HISTORY#SLOW`, S3 `processed/cloud_infra/` snapshot을 저장한다. RiskAlertDispatcher는 S3 `processed/` ObjectCreated 이벤트를 받아 factory state_snapshot 및 cloud infra fast/slow snapshot의 warning/danger 조건을 Slack으로 알린다. `configs/runtime/runtime-config.yaml`은 아직 Lambda Risk 계산에 연결되지 않았으며, 다음 고도화는 runtime config 기반 weight/threshold/factory override 적용과 Risk Twin read model 안정화다.
+2026-06-04 기준 `factory-a/b/c` IoT -> Lambda -> DynamoDB/S3 processed 적재, `risk-v0.2.0` Risk Score 계산, DataProcessor 1분 freshness refresh, GraphAggregator5m의 DynamoDB `GRAPH#5M` 및 S3 `processed_agg` 집계는 검증 완료 상태다. 추가로 CloudInfraFastCollector1m/SlowCollector5m이 `CLOUD#infra/LATEST`, `HISTORY#FAST`, `HISTORY#SLOW`, S3 `processed/cloud_infra/` snapshot을 저장한다. RiskAlertDispatcher는 S3 `processed/` ObjectCreated 이벤트를 받아 factory state_snapshot 및 cloud infra fast/slow snapshot의 warning/danger 조건을 Slack으로 알린다. Cloud alert는 specific 원인을 우선하고 같은 원인을 포괄하는 generic section alert는 fallback으로만 사용한다. `configs/runtime/runtime-config.yaml`은 아직 Lambda Risk 계산에 연결되지 않았으며, 다음 고도화는 runtime config 기반 weight/threshold/factory override 적용과 Risk Twin read model 안정화다.
 
 ---
 
@@ -52,10 +52,16 @@ EventBridge Scheduler (rate 5 minutes)
 
 Cloud infra dashboard read model은 별도 collector 2개가 수행한다.
 
+`CLOUD#infra`의 `fast.factory_freshness`는 factory 상태를 함께 조회하기 위한 대시보드 참고 데이터로 유지한다.
+다만 Cloud `overall_status`는 Cloud 자체 상태만 나타내도록 `backend_runtime`, `data_pipeline`,
+`eks_management`, `storage_freshness`만 사용하며 `factory_freshness`는 overall 판정에서 제외한다.
+
 ```text
 EventBridge Scheduler (rate 1 minute)
   -> Lambda: AEGIS-Lambda-CloudInfraFastCollector
       -> ECS/ALB/Lambda/DynamoDB/Scheduler/factory freshness 조회
+         - ALB Target Group은 ECS service loadBalancers[].targetGroupArn 우선
+         - ECS TG ARN이 없을 때만 ALB_TARGET_GROUP_NAME 이름 조회 fallback
       -> PutItem DynamoDB CLOUD#infra / LATEST.fast
       -> PutItem DynamoDB HISTORY#FAST#{updated_at} (TTL 6h)
       -> PutObject S3 processed/cloud_infra/fast/...
@@ -95,6 +101,8 @@ S3 ObjectCreated
   -> Lambda: AEGIS-Lambda-RiskAlertDispatcher
       -> GetObject S3 processed snapshot
       -> warning/danger rule evaluate
+         cloud specific alert 우선, generic section alert는 fallback
+         일부 warning은 연속 관측 확인 후 전송
       -> DynamoDB UpdateItem ALERT#{scope} / {severity}#{reason}#{status}
          cooldown + stale snapshot dedupe
       -> Secrets Manager GetSecretValue
@@ -829,3 +837,20 @@ Grafana는 내부 관리 UI로 유지하고, 필요 시 CloudWatch datasource �
 - Slack webhook secret metadata는 Terraform이 관리하고, secret value는 `scripts/build/build-data-pipe.sh`가 로컬 `.secrets/` 파일에서 Secrets Manager로 주입한다. URL 값은 repo와 Terraform state에 저장하지 않는다.
 - CloudInfraSlowCollector의 EKS Kubernetes API 401 원인은 EKS access entry 누락이었다. `AEGIS-IAMRole-Lambda-CloudInfraSlowCollector`에 `AmazonEKSAdminViewPolicy` cluster scope read access를 적용한 뒤 `errors=[]`, nodes/pods/ArgoCD 정상 수집을 확인했다.
 - RiskAlertDispatcher cloud slow rule은 collector error가 있을 때 같은 원인에서 파생된 unknown section 알림을 억제하고 대표 collector error 1건만 전송한다.
+
+## 2026-06-04 운영 메모
+
+- Cloud `fast.factory_freshness`는 대시보드 참고 데이터에는 유지하지만 Cloud `overall_status`와 Cloud Slack alert에서는 제외한다. Factory freshness 알림은 factory state snapshot의 `pipeline_status` 알림으로 통합한다.
+- RiskAlertDispatcher cloud fast rule은 Lambda error/throttle, DynamoDB throttle, ALB unhealthy host specific alert를 먼저 만든다. 같은 section에 specific alert가 있으면 `data_pipeline_warning` 또는 `backend_runtime_warning` generic alert를 억제한다.
+- RiskAlertDispatcher cloud slow rule은 EKS cluster/nodegroup/ASG, nodes, pods, argocd specific alert를 먼저 만든다. EKS specific alert가 있으면 `eks_management_*` generic alert를 억제한다.
+- specific으로 설명되지 않는 non-normal section은 generic fallback alert로 유지한다. nodes와 pods처럼 독립적인 specific 문제는 모두 유지한다.
+- Cloud warning 연속 관측 정책을 적용했다. `backend_runtime_warning`, `data_pipeline_warning`, `data_pipeline_lambda_errors`는 90초 안에 서로 다른 snapshot 2회 관측 후 전송한다. `eks_management_warning`, `pods_warning`은 450초 안에 서로 다른 snapshot 2회 관측 후 전송한다.
+- ALB unhealthy host, Lambda/DynamoDB throttle, collector error, danger/critical은 즉시 알림이다.
+- CloudInfraFastCollector는 backend ALB Target Group을 고정 이름으로만 조회하지 않는다. ECS service의 `loadBalancers[].targetGroupArn`을 먼저 읽고 `DescribeTargetGroups(TargetGroupArns=[...])`와 `DescribeTargetHealth`를 호출한다. `ALB_TARGET_GROUP_NAME`은 ECS load balancer ARN을 찾지 못할 때의 fallback 값이다.
+- CloudInfraFastCollector의 `unhealthy_host_count`는 ALB target state가 실제 `unhealthy`인 target만 센다. ECS rolling deployment에서 빠지는 중인 `draining` target은 `draining_host_count`로 별도 저장하며 `alb_unhealthy_hosts` Slack 알림 조건에 포함하지 않는다.
+- ALB 조회 실패 fallback이 `status=unknown`이고 `healthy_host_count`가 없으면 `_alb_status()`는 `critical`이 아니라 `unknown`을 반환한다. 수집 실패를 실제 target 0개 장애로 오판해 `backend_runtime` critical Slack 알림을 반복 발송하지 않기 위한 기준이다.
+- 2026-06-04 배포 검증: Lambda `AEGIS-Lambda-CloudInfraFastCollector` CodeSha256 `WfNF8ZgkTxCgoCqOxWyDKVzFun5O1t5e9D+3i9lq/nQ=`. `target_group_name`을 존재하지 않는 값으로 override한 수동 invoke도 `backend=normal`, `errors=0`으로 완료했다. DynamoDB/S3 최신 fast snapshot에서 ECS TG ARN과 ALB TG ARN이 모두 `arn:aws:elasticloadbalancing:ap-south-1:611058323802:targetgroup/kjw-aegis-data-tg-backend/321996048f2765f5`, target health는 healthy 2 / unhealthy 0이었다.
+- 2026-06-04 추가 배포 검증: Lambda `AEGIS-Lambda-CloudInfraFastCollector` CodeSha256 `912X6QttWISUp4RDaAsxzGNJvfiFZdcPaOwi1/BFuwA=`. DynamoDB/S3 fast snapshot `2026-06-04T06:33:01.946Z`에서 `healthy_host_count=2`, `unhealthy_host_count=0`, `draining_host_count=0`, `initial_host_count=0`, `unused_host_count=0`, `unknown_host_count=0`, `errors=[]`를 확인했다.
+- Pod phase 기준은 Failed pod 1개 warning, 2개 이상 critical이다.
+- 로컬 검증 결과 `apps/risk-alert-dispatcher/tests` 28 passed, `apps/cloud-infra-collector/tests` 17 passed.
+- `AEGIS-Lambda-RiskAlertDispatcher` update-function-code 배포는 현재 `student05` 기본 profile에서 `Admin-MFA-Enforce` explicit deny로 차단됐다. 배포와 운영 로그 검증은 MFA가 적용된 AWS session에서 수행해야 한다.

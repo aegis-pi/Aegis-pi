@@ -1,7 +1,7 @@
 # 현재 구조 요약
 
 상태: source of truth
-기준일: 2026-06-02
+기준일: 2026-06-04
 
 ## 목적
 
@@ -14,7 +14,7 @@
 - M1 Issue 4에서 foundation S3 data bucket `aegis-bucket-data`를 생성했고, M1 Issue 5에서 IoT Thing/certificate/policy 및 K3s Secret 등록, IoT Rule -> S3 raw 적재 검증을 완료했다.
 - 후속 구현 책임 경계는 Terraform = 인프라, Ansible = bootstrap/설정/소프트웨어, GitHub Actions = CI, GitHub+ArgoCD = CD로 고정한다.
 - `factory-b`, `factory-c`는 VM K3s/Tailnet/ArgoCD cluster/Application 등록, worker `hostPath` outbox, 로컬 dummy generator, IoT Secret, `edge-iot-publisher` 활성화와 S3 raw 적재 검증까지 완료했다.
-- Lambda data processor는 DynamoDB LATEST/HISTORY#STATE와 S3 processed 적재, `pipeline_status`, `risk-v0.2.0` Risk Score 계산까지 검증했다. 2026-05-29에는 DataProcessor 1분 freshness refresh Scheduler를 배포해 새 메시지가 없는 factory도 LATEST `pipeline_status`와 `risk`가 stale 값으로 남지 않도록 했다. GraphAggregator5m은 HISTORY#STATE를 읽어 DynamoDB GRAPH#5M과 S3 processed_agg를 생성한다. 2026-06-02에는 CloudInfraFast/SlowCollector와 RiskAlertDispatcher를 data-pipeline 생명주기에 포함해 cloud infra read model과 Slack alert pipeline까지 연결했다.
+- Lambda data processor는 DynamoDB LATEST/HISTORY#STATE와 S3 processed 적재, `pipeline_status`, `risk-v0.2.0` Risk Score 계산까지 검증했다. DataProcessor 1분 freshness refresh Scheduler는 새 메시지가 없는 factory도 LATEST `pipeline_status`와 `risk`가 stale 값으로 남지 않도록 한다. GraphAggregator5m은 HISTORY#STATE를 읽어 DynamoDB GRAPH#5M과 S3 processed_agg를 생성한다. CloudInfraFastCollector는 ECS service의 Target Group ARN을 우선 사용하고 ALB target state를 분리해 수집한다. RiskAlertDispatcher는 specific 원인을 우선하고 일부 Cloud warning은 연속 관측 후 Slack으로 전송한다.
 - Daily Factory Report는 로컬 검증, Bedrock Sonnet 실호출, AWS reporting stack 배포, `factory-b` Step Functions 수동 실행, S3 산출물 검증까지 완료했다. reporting stack은 검증 후 삭제했으며 S3 input/output object는 보존한다.
 - Dashboard page와 Dashboard VPC는 별도 담당 범위다. 이 repo의 현재 책임은 Dashboard가 조회할 DynamoDB/S3 processed read model과 Risk output 계약을 유지하는 것이다.
 - 이 문서는 현재 동작 중인 로컬 기준선, rebuild 가능한 Hub 기준선, DynamoDB/S3 기반 read model 기준선을 함께 기록한다.
@@ -168,7 +168,7 @@ AWS IoT Core / EventBridge Scheduler
   -> S3 processed/ and processed_agg/
   -> S3 ObjectCreated processed snapshot
   -> RiskAlertDispatcher
-  -> DynamoDB ALERT#{scope} cooldown/dedupe
+  -> DynamoDB ALERT#{scope} observation confirmation + cooldown/dedupe
   -> Slack cloud/factory별 webhook
 ```
 

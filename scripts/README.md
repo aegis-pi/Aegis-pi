@@ -14,12 +14,13 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | --- | --- |
 | `build/build-all.sh` | 기본 Hub 생성 실행. `--foundation`, `--data-pipe`, `--admin-ui-after-ns`, `--iot`로 선택 레이어 실행 |
 | `build/build-admin-ui-after-ns.sh` | Gabia NS 입력 후 ACM 발급 대기와 Admin UI HTTPS Ingress 활성화 |
+| `build/reconcile-data-pipe-eks-access.sh` | Hub-only 재생성 후 유지 중인 SlowCollector IAM role을 새 EKS access entry/view policy에 다시 연결 |
 | `build/connect-hub-tailscale-ui.sh` | Hub ArgoCD/Grafana Tailscale UI Service 연결 및 검증. ALB/Admin UI HTTPS를 쓰면 선택 실행 |
 | `build/register-spoke-factory-a.sh` | 기존 IoT Secret을 유지하고 `factory-a` Hub ArgoCD cluster 등록, GitOps ApplicationSet 적용, app sync 수행 |
 | `build/register-spoke-factory-b.sh` | 기존 IoT Secret을 유지하고 `factory-b` Hub ArgoCD cluster 등록, GitOps ApplicationSet 적용, app sync 수행 |
 | `build/register-spoke-factory-c.sh` | 기존 IoT Secret을 유지하고 `factory-c` Hub ArgoCD cluster 등록, GitOps ApplicationSet 적용, app sync 수행 |
 | `build/build-reporting.sh` | `apps/daily-report-generator` Lambda package를 만들고 `infra/reporting` Terraform apply를 실행 |
-| `destroy/stop-dummy-generators.sh` | Hub 삭제 전 factory-b/c VM worker dummy generator systemd service 정지. legacy local publisher unit이 있으면 함께 정지 |
+| `destroy/stop-dummy-generators.sh` | 데이터 수집까지 중단할 때 factory-b/c VM worker dummy generator systemd service 정지. Hub-only 데이터 수집 유지 모드에서는 실행하지 않음 |
 | `destroy/destroy-reporting.sh` | daily factory report Scheduler/Step Functions/Lambda/IAM/Log Group 제거 |
 | `destroy/destroy-all.sh` | 기본 reporting/data-pipeline/Hub 삭제 실행. `DESTROY_IOT=true`, `DESTROY_FOUNDATION=true`로 삭제 범위 확장 |
 | `hub/run-hub.sh` | `build/build-hub.sh` 실행 후 ArgoCD port-forward까지 연결하는 호환 wrapper |
@@ -56,5 +57,7 @@ Hub 실행 파일별 상세 설명은 `hub/README.md`를 따른다.
 | `ansible/playbooks/hub_aegis_spoke_applicationset_verify.yml` | AEGIS Spoke ApplicationSet과 factory-a Application 대상 검증 |
 
 반복 점검 자동화는 `ansible/` 아래에 둔다.
+
+Hub-only 데이터 수집 유지 재시작은 `build/build-hub.sh` → `build/build-admin-ui-after-ns.sh` → `HUB_ONLY_RECONNECT=true build/register-spoke-factory-a/b/c.sh` 순서다. `build-hub.sh`는 Hub infra 생성 직후 SlowCollector EKS access binding을 자동 복구한다. 이 흐름에서는 data-pipeline, ECS backend, factory-b/c dummy generator와 Spoke publisher를 유지한다.
 
 이전에 사용한 `safe-edge-agent-watchdog.*` fencing 구성은 AI snapshot PVC 제거 후 폐기했다. 현재 AI failover는 Longhorn RWO snapshot PVC에 의존하지 않으므로 worker2 reboot fencing을 사용하지 않는다.
