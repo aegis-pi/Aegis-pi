@@ -28,7 +28,7 @@ secret/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
-tfplan
+tfplan*
 *.tfplan
 crash.log
 crash.*.log
