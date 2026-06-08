@@ -12,6 +12,7 @@ ecr_edge_agent_image_tag_mutability    = "MUTABLE"
 ecr_edge_agent_scan_on_push            = true
 ecr_edge_agent_keep_sha_images         = 50
 ecr_edge_agent_expire_untagged_days    = 7
+ecr_snapshot_uploader_repository_name  = "aegis/snapshot-uploader"
 
 dynamodb_table_name = "AEGIS-DynamoDB-FactoryStatus"
 

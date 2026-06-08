@@ -99,6 +99,12 @@ variable "ecr_edge_iot_publisher_repository_name" {
   default     = "aegis/edge-iot-publisher"
 }
 
+variable "ecr_snapshot_uploader_repository_name" {
+  description = "ECR repository name for the snapshot-uploader container image."
+  type        = string
+  default     = "aegis/snapshot-uploader"
+}
+
 variable "github_actions_oidc_thumbprints" {
   description = "Thumbprints accepted by the GitHub Actions OIDC provider. AWS currently treats token.actions.githubusercontent.com as a trusted provider, but IAM still requires at least one value."
   type        = list(string)

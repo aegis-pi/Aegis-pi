@@ -24,6 +24,7 @@
 | `15_cloud_architecture_final.md` | 확정된 클라우드 아키텍처와 리소스 배치 |
 | `16_m4_edge_data_plane_implementation.md` | M4 Edge data-plane 구현 기준과 검증 이력 |
 | `17_llm_daily_factory_report_plan.md` | Bedrock 기반 factory별 일일 운영 보고서 생성 MVP 설계 |
+| `18_image_snapshot_s3_upload_plan.md` | Safe-Edge AI snapshot 이미지를 S3에 업로드하고 IoT Core에는 metadata만 전송하는 계획 |
 
 ## 기준
 

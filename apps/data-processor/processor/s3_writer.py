@@ -20,6 +20,10 @@ def write_infra_state(factory_id: str, message_id: str, source_timestamp: str, b
     _put(factory_id, "infra_state", message_id, source_timestamp, body)
 
 
+def write_image_snapshot(factory_id: str, message_id: str, source_timestamp: str, body: dict):
+    _put(factory_id, "image_snapshot", message_id, source_timestamp, body)
+
+
 def write_state_snapshot(factory_id: str, updated_at: str, body: dict):
     _put(factory_id, "state_snapshot", updated_at, updated_at, body)
 

@@ -9,7 +9,7 @@ REQUIRED_FIELDS = [
     "payload",
 ]
 
-VALID_SOURCE_TYPES = {"factory_state", "infra_state"}
+VALID_SOURCE_TYPES = {"factory_state", "infra_state", "image_snapshot"}
 
 
 class EnvelopeError(ValueError):

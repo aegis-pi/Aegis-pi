@@ -14,6 +14,16 @@ lambda_data_processor_name    = "AEGIS-Lambda-DataProcessor"
 lambda_data_processor_timeout = 60
 lambda_data_processor_memory  = 512
 
+lambda_snapshot_presigner_name          = "AEGIS-Lambda-SnapshotPresigner"
+lambda_snapshot_presigner_timeout       = 10
+lambda_snapshot_presigner_memory        = 128
+snapshot_presigner_allowed_factory_ids  = ["factory-a"]
+snapshot_presigner_max_file_bytes       = 5242880
+snapshot_presigner_expires_in_seconds   = 300
+snapshot_presigner_throttle_burst_limit = 20
+snapshot_presigner_throttle_rate_limit  = 5
+# snapshot_presigner_shared_token       = "set-with-tfvars-or-secure-workflow"
+
 # GraphAggregator5m Lambda
 lambda_graph_aggregator_name           = "AEGIS-Lambda-GraphAggregator5m"
 lambda_graph_aggregator_timeout        = 60

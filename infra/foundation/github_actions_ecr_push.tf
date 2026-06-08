@@ -56,6 +56,7 @@ data "aws_iam_policy_document" "github_actions_ecr_push" {
       aws_ecr_repository.edge_agent.arn,
       aws_ecr_repository.factory_a_log_adapter.arn,
       aws_ecr_repository.edge_iot_publisher.arn,
+      aws_ecr_repository.snapshot_uploader.arn,
     ]
   }
 }

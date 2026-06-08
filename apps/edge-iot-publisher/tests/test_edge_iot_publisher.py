@@ -31,6 +31,28 @@ def sample_message(message_id="factory-a:factory_state:worker2:2026-05-18T01:00:
     }
 
 
+def sample_image_snapshot_message():
+    message = sample_message("factory-a:image_snapshot:worker2:2026-06-08T09:42:35Z")
+    message.update(
+        {
+            "input_module_type": "camera",
+            "source_type": "image_snapshot",
+            "source_timestamp": "2026-06-08T09:42:35Z",
+            "payload": {
+                "event_type": "FALLEN",
+                "content_type": "image/jpeg",
+                "size_bytes": 60345,
+                "sha256": "a" * 64,
+                "s3_bucket": "aegis-bucket-data",
+                "s3_key": "image_snapshot/factory_id=factory-a/yyyy=2026/mm=06/dd=08/hh=09/260608094235_event_FALLEN.jpg",
+                "local_path": "/var/lib/safe-edge/snapshots/260608094235_event_FALLEN.jpg",
+                "upload_status": "uploaded",
+            },
+        }
+    )
+    return message
+
+
 class FakeMqttClient:
     def __init__(self, fail=False):
         self.fail = fail
@@ -107,11 +129,38 @@ class EdgeIotPublisherTest(unittest.TestCase):
             nested = outbox / "tmp"
             nested.mkdir()
             first.write_text(json.dumps(sample_message()), encoding="utf-8")
+            (outbox / ".snapshot-uploader-state.json").write_text("{}", encoding="utf-8")
             (nested / "b.json").write_text(json.dumps(sample_message("nested")), encoding="utf-8")
 
             publisher = publisher_module.EdgeIotPublisher(mqtt_client=mqtt)
 
             self.assertEqual(publisher.scan_outbox(), [first])
+
+    def test_image_snapshot_source_type_is_valid_and_uses_image_topic(self):
+        mqtt = FakeMqttClient()
+        publisher = publisher_module.EdgeIotPublisher(mqtt_client=mqtt)
+        message = sample_image_snapshot_message()
+
+        publisher.validate_message(message)
+
+        self.assertEqual(publisher.topic_for(message), "aegis/factory-a/image_snapshot")
+
+    def test_missing_required_image_snapshot_field_moves_to_quarantine(self):
+        mqtt = FakeMqttClient()
+        with tempfile.TemporaryDirectory() as tmp:
+            outbox = Path(tmp)
+            os.environ["AEGIS_OUTBOX_DIR"] = str(outbox)
+            path = outbox / "image-snapshot.json"
+            message = sample_image_snapshot_message()
+            del message["source_timestamp"]
+            path.write_text(json.dumps(message), encoding="utf-8")
+
+            publisher = publisher_module.EdgeIotPublisher(mqtt_client=mqtt)
+
+            with self.assertRaises(ValueError):
+                publisher.publish_file(path)
+            self.assertFalse(path.exists())
+            self.assertTrue((outbox / "quarantine" / "image-snapshot.json").exists())
 
 
 if __name__ == "__main__":

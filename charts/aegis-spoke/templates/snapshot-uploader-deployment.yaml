@@ -1,0 +1,108 @@
+{{- if .Values.snapshotUploader.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aegis-spoke.fullname" . }}-snapshot-uploader
+  namespace: {{ include "aegis-spoke.namespace" . }}
+  labels:
+    {{- include "aegis-spoke.labels" . | nindent 4 }}
+    app.kubernetes.io/component: snapshot-uploader
+spec:
+  replicas: {{ .Values.snapshotUploader.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "aegis-spoke.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: snapshot-uploader
+  template:
+    metadata:
+      labels:
+        {{- include "aegis-spoke.labels" . | nindent 8 }}
+        app.kubernetes.io/component: snapshot-uploader
+    spec:
+      serviceAccountName: {{ include "aegis-spoke.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        fsGroup: {{ .Values.podSecurityContext.fsGroup }}
+      {{- with .Values.snapshotUploader.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: snapshot-uploader
+          image: "{{ .Values.snapshotUploader.image.repository }}:{{ .Values.snapshotUploader.image.tag }}"
+          imagePullPolicy: {{ .Values.snapshotUploader.image.pullPolicy }}
+          env:
+            - name: AEGIS_FACTORY_ID
+              value: {{ .Values.factory.id | quote }}
+            - name: AEGIS_ENVIRONMENT_TYPE
+              value: {{ .Values.factory.environmentType | quote }}
+            - name: AEGIS_INPUT_MODULE_TYPE
+              value: "camera"
+            - name: AEGIS_SNAPSHOT_DIR
+              value: {{ .Values.snapshotUploader.snapshotDir.mountPath | quote }}
+            - name: AEGIS_OUTBOX_DIR
+              value: {{ .Values.outbox.path | quote }}
+            - name: AEGIS_UPLOAD_STATE_PATH
+              value: {{ .Values.snapshotUploader.statePath | quote }}
+            - name: AEGIS_SCAN_INTERVAL_SECONDS
+              value: {{ .Values.snapshotUploader.scanIntervalSeconds | quote }}
+            - name: AEGIS_MAX_FILE_BYTES
+              value: {{ printf "%.0f" .Values.snapshotUploader.maxFileBytes | quote }}
+            - name: AEGIS_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: AEGIS_DATA_PLANE_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: AEGIS_PRESIGN_ENDPOINT
+              {{- if .Values.snapshotUploader.presign.endpoint }}
+              value: {{ .Values.snapshotUploader.presign.endpoint | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.snapshotUploader.presign.secretName | quote }}
+                  key: {{ .Values.snapshotUploader.presign.endpointKey | quote }}
+              {{- end }}
+            - name: AEGIS_PRESIGN_TOKEN
+              {{- if .Values.snapshotUploader.presign.token }}
+              value: {{ .Values.snapshotUploader.presign.token | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.snapshotUploader.presign.secretName | quote }}
+                  key: {{ .Values.snapshotUploader.presign.tokenKey | quote }}
+                  optional: true
+              {{- end }}
+          volumeMounts:
+            - name: snapshots
+              mountPath: {{ .Values.snapshotUploader.snapshotDir.mountPath | quote }}
+              readOnly: true
+            - name: outbox
+              mountPath: {{ .Values.outbox.path | quote }}
+          resources:
+            {{- toYaml .Values.snapshotUploader.resources | nindent 12 }}
+      volumes:
+        - name: snapshots
+          hostPath:
+            path: {{ .Values.snapshotUploader.snapshotDir.hostPath | quote }}
+            type: DirectoryOrCreate
+        - name: outbox
+          persistentVolumeClaim:
+            claimName: {{ include "aegis-spoke.fullname" . }}-outbox
+{{- end }}

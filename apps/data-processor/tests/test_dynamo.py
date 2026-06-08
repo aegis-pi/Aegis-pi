@@ -43,6 +43,10 @@ class FakeTable:
             self.item["infra_state"] = ExpressionAttributeValues[":is"]
             self.item["last_infra_state_at"] = ExpressionAttributeValues[":t"]
 
+        if ":lis" in ExpressionAttributeValues:
+            self.item["latest_image_snapshot"] = ExpressionAttributeValues[":lis"]
+            self.item["last_image_snapshot_at"] = ExpressionAttributeValues[":t"]
+
     def get_item(self, Key):
         return {"Item": dict(self.item)}
 
@@ -124,3 +128,40 @@ def test_write_pipeline_status_snapshot_recalculates_risk_and_history(monkeypatc
     assert history["sk"] == "HISTORY#STATE#2026-05-21T10:01:03.123Z"
     assert s3_snapshot["pipeline_status"]["latest_infra_state_age_seconds"] == 3600
     assert s3_snapshot["risk"]["score"] == 49
+
+
+def test_write_image_snapshot_reference_updates_latest_and_history(monkeypatch):
+    table = FakeTable()
+    monkeypatch.setattr(dynamo, "_table", lambda: table)
+    monkeypatch.setattr(dynamo.time, "time", lambda: 1_800_000_000)
+
+    envelope = {
+        "factory_id": "factory-a",
+        "schema_version": "0.1.0",
+        "message_id": "factory-a:image_snapshot:worker2:2026-06-08T09:42:35Z",
+        "source_timestamp": "2026-06-08T09:42:35Z",
+    }
+    normalized = {
+        "event_type": "FALLEN",
+        "content_type": "image/jpeg",
+        "size_bytes": 60345,
+        "sha256": "a" * 64,
+        "s3_bucket": "aegis-bucket-data",
+        "s3_key": "image_snapshot/factory_id=factory-a/yyyy=2026/mm=06/dd=08/hh=09/260608094235_event_FALLEN.jpg",
+    }
+
+    s3_snapshot = dynamo.write_image_snapshot_reference(
+        "factory-a",
+        envelope,
+        normalized,
+        "2026-06-08T09:42:40.123Z",
+    )
+
+    latest = table.item["latest_image_snapshot"]
+    assert latest["event_type"] == "FALLEN"
+    assert latest["source_timestamp"] == "2026-06-08T09:42:35Z"
+    assert latest["processed_at"] == "2026-06-08T09:42:40.123Z"
+    assert latest["size_bytes"] == 60345
+    assert table.item["last_image_snapshot_at"] == "2026-06-08T09:42:35Z"
+    assert table.history_item["latest_image_snapshot"]["s3_bucket"] == "aegis-bucket-data"
+    assert s3_snapshot["latest_image_snapshot"]["s3_key"].startswith("image_snapshot/factory_id=factory-a/")

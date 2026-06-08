@@ -39,3 +39,16 @@ edgeIotPublisher:
     tag: sha-f71a104
   iot:
     secretName: aws-iot-factory-a-cert
+
+snapshotUploader:
+  enabled: true
+  image:
+    repository: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/snapshot-uploader
+    tag: main
+    pullPolicy: Always
+  presign:
+    secretName: snapshot-uploader-presign
+    endpointKey: endpoint
+    tokenKey: token
+  nodeSelector:
+    kubernetes.io/hostname: worker2

@@ -8,6 +8,7 @@ on:
       - apps/edge-agent/**
       - apps/factory-a-log-adapter/**
       - apps/edge-iot-publisher/**
+      - apps/snapshot-uploader/**
       - .github/workflows/build-push.yaml
   workflow_dispatch:
 
@@ -39,6 +40,10 @@ jobs:
             context: apps/edge-iot-publisher
             dockerfile: apps/edge-iot-publisher/Dockerfile
             repository: aegis/edge-iot-publisher
+          - name: snapshot-uploader
+            context: apps/snapshot-uploader
+            dockerfile: apps/snapshot-uploader/Dockerfile
+            repository: aegis/snapshot-uploader
 
     steps:
       - name: Checkout

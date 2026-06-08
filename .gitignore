@@ -42,3 +42,4 @@ infra/data-pipeline/lambda_data_processor.zip
 infra/data-pipeline/lambda_graph_metrics_aggregator.zip
 infra/data-pipeline/lambda_cloud_infra_collector.zip
 infra/data-pipeline/lambda_risk_alert_dispatcher.zip
+infra/data-pipeline/lambda_snapshot_presigner.zip

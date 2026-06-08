@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from processor import dynamo, s3_writer
 from processor.envelope import EnvelopeError, parse
-from processor.normalizer import normalize_factory_state, normalize_infra_state
+from processor.normalizer import normalize_factory_state, normalize_image_snapshot, normalize_infra_state
 from processor.pipeline_status import calculate as calc_pipeline_status
 from processor.risk import calculate as calc_risk
 
@@ -39,8 +39,10 @@ def handler(event, context):
     try:
         if source_type == "factory_state":
             _process_factory_state(envelope, factory_id, message_id, now, now_iso)
-        else:
+        elif source_type == "infra_state":
             _process_infra_state(envelope, factory_id, message_id, now, now_iso)
+        else:
+            _process_image_snapshot(envelope, factory_id, message_id, now_iso)
     except Exception as exc:
         logger.exception("Processing failed for message_id=%s: %s", message_id, exc)
         raise
@@ -152,6 +154,33 @@ def _process_infra_state(envelope, factory_id, message_id, now, now_iso):
         pipeline_status["status"],
         normalized.get("nodes_ready", 0),
         normalized.get("nodes_total", 0),
+    )
+
+
+def _process_image_snapshot(envelope, factory_id, message_id, now_iso):
+    normalized = normalize_image_snapshot(envelope["payload"])
+    state_snapshot = dynamo.write_image_snapshot_reference(factory_id, envelope, normalized, now_iso)
+
+    s3_writer.write_image_snapshot(
+        factory_id,
+        message_id,
+        envelope["source_timestamp"],
+        {
+            "source_message_id": message_id,
+            "factory_id": factory_id,
+            "source_timestamp": envelope["source_timestamp"],
+            "processed_at": now_iso,
+            "data": normalized,
+        },
+    )
+    if state_snapshot:
+        s3_writer.write_state_snapshot(factory_id, now_iso, state_snapshot)
+
+    logger.info(
+        "image_snapshot done: factory_id=%s event_type=%s s3_key=%s",
+        factory_id,
+        normalized["event_type"],
+        normalized["s3_key"],
     )
 
 

@@ -20,6 +20,7 @@ Hub 재생성/삭제 진입점은 `scripts/build/`, `scripts/destroy/`이며, �
 | `export-hub-ui-credentials.sh` | ArgoCD/Grafana 자격증명을 환경변수 형식으로 출력 |
 | `admin-ui-nameservers.sh` | Route53 Hosted Zone NS 레코드 출력 (도메인 NS 위임 확인용) |
 | `refresh-factory-a-ecr-pull-secret.sh` | factory-a K3s `imagePullSecret` 갱신 |
+| `register-snapshot-presigner-secret.sh` | factory-a K3s `snapshot-uploader-presign` Secret 등록 |
 | `check-spoke-publisher-safety.sh` | Hub-only reconnect 전후 Spoke `edge-iot-publisher` 중복 pod/rollout strategy 점검 |
 | `copy-public-image-to-ecr.py` | Public Docker 이미지를 ECR로 복사 (smoke image 준비용) |
 | `dummy-generators.env` | factory-b/c dummy generator SSH 접속 기본 설정 (`AEGIS_DUMMY_GENERATORS_ENV`로 경로 재지정 가능) |
@@ -46,6 +47,11 @@ scripts/ops/admin-ui-nameservers.sh
 # Hub-only reconnect 전후 publisher 안전성 확인
 scripts/ops/check-spoke-publisher-safety.sh
 scripts/ops/check-spoke-publisher-safety.sh factory-b factory-c
+
+# snapshot-uploader presign endpoint Secret 등록
+PRESIGN_ENDPOINT="https://example.execute-api.ap-south-1.amazonaws.com/image-snapshot/presign" \
+PRESIGN_TOKEN="optional-shared-token" \
+scripts/ops/register-snapshot-presigner-secret.sh
 ```
 
 ## 참고

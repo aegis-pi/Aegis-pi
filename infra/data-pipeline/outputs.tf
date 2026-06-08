@@ -48,6 +48,21 @@ output "lambda_data_processor_arn" {
   value       = aws_lambda_function.data_processor.arn
 }
 
+output "snapshot_presigner_lambda_name" {
+  description = "Snapshot presigner Lambda function name."
+  value       = aws_lambda_function.snapshot_presigner.function_name
+}
+
+output "snapshot_presigner_lambda_arn" {
+  description = "Snapshot presigner Lambda ARN."
+  value       = aws_lambda_function.snapshot_presigner.arn
+}
+
+output "snapshot_presigner_endpoint" {
+  description = "HTTP endpoint for snapshot-uploader presigned PUT URL requests."
+  value       = "${aws_apigatewayv2_api.snapshot_presigner.api_endpoint}/image-snapshot/presign"
+}
+
 output "graph_aggregator_lambda_name" {
   description = "Graph aggregator Lambda name."
   value       = aws_lambda_function.graph_aggregator.function_name

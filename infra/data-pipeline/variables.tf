@@ -70,6 +70,61 @@ variable "lambda_data_processor_memory" {
   default     = 512
 }
 
+variable "lambda_snapshot_presigner_name" {
+  description = "Lambda function name for image snapshot presigned PUT URL generation."
+  type        = string
+  default     = "AEGIS-Lambda-SnapshotPresigner"
+}
+
+variable "lambda_snapshot_presigner_timeout" {
+  description = "Snapshot presigner Lambda timeout in seconds."
+  type        = number
+  default     = 10
+}
+
+variable "lambda_snapshot_presigner_memory" {
+  description = "Snapshot presigner Lambda memory allocation in MB."
+  type        = number
+  default     = 128
+}
+
+variable "snapshot_presigner_allowed_factory_ids" {
+  description = "Factory IDs allowed to request image snapshot presigned PUT URLs."
+  type        = list(string)
+  default     = ["factory-a"]
+}
+
+variable "snapshot_presigner_max_file_bytes" {
+  description = "Maximum image snapshot upload size accepted by the presigner."
+  type        = number
+  default     = 5242880
+}
+
+variable "snapshot_presigner_expires_in_seconds" {
+  description = "Presigned PUT URL expiration in seconds."
+  type        = number
+  default     = 300
+}
+
+variable "snapshot_presigner_shared_token" {
+  description = "Optional bearer token required by the snapshot presigner HTTP endpoint. Leave empty to disable token auth."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "snapshot_presigner_throttle_burst_limit" {
+  description = "HTTP API burst throttle limit for snapshot presign requests."
+  type        = number
+  default     = 20
+}
+
+variable "snapshot_presigner_throttle_rate_limit" {
+  description = "HTTP API steady-state throttle rate limit for snapshot presign requests."
+  type        = number
+  default     = 5
+}
+
 variable "data_processor_refresh_enabled" {
   description = "Whether the data processor freshness refresh schedule is enabled."
   type        = bool

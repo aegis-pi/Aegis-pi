@@ -24,6 +24,12 @@ def test_valid_infra_state():
     assert result["source_type"] == "infra_state"
 
 
+def test_valid_image_snapshot():
+    msg = {**_BASE, "source_type": "image_snapshot"}
+    result = parse(msg)
+    assert result["source_type"] == "image_snapshot"
+
+
 def test_missing_field_raises():
     msg = dict(_BASE)
     del msg["factory_id"]

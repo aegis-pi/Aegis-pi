@@ -1,4 +1,4 @@
-from processor.normalizer import normalize_infra_state
+from processor.normalizer import normalize_image_snapshot, normalize_infra_state
 
 
 def test_normalize_infra_state_preserves_canonical_schema():
@@ -93,4 +93,30 @@ def test_normalize_infra_state_preserves_canonical_schema():
         "available": False,
         "status": "unavailable",
         "last_seen_at": None,
+    }
+
+
+def test_normalize_image_snapshot_metadata():
+    normalized = normalize_image_snapshot(
+        {
+            "event_type": "FALLEN",
+            "content_type": "image/jpeg",
+            "size_bytes": 60345,
+            "sha256": "a" * 64,
+            "s3_bucket": "aegis-bucket-data",
+            "s3_key": "image_snapshot/factory_id=factory-a/yyyy=2026/mm=06/dd=08/hh=09/260608094235_event_FALLEN.jpg",
+            "local_path": "/var/lib/safe-edge/snapshots/260608094235_event_FALLEN.jpg",
+            "upload_status": "uploaded",
+        }
+    )
+
+    assert normalized == {
+        "event_type": "FALLEN",
+        "content_type": "image/jpeg",
+        "size_bytes": 60345,
+        "sha256": "a" * 64,
+        "s3_bucket": "aegis-bucket-data",
+        "s3_key": "image_snapshot/factory_id=factory-a/yyyy=2026/mm=06/dd=08/hh=09/260608094235_event_FALLEN.jpg",
+        "local_path": "/var/lib/safe-edge/snapshots/260608094235_event_FALLEN.jpg",
+        "upload_status": "uploaded",
     }

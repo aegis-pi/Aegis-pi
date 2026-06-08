@@ -48,6 +48,11 @@ output "edge_iot_publisher_ecr_repository_url" {
   value       = aws_ecr_repository.edge_iot_publisher.repository_url
 }
 
+output "snapshot_uploader_ecr_repository_url" {
+  description = "ECR repository URL for the snapshot-uploader image."
+  value       = aws_ecr_repository.snapshot_uploader.repository_url
+}
+
 output "edge_data_plane_image_tag_strategy" {
   description = "Image tag strategy for Edge data-plane deployment pipeline."
   value = {
@@ -56,6 +61,7 @@ output "edge_data_plane_image_tag_strategy" {
     repositories = [
       aws_ecr_repository.factory_a_log_adapter.name,
       aws_ecr_repository.edge_iot_publisher.name,
+      aws_ecr_repository.snapshot_uploader.name,
     ]
   }
 }

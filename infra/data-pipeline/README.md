@@ -89,10 +89,11 @@ build-data-pipe.sh   ← foundation + hub apply 후 실행
 | `lambda_data_processor.zip` | Terraform `archive_file`이 생성하는 DataProcessor 배포 아티팩트. Git에는 저장하지 않음 |
 | `lambda_graph_metrics_aggregator.zip` | Terraform `archive_file`이 생성하는 GraphAggregator5m 배포 아티팩트. Git에는 저장하지 않음 |
 | `lambda_cloud_infra_collector.zip` | Terraform `archive_file`이 생성하는 CloudInfra collector 배포 아티팩트. Git에는 저장하지 않음 |
+| `lambda_snapshot_presigner.zip` | Terraform `archive_file`이 생성하는 SnapshotPresigner 배포 아티팩트. Git에는 저장하지 않음 |
 
 ## Lambda 배포 아티팩트
 
-`lambda_data_processor.zip`은 Terraform `archive_file` data source가 `apps/data-processor/`의 Python 코드를 패키징해 생성한다. `lambda_graph_metrics_aggregator.zip`은 `apps/graph-metrics-aggregator/`를 패키징한다. `lambda_cloud_infra_collector.zip`은 `apps/cloud-infra-collector/`를 패키징한다. `lambda_risk_alert_dispatcher.zip`은 `apps/risk-alert-dispatcher/`를 패키징한다. 모두 수동 zip 생성은 필요 없다.
+`lambda_data_processor.zip`은 Terraform `archive_file` data source가 `apps/data-processor/`의 Python 코드를 패키징해 생성한다. `lambda_graph_metrics_aggregator.zip`은 `apps/graph-metrics-aggregator/`를 패키징한다. `lambda_cloud_infra_collector.zip`은 `apps/cloud-infra-collector/`를 패키징한다. `lambda_risk_alert_dispatcher.zip`은 `apps/risk-alert-dispatcher/`를 패키징한다. `lambda_snapshot_presigner.zip`은 `apps/snapshot-presigner/`를 패키징한다. 모두 수동 zip 생성은 필요 없다.
 
 CloudInfraFastCollector의 backend ALB Target Group 조회는 ECS service 연결을 기준으로 한다. `ECS_CLUSTER_NAME` / `ECS_SERVICE_NAME`으로 `DescribeServices`를 호출한 뒤 `loadBalancers[].targetGroupArn`을 우선 사용하고, `ALB_TARGET_GROUP_NAME`은 ECS에서 Target Group ARN을 찾지 못한 경우의 fallback이다. 따라서 Target Group 이름 drift나 재생성으로 이름 조회가 실패해도 ECS service가 현재 참조하는 ARN이 있으면 backend ALB health 수집을 계속한다.
 

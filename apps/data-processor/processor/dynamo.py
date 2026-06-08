@@ -132,6 +132,41 @@ def write_pipeline_status_snapshot(
     return _write_history_from_latest(factory_id, now_iso)
 
 
+def write_image_snapshot_reference(
+    factory_id: str,
+    envelope: dict,
+    normalized: dict,
+    now_iso: str,
+):
+    latest_image_snapshot = {
+        "event_type": normalized["event_type"],
+        "source_timestamp": envelope["source_timestamp"],
+        "processed_at": now_iso,
+        "s3_bucket": normalized["s3_bucket"],
+        "s3_key": normalized["s3_key"],
+        "content_type": normalized["content_type"],
+        "size_bytes": normalized["size_bytes"],
+        "sha256": normalized["sha256"],
+        "message_id": envelope["message_id"],
+    }
+    _table().update_item(
+        Key={"pk": f"FACTORY#{factory_id}", "sk": LATEST_SK},
+        UpdateExpression=(
+            "SET latest_image_snapshot = :lis,"
+            " last_image_snapshot_at = :t, updated_at = :u,"
+            " factory_id = :fid, schema_version = :sv"
+        ),
+        ExpressionAttributeValues={
+            ":lis": _to_dynamo(latest_image_snapshot),
+            ":t": envelope["source_timestamp"],
+            ":u": now_iso,
+            ":fid": factory_id,
+            ":sv": envelope["schema_version"],
+        },
+    )
+    return _write_history_from_latest(factory_id, now_iso)
+
+
 def _get_latest_state(factory_id: str) -> dict:
     resp = _table().get_item(Key={"pk": f"FACTORY#{factory_id}", "sk": LATEST_SK})
     return resp.get("Item", {})

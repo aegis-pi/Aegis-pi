@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 
-VALID_SOURCE_TYPES = {"factory_state", "infra_state"}
+VALID_SOURCE_TYPES = {"factory_state", "infra_state", "image_snapshot"}
 REQUIRED_FIELDS = {
     "schema_version",
     "message_id",
@@ -149,7 +149,11 @@ class EdgeIotPublisher:
         if not self.outbox_dir.exists():
             return []
         return sorted(
-            [item for item in self.outbox_dir.iterdir() if item.is_file() and item.suffix == ".json"],
+            [
+                item
+                for item in self.outbox_dir.iterdir()
+                if item.is_file() and item.suffix == ".json" and not item.name.startswith(".")
+            ],
             key=lambda item: (item.stat().st_mtime, item.name),
         )
 

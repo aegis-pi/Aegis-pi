@@ -87,3 +87,31 @@ edgeIotPublisher:
     limits:
       cpu: 250m
       memory: 256Mi
+
+snapshotUploader:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ""
+    tag: latest
+    pullPolicy: IfNotPresent
+  snapshotDir:
+    hostPath: /var/lib/safe-edge/snapshots
+    mountPath: /var/lib/safe-edge/snapshots
+  presign:
+    endpoint: ""
+    token: ""
+    secretName: snapshot-uploader-presign
+    endpointKey: endpoint
+    tokenKey: token
+  statePath: /var/lib/aegis/outbox/.snapshot-uploader-state.json
+  scanIntervalSeconds: 10
+  maxFileBytes: 5242880
+  nodeSelector: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi

@@ -144,3 +144,52 @@ resource "aws_ecr_lifecycle_policy" "edge_iot_publisher" {
     ]
   })
 }
+
+resource "aws_ecr_repository" "snapshot_uploader" {
+  name                 = var.ecr_snapshot_uploader_repository_name
+  image_tag_mutability = var.ecr_edge_agent_image_tag_mutability
+  force_delete         = var.ecr_repository_force_delete
+
+  image_scanning_configuration {
+    scan_on_push = var.ecr_edge_agent_scan_on_push
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "snapshot_uploader" {
+  repository = aws_ecr_repository.snapshot_uploader.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged snapshot-uploader images after ${var.ecr_edge_agent_expire_untagged_days} days"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = var.ecr_edge_agent_expire_untagged_days
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep the latest ${var.ecr_edge_agent_keep_sha_images} sha-tagged snapshot-uploader images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = var.ecr_edge_agent_keep_sha_images
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}

@@ -58,6 +58,19 @@ def normalize_infra_state(payload: dict) -> dict:
     }
 
 
+def normalize_image_snapshot(payload: dict) -> dict:
+    return {
+        "event_type": str(payload.get("event_type", "UNKNOWN")),
+        "content_type": str(payload.get("content_type", "")),
+        "size_bytes": int(payload.get("size_bytes", 0)),
+        "sha256": str(payload.get("sha256", "")),
+        "s3_bucket": str(payload.get("s3_bucket", "")),
+        "s3_key": str(payload.get("s3_key", "")),
+        "local_path": payload.get("local_path"),
+        "upload_status": str(payload.get("upload_status", "uploaded")),
+    }
+
+
 def _normalize_node(node: dict) -> dict:
     ready = _ready_value(node)
     return {
