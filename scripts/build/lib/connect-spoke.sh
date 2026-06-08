@@ -112,9 +112,14 @@ if [[ "${FACTORY_TARGET}" == "factory-a" && "${REFRESH_SPOKE_ECR_PULL_SECRET}" =
     "${REPO_ROOT}/scripts/ops/refresh-factory-a-ecr-pull-secret.sh" "${OTP}"
 
   if [[ "${RESTART_SPOKE_AFTER_ECR_SECRET_REFRESH}" == "true" ]]; then
-    kubectl --kubeconfig "${FACTORY_A_KUBECONFIG_FILE}" \
-      -n "${ECR_PULL_SECRET_NAMESPACE:-ai-apps}" \
-      rollout restart deployment/aegis-spoke-factory-a-log-adapter
+    for deployment in \
+      aegis-spoke-factory-a-log-adapter \
+      aegis-spoke-edge-iot-publisher \
+      aegis-spoke-snapshot-uploader; do
+      kubectl --kubeconfig "${FACTORY_A_KUBECONFIG_FILE}" \
+        -n "${ECR_PULL_SECRET_NAMESPACE:-ai-apps}" \
+        rollout restart "deployment/${deployment}" 2>/dev/null || true
+    done
   fi
 elif [[ "${REFRESH_SPOKE_ECR_PULL_SECRET}" != "true" ]]; then
   echo "Skipped ${FACTORY_TARGET} ECR pull secret refresh. Set REFRESH_SPOKE_ECR_PULL_SECRET=true to enable it."

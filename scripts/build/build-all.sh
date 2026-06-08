@@ -12,7 +12,7 @@ Usage: scripts/build/build-all.sh [--foundation] [--data-pipe] [--admin-ui-after
 
 Options:
   --foundation         Include foundation Terraform apply.
-  --data-pipe          Apply infra/data-pipeline (IoT Rules factory-a/b/c, Lambda).
+  --data-pipe          Apply infra/data-pipeline (IoT Rules factory-a/b/c, Lambda, SnapshotPresigner API).
                        Requires foundation to be deployed first (DynamoDB and S3 live there).
                        Safe to re-run against an existing data-pipeline deployment.
   --admin-ui-after-ns  Enable Admin UI HTTPS Ingress/ALB after Gabia NS delegation.

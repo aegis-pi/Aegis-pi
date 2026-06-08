@@ -16,6 +16,16 @@ aegis_ensure_aws_mfa "${OTP}"
 
 aegis_terraform_apply_root "${REPO_ROOT}/infra/data-pipeline"
 
+if snapshot_endpoint="$(terraform -chdir="${REPO_ROOT}/infra/data-pipeline" output -raw snapshot_presigner_endpoint 2>/dev/null)"; then
+  cat <<INFO
+SnapshotPresigner endpoint:
+  ${snapshot_endpoint}
+
+Register or refresh factory-a K3s Secret before deploying snapshot-uploader:
+  PRESIGN_ENDPOINT="${snapshot_endpoint}" PRESIGN_TOKEN="" scripts/ops/register-snapshot-presigner-secret.sh
+INFO
+fi
+
 put_risk_alert_secret_value() {
   local file_path="$1"
   local secret_name="$2"

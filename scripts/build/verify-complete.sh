@@ -21,6 +21,7 @@ REMOTE_USER="${REMOTE_USER:-${AEGIS_FACTORY_A_SSH_USER}}"
 REMOTE_HOST="${REMOTE_HOST:-${AEGIS_FACTORY_A_MASTER_HOST}}"
 K8S_NAMESPACE="${K8S_NAMESPACE:-${AEGIS_K8S_IOT_NAMESPACE}}"
 K8S_SECRET_NAME="${K8S_SECRET_NAME:-${AEGIS_K8S_IOT_SECRET_PREFIX}-${FACTORY_ID}${AEGIS_K8S_IOT_SECRET_SUFFIX}}"
+SNAPSHOT_PRESIGN_SECRET_NAME="${SNAPSHOT_PRESIGN_SECRET_NAME:-snapshot-uploader-presign}"
 TERRAFORM_ROOT="${REPO_ROOT}/infra/hub"
 export AWS_REGION
 export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-${AWS_REGION}}"
@@ -110,6 +111,7 @@ echo "Verifying factory K3s Secret and spoke workloads on ${REMOTE_USER}@${REMOT
 ssh "${REMOTE_USER}@${REMOTE_HOST}" "
 set -euo pipefail
 kubectl -n '${K8S_NAMESPACE}' get secret '${K8S_SECRET_NAME}' >/dev/null
+kubectl -n '${K8S_NAMESPACE}' get secret '${SNAPSHOT_PRESIGN_SECRET_NAME}' >/dev/null
 secret_data=\"\$(kubectl -n '${K8S_NAMESPACE}' get secret '${K8S_SECRET_NAME}' -o jsonpath='{.data}')\"
 for key in certificate.pem.crt private.pem.key AmazonRootCA1.pem endpoint.txt; do
   if ! grep -q \"\${key}\" <<<\"\${secret_data}\"; then
@@ -119,6 +121,7 @@ for key in certificate.pem.crt private.pem.key AmazonRootCA1.pem endpoint.txt; d
 done
 kubectl -n '${K8S_NAMESPACE}' rollout status deployment/aegis-spoke-edge-iot-publisher --timeout=180s
 kubectl -n '${K8S_NAMESPACE}' rollout status deployment/aegis-spoke-factory-a-log-adapter --timeout=180s
+kubectl -n '${K8S_NAMESPACE}' rollout status deployment/aegis-spoke-snapshot-uploader --timeout=180s
 kubectl -n '${K8S_NAMESPACE}' get pods -l app.kubernetes.io/instance=aegis-spoke
 "
 
@@ -128,3 +131,4 @@ echo "Factory: ${FACTORY_ID}"
 echo "Thing: ${THING_NAME}"
 echo "Policy: ${POLICY_NAME}"
 echo "K3s Secret: ${K8S_NAMESPACE}/${K8S_SECRET_NAME}"
+echo "Snapshot Presign Secret: ${K8S_NAMESPACE}/${SNAPSHOT_PRESIGN_SECRET_NAME}"

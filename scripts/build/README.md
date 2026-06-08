@@ -1,7 +1,7 @@
 # Build Scripts
 
 상태: source of truth
-기준일: 2026-06-04
+기준일: 2026-06-08
 
 ## 목적
 
@@ -14,13 +14,14 @@
 리소스를 생애주기 기준으로 4개 레이어로 나눈다.
 
 ```text
-Layer 0 │ Foundation      │ S3 data bucket, ECR, DynamoDB, GitHub Actions OIDC,
+Layer 0 │ Foundation      │ S3 data bucket, ECR(including snapshot-uploader), DynamoDB, GitHub Actions OIDC,
         │                 │ Admin UI Route53 Hosted Zone, ACM certificate
         │                 │ 영구 리소스. 최초 1회 생성 후 일반 빌드 흐름에서 제외.
 
 Layer 0 │ Data-pipeline   │ IoT Rule (factory-a/b/c), DataProcessor, GraphAggregator5m,
         │                 │ CloudInfraFast/SlowCollector Lambda/Scheduler,
-        │                 │ RiskAlertDispatcher Lambda/S3 trigger/Slack secret metadata
+        │                 │ RiskAlertDispatcher Lambda/S3 trigger/Slack secret metadata,
+        │                 │ SnapshotPresigner Lambda/HTTP API
         │                 │ 필요 시 생성/삭제. foundation과 Hub EKS가 먼저 존재해야 함.
         │                 │ DynamoDB는 foundation에 포함(영구). build-data-pipe.sh / destroy-data-pipe.sh 로 관리.
 
@@ -44,7 +45,7 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 ```text
 0a. foundation (최초 1회만)
    - infra/foundation Terraform apply
-   - S3 data bucket, ECR, GitHub Actions OIDC, DynamoDB(AEGIS-DynamoDB-FactoryStatus)
+   - S3 data bucket, ECR(edge-iot-publisher/log-adapter/admin-ui/snapshot-uploader), GitHub Actions OIDC, DynamoDB(AEGIS-DynamoDB-FactoryStatus)
    - Admin UI Route53 Hosted Zone, ACM certificate, ACM validation record
 
 1. hub-infra
@@ -62,7 +63,8 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 
 3. data-pipeline (필요 시 생성/삭제)
    - infra/data-pipeline Terraform apply
-   - IoT Rule (factory-a/b/c), DataProcessor, GraphAggregator5m, CloudInfraFastCollector, CloudInfraSlowCollector, RiskAlertDispatcher
+   - IoT Rule (factory-a/b/c), DataProcessor, GraphAggregator5m, CloudInfraFastCollector, CloudInfraSlowCollector, RiskAlertDispatcher, SnapshotPresigner
+   - SnapshotPresigner HTTP API endpoint for image snapshot presigned S3 PUT URLs
    - CloudWatch log group, IAM, EventBridge Scheduler, S3 processed ObjectCreated notification, Slack webhook Secrets Manager metadata
    - foundation의 S3와 DynamoDB를 data source로 조회
    - SlowCollector의 EKS access entry 때문에 Hub EKS 생성 이후 배포한다.
@@ -93,10 +95,10 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 
 | 파일 | 내용 |
 | --- | --- |
-| `build-all.sh` | 기본 hub-infra → hub-platform 실행. `--foundation`, `--data-pipe`, `--admin-ui-after-ns`, `--iot`로 선택 레이어 실행. |
+| `build-all.sh` | 기본 hub-infra → hub-platform 실행. `--foundation`, `--data-pipe`, `--admin-ui-after-ns`, `--iot`로 선택 레이어 실행. `--data-pipe`는 SnapshotPresigner API/Lambda도 포함. |
 | `build-admin-ui-after-ns.sh` | Gabia NS 위임 후 ACM 발급을 기다리고 Admin UI HTTPS Ingress 활성화 |
-| `build-foundation.sh` | `infra/foundation` Terraform apply. 최초 1회 단독 실행. |
-| `build-data-pipe.sh` | `infra/data-pipeline` Terraform apply. IoT Rule × 3, DataProcessor/GraphAggregator5m/CloudInfra collector/RiskAlertDispatcher Lambda, Scheduler, S3 processed alert trigger, CloudWatch, IAM, SlowCollector EKS access entry, Slack webhook secret metadata 생성. foundation S3/DynamoDB와 Hub EKS가 먼저 존재해야 함. |
+| `build-foundation.sh` | `infra/foundation` Terraform apply. 최초 1회 단독 실행. snapshot-uploader ECR repo 포함. |
+| `build-data-pipe.sh` | `infra/data-pipeline` Terraform apply. IoT Rule × 3, DataProcessor/GraphAggregator5m/CloudInfra collector/RiskAlertDispatcher/SnapshotPresigner Lambda, SnapshotPresigner HTTP API, Scheduler, S3 processed alert trigger, CloudWatch, IAM, SlowCollector EKS access entry, Slack webhook secret metadata 생성. foundation S3/DynamoDB와 Hub EKS가 먼저 존재해야 함. |
 | `reconcile-data-pipe-eks-access.sh` | Hub만 삭제/재생성하고 data-pipeline은 유지한 경우, SlowCollector EKS access entry와 `AmazonEKSAdminViewPolicy` association만 target apply로 복구. |
 | `build-reporting.sh` | `apps/daily-report-generator` Lambda package 생성 후 `infra/reporting` Terraform apply. daily report Scheduler/Step Functions/Lambda/IAM/Logs 생성. |
 | `build-hub-infra.sh` | `infra/hub` Terraform apply (VPC, EKS, IRSA). Admin UI DNS/ACM은 foundation output 참조 |
@@ -156,6 +158,7 @@ scripts/build/build-all.sh --iot [MFA_OTP]
 ```
 
 data-pipeline까지 함께 올리려면 `--data-pipe`를 사용한다. 이 옵션은 foundation S3/DynamoDB와 Hub EKS가 이미 존재해야 한다. `build-all.sh --data-pipe`는 hub build 이후 data-pipeline을 적용하므로 현재 의존 순서에 맞다.
+SnapshotPresigner가 생성되면 `build-data-pipe.sh`가 `snapshot_presigner_endpoint`를 출력한다. factory-a에 snapshot-uploader를 배포하기 전 `scripts/ops/register-snapshot-presigner-secret.sh`로 `snapshot-uploader-presign` Secret을 갱신해야 한다.
 
 ```bash
 scripts/build/build-all.sh --data-pipe [MFA_OTP]

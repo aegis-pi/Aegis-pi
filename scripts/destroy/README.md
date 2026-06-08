@@ -1,7 +1,7 @@
 # Destroy Scripts
 
 상태: source of truth
-기준일: 2026-06-04
+기준일: 2026-06-08
 
 ## 목적
 
@@ -16,8 +16,8 @@ build와 대칭되는 4개 레이어로 관리한다.
 ```text
 Layer -1│ VM Data      │ factory-b/c dummy generator systemd service. data-pipeline 삭제 전 정지 권장.
         │              │ legacy local publisher unit이 있으면 함께 정지.
-Layer 0a│ Data-pipeline│ IoT Rule × 3, Lambda(DataProcessor/GraphAggregator/CloudInfra/RiskAlertDispatcher),
-        │              │ S3 processed alert trigger, Slack secret metadata, CloudWatch, IAM. 기본 삭제 흐름에 포함.
+Layer 0a│ Data-pipeline│ IoT Rule × 3, Lambda(DataProcessor/GraphAggregator/CloudInfra/RiskAlertDispatcher/SnapshotPresigner),
+        │              │ SnapshotPresigner HTTP API, S3 processed alert trigger, Slack secret metadata, CloudWatch, IAM. 기본 삭제 흐름에 포함.
         │              │ DESTROY_DATA_PIPE=false로 제외 가능. foundation S3/DynamoDB data source 참조
         │              │ 때문에 foundation destroy 이전에 반드시 먼저 삭제해야 함.
 Layer 0a│ Reporting    │ EventBridge Scheduler, Step Functions, reporting Lambda, CloudWatch, IAM.
@@ -43,9 +43,10 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 
 0.5. data-pipeline destroy (기본 포함, DESTROY_DATA_PIPE=false로 제외 가능)
    - infra/data-pipeline Terraform destroy
-   - IoT Rule × 3, Lambda, Scheduler, S3 processed alert notification, Slack webhook secret metadata,
+   - IoT Rule × 3, Lambda, SnapshotPresigner HTTP API, Scheduler, S3 processed alert notification, Slack webhook secret metadata,
      CloudWatch log group, IAM role/policy 삭제
    - DynamoDB 데이터는 foundation에 보존됨
+   - factory-a snapshot-uploader는 presigned S3 PUT URL을 더 이상 받을 수 없으므로 snapshot image upload가 중단됨
    - ⚠️ foundation destroy 이전에 반드시 먼저 실행. 역순이면 terraform destroy 실패
 
 0.6. reporting destroy (필요 시 명시 실행)
@@ -77,7 +78,7 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 
 5. foundation (기본 제외, 명시적 실행 필요)
    - infra/foundation Terraform destroy
-   - S3 data bucket, ECR, DynamoDB, GitHub Actions OIDC, Admin UI Route53/ACM
+   - S3 data bucket, ECR(including snapshot-uploader), DynamoDB, GitHub Actions OIDC, Admin UI Route53/ACM
    - ⚠️ data-pipeline이 먼저 삭제된 상태여야 함
 ```
 
@@ -86,7 +87,7 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 | 파일 | 내용 |
 | --- | --- |
 | `stop-dummy-generators.sh` | factory-b/c VM worker의 dummy generator systemd service 정지. 인수 없이 실행하면 b/c 동시 정지. |
-| `destroy-data-pipe.sh` | `infra/data-pipeline` Terraform destroy. IoT Rules × 3, Lambda/Scheduler, RiskAlertDispatcher S3 trigger, Slack webhook secret metadata, IAM 삭제. DynamoDB는 보존. state file 없으면 no-op. |
+| `destroy-data-pipe.sh` | `infra/data-pipeline` Terraform destroy. IoT Rules × 3, Lambda/Scheduler, SnapshotPresigner API/Lambda, RiskAlertDispatcher S3 trigger, Slack webhook secret metadata, IAM 삭제. DynamoDB는 보존. state file 없으면 no-op. |
 | `destroy-reporting.sh` | `infra/reporting` Terraform destroy. Scheduler, Step Functions, reporting Lambda, IAM, Log Group 삭제. state file 없으면 no-op. |
 | `destroy-all.sh` | 기본: data-pipeline → hub(platform cleanup → infra) 삭제. IoT/Foundation은 명시 플래그 필요. DESTROY_DATA_PIPE=false로 data-pipe 제외 가능. |
 | `destroy-hub.sh` | `destroy-hub-platform.sh` → `destroy-hub-infra.sh` 순서 실행 wrapper |
@@ -111,7 +112,7 @@ EC2 노드 t3.medium × 2         ~$61            ✓ 삭제 (Hub Infra)
 NAT Gateway × 1                ~$41            ✓ 삭제 (Hub Infra)
 ALB (Admin Ingress 활성화 시)  ~$16+           ✓ 삭제 (Hub Platform cleanup)
 EIP × 1                        ~$4             ✓ 삭제 (Hub Infra)
-Lambda (data-processor)        ~$0             △ 삭제 권장 (Data-pipeline destroy)
+Lambda/API (data-pipeline)     ~$0             △ 삭제 권장 (Data-pipeline destroy)
 IoT Rules × 3                  ~$0             △ 삭제 권장 (Data-pipeline destroy)
 CloudWatch log group           ~$0             △ 삭제 권장 (Data-pipeline destroy)
 ──────────────────────────────────────────────────────────────────
@@ -129,7 +130,7 @@ ACM Certificate                $0              ✗ 보존 (재발급 + ACM 검�
 **개발 중단 시 (전체 수집 중단)** — Data-pipeline과 Hub를 내린다. Foundation과 IoT는 그대로 유지.
 
 ```text
-삭제: VM dummy generator 정지 → Data-pipeline (IoT Rules, Lambda) → Hub Platform (ALB) → Hub Infra (EKS, NAT GW, VPC)
+삭제: VM dummy generator 정지 → Data-pipeline (IoT Rules, Lambda, SnapshotPresigner API) → Hub Platform (ALB) → Hub Infra (EKS, NAT GW, VPC)
 보존: Foundation(S3, ECR, DynamoDB), IoT Thing/Certificate, Spoke K3s Secret
 절약: ~$200/월
 재개: build-hub.sh + build-data-pipe.sh 이후 UI/Spoke 등록 스크립트를 단계별 실행
@@ -280,7 +281,7 @@ scripts/ops/manage-dummy-generators.sh start factory-c
 
 ## Hub-only 비용 절감 + 데이터 수집 유지 흐름
 
-데이터를 계속 쌓아야 하는 개발 기간에는 data-pipeline과 Spoke K3s workload를 유지하고 Hub만 내린다. 이 흐름에서는 `destroy-all.sh`를 쓰지 않는다. `destroy-all.sh`의 기본값은 `DESTROY_DATA_PIPE=true`라 IoT Rule과 Lambda data processor까지 삭제하기 때문이다.
+데이터를 계속 쌓아야 하는 개발 기간에는 data-pipeline과 Spoke K3s workload를 유지하고 Hub만 내린다. 이 흐름에서는 `destroy-all.sh`를 쓰지 않는다. `destroy-all.sh`의 기본값은 `DESTROY_DATA_PIPE=true`라 IoT Rule, Lambda data processor, SnapshotPresigner API/Lambda까지 삭제하기 때문이다.
 
 ```bash
 # 퇴근 시

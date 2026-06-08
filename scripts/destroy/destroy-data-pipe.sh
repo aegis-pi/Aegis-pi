@@ -19,6 +19,7 @@ cat >&2 <<'WARN'
 [WARNING] Destroying data-pipeline will:
   - Stop IoT Rules → raw S3 ingestion halts immediately for all factories
   - Remove Lambda data processor → no new DynamoDB or S3 processed writes
+  - Remove SnapshotPresigner API/Lambda → snapshot-uploader can no longer obtain presigned S3 PUT URLs
   - DynamoDB table and its data are preserved (managed by infra/foundation)
 
 Recommended: stop dummy generators before proceeding.
