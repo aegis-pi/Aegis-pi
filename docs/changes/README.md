@@ -1,7 +1,7 @@
 # Change Records
 
 상태: source of truth
-기준일: 2026-06-04
+기준일: 2026-06-08
 
 ## 목적
 
@@ -30,6 +30,7 @@
 | 0021 | DynamoDB: infra/data-pipeline → infra/foundation | accepted | 2026-05-21 | M4, infra/foundation, infra/data-pipeline, destroy 순서 제약 |
 | 0022 | DataProcessor freshness refresh | accepted | 2026-05-29 | M4/M6, Lambda DataProcessor, EventBridge Scheduler, DynamoDB LATEST, Risk Score |
 | 0023 | Cloud alert noise reduction and Hub-only data collection continuity | accepted | 2026-06-04 | Cloud collectors, RiskAlertDispatcher, Hub rebuild, data-pipeline, operating docs |
+| 0024 | YOLOv8n instead of OpenCV ML for Edge AI detection | accepted | 2026-06-08 | factory-a, ai-apps, Safe-Edge AI, latency |
 
 ## 파일 형식
 

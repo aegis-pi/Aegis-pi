@@ -2,7 +2,7 @@
 
 이 디렉터리는 실제 운영, 점검, 장애 대응, 인증서 주입 같은 실행 절차 문서를 둔다.
 
-현재 운영 기준일은 2026-06-08다. Hub-only 데이터 수집 유지 재시작은 `14_hub_run_commands.md`, data-pipeline과 Cloud collector는 `23_data_pipeline.md` 및 `29_cloud_infra_metrics_pipeline_plan.md`, Slack alert 정책은 `31_risk_alert_dispatcher.md`, factory-a image snapshot S3 upload는 `32_image_snapshot_pipeline.md`를 source of truth로 사용한다.
+현재 운영 기준일은 2026-06-08다. Hub-only 데이터 수집 유지 재시작은 `14_hub_run_commands.md`, data-pipeline과 Cloud collector는 `23_data_pipeline.md` 및 `29_cloud_infra_metrics_pipeline_plan.md`, Slack alert 정책은 `31_risk_alert_dispatcher.md`, factory-a image snapshot S3 upload는 `32_image_snapshot_pipeline.md`, factory-a AI latency 기준은 `33_factory_a_ai_latency_measurement.md`를 source of truth로 사용한다.
 
 ## 파일
 
@@ -41,6 +41,7 @@
 | `30_factory_bc_dummy_generator_risk_coverage_backtest.md` | `factory-b/c` dummy generator risk coverage 수정, VM 배포, DynamoDB/S3 backtest 결과 |
 | `31_risk_alert_dispatcher.md` | S3 processed snapshot 기반 RiskAlertDispatcher Lambda, DynamoDB dedupe, Slack webhook routing 운영 기준 |
 | `32_image_snapshot_pipeline.md` | factory-a AI snapshot S3 upload, presigned URL, `image_snapshot` metadata data-pipeline 운영/검증 |
+| `33_factory_a_ai_latency_measurement.md` | factory-a `safe-edge-integrated-ai` loop 주기, YOLO 추론 시간, 측정 한계와 instrumentation 기준 |
 
 ## 기준
 

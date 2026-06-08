@@ -7,6 +7,8 @@
 
 factory-a Safe-Edge AI event snapshot 이미지를 S3에 저장하고, IoT Core와 DataProcessor에는 이미지 바이너리가 아니라 S3 참조 metadata만 전달한다.
 
+AI 처리 loop와 YOLO 추론 시간 측정 기준은 `docs/ops/33_factory_a_ai_latency_measurement.md`를 따른다.
+
 ## 현재 배포 상태
 
 factory-a MVP 기준:
