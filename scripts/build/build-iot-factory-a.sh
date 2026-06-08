@@ -24,13 +24,15 @@ require_command aws
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"
 aegis_ensure_aws_mfa "${OTP}"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/lib/terraform.sh"
 
 FACTORY_ID="${FACTORY_ID:-${AEGIS_FACTORY_ID}}"
 export FACTORY_ID
 BUILD_TAILSCALE="${BUILD_TAILSCALE:-true}"
 DEPLOY_SPOKES="${DEPLOY_SPOKES:-${BUILD_TAILSCALE}}"
 FORCE_TAILSCALE_OPERATOR_UPGRADE="${FORCE_TAILSCALE_OPERATOR_UPGRADE:-false}"
-HUB_TERRAFORM_STATE="${REPO_ROOT}/infra/hub/terraform.tfstate"
+HUB_TERRAFORM_ROOT="${REPO_ROOT}/infra/hub"
 TAILSCALE_OPERATOR_ENV="${AEGIS_TAILSCALE_OPERATOR_ENV:-${HOME}/Aegis/.aegis/secrets/tailscale/operator.env}"
 FACTORY_A_DIRECT_KUBECONFIG="${AEGIS_FACTORY_A_DIRECT_KUBECONFIG:-${HOME}/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig}"
 export AEGIS_FACTORY_A_ENABLED="${AEGIS_FACTORY_A_ENABLED:-true}"
@@ -41,9 +43,8 @@ for command_name in jq curl ssh scp; do
   require_command "${command_name}"
 done
 
-if [[ ( "${BUILD_TAILSCALE}" == "true" || "${DEPLOY_SPOKES}" == "true" ) && ! -f "${HUB_TERRAFORM_STATE}" ]]; then
-  echo "Missing ${HUB_TERRAFORM_STATE}. Run scripts/build/build-hub.sh before Hub-Spoke registration." >&2
-  exit 1
+if [[ "${BUILD_TAILSCALE}" == "true" || "${DEPLOY_SPOKES}" == "true" ]]; then
+  aegis_terraform_require_state_resources "${HUB_TERRAFORM_ROOT}" "hub"
 fi
 
 if [[ "${BUILD_TAILSCALE}" == "true" ]]; then

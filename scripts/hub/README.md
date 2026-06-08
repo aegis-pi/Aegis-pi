@@ -70,7 +70,7 @@ scripts/build/build-hub.sh <MFA_OTP>
 9. secret/hub-ui-credentials.txt 갱신
 ```
 
-SlowCollector IAM role이 존재하지만 `infra/data-pipeline/terraform.tfstate`가 없으면 안전한 target apply를 보장할 수 없어 중단한다. 명시적으로 건너뛰려면 `RECONCILE_DATA_PIPE_EKS_ACCESS=false`를 사용한다.
+SlowCollector IAM role이 존재하지만 data-pipeline Terraform state를 remote backend에서 읽을 수 없거나 state가 비어 있으면 안전한 target apply를 보장할 수 없어 중단한다. 명시적으로 건너뛰려면 `RECONCILE_DATA_PIPE_EKS_ACCESS=false`를 사용한다.
 
 ArgoCD Helm release가 이미 `deployed` 상태이고 chart version이 같으면 bootstrap playbook은 Helm upgrade를 건너뛴다. 강제 재적용은 아래처럼 실행한다.
 

@@ -1,7 +1,9 @@
 data "terraform_remote_state" "foundation" {
-  backend = "local"
+  backend = "s3"
 
   config = {
-    path = var.foundation_state_path
+    bucket = "kjw-aegis-terraform-state"
+    key    = "aegis-pi/foundation/terraform.tfstate"
+    region = "ap-south-1"
   }
 }

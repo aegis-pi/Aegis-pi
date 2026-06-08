@@ -57,22 +57,17 @@ aegis_load_config "${REPO_ROOT}"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"
 aegis_ensure_aws_mfa "${OTP}"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/lib/terraform.sh"
 
 export AWS_RETRY_MODE="${AWS_RETRY_MODE:-adaptive}"
 export AWS_MAX_ATTEMPTS="${AWS_MAX_ATTEMPTS:-10}"
 
-HUB_STATE="${REPO_ROOT}/infra/hub/terraform.tfstate"
-DATA_PIPE_STATE="${REPO_ROOT}/infra/data-pipeline/terraform.tfstate"
+HUB_ROOT="${REPO_ROOT}/infra/hub"
+DATA_PIPE_ROOT="${REPO_ROOT}/infra/data-pipeline"
 
-if [[ ! -f "${HUB_STATE}" ]]; then
-  echo "Missing Hub Terraform state: ${HUB_STATE}" >&2
-  exit 1
-fi
-
-if [[ ! -f "${DATA_PIPE_STATE}" ]]; then
-  echo "Missing data-pipeline Terraform state: ${DATA_PIPE_STATE}" >&2
-  exit 1
-fi
+aegis_terraform_require_state_resources "${HUB_ROOT}" "hub"
+aegis_terraform_require_state_resources "${DATA_PIPE_ROOT}" "data-pipeline"
 
 HUB_CLUSTER_NAME="$(terraform -chdir="${REPO_ROOT}/infra/hub" output -raw cluster_name)"
 

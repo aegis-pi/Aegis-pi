@@ -46,7 +46,7 @@ else
   RESTART_SPOKE_AFTER_ECR_SECRET_REFRESH="${RESTART_SPOKE_AFTER_ECR_SECRET_REFRESH:-true}"
 fi
 ARGOCD_APP_NAMESPACE="${ARGOCD_APP_NAMESPACE:-argocd}"
-HUB_TERRAFORM_STATE="${REPO_ROOT}/infra/hub/terraform.tfstate"
+HUB_TERRAFORM_ROOT="${REPO_ROOT}/infra/hub"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -63,6 +63,8 @@ aegis_load_config "${REPO_ROOT}"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"
 aegis_ensure_aws_mfa "${OTP}"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/lib/terraform.sh"
 
 for command_name in aws ansible-playbook kubectl helm jq curl; do
   require_command "${command_name}"
@@ -72,10 +74,7 @@ if [[ "${SYNC_SPOKE_APP}" == "true" ]]; then
   require_command argocd
 fi
 
-if [[ ! -f "${HUB_TERRAFORM_STATE}" ]]; then
-  echo "Missing ${HUB_TERRAFORM_STATE}. Run scripts/build/build-hub.sh first." >&2
-  exit 1
-fi
+aegis_terraform_require_state_resources "${HUB_TERRAFORM_ROOT}" "hub"
 
 export AEGIS_TAILSCALE_UI_ENABLED=false
 export AEGIS_TAILSCALE_SPOKE_REGISTRATION_ENABLED=true

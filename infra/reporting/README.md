@@ -1,6 +1,6 @@
 # Reporting Terraform Root
 
-상태: validated/deployed/manual-run-verified, currently destroyed
+상태: validated/deployed/manual-run-verified, Terraform plan clean
 기준일: 2026-05-28
 
 Bedrock based daily factory report pipeline.
@@ -45,7 +45,7 @@ Current status:
 - Manual Step Functions execution `manual-factory-report-20260528T064840Z` for `factory-b`, `report_date=2026-05-27`, `timezone=Asia/Seoul` succeeded.
 - S3 outputs were verified under `reports/daily/yyyy=2026/mm=05/dd=27/factory-b/`.
 - The generated `report.md` was verified to include the key metrics, data collection, Risk Score, sensor/AI, infrastructure, events, and recommended-check tables plus narrative analysis.
-- The reporting stack was later destroyed with `scripts/destroy/destroy-reporting.sh` to stop scheduled cost. S3 `processed/` input and `reports/daily/` output objects are preserved.
+- Current Terraform refresh-only and normal plans are clean against the deployed AWS resources. S3 `processed/` input and `reports/daily/` output objects are preserved.
 
 Cost baseline:
 

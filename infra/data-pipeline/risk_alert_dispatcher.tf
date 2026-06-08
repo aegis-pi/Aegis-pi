@@ -1,8 +1,9 @@
 data "archive_file" "risk_alert_dispatcher_zip" {
-  type        = "zip"
-  source_dir  = "${path.module}/../../apps/risk-alert-dispatcher"
-  output_path = "${path.module}/lambda_risk_alert_dispatcher.zip"
-  excludes    = ["**/__pycache__/**", "**/*.pyc", "**/*.pyo", "tests/**", ".pytest_cache/**"]
+  type             = "zip"
+  source_dir       = "${path.module}/../../apps/risk-alert-dispatcher"
+  output_path      = "${path.module}/lambda_risk_alert_dispatcher.zip"
+  output_file_mode = "0644"
+  excludes         = ["**/__pycache__/**", "**/*.pyc", "**/*.pyo", "tests/**", ".pytest_cache/**"]
 }
 
 locals {

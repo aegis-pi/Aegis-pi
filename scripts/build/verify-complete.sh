@@ -11,6 +11,8 @@ aegis_load_config "${REPO_ROOT}"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"
 aegis_ensure_aws_mfa "${OTP}"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/lib/terraform.sh"
 
 FACTORY_ID="${FACTORY_ID:-${AEGIS_FACTORY_ID}}"
 AWS_REGION="${AWS_REGION:-${AEGIS_AWS_REGION}}"
@@ -50,7 +52,7 @@ require_command aws
 require_command jq
 require_command ssh
 
-require_file "${TERRAFORM_ROOT}/terraform.tfstate"
+aegis_terraform_require_state_resources "${TERRAFORM_ROOT}" "hub"
 require_file "${SECRET_DIR}/certificate.pem.crt"
 require_file "${SECRET_DIR}/private.pem.key"
 require_file "${SECRET_DIR}/AmazonRootCA1.pem"

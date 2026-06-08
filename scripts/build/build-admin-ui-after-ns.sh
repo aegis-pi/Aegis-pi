@@ -10,6 +10,8 @@ source "${REPO_ROOT}/scripts/lib/config.sh"
 aegis_load_config "${REPO_ROOT}"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/scripts/lib/aws-mfa.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/lib/terraform.sh"
 
 WAIT_SECONDS="${ADMIN_UI_CERTIFICATE_WAIT_SECONDS:-1800}"
 WAIT_INTERVAL_SECONDS="${ADMIN_UI_CERTIFICATE_WAIT_INTERVAL_SECONDS:-30}"
@@ -18,10 +20,7 @@ TERRAFORM_ROOT="${REPO_ROOT}/infra/hub"
 cd "${REPO_ROOT}"
 aegis_ensure_aws_mfa "${OTP}"
 
-if [[ ! -f "${TERRAFORM_ROOT}/terraform.tfstate" ]]; then
-  echo "Missing ${TERRAFORM_ROOT}/terraform.tfstate. Run scripts/build/build-all.sh first." >&2
-  exit 1
-fi
+aegis_terraform_require_state_resources "${TERRAFORM_ROOT}" "hub"
 
 "${REPO_ROOT}/scripts/ops/admin-ui-nameservers.sh"
 

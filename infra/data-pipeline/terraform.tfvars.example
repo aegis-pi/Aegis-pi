@@ -39,3 +39,10 @@ graph_ai_score_threshold               = 0.7
 # RiskAlertDispatcher
 risk_alert_dispatcher_s3_trigger_enabled = true
 risk_alert_slack_webhook_secret_name      = "AEGIS/foundation-mvp/risk-alert/slack-webhook-url"
+
+# CloudInfraFastCollector optional operating targets.
+# Set these in local terraform.tfvars or TF_VAR_* during operations.
+# cloud_infra_fast_collector_cloudfront_distribution_id = "set-with-tfvars-or-secure-workflow"
+# cloud_infra_fast_collector_dlq_queue_name             = "set-with-tfvars-or-secure-workflow"
+# cloud_infra_fast_collector_rds_db_instance_id         = "set-with-tfvars-or-secure-workflow"
+# cloud_infra_fast_collector_redis_replication_group_id = "set-with-tfvars-or-secure-workflow"

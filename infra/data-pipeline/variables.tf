@@ -269,6 +269,34 @@ variable "cloud_infra_fast_metric_window_minutes" {
   default     = 5
 }
 
+variable "cloud_infra_fast_collector_cloudfront_distribution_id" {
+  description = "Optional CloudFront distribution ID monitored by the cloud infra fast collector. Set via tfvars or TF_VAR in operations; do not hard-code environment-specific values in source."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "cloud_infra_fast_collector_dlq_queue_name" {
+  description = "Optional SQS DLQ queue name monitored by the cloud infra fast collector. Set via tfvars or TF_VAR in operations; do not hard-code environment-specific values in source."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "cloud_infra_fast_collector_rds_db_instance_id" {
+  description = "Optional RDS DB instance ID monitored by the cloud infra fast collector. Set via tfvars or TF_VAR in operations; do not hard-code environment-specific values in source."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "cloud_infra_fast_collector_redis_replication_group_id" {
+  description = "Optional ElastiCache Redis replication group ID monitored by the cloud infra fast collector. Set via tfvars or TF_VAR in operations; do not hard-code environment-specific values in source."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
 variable "lambda_cloud_infra_slow_collector_name" {
   description = "Lambda function name for the 5-minute cloud infra slow collector."
   type        = string

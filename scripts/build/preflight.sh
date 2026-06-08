@@ -7,6 +7,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/scripts/lib/config.sh"
 aegis_load_config "${REPO_ROOT}"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/lib/terraform.sh"
 
 BUILD_FOUNDATION="${BUILD_FOUNDATION:-false}"
 BUILD_HUB="${BUILD_HUB:-true}"
@@ -88,48 +90,65 @@ check_aws_identity() {
 }
 
 check_hub_inputs() {
-  local foundation_state
-  foundation_state="${REPO_ROOT}/infra/foundation/terraform.tfstate"
+  local foundation_root
+  local state_status
+  foundation_root="${REPO_ROOT}/infra/foundation"
 
   if [[ "${BUILD_HUB}" != "true" && "${BUILD_ADMIN_UI_AFTER_NS}" != "true" ]]; then
     return 0
   fi
 
-  if [[ ! -f "${foundation_state}" ]]; then
-    if [[ "${BUILD_FOUNDATION}" == "true" ]]; then
-      add_failure "missing ${foundation_state}; run scripts/build/build-foundation.sh first or run build-all with preflight after foundation creation"
-    else
-      add_failure "missing ${foundation_state}; Hub Terraform reads infra/foundation local remote state"
-    fi
+  if [[ "${BUILD_FOUNDATION}" == "true" ]]; then
+    return 0
+  fi
+
+  state_status=0
+  aegis_terraform_state_has_resources "${foundation_root}" || state_status=$?
+  if [[ "${state_status}" -eq 1 ]]; then
+    add_failure "infra/foundation Terraform state is accessible but empty; build foundation before Hub"
+  elif [[ "${state_status}" -eq 2 ]]; then
+    add_failure "infra/foundation Terraform state is not accessible; Hub reads Foundation outputs from the S3 backend"
   fi
 }
 
 check_admin_ui_inputs() {
-  local hub_state
-  hub_state="${REPO_ROOT}/infra/hub/terraform.tfstate"
+  local hub_root
+  local state_status
+  hub_root="${REPO_ROOT}/infra/hub"
 
   if [[ "${BUILD_ADMIN_UI_AFTER_NS}" != "true" || "${BUILD_HUB}" == "true" ]]; then
     return 0
   fi
 
-  if [[ ! -f "${hub_state}" ]]; then
-    add_failure "missing ${hub_state}; run scripts/build/build-hub.sh before --admin-ui-after-ns"
+  state_status=0
+  aegis_terraform_state_has_resources "${hub_root}" || state_status=$?
+  if [[ "${state_status}" -eq 1 ]]; then
+    add_failure "infra/hub Terraform state is accessible but empty; run scripts/build/build-hub.sh before --admin-ui-after-ns"
+  elif [[ "${state_status}" -eq 2 ]]; then
+    add_failure "infra/hub Terraform state is not accessible; run scripts/build/build-hub.sh before --admin-ui-after-ns"
   fi
 }
 
 check_tailscale_inputs() {
   local operator_env
   local direct_kubeconfig
-  local hub_state
+  local hub_root
+  local state_status
 
   if [[ "${BUILD_IOT}" != "true" || \
     ( "${BUILD_TAILSCALE}" == "false" && "${DEPLOY_SPOKES}" != "true" ) ]]; then
     return 0
   fi
 
-  hub_state="${REPO_ROOT}/infra/hub/terraform.tfstate"
-  if [[ "${BUILD_HUB}" != "true" && ! -f "${hub_state}" ]]; then
-    add_failure "missing ${hub_state}; run scripts/build/build-hub.sh before Hub-Spoke Tailscale bootstrap"
+  hub_root="${REPO_ROOT}/infra/hub"
+  if [[ "${BUILD_HUB}" != "true" ]]; then
+    state_status=0
+    aegis_terraform_state_has_resources "${hub_root}" || state_status=$?
+    if [[ "${state_status}" -eq 1 ]]; then
+      add_failure "infra/hub Terraform state is accessible but empty; run scripts/build/build-hub.sh before Hub-Spoke Tailscale bootstrap"
+    elif [[ "${state_status}" -eq 2 ]]; then
+      add_failure "infra/hub Terraform state is not accessible; run scripts/build/build-hub.sh before Hub-Spoke Tailscale bootstrap"
+    fi
   fi
 
   if [[ "${BUILD_TAILSCALE}" == "false" ]]; then
@@ -158,11 +177,12 @@ check_hub_state_resource() {
 
   output="$(bash -c "${command}" 2>&1)" && return 0
 
-  add_failure "${description} is in infra/hub/terraform.tfstate but AWS read failed: ${output}. ${advice}"
+  add_failure "${description} is in infra/hub Terraform state but AWS read failed: ${output}. ${advice}"
 }
 
 check_hub_state_against_aws() {
-  local state_file
+  local hub_root
+  local state_json
   local vpc_id
   local log_group_arn
   local tainted_resources
@@ -171,10 +191,11 @@ check_hub_state_against_aws() {
     return 0
   fi
 
-  state_file="${REPO_ROOT}/infra/hub/terraform.tfstate"
-  if [[ ! -f "${state_file}" ]]; then
+  hub_root="${REPO_ROOT}/infra/hub"
+  state_json="$(aegis_terraform_state_pull_json "${hub_root}" 2>&1)" || {
+    add_failure "infra/hub Terraform state is not accessible for AWS preflight: ${state_json}"
     return 0
-  fi
+  }
 
   if ! command -v jq >/dev/null 2>&1 || ! command -v aws >/dev/null 2>&1; then
     return 0
@@ -187,15 +208,15 @@ check_hub_state_against_aws() {
       | .instances[]?
       | select(.status == "tainted" and (.deposed == null))
       | (($resource.module // "root") + "." + $resource.type + "." + $resource.name + "[" + ((.index_key // 0) | tostring) + "]")
-    ' "${state_file}"
+    ' <<<"${state_json}"
   )"
   if [[ -n "${tainted_resources}" ]]; then
-    add_failure "infra/hub/terraform.tfstate contains tainted resources: ${tainted_resources//$'\n'/, }. Resolve with terraform untaint/import or recreate cleanup before build-all."
+    add_failure "infra/hub Terraform state contains tainted resources: ${tainted_resources//$'\n'/, }. Resolve with terraform untaint/import or recreate cleanup before build-all."
   fi
 
   vpc_id="$(
     jq -r '.resources[]? | select((.module // "root") == "root" and .type == "aws_vpc" and .name == "hub") | .instances[0].attributes.id // empty' \
-      "${state_file}"
+      <<<"${state_json}"
   )"
   if [[ -n "${vpc_id}" ]]; then
     check_hub_state_resource \
@@ -206,7 +227,7 @@ check_hub_state_against_aws() {
 
   log_group_arn="$(
     jq -r '.resources[]? | select((.module // "") == "module.eks" and .type == "aws_cloudwatch_log_group" and .name == "this") | .instances[0].attributes.arn // empty' \
-      "${state_file}"
+      <<<"${state_json}"
   )"
   if [[ -n "${log_group_arn}" ]]; then
     check_hub_state_resource \

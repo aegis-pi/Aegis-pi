@@ -14,7 +14,7 @@ DESTROY_REPORTING="${DESTROY_REPORTING:-true}"
 DESTROY_DATA_PIPE="${DESTROY_DATA_PIPE:-true}"
 DESTROY_HUB="${DESTROY_HUB:-true}"
 DESTROY_FOUNDATION="${DESTROY_FOUNDATION:-false}"
-FOUNDATION_STATE="${REPO_ROOT}/infra/foundation/terraform.tfstate"
+FOUNDATION_ROOT="${REPO_ROOT}/infra/foundation"
 export DESTROY_FOUNDATION
 
 cd "${REPO_ROOT}"
@@ -40,27 +40,17 @@ if [[ "${DESTROY_IOT}" == "true" ]]; then
 fi
 
 if [[ "${DESTROY_REPORTING}" == "true" ]]; then
-  if [[ -f "${REPO_ROOT}/infra/reporting/terraform.tfstate" ]]; then
-    scripts/destroy/destroy-reporting.sh "${OTP}"
-  else
-    echo "Skipped reporting destroy: no terraform.tfstate found (not deployed or already destroyed)."
-  fi
+  scripts/destroy/destroy-reporting.sh "${OTP}"
 fi
 
 if [[ "${DESTROY_DATA_PIPE}" == "true" ]]; then
-  if [[ -f "${REPO_ROOT}/infra/data-pipeline/terraform.tfstate" ]]; then
-    scripts/destroy/destroy-data-pipe.sh "${OTP}"
-  else
-    echo "Skipped data-pipeline destroy: no terraform.tfstate found (not deployed or already destroyed)."
-  fi
+  scripts/destroy/destroy-data-pipe.sh "${OTP}"
 fi
 
 if [[ "${DESTROY_HUB}" == "true" ]]; then
-  if [[ ! -f "${FOUNDATION_STATE}" ]]; then
-    echo "Hub destroy requires ${FOUNDATION_STATE} because infra/hub reads foundation outputs for shared resources." >&2
-    echo "Restore the foundation state file, or set DESTROY_HUB=false if hub resources are already gone." >&2
-    exit 1
-  fi
+  # shellcheck disable=SC1091
+  source "${REPO_ROOT}/scripts/lib/terraform.sh"
+  aegis_terraform_require_state_resources "${FOUNDATION_ROOT}" "foundation"
 
   scripts/destroy/destroy-hub.sh "${OTP}"
 fi

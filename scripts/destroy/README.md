@@ -74,7 +74,7 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
    - EKS, VPC, node group, NAT Gateway 삭제
    - IRSA IAM role/policy 삭제 (LB Controller, Risk Normalizer)
    - Route53 Hosted Zone, ACM certificate는 foundation에 보존
-   - infra/hub가 Foundation outputs를 참조하므로 foundation tfstate 필요
+   - infra/hub가 Foundation outputs를 참조하므로 Foundation remote state 접근 필요
 
 5. foundation (기본 제외, 명시적 실행 필요)
    - infra/foundation Terraform destroy
@@ -87,8 +87,8 @@ Layer 3 │ IoT          │ IoT Thing/Policy/Certificate, K3s Secret
 | 파일 | 내용 |
 | --- | --- |
 | `stop-dummy-generators.sh` | factory-b/c VM worker의 dummy generator systemd service 정지. 인수 없이 실행하면 b/c 동시 정지. |
-| `destroy-data-pipe.sh` | `infra/data-pipeline` Terraform destroy. IoT Rules × 3, Lambda/Scheduler, SnapshotPresigner API/Lambda, RiskAlertDispatcher S3 trigger, Slack webhook secret metadata, IAM 삭제. DynamoDB는 보존. state file 없으면 no-op. |
-| `destroy-reporting.sh` | `infra/reporting` Terraform destroy. Scheduler, Step Functions, reporting Lambda, IAM, Log Group 삭제. state file 없으면 no-op. |
+| `destroy-data-pipe.sh` | `infra/data-pipeline` Terraform destroy. IoT Rules × 3, Lambda/Scheduler, SnapshotPresigner API/Lambda, RiskAlertDispatcher S3 trigger, Slack webhook secret metadata, IAM 삭제. DynamoDB는 보존. remote state가 비어 있으면 no-op, 접근 실패 시 중단. |
+| `destroy-reporting.sh` | `infra/reporting` Terraform destroy. Scheduler, Step Functions, reporting Lambda, IAM, Log Group 삭제. remote state가 비어 있으면 no-op, 접근 실패 시 중단. |
 | `destroy-all.sh` | 기본: data-pipeline → hub(platform cleanup → infra) 삭제. IoT/Foundation은 명시 플래그 필요. DESTROY_DATA_PIPE=false로 data-pipe 제외 가능. |
 | `destroy-hub.sh` | `destroy-hub-platform.sh` → `destroy-hub-infra.sh` 순서 실행 wrapper |
 | `destroy-hub-platform.sh` | Ansible cleanup (Ingress → ALB 삭제). Terraform destroy 전에 실행. |
@@ -313,7 +313,7 @@ Hub destroy는 ECS Fargate backend와 CloudInfraFastCollector를 삭제하지 �
 - Hub를 다시 올린 뒤 ALB/Admin UI HTTPS는 `scripts/build/build-admin-ui-after-ns.sh`, Tailnet UI가 필요할 때는 `scripts/build/connect-hub-tailscale-ui.sh`, factory별 Spoke 등록은 `scripts/build/register-spoke-factory-a.sh`, `scripts/build/register-spoke-factory-b.sh`, `scripts/build/register-spoke-factory-c.sh`가 `~/Aegis/.aegis/secrets/tailscale/operator.env`를 사용해 생성/검증한다.
 - 기존 Spoke workload를 유지하는 재연결에서는 `HUB_ONLY_RECONNECT=true`를 사용한다. GitOps 변경을 반영해야 할 때만 `SYNC_SPOKE_APP=true`를 명시한다.
 - `scripts/ops/check-spoke-publisher-safety.sh`로 `edge-iot-publisher` Deployment가 `Recreate` 전략이고 running pod가 factory별 1개 이하인지 확인한다.
-- `destroy-hub-infra.sh`는 `infra/hub`가 Foundation outputs를 참조하므로 `infra/foundation/terraform.tfstate`가 있어야 한다.
+- `destroy-hub-infra.sh`는 `infra/hub`가 Foundation outputs를 참조하므로 Foundation remote state에 접근할 수 있어야 한다.
 - CLI로 만든 IoT 리소스는 Terraform state에 없으므로 이 디렉터리의 destroy 스크립트로 정리한다.
 - K3s Secret은 Terraform state에 없으므로 SSH 기반 `kubectl delete secret`로 정리한다.
 - SSH 비밀번호는 스크립트가 저장하지 않는다. 반복 입력을 피하려면 운영 PC와 `factory-a-master` 사이에 SSH key 인증을 구성한다.

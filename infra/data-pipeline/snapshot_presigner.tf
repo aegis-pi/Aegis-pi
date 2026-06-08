@@ -1,8 +1,8 @@
 data "archive_file" "snapshot_presigner_zip" {
-  type        = "zip"
-  source_dir  = "${path.module}/../../apps/snapshot-presigner"
-  output_path = "${path.module}/lambda_snapshot_presigner.zip"
-  excludes    = ["**/__pycache__/**", "**/*.pyc", "**/*.pyo", "tests/**", ".pytest_cache/**"]
+  type             = "zip"
+  source_file      = "${path.module}/../../apps/snapshot-presigner/lambda_function.py"
+  output_path      = "${path.module}/lambda_snapshot_presigner.zip"
+  output_file_mode = "0644"
 }
 
 resource "aws_cloudwatch_log_group" "snapshot_presigner" {
