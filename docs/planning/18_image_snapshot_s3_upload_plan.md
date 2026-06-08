@@ -1,6 +1,6 @@
 # Image Snapshot S3 Upload Plan
 
-상태: implementation plan
+상태: deployed and verified
 기준일: 2026-06-08
 
 ## 목적
@@ -24,7 +24,17 @@ worker2:/var/lib/safe-edge/snapshots 이미지 65개 확인
 파일 형식: JPEG 640x480
 ```
 
-이 경로는 Longhorn PVC가 아니다. 따라서 snapshot을 읽는 workload는 EKS Hub가 아니라 factory-a K3s의 worker1/worker2에서 실행되어야 한다. 다만 배포 관리는 Hub ArgoCD/ApplicationSet이 담당한다.
+이 경로는 Longhorn PVC가 아니다. 따라서 snapshot을 읽는 workload는 EKS Hub가 아니라 factory-a K3s에서 실행되어야 한다. factory-a MVP에서는 Longhorn RWO outbox PVC 리스크를 피하기 위해 worker2 단일 Deployment로 배포했다.
+
+2026-06-08 배포 결과:
+
+```text
+snapshot-uploader: aegis-spoke-snapshot-uploader, worker2 Running
+edge-iot-publisher: aegis-spoke-edge-iot-publisher, sha-6d30ef2 Running
+snapshot-uploader image: sha-6d30ef2
+presigner endpoint: https://pp604cwuk8.execute-api.ap-south-1.amazonaws.com/image-snapshot/presign
+DataProcessor Lambda: image_snapshot 처리 배포 완료
+```
 
 ## 결정
 
@@ -626,29 +636,45 @@ worker1 failover: worker1 snapshot upload
 
 - MVP는 worker2 단일 uploader로 운영하고, failover snapshot upload는 별도 storage 재설계 후 진행한다.
 
-## 구현 순서
+## 구현 및 배포 결과
+
+완료:
 
 1. `edge-iot-publisher`에 `image_snapshot` source type 허용
 2. `edge-iot-publisher` unit test 추가
-3. `snapshot-uploader` 앱 로컬 구현
-4. `snapshot-uploader` unit test 추가
-5. presigned URL API/Lambda 구현
-6. ECR repository와 GitHub Actions matrix 추가
-7. Helm chart에 snapshot-uploader 배포 리소스 추가
-8. DataProcessor image_snapshot metadata 처리 추가
-9. Terraform validate / Python test / Helm template 검증
-10. ECR build-push
-11. Hub ArgoCD sync
-12. factory-a end-to-end 검증
-13. docs/ops에 운영 runbook 작성
+3. `snapshot-uploader` 앱 구현 및 ECR build-push
+4. `snapshot-presigner` Lambda 구현 및 API Gateway 배포
+5. `infra/foundation`에 `aegis/snapshot-uploader` ECR repository 추가/apply
+6. `infra/data-pipeline`에 SnapshotPresigner API/Lambda 추가/apply
+7. Helm chart에 worker2 단일 `snapshot-uploader` Deployment 추가
+8. DataProcessor image_snapshot metadata 처리 추가 및 Lambda 업데이트
+9. factory-a K3s `snapshot-uploader-presign` Secret 생성
+10. factory-a에 `edge-iot-publisher:sha-6d30ef2`, `snapshot-uploader:sha-6d30ef2` 배포
+11. factory-a end-to-end 검증 완료
+12. `docs/ops/32_image_snapshot_pipeline.md` 운영 runbook 추가
+
+검증 완료:
+
+```text
+Python unit tests: edge-iot-publisher, snapshot-uploader, snapshot-presigner, data-processor OK
+Terraform validate: infra/foundation, infra/data-pipeline OK
+Helm template: OK
+ECR image tags: sha-6d30ef2/main/latest 확인
+K3s rollout: snapshot-uploader, edge-iot-publisher success
+S3 original image: image_snapshot/ prefix 존재, image/jpeg, SSE AES256
+S3 raw metadata: raw/factory-a/image_snapshot/yyyy=.../mm=.../dd=.../{message_id}.json
+S3 processed metadata: processed/factory-a/image_snapshot/yyyy=.../mm=.../dd=.../hh=.../{message_id}.json
+DynamoDB: LATEST.latest_image_snapshot 갱신
+Lambda metrics: DataProcessor/SnapshotPresigner recent Errors = 0
+```
 
 ## Open Questions
 
-1. Presigned URL API를 새 API Gateway + Lambda로 만들지, 기존 Dashboard/API backend에 붙일지 결정해야 한다.
-2. failover까지 지원하려면 `aegis-spoke-outbox` Longhorn RWO PVC를 대체하거나 노드별 outbox/publisher 구조를 재설계해야 한다.
-3. worker1 support는 후속 과제로 분리한다.
-4. Dashboard에서 이미지를 보여줄 때 S3 object를 직접 public으로 열지, backend에서 presigned GET URL을 발급할지 결정해야 한다. 기본 방침은 presigned GET이다.
-5. 이미지 lifecycle은 별도 정책이 필요하다. MVP 기본값은 7일 또는 30일 중 비용 기준으로 결정한다.
+1. failover까지 지원하려면 `aegis-spoke-outbox` Longhorn RWO PVC를 대체하거나 노드별 outbox/publisher 구조를 재설계해야 한다.
+2. worker1 snapshot upload support는 후속 과제로 분리한다.
+3. Dashboard에서 이미지를 보여줄 때 S3 object를 직접 public으로 열지, backend에서 presigned GET URL을 발급할지 결정해야 한다. 기본 방침은 presigned GET이다.
+4. 이미지 cloud lifecycle은 별도 정책이 필요하다. MVP 이후 7일 또는 30일 중 비용 기준으로 결정한다.
+5. 운영 보안을 강화하려면 SnapshotPresigner `PRESIGN_SHARED_TOKEN`과 K3s Secret `snapshot-uploader-presign/token`을 설정한다.
 
 ## Non-Goals
 

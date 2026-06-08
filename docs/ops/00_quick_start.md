@@ -1,7 +1,7 @@
 # Quick Start
 
 상태: source of truth
-기준일: 2026-06-02
+기준일: 2026-06-08
 
 ## 목적
 
@@ -24,6 +24,7 @@
 - Lambda data processor(`apps/data-processor/`) 구현 완료. DynamoDB는 `LATEST`와 `HISTORY#STATE#{updated_at}` snapshot 이력 구조를 사용하며, history에는 `LATEST`와 같은 구조에 `ttl`만 추가한다. DataProcessorRefresh1m은 새 메시지가 없는 factory도 `pipeline_status`와 `risk`를 현재 시각 기준으로 재계산한다. GraphAggregator5m은 `HISTORY#STATE`를 읽어 `GRAPH#5M`과 S3 `processed_agg`를 만들며, `GRAPH#5M.infra.nodes[]`에 node별 CPU/memory/disk 5분 집계를 저장한다. Terraform 인프라(`infra/data-pipeline/`) 구현 완료.
 - Cloud infra collectors 구현/배포 완료. FastCollector는 ECS/ALB/Lambda/DynamoDB/Scheduler/factory freshness를 1분마다 `CLOUD#infra/LATEST.fast`에 저장하고, SlowCollector는 EKS/Kubernetes/ArgoCD/S3 freshness를 5분마다 `CLOUD#infra/LATEST.slow`에 저장한다. CloudWatch Container Insights는 기본 OFF이고 `metrics-server`는 기본 ON이다.
 - RiskAlertDispatcher 구현/배포 완료. S3 `processed/{factory}/state_snapshot/`와 `processed/cloud_infra/{fast,slow}/` ObjectCreated 이벤트를 받아 warning/danger 조건을 판단하고, DynamoDB `ALERT#...` item으로 cooldown/dedupe를 적용한 뒤 cloud/factory-a/factory-b/factory-c별 Slack webhook으로 한글 알림을 보낸다. Slack webhook URL은 로컬 `.secrets/`와 AWS Secrets Manager에만 두며 repo에는 저장하지 않는다.
+- factory-a image snapshot S3 upload pipeline 구현/배포 완료. `snapshot-uploader`가 worker2 node-local `/var/lib/safe-edge/snapshots`를 10초 polling으로 스캔하고, `AEGIS-Lambda-SnapshotPresigner`가 발급한 presigned PUT URL로 원본 이미지를 `s3://aegis-bucket-data/image_snapshot/`에 업로드한다. IoT Core에는 이미지 bytes가 아니라 `source_type=image_snapshot` metadata JSON만 전송한다.
 - IoT -> Lambda -> DynamoDB/S3 processed end-to-end 검증과 pipeline_status 동작 확인은 `factory-a/b/c` 기준 완료됐다. 2026-05-29 기준 `factory-a`는 2026-05-28T07:54Z 이후 입력 중단으로 `pipeline_status=critical`, `risk.score=0`, `risk.level=danger`로 refresh 확인됐고, `factory-b/c`는 정상 입력 기준 `risk.score=100`이다.
 - Lambda data processor의 `risk-v0.2.0` Risk Score 계산은 구현/검증 완료됐다. 다음 Risk 작업은 `configs/runtime/runtime-config.yaml`을 실제 Lambda Risk 계산에 연결하고, Risk Twin/Dashboard가 읽을 read model 필드를 고정하는 것이다.
 - Dashboard page와 Dashboard VPC는 별도 담당 범위다. 이 repo에서는 DynamoDB/S3 processed 데이터 계약과 report 산출물 계약을 유지한다.
@@ -58,6 +59,7 @@
 12. `docs/ops/26_dynamodb_key_model.md`
 13. `docs/ops/29_cloud_infra_metrics_pipeline_plan.md`
 14. `docs/ops/31_risk_alert_dispatcher.md`
+15. `docs/ops/32_image_snapshot_pipeline.md`
 
 ## 빠른 상태 확인
 
@@ -82,6 +84,7 @@ safe-edge-monitoring: Synced / Healthy
 safe-edge-ai-apps: Synced / Healthy
 monitoring/influxdb, prometheus, grafana: Running
 ai-apps/bme280-sensor, safe-edge-integrated-ai, safe-edge-audio: worker2 Running
+ai-apps/aegis-spoke-snapshot-uploader: worker2 Running
 safe-edge-image-prepull: worker1, worker2 Running
 Longhorn volumes: attached / healthy
 ```
@@ -111,6 +114,7 @@ factory-b/factory-c Hub ArgoCD cluster 등록 및 Application 생성
 factory-b/factory-c local dummy generator 및 K3s edge-iot-publisher 활성화
 factory-a/factory-b/factory-c IoT Core -> S3 raw 적재 검증
 factory-a/factory-b/factory-c IoT Core -> Lambda -> DynamoDB/S3 processed 적재 검증
+factory-a AI snapshot -> presigned S3 upload -> image_snapshot metadata -> IoT Core -> raw/processed/DynamoDB 검증
 GraphAggregator5m DynamoDB GRAPH#5M / S3 processed_agg 집계 검증
 GraphAggregator5m `GRAPH#5M.infra.nodes[]` node별 5분 집계 검증
 DataProcessorRefresh1m pipeline_status/risk freshness refresh 검증
@@ -145,7 +149,7 @@ Daily Factory Report local/AWS manual execution 검증
 | 7 | `scripts/build/register-spoke-factory-c.sh [MFA_OTP]` | factory-c Tailscale egress, ArgoCD cluster Secret, `aegis-spoke-factory-c` Application |
 | 8 | `scripts/ops/manage-dummy-generators.sh start factory-b` | factory-b worker SSH -> `aegis-factory-b-dummy-generator.service` 시작 |
 | 9 | `scripts/ops/manage-dummy-generators.sh start factory-c` | factory-c worker SSH -> `aegis-factory-c-dummy-generator.service` 시작 |
-| 10 | `scripts/build/build-data-pipe.sh [MFA_OTP]` | IoT Topic Rule x3, Lambda `AEGIS-Lambda-DataProcessor`, Lambda `AEGIS-Lambda-GraphAggregator5m`, Lambda `AEGIS-Lambda-CloudInfraFastCollector`, Lambda `AEGIS-Lambda-CloudInfraSlowCollector`, Lambda `AEGIS-Lambda-RiskAlertDispatcher`, EventBridge Scheduler x4, CloudWatch Log Groups, IAM role/policy, SlowCollector EKS AdminView read access entry, S3 `processed/` ObjectCreated alert trigger, Slack webhook secret metadata, S3 `processed/`/`processed_agg`/`processed/cloud_infra/` 적재 경로 |
+| 10 | `scripts/build/build-data-pipe.sh [MFA_OTP]` | IoT Topic Rule x3, Lambda `AEGIS-Lambda-DataProcessor`, Lambda `AEGIS-Lambda-SnapshotPresigner`, Lambda `AEGIS-Lambda-GraphAggregator5m`, Lambda `AEGIS-Lambda-CloudInfraFastCollector`, Lambda `AEGIS-Lambda-CloudInfraSlowCollector`, Lambda `AEGIS-Lambda-RiskAlertDispatcher`, EventBridge Scheduler x4, CloudWatch Log Groups, IAM role/policy, SlowCollector EKS AdminView read access entry, SnapshotPresigner HTTP API, S3 `processed/` ObjectCreated alert trigger, Slack webhook secret metadata, S3 `processed/`/`processed_agg`/`processed/cloud_infra/` 적재 경로 |
 | 11 | `scripts/build/build-reporting.sh [MFA_OTP]` | 선택/on-demand: reporting Lambda x4, Step Functions, EventBridge Scheduler, CloudWatch Log Groups, IAM role/policy. 입력은 S3 `processed/`, 출력은 S3 `reports/daily/` |
 
 ### 종료

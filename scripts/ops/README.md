@@ -1,7 +1,7 @@
 # scripts/ops
 
 상태: source of truth
-기준일: 2026-06-04
+기준일: 2026-06-08
 
 ## 목적
 
@@ -52,6 +52,22 @@ scripts/ops/check-spoke-publisher-safety.sh factory-b factory-c
 PRESIGN_ENDPOINT="https://example.execute-api.ap-south-1.amazonaws.com/image-snapshot/presign" \
 PRESIGN_TOKEN="optional-shared-token" \
 scripts/ops/register-snapshot-presigner-secret.sh
+
+# 2026-06-08 factory-a 배포 endpoint
+PRESIGN_ENDPOINT="https://pp604cwuk8.execute-api.ap-south-1.amazonaws.com/image-snapshot/presign" \
+PRESIGN_TOKEN="" \
+scripts/ops/register-snapshot-presigner-secret.sh
+```
+
+`register-snapshot-presigner-secret.sh`는 factory-a master SSH를 사용한다. SSH 인증이 불가능하고 로컬 kubeconfig가 있으면 다음 방식으로 같은 Secret을 직접 적용할 수 있다.
+
+```bash
+kubectl --kubeconfig /home/vicbear/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig \
+  -n ai-apps create secret generic snapshot-uploader-presign \
+  --from-literal=endpoint=https://pp604cwuk8.execute-api.ap-south-1.amazonaws.com/image-snapshot/presign \
+  --from-literal=token= \
+  --dry-run=client -o yaml | \
+kubectl --kubeconfig /home/vicbear/Aegis/.aegis/secrets/kubeconfig/factory-a.tailscale-ip-tlsname.kubeconfig apply -f -
 ```
 
 ## 참고

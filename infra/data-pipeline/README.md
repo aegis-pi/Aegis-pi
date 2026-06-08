@@ -1,11 +1,11 @@
 # infra/data-pipeline
 
 상태: source of truth
-기준일: 2026-06-04
+기준일: 2026-06-08
 
 ## 목적
 
-IoT Core -> Lambda data processor 처리 파이프라인, 5분 그래프 집계 인프라, Cloud infra dashboard read model collectors를 관리한다.
+IoT Core -> Lambda data processor 처리 파이프라인, image snapshot presigned upload API, 5분 그래프 집계 인프라, Cloud infra dashboard read model collectors를 관리한다.
 
 ## 레이어 특성
 
@@ -23,6 +23,10 @@ IoT Core -> Lambda data processor 처리 파이프라인, 5분 그래프 집계 
 | Lambda | `AEGIS-Lambda-DataProcessor` | IoT Core 수신 메시지 처리 |
 | IAM Role | `AEGIS-IAMRole-Lambda-DataProcessor` | Lambda 실행 역할 (DynamoDB R/W, S3 processed PutObject) |
 | CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-DataProcessor` | Lambda 실행 로그 |
+| Lambda | `AEGIS-Lambda-SnapshotPresigner` | factory-a snapshot image presigned S3 PUT URL 발급 |
+| HTTP API | `AEGIS-HTTPAPI-SnapshotPresigner` | `POST /image-snapshot/presign` |
+| IAM Role | `AEGIS-IAMRole-Lambda-SnapshotPresigner` | Lambda 실행 역할 (`s3:PutObject` on `image_snapshot/*`) |
+| CloudWatch Log Group | `/aws/lambda/AEGIS-Lambda-SnapshotPresigner` | SnapshotPresigner 실행 로그 |
 | EventBridge Scheduler | `AEGIS-Schedule-DataProcessorRefresh1m` | 1분 주기 stale pipeline_status/risk refresh |
 | IAM Role | `AEGIS-IAMRole-Scheduler-DataProcessorRefresh` | DataProcessor refresh Scheduler의 Lambda invoke 역할 |
 | Lambda | `AEGIS-Lambda-GraphAggregator5m` | DynamoDB HISTORY#STATE → GRAPH#5M / S3 processed_agg 집계 |
@@ -75,6 +79,7 @@ build-data-pipe.sh   ← foundation + hub apply 후 실행
 | --- | --- |
 | `iot_rule.tf` | IoT Rule × 3 (factory-a/b/c), IAM Role/Policy, S3 raw 적재 설정 |
 | `lambda.tf` | DataProcessor Lambda 함수, IAM Role/Policy, CloudWatch Log Group, DataProcessorRefresh1m Scheduler |
+| `snapshot_presigner.tf` | SnapshotPresigner Lambda, HTTP API Gateway, IAM Role/Policy, CloudWatch Log Group |
 | `graph_aggregator_lambda.tf` | GraphAggregator5m Lambda, IAM, EventBridge Scheduler |
 | `cloud_infra_fast_collector.tf` | CloudInfraFastCollector Lambda, IAM, EventBridge Scheduler |
 | `cloud_infra_slow_collector.tf` | CloudInfraSlowCollector Lambda, IAM, EKS access entry, EventBridge Scheduler |
@@ -102,6 +107,27 @@ ALB target state는 `healthy_host_count`, `unhealthy_host_count`, `draining_host
 RiskAlertDispatcher도 이 data-pipeline root의 생명주기에 포함된다. `scripts/build/build-data-pipe.sh`는 Terraform apply 후 로컬 Slack webhook 파일이 있으면 값을 Secrets Manager에 주입한다. URL 값은 Terraform state나 repo에 넣지 않는다.
 
 RiskAlertDispatcher는 specific 원인 알림을 먼저 만들고 같은 section의 generic 알림은 fallback으로만 사용한다. 일부 Cloud warning은 별도 `OBSERVATION#...` DynamoDB item에서 서로 다른 최신 snapshot 2회 관측을 확인한 뒤 cooldown 예약과 Slack 전송을 수행한다. danger/critical과 ALB unhealthy, throttle, collector error는 즉시 처리한다.
+
+SnapshotPresigner는 image bytes를 받지 않고 presigned S3 PUT URL만 발급한다. S3 key는 Lambda가 생성하며 edge node가 임의 key를 지정하지 않는다. 현재 factory-a MVP endpoint는 다음과 같다.
+
+```text
+https://pp604cwuk8.execute-api.ap-south-1.amazonaws.com/image-snapshot/presign
+```
+
+현재 `PRESIGN_SHARED_TOKEN`은 빈 값이라 token auth는 비활성화되어 있다. 운영 보안을 강화하려면 Terraform 변수 `snapshot_presigner_shared_token`을 설정하고 factory-a K3s Secret `snapshot-uploader-presign`의 `token` 값을 맞춘다.
+
+Image snapshot metadata는 기존 IoT Rule/DataProcessor 경로를 따른다.
+
+```text
+raw/factory-a/image_snapshot/yyyy={YYYY}/mm={MM}/dd={DD}/{message_id}.json
+processed/factory-a/image_snapshot/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{message_id}.json
+```
+
+원본 이미지는 data-pipeline raw/processed JSON과 분리된 S3 prefix에 저장된다.
+
+```text
+image_snapshot/factory_id=factory-a/yyyy={YYYY}/mm={MM}/dd={DD}/hh={HH}/{filename}
+```
 
 기본 webhook 파일 경로:
 
@@ -151,6 +177,12 @@ cloud_infra_eks_cluster_name             = "AEGIS-EKS"
 
 risk_alert_dispatcher_s3_trigger_enabled = true
 risk_alert_slack_webhook_secret_name      = "AEGIS/foundation-mvp/risk-alert/slack-webhook-url"
+
+lambda_snapshot_presigner_name            = "AEGIS-Lambda-SnapshotPresigner"
+snapshot_presigner_allowed_factory_ids    = ["factory-a"]
+snapshot_presigner_max_file_bytes         = 5242880
+snapshot_presigner_expires_in_seconds     = 300
+snapshot_presigner_shared_token           = ""
 ```
 
 ## 실행
@@ -181,3 +213,5 @@ terraform apply
    - Fast snapshot에서 ECS 배포 중인 `draining_host_count`가 `unhealthy_host_count`에 합산되지 않는지 확인한다.
    - `target_group_name`을 존재하지 않는 값으로 override한 수동 invoke가 `errors=[]`로 끝나면 이름 fallback이 아니라 ECS ARN 우선 조회가 동작하는 것이다.
 9. S3 `processed/{factory}/state_snapshot/` 또는 `processed/cloud_infra/{fast,slow}/`의 warning/danger snapshot 생성 시 `AEGIS-Lambda-RiskAlertDispatcher`가 실행되고 DynamoDB `ALERT#...` dedupe item과 Slack alert가 기록되는지 확인
+10. SnapshotPresigner API에 valid metadata request를 보내 `200`과 presigned PUT URL이 반환되는지 확인
+11. factory-a image event 발생 후 S3 `image_snapshot/`, raw `image_snapshot`, processed `image_snapshot`, DynamoDB `LATEST.latest_image_snapshot`을 확인
