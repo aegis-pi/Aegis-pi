@@ -44,7 +44,7 @@ snapshotUploader:
   enabled: true
   image:
     repository: 611058323802.dkr.ecr.ap-south-1.amazonaws.com/aegis/snapshot-uploader
-    tag: main
+    tag: sha-6d30ef2
     pullPolicy: Always
   presign:
     secretName: snapshot-uploader-presign
