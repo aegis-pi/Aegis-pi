@@ -54,14 +54,93 @@ def sample_image_snapshot_message():
 
 
 class FakeMqttClient:
-    def __init__(self, fail=False):
+    def __init__(self, fail=False, ack_fail=False):
         self.fail = fail
+        self.ack_fail = ack_fail
         self.published = []
+        self.connected = False
+        self.disconnected = False
+        self.connect_count = 0
 
     def publish(self, topic, payload):
         if self.fail:
             raise RuntimeError("publish failed")
+        if self.ack_fail:
+            raise TimeoutError("publish ack timed out")
         self.published.append((topic, json.loads(payload.decode("utf-8"))))
+
+    def connect(self):
+        self.connect_count += 1
+        self.connected = True
+
+    def disconnect(self):
+        self.disconnected = True
+
+
+class FakePublishInfo:
+    def __init__(self, rc=0, published=True):
+        self.rc = rc
+        self._published = published
+        self.wait_called = False
+
+    def wait_for_publish(self, timeout=None):
+        self.wait_called = True
+
+    def is_published(self):
+        return self._published
+
+
+class FakeUnderlyingPahoClient:
+    def __init__(self, info=None):
+        self.info = info or FakePublishInfo()
+        self.connected = False
+        self.connect_count = 0
+        self.loop_started = False
+        self.loop_stopped = False
+        self.disconnected = False
+        self.published = []
+        self.on_connect = None
+
+    def is_connected(self):
+        return self.connected
+
+    def connect(self, endpoint, port, keepalive):
+        self.connect_count += 1
+        self.connected = True
+        if self.on_connect:
+            self.on_connect(self, None, None, 0)
+
+    def loop_start(self):
+        self.loop_started = True
+
+    def publish(self, topic, payload=None, qos=0):
+        self.published.append((topic, payload, qos))
+        return self.info
+
+    def disconnect(self):
+        self.disconnected = True
+        self.connected = False
+
+    def loop_stop(self):
+        self.loop_stopped = True
+
+
+class FakeMqttModule:
+    MQTT_ERR_SUCCESS = 0
+
+
+class ConnectFailsOnceMqttClient(FakeMqttClient):
+    def __init__(self):
+        super().__init__()
+        self.after_second_connect = None
+
+    def connect(self):
+        self.connect_count += 1
+        if self.connect_count == 1:
+            raise RuntimeError("connect failed")
+        self.connected = True
+        if self.after_second_connect:
+            self.after_second_connect()
 
 
 class EdgeIotPublisherTest(unittest.TestCase):
@@ -104,6 +183,39 @@ class EdgeIotPublisherTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 publisher.publish_file(path)
             self.assertTrue(path.exists())
+
+    def test_publish_ack_failure_keeps_file_for_retry(self):
+        mqtt = FakeMqttClient(ack_fail=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            outbox = Path(tmp)
+            os.environ["AEGIS_OUTBOX_DIR"] = str(outbox)
+            path = outbox / "message.json"
+            path.write_text(json.dumps(sample_message()), encoding="utf-8")
+
+            publisher = publisher_module.EdgeIotPublisher(mqtt_client=mqtt)
+
+            with self.assertRaises(TimeoutError):
+                publisher.publish_file(path)
+            self.assertTrue(path.exists())
+
+    def test_publish_once_retries_file_after_previous_publish_failure(self):
+        mqtt = FakeMqttClient(fail=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            outbox = Path(tmp)
+            os.environ["AEGIS_OUTBOX_DIR"] = str(outbox)
+            path = outbox / "message.json"
+            path.write_text(json.dumps(sample_message()), encoding="utf-8")
+
+            publisher = publisher_module.EdgeIotPublisher(mqtt_client=mqtt)
+
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(publisher.publish_once(), 0)
+            self.assertTrue(path.exists())
+
+            mqtt.fail = False
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(publisher.publish_once(), 1)
+            self.assertFalse(path.exists())
 
     def test_invalid_file_moves_to_quarantine(self):
         mqtt = FakeMqttClient()
@@ -161,6 +273,72 @@ class EdgeIotPublisherTest(unittest.TestCase):
                 publisher.publish_file(path)
             self.assertFalse(path.exists())
             self.assertTrue((outbox / "quarantine" / "image-snapshot.json").exists())
+
+    def test_run_loop_disconnects_on_graceful_stop(self):
+        mqtt = FakeMqttClient()
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_OUTBOX_DIR"] = tmp
+            publisher = publisher_module.EdgeIotPublisher(mqtt_client=mqtt)
+            publisher.stop(15)
+
+            publisher.run_loop()
+
+            self.assertTrue(mqtt.disconnected)
+
+    def test_run_loop_retries_connect_after_connect_failure(self):
+        mqtt = ConnectFailsOnceMqttClient()
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["AEGIS_OUTBOX_DIR"] = tmp
+            os.environ["AEGIS_PUBLISHER_BACKOFF_SECONDS"] = "0.001"
+            os.environ["AEGIS_PUBLISHER_MAX_BACKOFF_SECONDS"] = "0.001"
+            publisher = publisher_module.EdgeIotPublisher(mqtt_client=mqtt)
+            mqtt.after_second_connect = publisher.stop
+
+            publisher.run_loop()
+
+            self.assertEqual(mqtt.connect_count, 2)
+            self.assertTrue(mqtt.disconnected)
+
+    def test_paho_client_uses_qos1_and_waits_for_publish_ack(self):
+        info = FakePublishInfo()
+        fake_client = FakeUnderlyingPahoClient(info=info)
+        client = publisher_module.PahoMqttClient(
+            endpoint="example.iot",
+            port=8883,
+            client_id="AEGIS-IoTThing-factory-a",
+            ca_file="ca.pem",
+            cert_file="cert.pem",
+            key_file="key.pem",
+        )
+        client._mqtt = FakeMqttModule()
+        client._client = fake_client
+        fake_client.on_connect = client._on_connect
+
+        client.publish("aegis/factory-a/factory_state", b"{}")
+
+        self.assertEqual(fake_client.connect_count, 1)
+        self.assertEqual(fake_client.published[0], ("aegis/factory-a/factory_state", b"{}", 1))
+        self.assertTrue(info.wait_called)
+
+    def test_paho_client_reconnects_when_underlying_client_is_disconnected(self):
+        fake_client = FakeUnderlyingPahoClient()
+        client = publisher_module.PahoMqttClient(
+            endpoint="example.iot",
+            port=8883,
+            client_id="AEGIS-IoTThing-factory-a",
+            ca_file="ca.pem",
+            cert_file="cert.pem",
+            key_file="key.pem",
+        )
+        client._mqtt = FakeMqttModule()
+        client._client = fake_client
+        fake_client.on_connect = client._on_connect
+
+        client.publish("aegis/factory-a/factory_state", b"{}")
+        fake_client.connected = False
+        client.publish("aegis/factory-a/factory_state", b"{}")
+
+        self.assertEqual(fake_client.connect_count, 2)
 
 
 if __name__ == "__main__":

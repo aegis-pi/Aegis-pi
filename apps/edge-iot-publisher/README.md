@@ -14,7 +14,10 @@
 | `AEGIS_IOT_CA_FILE` | required |
 | `AEGIS_IOT_CERT_FILE` | required |
 | `AEGIS_IOT_KEY_FILE` | required |
+| `AEGIS_IOT_KEEPALIVE_SECONDS` | `60` |
 | `AEGIS_IOT_TIMEOUT_SECONDS` | `10` |
+| `AEGIS_IOT_RECONNECT_MIN_DELAY_SECONDS` | `1` |
+| `AEGIS_IOT_RECONNECT_MAX_DELAY_SECONDS` | `60` |
 | `AEGIS_PUBLISHER_BACKOFF_SECONDS` | `5` |
 | `AEGIS_PUBLISHER_MAX_BACKOFF_SECONDS` | `60` |
 
@@ -22,12 +25,14 @@
 
 The publisher scans only `*.json` files directly under the outbox root. It ignores `tmp/` and `quarantine/` directories.
 
+The default MQTT implementation uses `paho-mqtt` and keeps one TLS MQTT connection open for the publisher process lifetime. Messages are published with QoS 1, so the local outbox file is deleted only after the MQTT publish ack completes. If the connection drops or the ack does not complete, the file remains in the outbox and is retried after reconnect/backoff.
+
 For every valid message it:
 
 1. overwrites `published_at` with the actual publish time,
 2. overwrites `data_plane_instance_id` with the publisher instance ID,
 3. publishes to `aegis/{factory_id}/{source_type}`,
-4. deletes the local outbox file after successful publish.
+4. deletes the local outbox file after successful publish ack.
 
 Invalid JSON or schema-invalid files are moved to `outbox/quarantine/`. Publish failures leave the file in the outbox for retry.
 
